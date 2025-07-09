@@ -1,0 +1,31 @@
+# 1. 모델의 종류
+# 모델 이름은 반드시 파일 이름과 동일해야 한다.
+name: "xgboost_x_learner"
+
+# 2. 모델이 사용할 데이터의 명세
+data_interface:
+  features:
+    - 'member_id'
+    - 'member_gender'
+    - 'member_age'
+    - 'passport_usage'
+    - 'socar_club_level'
+    - 'member_credit_balance'
+    - 'rsvn_90_count'
+    - 'rsvn_60_count'
+    - 'rsvn_30_count'
+    - 'grp'
+    - 'outcome'
+  target_col: "outcome"
+  treatment_col: "grp" # uplift 모델에서 특별히 존재하는 컬럼. 일반적으로는 features - target_col 구조.
+
+# 3. 모델 알고리즘의 하이퍼파라미터 (params -> hyperparameters)
+hyperparameters:
+  objective: "binary:logistic"
+  eval_metric: "logloss"
+  n_estimators: 100
+  learning_rate: 0.1
+  max_depth: 3
+  subsample: 0.8
+  colsample_bytree: 0.8
+  random_state: 42

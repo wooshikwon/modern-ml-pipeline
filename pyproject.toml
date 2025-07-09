@@ -1,0 +1,26 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ml-pipeline"
+version = "0.1.0"
+description = 'uplift modeling example'
+readme = "README.md"
+requires-python = ">=3.10, <4.0"
+authors = [
+  { name = "wesley", email = "weslery@socar.kr" },
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = []
+
+[project.scripts]
+cli = "ml_pipeline.main:app"
+
+[tool.hatch.scripts]
+run = "python -m ml_pipeline.main"
+test = "pytest"
+lint = "ruff check . && mypy ."
+

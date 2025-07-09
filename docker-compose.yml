@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  mlflow-server:
+    image: ghcr.io/mlflow/mlflow:v2.14.1
+    container_name: mlflow-server-uplift
+    restart: always
+    ports:
+      - "5000:5000"
+    volumes:
+      # 로컬의 ./local/artifacts 디렉토리를 컨테이너의 /mlruns와 마운트하여
+      # MLflow 실험 데이터와 아티팩트를 영속적으로 관리합니다.
+      - ./local/artifacts:/mlruns
+    command: >
+      mlflow server
+      --host 0.0.0.0
+      --port 5000
+      --backend-store-uri /mlruns
+    environment:
+      - MLFLOW_TRACKING_URI=http://localhost:5000
