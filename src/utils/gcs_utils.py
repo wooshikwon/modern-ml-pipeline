@@ -13,7 +13,7 @@ from google.cloud import storage
 from google.api_core import exceptions
 from google.oauth2 import service_account
 
-from config.settings import Settings
+from src.settings.settings import Settings
 from src.utils.logger import logger
 
 
@@ -148,19 +148,29 @@ def download_object_from_gcs(gcs_uri: str, settings: Settings, serialization_for
         logger.error(f"GCS 다운로드 중 예상치 못한 오류: {e}")
         raise
 
-def generate_model_path(model_name: str, settings: Settings, version: Optional[str] = None) -> str:
-    """모델 저장을 위한 GCS 경로를 생성합니다."""
+def generate_model_path(
+    model_name: str,
+    settings: Settings,
+    version: Optional[str] = None,
+    extension: str = ".joblib"
+) -> str:
+    """아티팩트 저장을 위한 GCS 경로를 생성합니다."""
     try:
-        bucket_name = settings.pipeline.transformer.output.bucket_name
+        # preprocessor 설정에서 버킷 이름을 가져옴
+        bucket_name = settings.preprocessor.output.bucket_name
         if not bucket_name:
-            raise ValueError("pipeline.transformer.output.bucket_name이 설정되지 않았습니다.")
+            raise ValueError("preprocessor.output.bucket_name이 설정되지 않았습니다.")
         
         version_str = version or datetime.now().strftime("%Y%m%d_%H%M%S")
-        model_path = f"models/{model_name}/v{version_str}/{model_name}.joblib"
-        gcs_uri = f"gs://{bucket_name}/{model_path}"
         
-        logger.info(f"모델 경로 생성: {gcs_uri}")
-        return gcs_uri
+        # 확장자가 점으로 시작하는지 확인
+        if not extension.startswith('.'):
+            extension = f".{extension}"
+            
+        artifact_path = f"models/{model_name}/v{version_str}/{model_name}{extension}"
+        
+        logger.info(f"GCS 아티팩트 경로 생성: {artifact_path}")
+        return artifact_path
     except Exception as e:
-        logger.error(f"모델 경로 생성 실패: {e}")
+        logger.error(f"GCS 경로 생성 실패: {e}")
         raise

@@ -5,6 +5,7 @@ name: "causal_forest"
 # 2. 모델이 사용할 데이터의 명세
 data_interface:
   features:
+    - 'created_at'
     - 'member_id'
     - 'member_gender'
     - 'member_age'
@@ -18,6 +19,7 @@ data_interface:
     - 'outcome'
   target_col: "outcome"
   treatment_col: "grp" # uplift 모델에서 특별히 존재하는 컬럼. 일반적으로는 features - target_col 구조.
+  treatment_value: "Treatment" # 실험군을 식별하는 값
 
 # 3. 모델 알고리즘의 하이퍼파라미터 (params -> hyperparameters)
 hyperparameters:

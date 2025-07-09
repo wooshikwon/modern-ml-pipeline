@@ -10,7 +10,7 @@ from pathlib import Path
 
 # 여기서는 일자별 로그 파일이 생성되는 방식으로 - RotatingFileHandler 사용
 from logging.handlers import TimedRotatingFileHandler
-from config.settings import settings
+from src.settings.settings import settings
 
 """
 1. 이 프로젝트(애플리케이션)의 전역 로거를 설정

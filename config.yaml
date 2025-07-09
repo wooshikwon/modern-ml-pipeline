@@ -14,20 +14,18 @@ loader:
       dataset_id: "uplift_virtual_coupon"
       table_id: "abt_logs"
       unique_column: "member_id"
-# e.g.
-# other_data_name:
-#   sql_file_path: "src/sql/other_data.sql"
-#   output:
-#     type: "bigquery"
-#     project_id: ${GCP_PROJECT_ID}
-#     dataset_id: "uplift_virtual_coupon"
-#     table_id: "other_data"
 
-# 2-2. preprocessor.py 관련 설정 (이번 프로젝트에선 불필요)
-# preprocessor:
+# 2-2. augmenter.py 관련 설정
+augmenter:
+  batch:
+    feature_store_sql_path: "src/sql/user_features.sql"
+  realtime:
+    type: "redis"
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT:6379}
 
-# 2-3. transformer.py 관련 설정
-transformer:
+# 2-3. preprocessor.py 관련 설정
+preprocessor:
   params:
     criterion_col: 'rsvn_30_count' # categorical 컬럼별로 grouping하여 기준 컬럼의 중앙값이 큰 순서대로 0 ~ 정수형 순서가 부여됨, 공란인 경우 빈도 기반으로 순서가 부여됨
     exclude_cols: ['member_id', 'grp', 'outcome'] # PK나 y값, treatment 컬럼 등 학습 컬럼이 아닌 컬럼들은 변환에서 제외

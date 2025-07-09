@@ -9,7 +9,7 @@ from google.cloud.bigquery import SchemaField
 from pathlib import Path
 from typing import Optional
 
-from config.settings import Settings
+from src.settings.settings import Settings
 from src.utils.logger import logger
 
 

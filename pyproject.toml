@@ -3,24 +3,46 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "ml-pipeline"
-version = "0.1.0"
-description = 'uplift modeling example'
+name = "modern-ml-pipeline"
+version = "0.2.0"
+description = "A modern, configuration-driven ML pipeline for multiple models."
 readme = "README.md"
 requires-python = ">=3.10, <4.0"
 authors = [
   { name = "wesley", email = "weslery@socar.kr" },
 ]
-dependencies = []
+dependencies = [
+    "typer[all]",
+    "uvicorn",
+    "fastapi",
+    "pydantic",
+    "python-dotenv",
+    "PyYAML",
+    "pandas",
+    "scikit-learn",
+    "mlflow",
+    "causalml",
+    "xgboost",
+    "google-cloud-bigquery",
+    "google-cloud-storage",
+    "pyarrow",
+    "db-dtypes",
+    "jinja2",
+]
 
 [project.optional-dependencies]
-dev = []
+dev = [
+    "pytest",
+    "ruff",
+    "mypy",
+]
 
 [project.scripts]
-cli = "ml_pipeline.main:app"
+cli = "main:app"
 
 [tool.hatch.scripts]
-run = "python -m ml_pipeline.main"
+train = "python main.py train --model-name xgboost_x_learner"
+serve = "python main.py serve-api --model-name xgboost_x_learner"
 test = "pytest"
 lint = "ruff check . && mypy ."
 
