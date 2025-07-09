@@ -11,8 +11,7 @@ ml-pipeline
 │   │   ├── loader.py            # 데이터 로드. API serving 환경에선 외부 input으로 대체됨. 배치 추론/학습 환경에선 Data Lake에서 추론/학습하고자 하는 시점-대상 추출
 │   │   ├── augmenter.py         # 로드된 데이터 혹은 Api input을 기반으로 매칭도는 feature sotre 데이터를 불러와 증강
 │   │   ├── preprocessor.py      # 범주형 데이터 수치형 변환 및 standard scaler fit, transform, save, load 등
-│   │   ├── factory.py           # 
-│   │   ├── trainer.py           # 
+│   │   ├── factory.py           # 학습 시 trainer.py에서 호출하여 '모델명' 인자에 맞는 모델 인스턴스 생성. 학습 완료 후 model, augmenter, preprocessor를 pyfuncwapper로 래핑.
 │   │   └── trainer.py           # 
 │   ├── interface/               # 핵심 로직의 설계도 (추상 클래스)
 │   ├── models/                  # sklearn, casualml 패키지가 지원하는 모델을 fit, transformer 함수 구현 후 래핑한 모델 클래스

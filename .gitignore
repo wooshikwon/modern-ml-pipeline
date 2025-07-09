@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Local artifacts & logs
+/local/
+/logs/
+
+# Secrets
+.env
+/credentials/
+
+# IDE & OS specific
+.idea/
+.vscode/
+*.DS_Store
+
+# Vibe coding docs
+.cursor/
+blueprint.md
+factoringlog.md
+GEMINI.md
