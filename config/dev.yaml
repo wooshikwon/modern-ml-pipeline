@@ -1,12 +1,25 @@
-# config/dev.yaml
-# 'dev' 환경에서만 적용될 설정 (base.yaml을 덮어씀)
+# config/dev.yaml: 'dev' 환경 전용 설정
+# -----------------------------------------------------------------------------
+# 이 파일은 APP_ENV=dev 환경에서 base.yaml의 설정을 덮어쓰는 값만 정의합니다.
+# 주로 개발팀이 공유하는 통합 개발 서버 환경을 위한 설정입니다.
+# -----------------------------------------------------------------------------
 
 environment:
+  # 개발용 GCP 프로젝트 ID
   gcp_project_id: "your-dev-gcp-project-id"
 
 mlflow:
+  # 개발팀 공용 MLflow 서버 주소
+  tracking_uri: "http://dev-mlflow-server.internal:5000"
   experiment_name: "Uplift-Modeling-Experiment-Dev"
 
 artifact_stores:
+  augmented_dataset:
+    # dev 환경에서는 BigQuery에 저장
+    base_uri: "bq://${GCP_PROJECT_ID:your-dev-gcp-project-id}.feature_store_dev"
+  preprocessed_dataset:
+    # dev 환경에서는 GCS에 저장
+    enabled: true # dev 환경에서는 전처리 결과도 저장하여 확인
+    base_uri: "gs://${GCS_BUCKET_NAME:your-ml-artifacts-bucket-dev}/preprocessed"
   prediction_results:
-    base_uri: "bq://your-dev-gcp-project-id.prediction_results_dev"
+    base_uri: "bq://${GCP_PROJECT_ID:your-dev-gcp-project-id}.prediction_results_dev"

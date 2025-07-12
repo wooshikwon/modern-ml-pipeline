@@ -33,27 +33,90 @@ def _recursive_merge(dict1: Dict, dict2: Dict) -> Dict:
             dict1[k] = v
     return dict1
 
-# --- Pydantic 모델 정의 (이전과 동일) ---
-# ... (이전 Pydantic 모델 정의는 여기에 그대로 유지됩니다) ...
+# --- Pydantic 모델 정의 ---
 
-# --- 설정 로드 함수 (재설계) ---
+# 1. 운영 환경 설정 (config/*.yaml)
+class EnvironmentSettings(BaseModel):
+    app_env: str
+    gcp_project_id: str
+    gcp_credential_path: Optional[str] = None
+
+class MlflowSettings(BaseModel):
+    tracking_uri: str
+    experiment_name: str
+
+class ServingSettings(BaseModel):
+    model_stage: str
+
+class ArtifactStoreSettings(BaseModel):
+    enabled: bool
+    base_uri: str
+
+# 2. 모델 레시피 설정 (recipes/*.yaml)
+class LoaderSettings(BaseModel):
+    name: str
+    source_sql_path: str
+    local_override_path: Optional[str] = None
+
+class AugmenterSettings(BaseModel):
+    name: str
+    source_template_path: str
+    local_override_path: Optional[str] = None
+
+class PreprocessorParamsSettings(BaseModel):
+    criterion_col: Optional[str] = None
+    exclude_cols: List[str]
+
+class PreprocessorSettings(BaseModel):
+    name: str
+    params: PreprocessorParamsSettings
+
+class DataInterfaceSettings(BaseModel):
+    features: Dict[str, str]
+    target_col: str
+    treatment_col: str
+    treatment_value: Any
+
+class ModelHyperparametersSettings(BaseModel):
+    __root__: Dict[str, Any]
+
+class ModelSettings(BaseModel):
+    name: str
+    loader: LoaderSettings
+    augmenter: Optional[AugmenterSettings] = None
+    preprocessor: Optional[PreprocessorSettings] = None
+    data_interface: DataInterfaceSettings
+    hyperparameters: ModelHyperparametersSettings
+
+# --- 최종 통합 Settings 클래스 ---
+class Settings(BaseModel):
+    # config/*.yaml에서 오는 필드들
+    environment: EnvironmentSettings
+    mlflow: MlflowSettings
+    serving: ServingSettings
+    artifact_stores: Dict[str, ArtifactStoreSettings]
+    # recipes/*.yaml에서 오는 필드
+    model: ModelSettings
+
+# --- 설정 로드 함수 ---
 def load_settings(model_name: str) -> Settings:
     """
     계층화된 설정 파일을 로드하여 통합된 Settings 객체를 반환합니다.
     base.yaml -> {APP_ENV}.yaml -> local.yaml 순서로 덮어씁니다.
     """
     # 1. 기본 설정 로드
-    base_config_path = BASE_DIR / "config" / "base.yaml"
+    config_dir = BASE_DIR / "config"
+    base_config_path = config_dir / "base.yaml"
     settings_data = _load_yaml_with_env(base_config_path)
 
     # 2. 환경별 설정 로드 (덮어쓰기)
-    app_env = os.getenv("APP_ENV", "local")
-    env_config_path = BASE_DIR / "config" / f"{app_env}.yaml"
+    app_env = settings_data.get("environment", {}).get("app_env", "local")
+    env_config_path = config_dir / f"{app_env}.yaml"
     env_config_data = _load_yaml_with_env(env_config_path)
     settings_data = _recursive_merge(settings_data, env_config_data)
 
     # 3. 로컬 개인 설정 로드 (덮어쓰기, 버전 관리 안 됨)
-    local_config_path = BASE_DIR / "config" / "local.yaml"
+    local_config_path = config_dir / "local.yaml"
     local_config_data = _load_yaml_with_env(local_config_path)
     settings_data = _recursive_merge(settings_data, local_config_data)
 
@@ -64,7 +127,7 @@ def load_settings(model_name: str) -> Settings:
     recipe_data = _load_yaml_with_env(recipe_path)
 
     if recipe_data.get("name") != model_name:
-        raise ValueError(f"모델 레시피 파일의 모델 이름 불일치")
+        raise ValueError("모델 레시피 파일의 모델 이름 불일치")
 
     # 5. 최종 병합
     combined_data = {**settings_data, "model": recipe_data}

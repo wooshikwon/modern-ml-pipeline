@@ -1,0 +1,69 @@
+# recipes/example_recipe.yaml
+# -----------------------------------------------------------------------------
+# 이 파일은 새로운 모델 레시피를 작성할 때의 마스터 템플릿입니다.
+# 이 파일 하나만 복사하여 수정하면, 새로운 모델을 파이프라인에 쉽게 추가할 수 있습니다.
+# 각 섹션의 주석은 우리 아키텍처의 핵심 원칙을 설명하는 "살아있는 문서"입니다.
+# -----------------------------------------------------------------------------
+
+# 1. 모델 기본 정보
+name: "example_uplift_model"
+
+# 2. 데이터 로더 정의 (Source of Truth)
+# "어디서 기본 데이터를 가져올 것인가"를 정의합니다. 이 섹션은 필수입니다.
+loader:
+  name: "campaign_target_users"
+  # 클라우드 환경(dev, prod)에서 사용할 기본 데이터 소스입니다.
+  source_sql_path: "recipes/sql/loaders/user_features.sql"
+  # 로컬 환경(APP_ENV=local)에서만 위 `source_sql_path`를 덮어쓰고 사용할 파일 경로입니다.
+  # 이 경로에 파일이 존재하면, 파이프라인은 클라우드에 접근하지 않고 이 파일을 사용합니다.
+  local_override_path: "local/data/sample_campaign_targets.csv"
+
+# 3. 피처 증강기 정의 (Feature Enrichment)
+# "어떤 로직으로 피처를 풍성하게 만들 것인가"를 정의합니다.
+# 이 섹션이 존재하지 않거나, `augmenter: null` 로 설정되면,
+# Augmenter 단계를 건너뛰고 Loader의 결과가 바로 다음 단계로 전달됩니다. (Pass-through)
+augmenter:
+  name: "user_summary_features"
+  # 클라우드 환경에서 사용할 피처링 로직(SQL 템플릿)입니다.
+  source_template_path: "recipes/sql/features/user_summary.sql"
+  # 로컬 환경에서 위 SQL 템플릿 대신 사용할 로컬 피처 파일 경로입니다.
+  local_override_path: "local/data/sample_user_features.parquet"
+
+# 4. 전처리기 정의 (Data Transformation)
+# "데이터를 모델이 이해할 수 있는 형태로 어떻게 변환할 것인가"를 정의합니다.
+# 이 섹션이 없거나, `preprocessor: null` 로 설정되면, 이 단계를 건너뜁니다. (Pass-through)
+preprocessor:
+  name: "simple_scaler"
+  params:
+    # 순위 인코딩의 기준이 될 컬럼입니다. (null이면 빈도 인코딩 사용)
+    criterion_col: null
+    # 전처리 과정에서 제외할 컬럼 목록입니다.
+    exclude_cols: ["member_id", "event_timestamp"]
+
+# 5. 모델 인터페이스 및 하이퍼파라미터
+data_interface:
+  # "모델의 계약": 모델이 실행되기 직전, 데이터가 이 스키마를 만족하는지 검증합니다.
+  # 잘못된 데이터 타입이 들어오면, 파이프라인은 명확한 오류 메시지와 함께 즉시 실패합니다.
+  features:
+    gender: "category"
+    age_group: "category"
+    days_since_last_visit: "numeric"
+    lifetime_purchase_count: "numeric"
+    avg_purchase_amount_90d: "numeric"
+    avg_session_duration_30d: "numeric"
+  
+  target_col: "outcome"
+  treatment_col: "grp"
+  treatment_value: "treatment"
+
+hyperparameters:
+  n_estimators: 200
+  max_depth: 4
+  learning_rate: 0.05
+  subsample: 0.8
+  colsample_bytree: 0.8
+  min_child_weight: 1
+  gamma: 0.1
+  random_state: 42
+  objective: "reg:squarederror"
+  eval_metric: "rmse"
