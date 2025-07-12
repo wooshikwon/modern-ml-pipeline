@@ -3,9 +3,9 @@ from typing import Dict, Union
 
 from src.interface.base_augmenter import BaseAugmenter
 from src.utils.logger import logger
-from config.settings import Settings, AugmenterBatchSettings, AugmenterRealtimeSettings
+from src.settings.settings import Settings, AugmenterBatchSettings, AugmenterRealtimeSettings
 from src.utils.bigquery_utils import execute_query
-from src.utils.feature_store_utils import get_features_from_redis
+from src.utils.redis_utils import get_features_from_redis
 
 
 class BatchAugmenter(BaseAugmenter):
@@ -50,15 +50,4 @@ class RealtimeAugmenter(BaseAugmenter):
         return augmented_df
 
 
-def create_augmenter(settings: Settings) -> BaseAugmenter:
-    """
-    실행 환경('run_mode')에 따라 적절한 Augmenter 인스턴스를 생성하여 반환합니다.
-    """
-    run_mode = settings.environment.run_mode
-    
-    if run_mode == "serving":
-        logger.info("실시간 서빙용 RealtimeAugmenter를 생성합니다.")
-        return RealtimeAugmenter(config=settings.augmenter.realtime)
-    else:  # "local", "batch", "train" 등 나머지 모든 경우
-        logger.info("배치 처리용 BatchAugmenter를 생성합니다.")
-        return BatchAugmenter(config=settings.augmenter.batch, settings=settings)
+

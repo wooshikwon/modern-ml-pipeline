@@ -21,3 +21,6 @@ __pycache__/
 blueprint.md
 factoringlog.md
 GEMINI.md
+
+# Old lock files
+hatch.lock

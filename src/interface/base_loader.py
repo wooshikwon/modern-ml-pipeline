@@ -14,15 +14,13 @@ class BaseLoader(ABC):
     """
 
     @abstractmethod
-    def load(self, dataset_name: str, settings: Settings) -> pd.DataFrame:
+    def load(self, params: Optional[Dict[str, Any]] = None) -> pd.DataFrame:
         """
         데이터 소스에서 데이터를 로드하여 pandas DataFrame으로 반환합니다.
 
         Args:
-            dataset_name (str):
-                Loader 내부의 여러개 데이터셋 경로 중 '특정 sql' 파일을 선택하도록 전달하는 이름.
-            settings (Settings):
-                환경 설정 등을 포함한 utils/ 도구에 전달할 객체.
+            params (Optional[Dict[str, Any]]):
+                SQL 쿼리 템플릿 등에 전달할 파라미터.
 
         Returns:
             pd.DataFrame: 로드된 데이터.

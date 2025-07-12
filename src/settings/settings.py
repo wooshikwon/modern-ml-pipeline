@@ -25,7 +25,7 @@ def _load_yaml_with_env(file_path: Path) -> Dict[str, Any]:
 
 # 환경 설정
 class EnvironmentSettings(BaseModel):
-    run_mode: str
+    app_env: str
     gcp_credential_path: Optional[str] = None
     gcp_project_id: str
 
@@ -38,8 +38,10 @@ class LoaderOutputSettings(BaseModel):
     unique_col: str
 
 class LoaderSettings(BaseModel):
-    sql_file_path: str
-    output: LoaderOutputSettings
+    type: str  # 로더 타입 (e.g., "bigquery", "file")
+    local_file_path: Optional[str] = None # FileLoader를 위한 로컬 경로
+    sql_file_path: Optional[str] = None   # BigQueryLoader를 위한 SQL 경로
+    output: Optional[LoaderOutputSettings] = None # BigQueryLoader의 결과 저장 정보
 
 # Preprocessor 설정 (기존 TransformerSettings에서 이름 변경)
 class PreprocessorOutputSettings(BaseModel):
@@ -88,6 +90,10 @@ class MlflowSettings(BaseModel):
     tracking_uri: str
     experiment_name: str
 
+# Serving 설정 (신규 추가)
+class ServingSettings(BaseModel):
+    model_stage: str
+
 # --- 최종 통합 Settings 클래스 ---
 class Settings(BaseModel):
     environment: EnvironmentSettings
@@ -95,6 +101,7 @@ class Settings(BaseModel):
     augmenter: AugmenterSettings # augmenter 설정 추가
     preprocessor: PreprocessorSettings  # transformer -> preprocessor
     mlflow: MlflowSettings
+    serving: ServingSettings # serving 설정 추가
     model: ModelSettings
 
 # --- 설정 로드 함수 ---

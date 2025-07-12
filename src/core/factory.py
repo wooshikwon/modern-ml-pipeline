@@ -3,7 +3,7 @@ import pandas as pd
 import mlflow
 from typing import Union, Dict, Optional
 
-from config.settings import Settings
+from src.settings.settings import Settings
 from src.interface.base_model import BaseModel
 from src.models import XGBoostXLearner, CausalForestModel
 from src.core.augmenter import BatchAugmenter, RealtimeAugmenter

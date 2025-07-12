@@ -1,61 +1,82 @@
+# Dockerfile for Modern ML Pipeline (v3.0 - uv)
 # -----------------------------------------------------------------------------
-# Dockerfile for Modern ML Pipeline
-# -----------------------------------------------------------------------------
-# Multi-stage build 전략을 사용하여, 최종 목적(학습, 서빙)에 따라
-# 최적화된 이미지를 생성합니다.
+# Multi-stage build optimized for speed and security using uv.
 # -----------------------------------------------------------------------------
 
 # --- Stage 1: `base` ---
-# 목적: Python과 Hatch, 그리고 공통 의존성을 설치하는 기본 토대 이미지.
+# Purpose: A common base layer with Python and uv installed.
 FROM python:3.10-slim as base
 
-# --- 환경 변수 설정 ---
-ENV PYTHONUNBUFFERED=1 
-    PIP_NO_CACHE_DIR=off 
-    HATCH_ENV=dev
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=off \
+    APP_ENV=prod
 
-# 시스템에 Hatch 설치
-RUN pip install "hatch==1.11.1"
+# Install uv, the high-performance Python package installer
+RUN pip install --no-cache-dir "uv==0.7.20"
 
-# 작업 디렉토리 설정
+# Set the working directory
 WORKDIR /app
 
-# --- 의존성 설치 (Docker 캐시 최적화) ---
-# 소스 코드를 복사하기 전에, 의존성 정의 파일만 먼저 복사합니다.
-COPY pyproject.toml hatch.toml ./
+# --- Stage 2: `builder` ---
+# Purpose: Install production and development dependencies into a virtual environment.
+# This layer is cached effectively as long as the lock files don't change.
+FROM base as builder
 
-# 기본 의존성 설치 (개발용 제외)
-RUN hatch dep sync
+# Create a virtual environment
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
 
+# Copy only the dependency definition files
+COPY requirements.lock requirements-dev.lock ./
 
-# --- Stage 2: `train` ---
-# 목적: 모델 학습에 필요한 모든 코드와 의존성을 포함하는 이미지.
-FROM base as train
+# Install dependencies using uv for maximum speed
+# Install production dependencies first, then add development dependencies
+RUN uv pip sync --no-cache --python /opt/venv/bin/python requirements.lock && \
+    uv pip sync --no-cache --python /opt/venv/bin/python requirements-dev.lock
 
-# 개발용 의존성까지 모두 설치
-RUN hatch dep sync dev
-
-# 프로젝트의 모든 소스 코드를 이미지의 작업 디렉토리(/app)로 복사
-COPY . .
-
-# 빌드 시 모델 이름을 인자로 받을 수 있도록 설정
-ARG MODEL_NAME=xgboost_x_learner
-
-# 이 이미지를 실행할 때 기본적으로 실행될 명령어
-# `main.py`의 `train` 커맨드를 실행
-CMD ["hatch", "run", "python", "main.py", "train", "--model-name", "${MODEL_NAME}"]
-
-
-# --- Stage 3: `serve` ---
-# 목적: API 서빙에 필요한 최소한의 파일과 의존성만 포함하는 경량 이미지.
+# --- Stage 3: `serve` (Final Serving Image) ---
+# Purpose: A lightweight image with only the minimal code and production dependencies.
 FROM base as serve
 
-# API 서빙에 필요한 파일 및 디렉토리만 선별하여 복사
-COPY . .
+# Create a non-root user for security
+RUN groupadd --system app && useradd --system --gid app app
+USER app
 
-# 빌드 시 모델 이름을 인자로 받을 수 있도록 설정
-ARG MODEL_NAME=xgboost_x_learner
+# Copy the virtual environment with production dependencies from the 'builder' stage
+COPY --from=builder /opt/venv /opt/venv
 
-# 이 이미지를 실행할 때 기본적으로 실행될 명령어
-# `main.py`의 `serve-api` 커맨드를 실행
-CMD ["hatch", "run", "python", "main.py", "serve-api", "--model-name", "${MODEL_NAME}"]
+# Copy only the necessary application files for serving
+COPY --chown=app:app src/ src/
+COPY --chown=app:app serving/ serving/
+COPY --chown=app:app main.py .
+COPY --chown=app:app config.yaml .
+COPY --chown=app:app recipe/ recipe/
+
+# Activate the virtual environment and define the entrypoint
+ENTRYPOINT ["/opt/venv/bin/python", "main.py", "serve-api"]
+
+# Expose the port and set the default command
+EXPOSE 8000
+CMD ["--model-name", "xgboost_x_learner"]
+
+
+# --- Stage 4: `train` (Final Training Image) ---
+# Purpose: An image containing all code and all (dev) dependencies for training.
+FROM base as train
+
+# Create a non-root user
+RUN groupadd --system app && useradd --system --gid app app
+USER app
+
+# Copy the virtual environment with all dependencies from the 'builder' stage
+COPY --from=builder /opt/venv /opt/venv
+
+# Copy the entire project source
+COPY --chown=app:app . .
+
+# Activate the virtual environment and define the entrypoint
+ENTRYPOINT ["/opt/venv/bin/python", "main.py", "train"]
+
+# Default command, can be overridden
+CMD ["--model-name", "xgboost_x_learner"]

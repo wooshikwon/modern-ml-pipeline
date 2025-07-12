@@ -4,24 +4,24 @@ from abc import ABC, abstractmethod
 import mlflow
 
 # 필요한 타입 힌트를 위해 import
-from config.settings import Settings
+from src.settings.settings import Settings
 from src.interface.base_model import BaseModel
-from src.core.transformer import Transformer
+from src.core.preprocessor import Preprocessor
 
 """
 아래와 같은 PyfuncWrapper 클래스를 같은 파일 안에 병렬로 만들어 사용하는 것을 권장.
 
 class PyfuncWrapper(mlflow.pyfunc.PythonModel):
     '''
-    데이터 변환기와 모델을 함께 감싸는 범용 MLflow 래퍼.
+    데이터 전처리기와 모델을 함께 감싸는 범용 MLflow 래퍼.
     '''
-    def __init__(self, model: BaseModel, transformer: Transformer):
+    def __init__(self, model: BaseModel, preprocessor: Preprocessor):
         self.model = model
-        self.transformer = transformer
+        self.preprocessor = preprocessor
 
     def predict(self, context, model_input: pd.DataFrame) -> pd.DataFrame:
-        transformed_data = self.transformer.transform(model_input)
-        predictions = self.model.predict(transformed_data)
+        preprocessed_data = self.preprocessor.transform(model_input)
+        predictions = self.model.predict(preprocessed_data)
         return pd.DataFrame(predictions)
 """
 
@@ -39,8 +39,8 @@ class BaseFactory(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def create_pyfunc_wrapper(self, model: BaseModel, transformer: Transformer) -> mlflow.pyfunc.PythonModel:
+    def create_pyfunc_wrapper(self, model: BaseModel, preprocessor: Preprocessor) -> mlflow.pyfunc.PythonModel:
         """
-        학습된 모델과 트랜스포머를 MLflow가 이해할 수 있는 형태로 포장합니다.
+        학습된 모델과 전처리기를 MLflow가 이해할 수 있는 형태로 포장합니다.
         """
         raise NotImplementedError

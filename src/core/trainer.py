@@ -6,7 +6,7 @@ from sklearn.model_selection import train_test_split
 from src.settings.settings import Settings
 from src.utils.logger import logger
 from src.core.factory import Factory
-from src.core.augmenter import Augmenter
+from src.core.augmenter import BatchAugmenter, BaseAugmenter
 from src.core.preprocessor import Preprocessor
 from src.interface.base_model import BaseModel
 from src.interface.base_trainer import BaseTrainer
@@ -24,13 +24,13 @@ class Trainer(BaseTrainer):
         """
         self.settings = settings
         self.factory = Factory(self.settings)
-        self.augmenter: Augmenter | None = None
+        self.augmenter: BaseAugmenter | None = None
         self.preprocessor: Preprocessor | None = None
         self.model: BaseModel | None = None
         self.training_results: Dict[str, Any] = {}
         logger.info("Trainer 초기화 완료.")
 
-    def train(self, df: pd.DataFrame) -> Tuple[Augmenter, Preprocessor, BaseModel, Dict[str, Any]]:
+    def train(self, df: pd.DataFrame) -> Tuple[Preprocessor, BaseModel, Dict[str, Any]]:
         """
         데이터 분할, 피처 증강, 피처 전처리, 모델 학습 및 평가, MLflow 로깅의 전체 파이프라인을 실행합니다.
         """
@@ -40,8 +40,8 @@ class Trainer(BaseTrainer):
         train_df, test_df = self._split_data(df)
 
         # 2. 피처 증강기(Augmenter) 생성 및 적용
-        logger.info("피처 증강 시작...")
-        self.augmenter = Augmenter()  # Augmenter는 별도 설정이 필요 없음
+        logger.info("피처 증강 시작 (학습은 항상 BatchAugmenter 사용)")
+        self.augmenter = BatchAugmenter(config=self.settings.augmenter.batch, settings=self.settings)
         train_df_aug = self.augmenter.augment(train_df)
         test_df_aug = self.augmenter.augment(test_df)
         logger.info("피처 증강 완료.")
@@ -60,8 +60,9 @@ class Trainer(BaseTrainer):
         treatment_col = self.settings.model.data_interface.treatment_col
         target_col = self.settings.model.data_interface.target_col
         
-        treatment_train = train_df[treatment_col]
-        y_train = train_df[target_col]
+        # Augmenter가 데이터프레임의 순서를 보존하므로, 증강된 데이터에서 직접 y와 treatment를 추출
+        treatment_train = train_df_aug[treatment_col]
+        y_train = train_df_aug[target_col]
 
         self.model.fit(
             X=X_train,
@@ -71,16 +72,15 @@ class Trainer(BaseTrainer):
 
         # 5. 모델 평가
         metrics = self._evaluate(
-            train_orig=train_df, X_train=X_train,
-            test_orig=test_df, X_test=X_test
+            train_orig=train_df_aug, X_train=X_train, # train_orig 대신 train_df_aug 사용
+            test_orig=test_df_aug, X_test=X_test     # test_orig 대신 test_df_aug 사용
         )
         self.training_results = {'metrics': metrics, 'metadata': {}}
 
-        # 6. MLflow 모델 로깅 (래퍼 사��)
+        # 6. MLflow 모델 로깅 (래퍼 사용)
         logger.info("MLflow 모델 로깅 시작...")
         pyfunc_wrapper = self.factory.create_pyfunc_wrapper(
             model=self.model,
-            augmenter=self.augmenter,
             preprocessor=self.preprocessor
         )
         # artifact_path는 모델 레지스트리에서 모델의 '폴더' 이름이 됨
@@ -88,7 +88,7 @@ class Trainer(BaseTrainer):
         logger.info("MLflow 모델 로깅 완료.")
 
         logger.info("모델 학습 프로세스 성공적으로 완료.")
-        return self.augmenter, self.preprocessor, self.model, self.training_results
+        return self.preprocessor, self.model, self.training_results
 
     def _split_data(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """데이터를 학습/테스트 세트로 분할합니다."""

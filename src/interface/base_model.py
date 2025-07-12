@@ -7,7 +7,7 @@ class BaseModel(ABC):
     """Uplift 모델의 기본 인터페이스(추상 클래스)입니다."""
 
     @abstractmethod
-    def fit(self, X: pd.DataFrame, y: pd.Series, **kwargs) -> 'BaseModel':
+    def fit(self, X: pd.DataFrame, y: pd.Series, treatment: pd.Series) -> 'BaseModel':
         """
         주어진 데이터로 모델을 학습시키는 추상 메서드입니다.
 

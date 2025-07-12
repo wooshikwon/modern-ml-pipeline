@@ -1,4 +1,3 @@
-import os
 import pandas as pd
 import mlflow
 import uvicorn
@@ -7,7 +6,7 @@ from fastapi import FastAPI, HTTPException, Depends
 from typing import Dict, Any, List, Type
 from pydantic import BaseModel
 
-from config.settings import Settings
+from src.settings.settings import Settings
 from src.utils.logger import logger
 from serving.schemas import (
     create_dynamic_prediction_request,
@@ -40,6 +39,10 @@ def create_app(settings: Settings) -> FastAPI:
     app_context.PredictionRequest = create_dynamic_prediction_request(settings)
     app_context.BatchPredictionRequest = create_batch_prediction_request(app_context.PredictionRequest)
 
+    from src.utils import mlflow_utils
+
+# ... (이전 코드 생략) ...
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         """
@@ -48,19 +51,21 @@ def create_app(settings: Settings) -> FastAPI:
         logger.info("FastAPI 애플리케이션 시작...")
         app_context.settings = settings
         
-        model_stage = os.getenv("MODEL_STAGE", "Production")
-        model_name = settings.model.name
-        model_uri = f"models:/{model_name}/{model_stage}"
-        app_context.model_uri = model_uri
-        
-        logger.info(f"'{model_uri}' 모델 로드를 시도합니다.")
         try:
-            mlflow.set_tracking_uri(settings.mlflow.tracking_uri)
-            app_context.model = mlflow.pyfunc.load_model(model_uri=model_uri)
-            logger.info(f"모델이 성공적으로 로드되었습니다: {model_uri}")
-        except Exception as e:
-            logger.error(f"모델 로딩 실패: {e}", exc_info=True)
+            app_context.model = mlflow_utils.load_pyfunc_model(
+                model_name=settings.model.name,
+                stage=settings.serving.model_stage,
+                settings=settings
+            )
+            app_context.model_uri = mlflow_utils.get_model_uri(
+                model_name=settings.model.name,
+                stage=settings.serving.model_stage
+            )
+            logger.info(f"모델이 성공적으로 로드되었습니다: {app_context.model_uri}")
+        except Exception:
+            # 오류 로깅은 load_pyfunc_model 내부에서 처리됨
             app_context.model = None
+            app_context.model_uri = "N/A"
         
         yield
         

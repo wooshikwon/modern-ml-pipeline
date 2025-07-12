@@ -1,29 +1,38 @@
-# 1. 모델의 종류
-# 모델 이름은 반드시 파일 이름과 동일해야 한다.
+# recipe/causal_forest.yaml: Causal Forest 모델 전용 설정
+
+# 모델의 고유 이름 (파일 이름과 일치해야 함)
 name: "causal_forest"
 
-# 2. 모델이 사용할 데이터의 명세
+# 데이터 입출력 명세
 data_interface:
+  # 모델이 사용할 피처 목록 (XGBoost와 동일한 피처를 사용)
   features:
-    - 'created_at'
-    - 'member_id'
-    - 'member_gender'
-    - 'member_age'
-    - 'passport_usage'
-    - 'socar_club_level'
-    - 'member_credit_balance'
-    - 'rsvn_90_count'
-    - 'rsvn_60_count'
-    - 'rsvn_30_count'
-    - 'grp'
-    - 'outcome'
+    - "member_gender"
+    - "member_age"
+    - "rsvn_30_count"
+    - "rsvn_90_avg_price"
+    - "last_rsvn_date_elapsed"
+  
+  # 결과(Y) 컬럼
   target_col: "outcome"
-  treatment_col: "grp" # uplift 모델에서 특별히 존재하는 컬럼. 일반적으로는 features - target_col 구조.
-  treatment_value: "Treatment" # 실험군을 식별하는 값
+  
+  # 처치(Treatment) 컬럼
+  treatment_col: "grp"
+  
+  # 처치 그룹을 나타내는 값
+  treatment_value: "treatment"
 
-# 3. 모델 알고리즘의 하이퍼파라미터 (params -> hyperparameters)
+# 모델 하이퍼파라미터
+# CausalML의 CausalForestDML에 전달될 파라미터들
 hyperparameters:
-  n_estimators: 200
+  n_estimators: 100
   max_depth: 5
-  min_samples_leaf: 20
+  min_samples_leaf: 10
+  max_features: 0.7
   random_state: 42
+  # CausalForestDML은 내부적으로 outcome/treatment 모델을 가지므로,
+  # 해당 모델들의 파라미터를 지정할 수 있습니다.
+  # model_y_params:
+  #   objective: "reg:squarederror"
+  # model_t_params:
+  #   objective: "binary:logistic"

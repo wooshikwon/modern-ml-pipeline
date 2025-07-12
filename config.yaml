@@ -1,39 +1,49 @@
-# 1. 실행 환경 설정
+# config.yaml: 모든 모델과 환경에서 공유하는 공통 설정
+# ${ENV_VAR:default_value} 구문을 통해 환경 변수를 주입할 수 있습니다.
+
 environment:
-  run_mode: ${RUN_MODE:local}
-  gcp_credential_path: ${GCP_CREDENTIAL_PATH}
-  gcp_project_id: ${GCP_PROJECT_ID}
+  app_env: ${APP_ENV:local} # 애플리케이션 실행 환경 (e.g., local, dev, prod)
+  gcp_credential_path: ${GCP_CREDENTIAL_PATH:./local/gcp_credentials.json}
+  gcp_project_id: ${GCP_PROJECT_ID:your-gcp-project-id}
 
-# 2-1. loader.py 관련 설정
+# 데이터 로더 설정
 loader:
-  abt_logs: # 데이터셋 이름 (여러개가 될 수 있음)
-    sql_file_path: "src/sql/abt_logs.sql"
-    output: # output 저장 경로
-      type: "bigquery"
-      project_id: ${GCP_PROJECT_ID}
-      dataset_id: "uplift_virtual_coupon"
-      table_id: "abt_logs"
-      unique_column: "member_id"
+  # 'user_features'는 이 로더 설정의 고유 이름입니다.
+  user_features:
+    type: "bigquery" # dev/prod 환경에서 사용할 로더 타입
+    sql_file_path: src/sql/user_features.sql
+    local_file_path: "local/data/sample_user_features.csv" # local 환경에서 우선적으로 사용될 파일
+    output:
+      type: bigquery
+      project_id: ${GCP_PROJECT_ID:your-gcp-project-id}
+      dataset_id: "user_data"
+      table_id: "user_features_for_uplift"
+      unique_col: "member_id"
 
-# 2-2. augmenter.py 관련 설정
+# 피처 증강기 설정
 augmenter:
-  batch:
-    feature_store_sql_path: "src/sql/user_features.sql"
-  realtime:
-    type: "redis"
+  batch: # 배치 추론 시 사용 (BigQuery)
+    feature_store_sql_path: "your-gcp-project-id.feature_store.user_summary"
+  realtime: # API 서빙 시 사용 (Redis)
+    type: redis
     host: ${REDIS_HOST:localhost}
     port: ${REDIS_PORT:6379}
 
-# 2-3. preprocessor.py 관련 설정
+# 데이터 전처리기 설정
 preprocessor:
   params:
-    criterion_col: 'rsvn_30_count' # categorical 컬럼별로 grouping하여 기준 컬럼의 중앙값이 큰 순서대로 0 ~ 정수형 순서가 부여됨, 공란인 경우 빈도 기반으로 순서가 부여됨
-    exclude_cols: ['member_id', 'grp', 'outcome'] # PK나 y값, treatment 컬럼 등 학습 컬럼이 아닌 컬럼들은 변환에서 제외
-  output:
-    type: "gcs"
-    bucket_name: ${GCS_BUCKET_NAME}
+    criterion_col: "outcome" # 순위 인코딩 시 순위 ��산의 기준이 될 컬럼
+    exclude_cols: # 전처리에서 제외할 컬럼
+      - "member_id"
+  output: # 학습된 전처리기(StandardScaler 등)를 저장할 위치
+    type: gcs # 또는 local
+    bucket_name: ${GCS_BUCKET_NAME:your-ml-artifacts-bucket}
 
-# 3. 실험 관리 도구 설정 (mlflow)
+# MLflow 설정
 mlflow:
-  tracking_uri: ${MLFLOW_TRACKING_URI:"./local/artifacts"}
-  experiment_name: "uplift-virtual-coupon"
+  tracking_uri: ${MLFLOW_TRACKING_URI:http://127.0.0.1:5000}
+  experiment_name: "Uplift-Modeling-Experiment"
+
+# API 서버 설정
+serving:
+  model_stage: ${MODEL_STAGE:Production} # API 서빙 시 사용할 모델의 스테이지 (e.g., Production, Staging)
