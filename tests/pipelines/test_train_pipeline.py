@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import patch, MagicMock
 
-from config.settings import Settings
+from src.settings.settings import Settings
 from src.pipelines.train_pipeline import run_training
 
 @pytest.mark.integration
@@ -50,4 +50,12 @@ def test_run_training_pipeline_flow(
     # 4. 결과가 MLflow에 로깅되었는가?
     mock_mlflow.log_params.assert_called()
     mock_mlflow.log_metrics.assert_called_with({"test_metric": 1.0})
+    
+    # 5. Pyfunc 모델이 올바르게 로깅되었는가?
+    mock_mlflow.pyfunc.log_model.assert_called_once()
+    log_model_args = mock_mlflow.pyfunc.log_model.call_args[1]
+    assert log_model_args['artifact_path'] == xgboost_settings.model.name
+    assert log_model_args['registered_model_name'] == xgboost_settings.model.name
+    assert 'python_model' in log_model_args
+
     mock_mlflow.set_tag.assert_called_with("status", "success")

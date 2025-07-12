@@ -17,9 +17,9 @@ SELECT
     t.exposure_date AS event_timestamp
 
 FROM
-    `your-gcp-project-id.marketing_data.campaign_targets` AS t
+    `{{ gcp_project_id }}.marketing_data.campaign_targets` AS t
 LEFT JOIN
-    `your-gcp-project-id.marketing_data.first_purchase_after_campaign` AS p
+    `{{ gcp_project_id }}.marketing_data.first_purchase_after_campaign` AS p
     ON t.member_id = p.member_id AND t.campaign_id = p.campaign_id
 WHERE
     -- Jinja 템플릿: 파이프라인 실행 시 `context_params`로 캠페인 ID를 주입받음

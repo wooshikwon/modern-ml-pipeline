@@ -25,6 +25,13 @@ serving:
   # API 서버 실행 시, 기본적으로 'Staging' 스테이지의 모델을 사용하도록 설정합니다.
   # 프로덕션에서는 config.prod.yaml에서 이 값을 "Production"으로 덮어씁니다.
   model_stage: ${MODEL_STAGE:Staging}
+  # 실시간 피처 스토어 설정 (로컬 개발용)
+  realtime_feature_store:
+    store_type: "redis"
+    connection:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      db: 0
 
 # 4. 데이터셋 아티팩트 스토어 (중간/최종 산출물 저장 위치)
 artifact_stores:
@@ -32,14 +39,14 @@ artifact_stores:
   augmented_dataset:
     enabled: true
     # 로컬 환경에서는 기본적으로 프로젝트 내 디렉토리에 파일로 저장됩니다.
-    base_uri: "file:///local/artifacts/augmented"
+    base_uri: "file://local/artifacts/augmented"
   
   # 전처리 완료 데이터셋 저장소
   preprocessed_dataset:
     enabled: false # 디버깅 시에만 true로 변경하여 사용
-    base_uri: "file:///local/artifacts/preprocessed"
+    base_uri: "file://local/artifacts/preprocessed"
   
   # 최종 예측 결과 저장소
   prediction_results:
     enabled: true
-    base_uri: "file:///local/artifacts/predictions"
+    base_uri: "file://local/artifacts/predictions"

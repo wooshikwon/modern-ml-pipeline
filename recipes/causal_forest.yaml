@@ -7,14 +7,14 @@ name: "causal_forest"
 # 2. 데이터 로더 정의
 loader:
   name: "campaign_users"
-  source_sql_path: "recipes/sql/loaders/user_features.sql"
-  local_override_path: "local/data/sample_user_features.csv"
+  source_uri: "bq://recipes/sql/loaders/user_features.sql"
+  local_override_uri: "file://local/data/sample_user_features.csv"
 
 # 3. 피처 증강기 정의
 augmenter:
   name: "point_in_time_features"
-  source_template_path: "recipes/sql/features/user_summary.sql"
-  local_override_path: "local/data/sample_user_features.parquet"
+  source_uri: "bq://recipes/sql/features/user_summary.sql"
+  local_override_uri: "file://local/data/sample_user_features.parquet"
 
 # 4. 전처리기 정의
 preprocessor:

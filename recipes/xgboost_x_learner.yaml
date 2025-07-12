@@ -7,18 +7,18 @@ name: "xgboost_x_learner"
 # 2. 데이터 로더 정의
 loader:
   name: "campaign_users"
-  # 기본 소스: 클라우드 환경에서 사용할 데이터의 위치 (SQL 파일 경로)
-  source_sql_path: "recipes/sql/loaders/user_features.sql"
-  # 로컬 재정의: APP_ENV=local일 때, 위 source를 덮어쓰고 사용할 파일 경로
-  local_override_path: "local/data/sample_user_features.csv"
+  # 기본 소스: bq 스킴을 사용하여 BigQuery SQL 파일임을 명시
+  source_uri: "bq://recipes/sql/loaders/user_features.sql"
+  # 로컬 재정의: file 스킴을 사용하여 로컬 파일임을 명시
+  local_override_uri: "file://local/data/sample_user_features.csv"
 
 # 3. 피처 증강기 정의
 augmenter:
   name: "point_in_time_features"
-  # 기본 소스: 클라우드 환경에서 사용할 피처의 위치 (SQL 템플릿)
-  source_template_path: "recipes/sql/features/user_summary.sql"
-  # 로컬 재정의: APP_ENV=local일 때, 위 SQL 템플릿 대신 사용할 피처 파일 경로
-  local_override_path: "local/data/sample_user_features.parquet"
+  # 기본 소스: bq 스킴을 사용하여 BigQuery SQL 파일임을 명시
+  source_uri: "bq://recipes/sql/features/user_summary.sql"
+  # 로컬 재정의: file 스킴을 사용하여 로컬 파일임을 명시
+  local_override_uri: "file://local/data/sample_user_features.parquet"
 
 # 4. 전처리기 정의
 preprocessor:
@@ -27,9 +27,9 @@ preprocessor:
     criterion_col: null
     exclude_cols: ["member_id", "event_timestamp"]
 
-# 5. 모델 인터페���스 및 하이퍼파라미터
+# 5. 모델 인터페이스 및 하이퍼파라미터
 data_interface:
-  # 모델이 기대하는 최종 피처의 스키마 (이름: 타입)
+  # 모델��� 기대하는 최종 피처의 스키마 (이름: 타입)
   features:
     gender: "category"
     age_group: "category"

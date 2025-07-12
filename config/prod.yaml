@@ -17,6 +17,13 @@ mlflow:
 serving:
   # API 서버는 반드시 "Production" 스테이지의 모델을 사용해야 합니다.
   model_stage: "Production"
+  # 운영 환경의 실시간 피처 스토어 (예: 운영용 Redis)
+  realtime_feature_store:
+    store_type: "redis"
+    connection:
+      host: "prod-redis.internal"
+      port: 6379
+      db: 0
 
 artifact_stores:
   augmented_dataset:

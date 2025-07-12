@@ -310,7 +310,9 @@ sqlalchemy==2.0.41
     #   alembic
     #   mlflow
 sqlparse==0.5.3
-    # via mlflow-skinny
+    # via
+    #   modern-ml-pipeline (pyproject.toml)
+    #   mlflow-skinny
 starlette==0.47.1
     # via fastapi
 statsmodels==0.14.5

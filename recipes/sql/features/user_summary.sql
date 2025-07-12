@@ -28,7 +28,7 @@ FROM
   targets t
 LEFT JOIN
   -- 피처 스토어 테이블 (날짜별로 파티셔닝되어 있다고 가정)
-  `your-gcp-project-id.feature_store.user_daily_summary` fs
+  `{{ gcp_project_id }}.feature_store.user_daily_summary` fs
   -- 각 사용자의 이벤트 타임스탬프보다 이전이면서 가장 가까운 날짜의 피처를 가져옴
   ON t.member_id = fs.member_id AND DATE(t.event_timestamp) >= fs.snapshot_date
 -- 이 테크닉은 BigQuery에서 Point-in-Time Join을 수행하는 매우 효율적인 방법입니다.

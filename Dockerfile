@@ -52,7 +52,7 @@ COPY --from=builder /opt/venv /opt/venv
 COPY --chown=app:app src/ src/
 COPY --chown=app:app serving/ serving/
 COPY --chown=app:app main.py .
-COPY --chown=app:app config.yaml .
+COPY --chown=app:app config/ config/
 COPY --chown=app:app recipe/ recipe/
 
 # Activate the virtual environment and define the entrypoint

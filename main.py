@@ -37,15 +37,14 @@ def batch_inference(
 ):
     """
     지정된 run_id의 아티팩트를 사용하여 배치 추론을 실행하고,
-    결과를 config.yaml에 정의된 아티팩트 스토어에 저장합니다.
+    결과를 Wrapper에 내장된 레시피 스냅샷의 설정에 따라 저장합니다.
     """
     try:
-        settings = load_settings(model_name)
-        setup_logging(settings)
+        # 배치 추론 시에는 전체 settings가 필요 없으므로, 로깅만 간단히 설정
+        # setup_logging() # 이 부분은 로거를 어떻게 처리할지 정책에 따라 결정
         params = json.loads(context_params) if context_params else {}
-        logger.info(f"'{model_name}' 모델 설정으로 배치 추론을 ���작합니다. (Run ID: {run_id}, 컨텍스트: {params})")
+        logger.info(f"'{model_name}' 모델의 배치 추론을 시작합니다. (Run ID: {run_id}, 컨텍스트: {params})")
         run_batch_inference(
-            settings=settings,
             model_name=model_name,
             run_id=run_id,
             context_params=params,
