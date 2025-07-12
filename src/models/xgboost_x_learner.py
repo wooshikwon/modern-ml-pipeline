@@ -4,7 +4,7 @@ from causalml.inference.meta import XGBTRegressor
 from sklearn.exceptions import NotFittedError
 
 # settings.py와 BaseModel의 경로는 실제 프로젝트 구조에 맞게 조정해주세요.
-from config.settings import Settings
+from src.settings.settings import Settings
 from src.interface.base_model import BaseModel
 from src.utils.logger import logger
 

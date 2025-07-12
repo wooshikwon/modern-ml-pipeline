@@ -13,6 +13,15 @@ mlflow:
   tracking_uri: "http://dev-mlflow-server.internal:5000"
   experiment_name: "Uplift-Modeling-Experiment-Dev"
 
+serving:
+  # 개발 환경의 실시간 피처 스토어 (예: 개발용 Redis)
+  realtime_feature_store:
+    store_type: "redis"
+    connection:
+      host: "dev-redis.internal"
+      port: 6379
+      db: 0
+
 artifact_stores:
   augmented_dataset:
     # dev 환경에서는 BigQuery에 저장

@@ -28,6 +28,9 @@ dependencies = [
     "pyarrow",
     "db-dtypes",
     "jinja2",
+    "sqlparse",
+    "s3fs",
+    "boto3",
 ]
 
 [project.optional-dependencies]

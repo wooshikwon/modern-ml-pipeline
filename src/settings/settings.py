@@ -3,7 +3,7 @@ import re
 import yaml
 from pathlib import Path
 from dotenv import load_dotenv
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Dict, Any, List, Optional
 from collections.abc import Mapping
 
@@ -45,8 +45,18 @@ class MlflowSettings(BaseModel):
     tracking_uri: str
     experiment_name: str
 
+class RealtimeFeatureStoreConnectionSettings(BaseModel):
+    host: str
+    port: int
+    db: int = 0
+
+class RealtimeFeatureStoreSettings(BaseModel):
+    store_type: str
+    connection: RealtimeFeatureStoreConnectionSettings
+
 class ServingSettings(BaseModel):
     model_stage: str
+    realtime_feature_store: RealtimeFeatureStoreSettings
 
 class ArtifactStoreSettings(BaseModel):
     enabled: bool
@@ -55,13 +65,13 @@ class ArtifactStoreSettings(BaseModel):
 # 2. 모델 레시피 설정 (recipes/*.yaml)
 class LoaderSettings(BaseModel):
     name: str
-    source_sql_path: str
-    local_override_path: Optional[str] = None
+    source_uri: str
+    local_override_uri: Optional[str] = None
 
 class AugmenterSettings(BaseModel):
     name: str
-    source_template_path: str
-    local_override_path: Optional[str] = None
+    source_uri: str
+    local_override_uri: Optional[str] = None
 
 class PreprocessorParamsSettings(BaseModel):
     criterion_col: Optional[str] = None
@@ -104,32 +114,27 @@ def load_settings(model_name: str) -> Settings:
     계층화된 설정 파일을 로드하여 통합된 Settings 객체를 반환합니다.
     base.yaml -> {APP_ENV}.yaml -> local.yaml 순서로 덮어씁니다.
     """
-    # 1. 기본 설정 로드
     config_dir = BASE_DIR / "config"
     base_config_path = config_dir / "base.yaml"
     settings_data = _load_yaml_with_env(base_config_path)
 
-    # 2. 환경별 설정 로드 (덮어쓰기)
     app_env = settings_data.get("environment", {}).get("app_env", "local")
     env_config_path = config_dir / f"{app_env}.yaml"
     env_config_data = _load_yaml_with_env(env_config_path)
     settings_data = _recursive_merge(settings_data, env_config_data)
 
-    # 3. 로컬 개인 설정 로드 (덮어쓰기, 버전 관리 안 됨)
     local_config_path = config_dir / "local.yaml"
     local_config_data = _load_yaml_with_env(local_config_path)
     settings_data = _recursive_merge(settings_data, local_config_data)
 
-    # 4. 모델 레시피 로드
     recipe_path = BASE_DIR / "recipes" / f"{model_name}.yaml"
     if not recipe_path.exists():
         raise FileNotFoundError(f"모델 레시피 파일을 찾을 수 없습니다: {recipe_path}")
     recipe_data = _load_yaml_with_env(recipe_path)
 
     if recipe_data.get("name") != model_name:
-        raise ValueError("모델 레시피 파일의 모델 이름 불일치")
+        raise ValueError(f"모델 레시피({recipe_path})의 name 속성이 '{model_name}'과 일치하지 않습니다.")
 
-    # 5. 최종 병합
     combined_data = {**settings_data, "model": recipe_data}
 
     return Settings(**combined_data)
