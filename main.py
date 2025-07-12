@@ -14,18 +14,17 @@ app = typer.Typer(help="현대적인 ML 파이프라인 CLI 도구")
 @app.command()
 def train(
     model_name: Annotated[str, typer.Option(help="Recipe 파일과 동일한 모델 이름")],
-    loader_name: Annotated[str, typer.Option(help="사용할 데이터 로더의 이름")] = "user_features",
     context_params: Annotated[Optional[str], typer.Option(help='실행 컨텍스트 파라미터 (JSON 문자열)')] = None,
 ):
     """
-    지정된 모델 이름의 레시피를 사용하여 학습 파이프라인을 실행합니다.
+    지정��� 모델 이름의 레시피를 사용하여 학습 파이프라인을 실행합니다.
     """
     try:
         settings = load_settings(model_name)
         setup_logging(settings)
         params = json.loads(context_params) if context_params else {}
         logger.info(f"'{model_name}' 모델 학습을 시작합니다. 컨텍스트: {params}")
-        run_training(settings=settings, loader_name=loader_name, context_params=params)
+        run_training(settings=settings, context_params=params)
     except Exception as e:
         logger.error(f"학습 파이프라인 실행 중 오류 발생: {e}", exc_info=True)
         raise typer.Exit(code=1)
@@ -34,7 +33,6 @@ def train(
 def batch_inference(
     model_name: Annotated[str, typer.Option(help="추론에 사용할 모델의 레시피 이름")],
     run_id: Annotated[str, typer.Option(help="아티팩트를 가져올 MLflow Run ID")],
-    loader_name: Annotated[str, typer.Option(help="사용할 데이터 로더의 이름")] = "user_features",
     context_params: Annotated[Optional[str], typer.Option(help='실행 컨텍스트 파라미터 (JSON 문자열)')] = None,
 ):
     """
@@ -45,12 +43,11 @@ def batch_inference(
         settings = load_settings(model_name)
         setup_logging(settings)
         params = json.loads(context_params) if context_params else {}
-        logger.info(f"'{model_name}' 모델 설정으로 배치 추론을 시작합니다. (Run ID: {run_id}, 컨텍스트: {params})")
+        logger.info(f"'{model_name}' 모델 설정으로 배치 추론을 ���작합니다. (Run ID: {run_id}, 컨텍스트: {params})")
         run_batch_inference(
             settings=settings,
             model_name=model_name,
             run_id=run_id,
-            loader_name=loader_name,
             context_params=params,
         )
     except Exception as e:

@@ -1,0 +1,55 @@
+# recipes/xgboost_x_learner.yaml
+# XGBoost X-Learner 모델을 위한 모든 정의가 포함된 "올인원" 레시피
+
+# 1. 모델 기본 정보
+name: "xgboost_x_learner"
+
+# 2. 데이터 로더 정의
+loader:
+  name: "campaign_users"
+  # 기본 소스: 클라우드 환경에서 사용할 데이터의 위치 (SQL 파일 경로)
+  source_sql_path: "recipes/sql/loaders/user_features.sql"
+  # 로컬 재정의: APP_ENV=local일 때, 위 source를 덮어쓰고 사용할 파일 경로
+  local_override_path: "local/data/sample_user_features.csv"
+
+# 3. 피처 증강기 정의
+augmenter:
+  name: "point_in_time_features"
+  # 기본 소스: 클라우드 환경에서 사용할 피처의 위치 (SQL 템플릿)
+  source_template_path: "recipes/sql/features/user_summary.sql"
+  # 로컬 재정의: APP_ENV=local일 때, 위 SQL 템플릿 대신 사용할 피처 파일 경로
+  local_override_path: "local/data/sample_user_features.parquet"
+
+# 4. 전처리기 정의
+preprocessor:
+  name: "simple_scaler"
+  params:
+    criterion_col: null
+    exclude_cols: ["member_id", "event_timestamp"]
+
+# 5. 모델 인터페���스 및 하이퍼파라미터
+data_interface:
+  # 모델이 기대하는 최종 피처의 스키마 (이름: 타입)
+  features:
+    gender: "category"
+    age_group: "category"
+    days_since_last_visit: "numeric"
+    lifetime_purchase_count: "numeric"
+    avg_purchase_amount_90d: "numeric"
+    avg_session_duration_30d: "numeric"
+  
+  target_col: "outcome"
+  treatment_col: "grp"
+  treatment_value: "treatment"
+
+hyperparameters:
+  n_estimators: 200
+  max_depth: 4
+  learning_rate: 0.05
+  subsample: 0.8
+  colsample_bytree: 0.8
+  min_child_weight: 1
+  gamma: 0.1
+  random_state: 42
+  objective: "reg:squarederror"
+  eval_metric: "rmse"

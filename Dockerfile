@@ -8,9 +8,11 @@
 FROM python:3.10-slim as base
 
 # Set environment variables
+# ARG to allow overriding the environment at build time (e.g., --build-arg APP_ENV=dev)
+ARG APP_ENV=prod
 ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=off \
-    APP_ENV=prod
+    APP_ENV=$APP_ENV
 
 # Install uv, the high-performance Python package installer
 RUN pip install --no-cache-dir "uv==0.7.20"

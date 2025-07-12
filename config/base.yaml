@@ -1,0 +1,30 @@
+# config.yaml: 운영 환경(Environment) 설정
+# 이 파일은 파이프라인이 "어디서, 어떻게" 실행될지에 대한,
+# 즉 인프라와 운영 환경에 대한 설정만을 책임집니다.
+
+# 1. 실행 환경
+environment:
+  app_env: ${APP_ENV:local} # local, dev, prod
+  gcp_project_id: ${GCP_PROJECT_ID:your-gcp-project-id}
+  gcp_credential_path: ${GCP_CREDENTIAL_PATH:./local/gcp_credentials.json}
+
+# 2. 모델 아티팩트 스토어 (MLflow Model Registry)
+mlflow:
+  tracking_uri: ${MLFLOW_TRACKING_URI:http://127.0.0.1:5000}
+  experiment_name: "Uplift-Modeling-Experiment"
+
+# 3. API 서버 운영 환경
+serving:
+  model_stage: ${MODEL_STAGE:Production}
+
+# 4. 데이터셋 아티팩트 스토어 (중간/최종 산출물 저장 위치)
+artifact_stores:
+  augmented_dataset:
+    enabled: true
+    base_uri: "bq://${GCP_PROJECT_ID:your-gcp-project-id}.feature_store"
+  preprocessed_dataset:
+    enabled: false # 필요 시 true로 변경하여 디버깅에 사용
+    base_uri: "gs://${GCS_BUCKET_NAME:your-ml-artifacts-bucket}/preprocessed"
+  prediction_results:
+    enabled: true
+    base_uri: "bq://${GCP_PROJECT_ID:your-gcp-project-id}.prediction_results"
