@@ -1,0 +1,12 @@
+# config/dev.yaml
+# 'dev' 환경에서만 적용될 설정 (base.yaml을 덮어씀)
+
+environment:
+  gcp_project_id: "your-dev-gcp-project-id"
+
+mlflow:
+  experiment_name: "Uplift-Modeling-Experiment-Dev"
+
+artifact_stores:
+  prediction_results:
+    base_uri: "bq://your-dev-gcp-project-id.prediction_results_dev"

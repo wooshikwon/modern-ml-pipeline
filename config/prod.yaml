@@ -1,0 +1,16 @@
+# config/prod.yaml
+# 'prod' 환경에서만 적용될 설정 (base.yaml을 덮어씀)
+
+environment:
+  gcp_project_id: "your-prod-gcp-project-id"
+
+mlflow:
+  tracking_uri: "http://prod-mlflow-server:5000"
+  experiment_name: "Uplift-Modeling-Production"
+
+serving:
+  model_stage: "Production"
+
+artifact_stores:
+  prediction_results:
+    base_uri: "bq://your-prod-gcp-project-id.prediction_results_prod"
