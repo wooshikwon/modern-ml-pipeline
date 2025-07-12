@@ -1,16 +1,29 @@
-# config/prod.yaml
-# 'prod' 환경에서만 적용될 설정 (base.yaml을 덮어씀)
+# config/prod.yaml: 'prod' 환경 전용 설정
+# -----------------------------------------------------------------------------
+# 이 파일은 APP_ENV=prod 환경에서 base.yaml과 dev.yaml의 설정을 덮어쓰는
+# 실제 운영 환경을 위한 값만 정의합니다.
+# 이 파일은 매우 신중하게 관리되어야 합니다.
+# -----------------------------------------------------------------------------
 
 environment:
-  gcp_project_id: "your-prod-gcp-project-id"
+  # 운영용 GCP 프로젝트 ID
+  gcp_project_id: "your-production-gcp-project-id"
 
 mlflow:
-  tracking_uri: "http://prod-mlflow-server:5000"
+  # 운영 MLflow 서버 주소
+  tracking_uri: "http://prod-mlflow-server.internal:5000"
   experiment_name: "Uplift-Modeling-Production"
 
 serving:
+  # API 서버는 반드시 "Production" 스테이지의 모델을 사용해야 합니다.
   model_stage: "Production"
 
 artifact_stores:
+  augmented_dataset:
+    # 운영 환경에서는 비용 및 속도 최적화를 위해 중간 결과 저장을 비활성화할 수 있습니다.
+    enabled: false
+  preprocessed_dataset:
+    enabled: false
   prediction_results:
-    base_uri: "bq://your-prod-gcp-project-id.prediction_results_prod"
+    # 운영 예측 결과는 지정된 BigQuery 테이블에 저장됩니다.
+    base_uri: "bq://${GCP_PROJECT_ID:your-production-gcp-project-id}.prediction_results_prod"
