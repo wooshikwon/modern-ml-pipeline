@@ -140,3 +140,26 @@ def upload_df_to_bigquery(
     except Exception as e:
         logger.error(f"BigQuery 업로드 실패: {e}")
         raise
+
+def delete_table(table_id: str, settings: Settings) -> None:
+    """BigQuery 테이블을 삭제합니다."""
+    try:
+        client = get_bigquery_client(settings)
+        client.delete_table(table_id, not_found_ok=True)
+        logger.info(f"테이블 삭제 완료: {table_id}")
+    except Exception as e:
+        logger.error(f"테이블 삭제 실패: {table_id}, 오류: {e}")
+        raise
+
+def set_table_expiration(table_id: str, hours: int, settings: Settings) -> None:
+    """BigQuery 테이블에 만료 시간을 설정합니다."""
+    try:
+        client = get_bigquery_client(settings)
+        table = client.get_table(table_id)
+        expiration_time = pd.Timestamp.now() + pd.Timedelta(hours=hours)
+        table.expires = expiration_time
+        client.update_table(table, ["expires"])
+        logger.info(f"테이블 만료 시간 설정 완료: {table_id}, 만료 시각: {expiration_time}")
+    except Exception as e:
+        logger.error(f"테이블 만료 시간 설정 실패: {table_id}, 오류: {e}")
+        raise

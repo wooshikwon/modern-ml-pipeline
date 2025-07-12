@@ -30,18 +30,15 @@ class EnvironmentSettings(BaseModel):
     gcp_project_id: str
 
 # Loader 설정
-class LoaderOutputSettings(BaseModel):
-    type: str
-    project_id: str
-    dataset_id: str
-    table_id: str
-    unique_col: str
-
 class LoaderSettings(BaseModel):
-    type: str  # 로더 타입 (e.g., "bigquery", "file")
-    local_file_path: Optional[str] = None # FileLoader를 위한 로컬 경로
-    sql_file_path: Optional[str] = None   # BigQueryLoader를 위한 SQL 경로
-    output: Optional[LoaderOutputSettings] = None # BigQueryLoader의 결과 저장 정보
+    type: str
+    local_file_path: Optional[str] = None
+    sql_file_path: Optional[str] = None
+
+# ArtifactStore 설정 (신규 추가)
+class ArtifactStoreSettings(BaseModel):
+    enabled: bool
+    base_uri: str
 
 # Preprocessor 설정 (기존 TransformerSettings에서 이름 변경)
 class PreprocessorOutputSettings(BaseModel):
@@ -56,32 +53,26 @@ class PreprocessorSettings(BaseModel):
     params: PreprocessorParamsSettings
     output: PreprocessorOutputSettings
 
-# Augmenter 설정 (신규 추가)
-class AugmenterBatchSettings(BaseModel):
-    feature_store_sql_path: str
-
-class AugmenterRealtimeSettings(BaseModel):
-    type: str
-    host: str
-    port: int
-
+# Augmenter 설정 (재설계)
 class AugmenterSettings(BaseModel):
-    batch: AugmenterBatchSettings
-    realtime: AugmenterRealtimeSettings
+    type: str
+    template_path: Optional[str] = None # for sql_template
+    host: Optional[str] = None          # for redis
+    port: Optional[int] = None          # for redis
 
-# Model 설정 (신규 및 수정)
+# Model 설정 (수정)
 class DataInterfaceSettings(BaseModel):
     features: List[str]
     target_col: str
     treatment_col: str
-    treatment_value: Any  # 실험군 값을 명시적으로 정의
+    treatment_value: Any
 
 class ModelHyperparametersSettings(BaseModel):
-    # 특정 하이퍼파라미터에 국한되지 않도록 유연한 딕셔너리 형태로 정의
     __root__: Dict[str, Any]
 
 class ModelSettings(BaseModel):
     name: str
+    augmenter: str # 사용할 augmenter의 이름을 명시
     data_interface: DataInterfaceSettings
     hyperparameters: ModelHyperparametersSettings
 
@@ -90,18 +81,19 @@ class MlflowSettings(BaseModel):
     tracking_uri: str
     experiment_name: str
 
-# Serving 설정 (신규 추가)
+# Serving 설정
 class ServingSettings(BaseModel):
     model_stage: str
 
 # --- 최종 통합 Settings 클래스 ---
 class Settings(BaseModel):
     environment: EnvironmentSettings
-    loader: Dict[str, LoaderSettings]  # 여러 로더 설정을 지원하도록 Dict로 변경
-    augmenter: AugmenterSettings # augmenter 설정 추가
-    preprocessor: PreprocessorSettings  # transformer -> preprocessor
+    loader: Dict[str, LoaderSettings]
+    augmenters: Dict[str, AugmenterSettings] # 복수형으로 변경
+    preprocessor: PreprocessorSettings
     mlflow: MlflowSettings
-    serving: ServingSettings # serving 설정 추가
+    serving: ServingSettings
+    artifact_stores: Dict[str, ArtifactStoreSettings]
     model: ModelSettings
 
 # --- 설정 로드 함수 ---

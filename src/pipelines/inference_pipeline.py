@@ -3,69 +3,66 @@ from typing import Dict, Any, Optional
 
 from src.settings.settings import Settings
 from src.utils.logger import logger
-from src.core.loader import get_dataset_loader # get_dataset_loader 임포트
-from src.utils.bigquery_utils import upload_df_to_bigquery
-from src.utils import mlflow_utils
+from src.core.loader import get_dataset_loader
+from src.core.augmenter import SQLTemplateAugmenter
+from src.core.preprocessor import Preprocessor
+from src.utils import mlflow_utils, artifact_utils
 
 
 def run_batch_inference(
     settings: Settings,
     model_name: str,
-    model_stage: str,
+    run_id: str,
     loader_name: str,
-    output_table_id: str,
+    context_params: Optional[Dict[str, Any]] = None,
 ):
     """
-    배치 추론을 위한 전체 파이프라인을 실행합니다.
-    `mlflow_utils`와 `get_dataset_loader`를 사용하여 추론을 수행합니다.
-
-    Args:
-        settings: 프로젝트 설정 객체.
-        model_name: 사용할 모델의 이름.
-        model_stage: 사용할 모델의 스테이지 (e.g., "Production", "Staging").
-        loader_name: 사용할 데이터 로더의 이름 (config.yaml에 정의됨).
-        output_table_id: 결과를 저장할 BigQuery 테이블 ID.
+    투명한 배치 추론 파이프라인을 실행합니다.
+    지정된 run_id에서 개별 아티팩트(모델, 전처리기)를 로드하여,
+    단계별로 추론을 수행하고 중간 산출물을 저장합니다.
     """
-    logger.info(f"배치 추론 파이프라인을 시작합니다: (모델: {model_name}, 스테이지: {model_stage})")
+    logger.info(f"배치 추론 파이프라인 시작: (모델: {model_name}, Run ID: {run_id})")
+    context_params = context_params or {}
 
     try:
-        # 1. MLflow에서 통합 모델 로드
-        model = mlflow_utils.load_pyfunc_model(
-            model_name=model_name,
-            stage=model_stage,
-            settings=settings
-        )
+        # 1. 아티팩트 로드
+        logger.info(f"'{run_id}' 실행에서 아티팩트를 로드합니다.")
+        preprocessor_path = mlflow_utils.download_artifact(run_id, "preprocessor", settings)
+        preprocessor: Preprocessor = Preprocessor.load(preprocessor_path, settings)
+        
+        pyfunc_wrapper = mlflow_utils.load_pyfunc_model_from_run(run_id, model_name, settings)
+        raw_model = pyfunc_wrapper.model
 
-        # 2. 데이터 로딩 (get_dataset_loader 사용)
+        # 2. 데이터 로딩 (Loader)
         logger.info(f"'{loader_name}' 로더를 사용하여 데이터를 로딩합니다.")
         loader = get_dataset_loader(loader_name, settings)
-        input_df = loader.load()
-        logger.info(f"총 {len(input_df)}개의 데이터를 로드했습니다.")
-
+        input_df = loader.load(params=context_params)
         if input_df.empty:
             logger.warning("입력 데이터가 비어있어 추론을 중단합니다.")
             return
 
-        # 3. 추론 실행
-        logger.info("통합 모델을 사용하여 배치 추론을 시작합니다.")
-        predict_params = {"run_mode": "batch"}
-        predictions = model.predict(input_df) # params 제거 (PyfuncWrapper에서 처리)
+        # 3. 피처 증강 (Augmenter)
+        logger.info("피처 증강을 시작합니다.")
+        augmenter_name = settings.model.augmenter
+        augmenter_config = settings.augmenters[augmenter_name]
+        augmenter = SQLTemplateAugmenter(config=augmenter_config, settings=settings)
+        augmented_df = augmenter.augment(input_df, context_params=context_params)
+        artifact_utils.save_dataset(augmented_df, 'augmented_dataset', settings)
+
+        # 4. 데이터 전처리 (Preprocessor)
+        logger.info("데이터 전처리를 시작합니다.")
+        preprocessed_df = preprocessor.transform(augmented_df)
+        artifact_utils.save_dataset(preprocessed_df, 'preprocessed_dataset', settings)
+
+        # 5. 예측 (Predict)
+        logger.info("모델 예측을 시작합니다.")
+        predictions = raw_model.predict(preprocessed_df)
         
-        # 원본 데이터에 예측 결과 컬럼 추가
-        results_df = input_df.copy()
+        # 6. 최종 결과 결합 및 저장
+        logger.info("최종 결과를 결합하고 저장합니다.")
+        results_df = augmented_df.copy()
         results_df['uplift_score'] = predictions
-        logger.info("추론을 완료했습니다.")
-
-        # 4. 결과 저장
-        gcp_project_id = settings.environment.gcp_project_id
-        # loader_name을 사용하여 해당 로더의 output 설정을 가져옴
-        dataset_id = settings.loader[loader_name].output.dataset_id
-        
-        full_table_id = f"{gcp_project_id}.{dataset_id}.{output_table_id}"
-
-        logger.info(f"추론 결과를 BigQuery 테이블 '{full_table_id}'에 업로드합니다.")
-        upload_df_to_bigquery(df=results_df, table_id=full_table_id, settings=settings)
-        logger.info("결과 저장을 완료했습니다.")
+        artifact_utils.save_dataset(results_df, 'prediction_results', settings)
 
         logger.info("배치 추론 파이프라인이 성공적으로 완료되었습니다.")
 

@@ -13,19 +13,20 @@ loader:
     type: "bigquery" # dev/prod 환경에서 사용할 로더 타입
     sql_file_path: src/sql/user_features.sql
     local_file_path: "local/data/sample_user_features.csv" # local 환경에서 우선적으로 사용될 파일
-    output:
-      type: bigquery
-      project_id: ${GCP_PROJECT_ID:your-gcp-project-id}
-      dataset_id: "user_data"
-      table_id: "user_features_for_uplift"
-      unique_col: "member_id"
 
-# 피처 증강기 설정
-augmenter:
-  batch: # 배치 추론 시 사용 (BigQuery)
-    feature_store_sql_path: "your-gcp-project-id.feature_store.user_summary"
-  realtime: # API 서빙 시 사용 (Redis)
-    type: redis
+# 피처 증강기 레시피 라이브러리
+augmenters:
+  user_summary_features:
+    type: "sql_template"
+    template_path: "src/sql/features/user_summary.sql"
+  
+  # 예시: 다른 피처셋을 위한 레시피
+  # another_feature_set:
+  #   type: "sql_template"
+  #   template_path: "src/sql/features/another_set.sql"
+
+  realtime_user_profile:
+    type: "redis"
     host: ${REDIS_HOST:localhost}
     port: ${REDIS_PORT:6379}
 
@@ -39,7 +40,7 @@ preprocessor:
     type: gcs # 또는 local
     bucket_name: ${GCS_BUCKET_NAME:your-ml-artifacts-bucket}
 
-# MLflow 설정
+# 모델 아티팩��� 스토어 (MLflow Model Registry)
 mlflow:
   tracking_uri: ${MLFLOW_TRACKING_URI:http://127.0.0.1:5000}
   experiment_name: "Uplift-Modeling-Experiment"
@@ -47,3 +48,15 @@ mlflow:
 # API 서버 설정
 serving:
   model_stage: ${MODEL_STAGE:Production} # API 서빙 시 사용할 모델의 스테이지 (e.g., Production, Staging)
+
+# 데이터셋 아티팩트 스토어 (BigQuery, GCS, S3 등)
+artifact_stores:
+  augmented_dataset:
+    enabled: true
+    base_uri: "bq://${GCP_PROJECT_ID:your-gcp-project-id}.feature_store"
+  preprocessed_dataset:
+    enabled: false # 필요 시 true로 변경하여 디버깅에 사용
+    base_uri: "gs://${GCS_BUCKET_NAME:your-ml-artifacts-bucket}/preprocessed"
+  prediction_results:
+    enabled: true
+    base_uri: "bq://${GCP_PROJECT_ID:your-gcp-project-id}.prediction_results"

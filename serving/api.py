@@ -47,12 +47,12 @@ def create_app(settings: Settings) -> FastAPI:
         app_context.settings = settings
         
         try:
-            app_context.model = mlflow_utils.load_pyfunc_model(
+            app_context.model = mlflow_utils.load_pyfunc_model_by_stage(
                 model_name=settings.model.name,
                 stage=settings.serving.model_stage,
                 settings=settings
             )
-            app_context.model_uri = mlflow_utils.get_model_uri(
+            app_context.model_uri = mlflow_utils.get_model_uri_by_stage(
                 model_name=settings.model.name,
                 stage=settings.serving.model_stage
             )

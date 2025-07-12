@@ -1,5 +1,7 @@
 import typer
+import json
 from typing_extensions import Annotated
+from typing import Optional
 
 from src.settings.settings import load_settings
 from src.pipelines.train_pipeline import run_training
@@ -13,15 +15,17 @@ app = typer.Typer(help="현대적인 ML 파이프라인 CLI 도구")
 def train(
     model_name: Annotated[str, typer.Option(help="Recipe 파일과 동일한 모델 이름")],
     loader_name: Annotated[str, typer.Option(help="사용할 데이터 로더의 이름")] = "user_features",
+    context_params: Annotated[Optional[str], typer.Option(help='실행 컨텍스트 파라미터 (JSON 문자열)')] = None,
 ):
     """
     지정된 모델 이름의 레시피를 사용하여 학습 파이프라인을 실행합니다.
     """
     try:
         settings = load_settings(model_name)
-        setup_logging(settings) # 로거 설정 주입
-        logger.info(f"'{model_name}' 모델 학습을 시작합니다.")
-        run_training(settings=settings, loader_name=loader_name)
+        setup_logging(settings)
+        params = json.loads(context_params) if context_params else {}
+        logger.info(f"'{model_name}' 모델 학습을 시작합니다. 컨텍스트: {params}")
+        run_training(settings=settings, loader_name=loader_name, context_params=params)
     except Exception as e:
         logger.error(f"학습 파이프라인 실행 중 오류 발생: {e}", exc_info=True)
         raise typer.Exit(code=1)
@@ -29,27 +33,30 @@ def train(
 @app.command()
 def batch_inference(
     model_name: Annotated[str, typer.Option(help="추론에 사용할 모델의 레시피 이름")],
+    run_id: Annotated[str, typer.Option(help="아티팩트를 가져올 MLflow Run ID")],
     loader_name: Annotated[str, typer.Option(help="사용할 데이터 로더의 이름")] = "user_features",
-    model_stage: Annotated[str, typer.Option(help="사용할 모델의 스테이지 (e.g., 'Production')")] = "Production",
-    output_table_id: Annotated[str, typer.Option(help="결과를 저장할 BigQuery 테이블 ID")],
+    context_params: Annotated[Optional[str], typer.Option(help='실행 컨텍스트 파라미터 (JSON 문자열)')] = None,
 ):
     """
-    지정된 모델과 데이터로 배치 추론을 실행하고 결과를 BigQuery에 저장합니다.
+    지정된 run_id의 아티팩트를 사용하여 배치 추론을 실행하고,
+    결과를 config.yaml에 정의된 아티팩트 스토어에 저장합니다.
     """
     try:
         settings = load_settings(model_name)
-        setup_logging(settings) # 로거 설정 주입
-        logger.info(f"'{model_name}' 모델 설정으로 배치 추론을 시작합니다.")
+        setup_logging(settings)
+        params = json.loads(context_params) if context_params else {}
+        logger.info(f"'{model_name}' 모델 설정으로 배치 추론을 시작합니다. (Run ID: {run_id}, 컨텍스트: {params})")
         run_batch_inference(
             settings=settings,
             model_name=model_name,
-            model_stage=model_stage,
+            run_id=run_id,
             loader_name=loader_name,
-            output_table_id=output_table_id
+            context_params=params,
         )
     except Exception as e:
         logger.error(f"배치 추론 파이프라인 실행 중 오류 발생: {e}", exc_info=True)
         raise typer.Exit(code=1)
+
 
 @app.command()
 def serve_api(

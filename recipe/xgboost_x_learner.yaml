@@ -3,6 +3,9 @@
 # 모델의 고유 이름 (파일 이름과 일치해야 함)
 name: "xgboost_x_learner"
 
+# 이 모델이 사용할 피처 증강기 레시피의 이름
+augmenter: "user_summary_features"
+
 # 데이터 입출력 명세
 data_interface:
   # 모델이 사용할 피처 목록
