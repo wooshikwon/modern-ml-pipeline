@@ -1,13 +1,12 @@
-import pandas as pd
-import mlflow
 import uvicorn
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException
 from typing import Dict, Any, List, Type
 from pydantic import BaseModel
 
 from src.settings.settings import Settings
 from src.utils.logger import logger
+from src.utils import mlflow_utils
 from serving.schemas import (
     create_dynamic_prediction_request,
     create_batch_prediction_request,
@@ -20,7 +19,7 @@ from serving.schemas import (
 # FastAPI 앱의 상태(로드된 모델, 설정 등)를 관리하는 중앙 저장소
 class AppContext:
     def __init__(self):
-        self.model: mlflow.pyfunc.PyFuncModel | None = None
+        self.model: mlflow_utils.PyFuncModel | None = None # 타입 힌트 수정
         self.model_uri: str = ""
         self.settings: Settings | None = None
         self.PredictionRequest: Type[BaseModel] | None = None
@@ -33,15 +32,11 @@ app_context = AppContext()
 # --- FastAPI 앱 팩토리 ---
 def create_app(settings: Settings) -> FastAPI:
     """
-    설정 객체를 기반으로 FastAPI 애���리케이션을 생성하고 구성합니다.
+    설정 객체를 기반으로 FastAPI 애플리케이션을 생성하고 구성합니다.
     """
     # 동적 스키마 생성
     app_context.PredictionRequest = create_dynamic_prediction_request(settings)
     app_context.BatchPredictionRequest = create_batch_prediction_request(app_context.PredictionRequest)
-
-    from src.utils import mlflow_utils
-
-# ... (이전 코드 생략) ...
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -104,9 +99,10 @@ def create_app(settings: Settings) -> FastAPI:
         if not app_context.model:
             raise HTTPException(status_code=503, detail="모델이 준비되지 않았습니다.")
         try:
-            input_df = pd.DataFrame([request.dict()])
-            result_df = app_context.model.predict(input_df)
-            uplift_score = result_df[result_df.columns[0]].iloc[0]
+            # DataFrame 변환 없이 딕셔너리 리스트를 직접 전달
+            input_data = [request.dict()]
+            predictions = app_context.model.predict(input_data)
+            uplift_score = predictions[0]
             return PredictionResponse(uplift_score=uplift_score, model_uri=app_context.model_uri)
         except Exception as e:
             logger.error(f"예측 중 오류 발생: {e}", exc_info=True)
@@ -121,9 +117,8 @@ def create_app(settings: Settings) -> FastAPI:
             if not input_data:
                 raise HTTPException(status_code=400, detail="입력 샘플이 비어있습니다.")
             
-            input_df = pd.DataFrame(input_data)
-            result_df = app_context.model.predict(input_df)
-            uplift_scores = result_df[result_df.columns[0]].tolist()
+            # DataFrame 변환 없이 딕셔너리 리스트를 직접 전달
+            uplift_scores = app_context.model.predict(input_data)
             
             return BatchPredictionResponse(
                 predictions=uplift_scores,

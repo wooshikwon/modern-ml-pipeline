@@ -11,7 +11,8 @@ app = typer.Typer(help="현대적인 ML 파이프라인 CLI 도구")
 
 @app.command()
 def train(
-    model_name: Annotated[str, typer.Option(help="Recipe 파일과 동일한 모델 이름")]
+    model_name: Annotated[str, typer.Option(help="Recipe 파일과 동일한 모델 이름")],
+    loader_name: Annotated[str, typer.Option(help="사용할 데이터 로더의 이름")] = "user_features",
 ):
     """
     지정된 모델 이름의 레시피를 사용하여 학습 파이프라인을 실행합니다.
@@ -20,7 +21,7 @@ def train(
         settings = load_settings(model_name)
         setup_logging(settings) # 로거 설정 주입
         logger.info(f"'{model_name}' 모델 학습을 시작합니다.")
-        run_training(settings)
+        run_training(settings=settings, loader_name=loader_name)
     except Exception as e:
         logger.error(f"학습 파이프라인 실행 중 오류 발생: {e}", exc_info=True)
         raise typer.Exit(code=1)
@@ -28,8 +29,8 @@ def train(
 @app.command()
 def batch_inference(
     model_name: Annotated[str, typer.Option(help="추론에 사용할 모델의 레시피 이름")],
+    loader_name: Annotated[str, typer.Option(help="사용할 데이터 로더의 이름")] = "user_features",
     model_stage: Annotated[str, typer.Option(help="사용할 모델의 스테이지 (e.g., 'Production')")] = "Production",
-    input_sql_path: Annotated[str, typer.Option(help="추론할 데이터를 로드할 SQL 파일 경로")],
     output_table_id: Annotated[str, typer.Option(help="결과를 저장할 BigQuery 테이블 ID")],
 ):
     """
@@ -43,7 +44,7 @@ def batch_inference(
             settings=settings,
             model_name=model_name,
             model_stage=model_stage,
-            input_sql_path=input_sql_path,
+            loader_name=loader_name,
             output_table_id=output_table_id
         )
     except Exception as e:

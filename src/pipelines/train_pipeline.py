@@ -10,7 +10,7 @@ from src.utils.logger import logger
 from src.utils import mlflow_utils
 
 
-def run_training(settings: Settings):
+def run_training(settings: Settings, loader_name: str):
     """
     모델 학습 파이프라인을 실행합니다.
     `mlflow_utils`를 사용하여 MLflow 상호작용을 중앙에서 관리합니다.
@@ -28,11 +28,11 @@ def run_training(settings: Settings):
         mlflow.log_params(settings.preprocessor.params.dict())
         mlflow.log_params(settings.model.hyperparameters.__root__)
         mlflow.log_param("model_name", settings.model.name)
+        mlflow.log_param("loader_name", loader_name)
 
         # 2. 데이터 로딩
-        dataset_name = list(settings.loader.keys())[0]
-        logger.info(f"데이터셋 로딩: '{dataset_name}'")
-        loader = get_dataset_loader(dataset_name, settings)
+        logger.info(f"데이터셋 로딩: '{loader_name}'")
+        loader = get_dataset_loader(loader_name, settings)
         df = loader.load()
         mlflow.log_metric("row_count", len(df))
         mlflow.log_metric("column_count", len(df.columns))
