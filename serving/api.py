@@ -3,7 +3,7 @@ import pandas as pd
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from typing import Dict, Any, List, Type
-from pydantic import BaseModel
+from pydantic import BaseModel, create_model
 
 from src.settings.settings import Settings
 from src.utils.system.logger import logger
