@@ -18,7 +18,8 @@ environment:
 mlflow:
   # 로컬에서 실행되는 MLflow 서버를 기본값으로 합니다.
   tracking_uri: ${MLFLOW_TRACKING_URI:http://127.0.0.1:5000}
-  experiment_name: "Uplift-Modeling-Local-Dev"
+  # 모든 실험의 통합 목적을 명확히 정의
+  experiment_name: "Campaign-Uplift-Modeling"
 
 # 3. API 서버 운영 환경
 serving:

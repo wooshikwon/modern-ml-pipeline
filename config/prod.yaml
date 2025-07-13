@@ -12,7 +12,8 @@ environment:
 mlflow:
   # 운영 MLflow 서버 주소
   tracking_uri: "http://prod-mlflow-server.internal:5000"
-  experiment_name: "Uplift-Modeling-Production"
+  # 운영 환경용 실험명 (통합 목적 + 환경 구분)
+  experiment_name: "Campaign-Uplift-Modeling-Prod"
 
 serving:
   # API 서버는 반드시 "Production" 스테이지의 모델을 사용해야 합니다.

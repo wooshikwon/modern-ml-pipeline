@@ -1,12 +1,12 @@
 import pandas as pd
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from urllib.parse import urlparse
 from pathlib import Path
 
 from src.interface.base_augmenter import BaseAugmenter
-from src.utils.logger import logger
+from src.utils.system.logger import logger
 from src.settings.settings import Settings
-from src.utils import sql_utils
+from src.utils.system import sql_utils
 # Factory는 dynamic import로 사용하여 순환 참조 방지
 
 class LocalFileAugmenter(BaseAugmenter):
@@ -110,6 +110,72 @@ class Augmenter(BaseAugmenter):
             feature_df["member_id"] = list(feature_map.keys())
 
         for col in self.realtime_features_list:
+            if col not in feature_df.columns:
+                feature_df[col] = None
+        
+        return pd.merge(data, feature_df, on="member_id", how="left")
+
+    def augment_batch(
+        self, data: pd.DataFrame, sql_snapshot: str, context_params: Optional[Dict[str, Any]] = None
+    ) -> pd.DataFrame:
+        """
+        배치 모드 피처 증강 (Blueprint v13.0)
+        SQL 스냅샷을 사용하여 배치 추론 시 피처 증강
+        """
+        logger.info(f"배치 모드 피처 증강을 시작합니다. (SQL 스냅샷 사용)")
+        
+        # SQL 스냅샷을 직접 실행
+        if sql_snapshot:
+            feature_df = self.batch_adapter.read(sql_snapshot, params=context_params)
+            return pd.merge(data, feature_df, on="member_id", how="left")
+        else:
+            logger.warning("SQL 스냅샷이 없어 피처 증강을 건너뜁니다.")
+            return data
+
+    def augment_realtime(
+        self, 
+        data: pd.DataFrame, 
+        sql_snapshot: str,
+        feature_store_config: Optional[Dict[str, Any]] = None,
+        feature_columns: Optional[List[str]] = None
+    ) -> pd.DataFrame:
+        """
+        실시간 모드 피처 증강 (Blueprint v13.0)
+        SQL 스냅샷을 파싱하여 Feature Store 조회로 변환
+        """
+        if not feature_store_config:
+            raise ValueError("실시간 증강을 위해서는 feature_store_config가 필요합니다.")
+        if "member_id" not in data.columns:
+            raise ValueError("'member_id' 컬럼이 없어 실시간 피처 조회를 할 수 없습니다.")
+
+        user_ids = data["member_id"].tolist()
+        logger.info(f"{len(user_ids)}명의 사용자에 대한 실시간 피처 조회를 시작합니다.")
+
+        # SQL 스냅샷에서 피처 컬럼 추출
+        if not feature_columns:
+            from src.utils.system.sql_utils import get_selected_columns
+            feature_columns = get_selected_columns(sql_snapshot)
+        
+        store_type = feature_store_config.get("store_type")
+        
+        if store_type == "redis":
+            if self.redis_adapter is None:
+                logger.warning("Redis가 설치되지 않아 실시간 피처 조회를 건너뜁니다.")
+                feature_map = {}
+            else:
+                # SQL 스냅샷 기반 Feature Store 조회
+                feature_map = self.redis_adapter.get_features(user_ids, feature_columns)
+        else:
+            raise NotImplementedError(f"지원하지 않는 실시간 스토어 타입입니다: {store_type}")
+
+        if not feature_map:
+            logger.warning("조회된 실시간 피처가 없습니다.")
+            feature_df = pd.DataFrame(columns=["member_id"] + feature_columns)
+        else:
+            feature_df = pd.DataFrame.from_records(list(feature_map.values()))
+            feature_df["member_id"] = list(feature_map.keys())
+
+        for col in feature_columns:
             if col not in feature_df.columns:
                 feature_df[col] = None
         

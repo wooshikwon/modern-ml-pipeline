@@ -11,7 +11,8 @@ environment:
 mlflow:
   # 개발팀 공용 MLflow 서버 주소
   tracking_uri: "http://dev-mlflow-server.internal:5000"
-  experiment_name: "Uplift-Modeling-Experiment-Dev"
+  # 개발 환경용 실험명 (통합 목적 + 환경 구분)
+  experiment_name: "Campaign-Uplift-Modeling-Dev"
 
 serving:
   # 개발 환경의 실시간 피처 스토어 (예: 개발용 Redis)

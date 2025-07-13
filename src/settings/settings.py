@@ -91,12 +91,15 @@ class ModelHyperparametersSettings(RootModel[Dict[str, Any]]):
     root: Dict[str, Any]
 
 class ModelSettings(BaseModel):
-    name: str
+    class_path: str  # 새로 추가: 동적 모델 로딩용
     loader: LoaderSettings
     augmenter: Optional[AugmenterSettings] = None
     preprocessor: Optional[PreprocessorSettings] = None
     data_interface: DataInterfaceSettings
     hyperparameters: ModelHyperparametersSettings
+    
+    # 내부 계산 필드 (런타임에 생성됨)
+    _computed: Optional[Dict[str, Any]] = None
 
 # --- 최종 통합 Settings 클래스 ---
 class Settings(BaseModel):
@@ -136,5 +139,55 @@ def load_settings(model_name: str) -> Settings:
         raise ValueError(f"모델 레시피({recipe_path})의 name 속성이 '{model_name}'과 일치하지 않습니다.")
 
     combined_data = {**settings_data, "model": recipe_data}
+    return Settings(**combined_data)
 
+
+def load_settings_by_file(recipe_file: str) -> Settings:
+    """
+    recipe_file 기반으로 자유롭게 설정을 로드합니다.
+    완전한 실험 자유도를 제공하며, 자동 Run Name 생성을 포함합니다.
+    
+    Args:
+        recipe_file: recipe 파일명 (확장자 제외)
+        
+    Returns:
+        Settings: 완전한 설정 객체
+    """
+    from datetime import datetime
+    
+    # 기존 config 로딩 로직 유지
+    config_dir = BASE_DIR / "config"
+    base_config_path = config_dir / "base.yaml"
+    settings_data = _load_yaml_with_env(base_config_path)
+
+    app_env = settings_data.get("environment", {}).get("app_env", "local")
+    env_config_path = config_dir / f"{app_env}.yaml"
+    env_config_data = _load_yaml_with_env(env_config_path)
+    settings_data = _recursive_merge(settings_data, env_config_data)
+
+    local_config_path = config_dir / "local.yaml"
+    local_config_data = _load_yaml_with_env(local_config_path)
+    settings_data = _recursive_merge(settings_data, local_config_data)
+
+    # Recipe 파일 로딩 (파일명-name 일치 검증 제거!)
+    recipe_path = BASE_DIR / "recipes" / f"{recipe_file}.yaml"
+    if not recipe_path.exists():
+        raise FileNotFoundError(f"Recipe 파일을 찾을 수 없습니다: {recipe_path}")
+    
+    recipe_data = _load_yaml_with_env(recipe_path)
+    
+    # 자동 Run Name 생성 로직
+    model_class_name = recipe_data["class_path"].split('.')[-1]
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    run_name = f"{model_class_name}_{recipe_file}_{timestamp}"
+    
+    # 내부 계산 필드 추가
+    recipe_data["_computed"] = {
+        "run_name": run_name,
+        "model_class_name": model_class_name,
+        "recipe_file": recipe_file,
+        "timestamp": timestamp
+    }
+    
+    combined_data = {**settings_data, "model": recipe_data}
     return Settings(**combined_data)

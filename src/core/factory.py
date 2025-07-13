@@ -1,4 +1,5 @@
 import yaml
+import importlib
 from pathlib import Path
 from typing import Optional, Dict, Any
 from urllib.parse import urlparse
@@ -10,18 +11,17 @@ from src.core.augmenter import Augmenter, LocalFileAugmenter, BaseAugmenter
 from src.core.preprocessor import BasePreprocessor, Preprocessor
 from src.interface.base_model import BaseModel
 from src.interface.base_adapter import BaseAdapter
-from src.interface.base_data_adapter import BaseDataAdapter
 from src.models import CausalForestModel, XGBoostXLearner
 from src.settings.settings import Settings
-from src.utils.logger import logger
-from src.utils.data_adapters.file_system_adapter import FileSystemAdapter
-from src.utils.data_adapters.bigquery_adapter import BigQueryAdapter
-from src.utils.data_adapters.gcs_adapter import GCSAdapter
-from src.utils.data_adapters.s3_adapter import S3Adapter
+from src.utils.system.logger import logger
+from src.utils.adapters.file_system_adapter import FileSystemAdapter
+from src.utils.adapters.bigquery_adapter import BigQueryAdapter
+from src.utils.adapters.gcs_adapter import GCSAdapter
+from src.utils.adapters.s3_adapter import S3Adapter
 
 # Redis는 선택적 의존성으로 처리
 try:
-    from src.utils.data_adapters.redis_adapter import RedisAdapter
+    from src.utils.adapters.redis_adapter import RedisAdapter
     HAS_REDIS = True
 except ImportError:
     RedisAdapter = None
@@ -29,46 +29,79 @@ except ImportError:
 
 class PyfuncWrapper(mlflow.pyfunc.PythonModel):
     """
-    순수 로직 컴포넌트와 로직의 스냅샷만 내장하는 '완전 독립형' 모델 래퍼.
+    완전한 Wrapped Artifact 구현: Blueprint v13.0
+    학습 시점의 모든 로직과 메타데이터를 완전히 캡슐화한 자기 완결적 아티팩트
     """
     def __init__(
         self,
-        augmenter: BaseAugmenter,
-        preprocessor: Optional[BasePreprocessor],
-        model: BaseModel,
-        loader_uri: str,
-        recipe_snapshot: Dict[str, Any],
+        trained_model: BaseModel,
+        trained_preprocessor: Optional[BasePreprocessor],
+        trained_augmenter: BaseAugmenter,
+        loader_sql_snapshot: str,
         augmenter_sql_snapshot: str,
+        recipe_yaml_snapshot: str,
+        training_metadata: Dict[str, Any],
     ):
-        self.augmenter = augmenter
-        self.preprocessor = preprocessor
-        self.model = model
-        self.loader_uri = loader_uri
-        self.recipe_snapshot = recipe_snapshot
+        # 학습된 컴포넌트들
+        self.trained_model = trained_model
+        self.trained_preprocessor = trained_preprocessor
+        self.trained_augmenter = trained_augmenter
+        
+        # 로직의 완전한 스냅샷
+        self.loader_sql_snapshot = loader_sql_snapshot
         self.augmenter_sql_snapshot = augmenter_sql_snapshot
+        self.recipe_yaml_snapshot = recipe_yaml_snapshot
+        
+        # 메타데이터
+        self.training_metadata = training_metadata
+        
+        # 하위 호환성을 위한 별칭
+        self.augmenter = trained_augmenter
+        self.preprocessor = trained_preprocessor
+        self.model = trained_model
+        self.loader_uri = training_metadata.get("loader_uri", "")
+        self.recipe_snapshot = training_metadata.get("recipe_snapshot", {})
 
     def predict(
         self, context, model_input: pd.DataFrame, params: Optional[Dict[str, Any]] = None
     ) -> pd.DataFrame:
+        """
+        컨텍스트에 따른 예측 실행 (Blueprint v13.0)
+        배치 추론과 API 서빙 모두 지원하는 통합 예측 엔드포인트
+        """
         params = params or {}
         run_mode = params.get("run_mode", "serving")
-        context_params = params.get("context_params", {})
-        feature_store_config = params.get("feature_store_config")
         return_intermediate = params.get("return_intermediate", False)
 
         logger.info(f"PyfuncWrapper.predict 실행 시작 (모드: {run_mode})")
 
-        augmented_df = self.augmenter.augment(
-            data=model_input,
-            run_mode=run_mode,
-            context_params=context_params,
-            feature_store_config=feature_store_config,
-        )
-        preprocessed_df = (
-            self.preprocessor.transform(augmented_df) if self.preprocessor else augmented_df
-        )
-        predictions = self.model.predict(preprocessed_df)
-        
+        # 1. 피처 증강 (Augmentation)
+        if run_mode == "batch":
+            # 배치 모드: SQL 직접 실행
+            augmented_df = self.trained_augmenter.augment_batch(
+                model_input, 
+                sql_snapshot=self.augmenter_sql_snapshot,
+                context_params=params.get("context_params", {})
+            )
+        else:
+            # 실시간 모드: Feature Store 조회
+            augmented_df = self.trained_augmenter.augment_realtime(
+                model_input,
+                sql_snapshot=self.augmenter_sql_snapshot,
+                feature_store_config=params.get("feature_store_config"),
+                feature_columns=params.get("feature_columns")
+            )
+
+        # 2. 전처리 (Preprocessing)
+        if self.trained_preprocessor:
+            preprocessed_df = self.trained_preprocessor.transform(augmented_df)
+        else:
+            preprocessed_df = augmented_df
+
+        # 3. 모델 추론 (Prediction)
+        predictions = self.trained_model.predict(preprocessed_df)
+
+        # 4. 결과 정리
         results_df = model_input.merge(
             pd.DataFrame(predictions, index=model_input.index, columns=["uplift_score"]),
             left_index=True,
@@ -93,7 +126,7 @@ class Factory:
         self.settings = settings
         logger.info("Factory가 초기화되었습니다.")
 
-    def create_data_adapter(self, scheme: str) -> BaseDataAdapter:
+    def create_data_adapter(self, scheme: str) -> BaseAdapter:
         logger.info(f"'{scheme}' 스킴에 대한 데이터 어댑터를 생성합니다.")
         if scheme == 'file':
             return FileSystemAdapter(self.settings)
@@ -132,31 +165,120 @@ class Factory:
         return Preprocessor(config=preprocessor_config, settings=self.settings)
 
     def create_model(self) -> BaseModel:
-        model_name = self.settings.model.name
-        if model_name == "xgboost_x_learner":
-            return XGBoostXLearner(settings=self.settings)
-        elif model_name == "causal_forest":
-            return CausalForestModel(settings=self.settings)
-        raise ValueError(f"지원하지 않는 모델 타입입니다: '{model_name}'")
+        """
+        class_path 기반 동적 모델 로딩 시스템
+        무제한적인 실험 자유도를 제공합니다.
+        """
+        class_path = self.settings.model.class_path
+        
+        try:
+            # 모듈 경로와 클래스 이름 분리
+            module_path, class_name = class_path.rsplit('.', 1)
+            
+            # 동적 모듈 로드
+            module = importlib.import_module(module_path)
+            model_class = getattr(module, class_name)
+            
+            # 하이퍼파라미터 전달하여 인스턴스 생성
+            hyperparams = self.settings.model.hyperparameters.root
+            
+            # 모델 클래스가 settings 파라미터를 요구하는지 확인
+            # 기존 프로젝트 모델들은 settings를 받고, 외부 모델들은 하이퍼파라미터만 받음
+            try:
+                # 먼저 settings와 함께 시도 (기존 프로젝트 모델)
+                return model_class(settings=self.settings)
+            except TypeError:
+                # settings를 받지 않는 경우 하이퍼파라미터만 전달 (외부 모델)
+                return model_class(**hyperparams)
+                
+        except Exception as e:
+            logger.error(f"모델 로딩 실패: {class_path}, 오류: {e}")
+            raise ValueError(f"모델 클래스를 로드할 수 없습니다: {class_path}") from e
 
     def create_pyfunc_wrapper(
         self, trained_model: BaseModel, trained_preprocessor: Optional[BasePreprocessor]
     ) -> PyfuncWrapper:
-        logger.info("순수 로직 PyfuncWrapper 생성을 시작합니다.")
-        augmenter = self.create_augmenter()
+        """
+        완전한 Wrapped Artifact 생성 (Blueprint v13.0)
+        학습 시점의 모든 로직과 메타데이터를 완전히 캡슐화
+        """
+        logger.info("완전한 Wrapped Artifact 생성을 시작합니다.")
         
-        augmenter_sql_snapshot = ""
-        if isinstance(augmenter, Augmenter):
-            augmenter_sql_snapshot = augmenter.sql_template_str
+        # 1. 학습된 Augmenter 생성
+        trained_augmenter = self.create_augmenter()
         
-        recipe_path = Path(__file__).resolve().parent.parent.parent / "recipes" / f"{self.settings.model.name}.yaml"
-        recipe_snapshot = yaml.safe_load(recipe_path.read_text(encoding="utf-8"))
-
+        # 2. SQL 스냅샷 생성
+        loader_sql_snapshot = self._create_loader_sql_snapshot()
+        augmenter_sql_snapshot = self._create_augmenter_sql_snapshot()
+        
+        # 3. Recipe YAML 스냅샷 생성
+        recipe_yaml_snapshot = self._create_recipe_yaml_snapshot()
+        
+        # 4. 메타데이터 생성
+        training_metadata = self._create_training_metadata()
+        
+        # 5. 완전한 Wrapper 생성
         return PyfuncWrapper(
-            augmenter=augmenter,
-            preprocessor=trained_preprocessor,
-            model=trained_model,
-            loader_uri=self.settings.model.loader.source_uri,
-            recipe_snapshot=recipe_snapshot,
+            trained_model=trained_model,
+            trained_preprocessor=trained_preprocessor,
+            trained_augmenter=trained_augmenter,
+            loader_sql_snapshot=loader_sql_snapshot,
             augmenter_sql_snapshot=augmenter_sql_snapshot,
+            recipe_yaml_snapshot=recipe_yaml_snapshot,
+            training_metadata=training_metadata,
         )
+    
+    def _create_loader_sql_snapshot(self) -> str:
+        """Loader SQL 스냅샷 생성"""
+        loader_uri = self.settings.model.loader.source_uri
+        
+        if loader_uri.startswith("bq://"):
+            # SQL 파일 경로 추출
+            sql_path = loader_uri.replace("bq://", "")
+            sql_file = Path(sql_path)
+            
+            if sql_file.exists():
+                return sql_file.read_text(encoding="utf-8")
+        
+        return ""
+    
+    def _create_augmenter_sql_snapshot(self) -> str:
+        """Augmenter SQL 스냅샷 생성"""
+        if not self.settings.model.augmenter:
+            return ""
+        
+        augmenter_uri = self.settings.model.augmenter.source_uri
+        
+        if augmenter_uri.startswith("bq://"):
+            sql_path = augmenter_uri.replace("bq://", "")
+            sql_file = Path(sql_path)
+            
+            if sql_file.exists():
+                return sql_file.read_text(encoding="utf-8")
+        
+        return ""
+    
+    def _create_recipe_yaml_snapshot(self) -> str:
+        """Recipe YAML 스냅샷 생성"""
+        recipe_file = self.settings.model._computed["recipe_file"]
+        recipe_path = Path(f"recipes/{recipe_file}.yaml")
+        
+        if recipe_path.exists():
+            return recipe_path.read_text(encoding="utf-8")
+        
+        return ""
+    
+    def _create_training_metadata(self) -> Dict[str, Any]:
+        """학습 메타데이터 생성"""
+        from datetime import datetime
+        
+        return {
+            "training_timestamp": datetime.now().isoformat(),
+            "model_class": self.settings.model._computed["model_class_name"],
+            "recipe_file": self.settings.model._computed["recipe_file"],
+            "run_name": self.settings.model._computed["run_name"],
+            "class_path": self.settings.model.class_path,
+            "hyperparameters": self.settings.model.hyperparameters.root,
+            "loader_uri": self.settings.model.loader.source_uri,
+            "recipe_snapshot": self.settings.model.dict(),
+        }
