@@ -9,9 +9,7 @@ import pandas as pd
 
 from src.core.augmenter import Augmenter, LocalFileAugmenter, BaseAugmenter
 from src.core.preprocessor import BasePreprocessor, Preprocessor
-from src.interface.base_model import BaseModel
 from src.interface.base_adapter import BaseAdapter
-from src.models import CausalForestModel, XGBoostXLearner
 from src.settings.settings import Settings
 from src.utils.system.logger import logger
 from src.utils.adapters.file_system_adapter import FileSystemAdapter
@@ -34,7 +32,7 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
     """
     def __init__(
         self,
-        trained_model: BaseModel,
+        trained_model,
         trained_preprocessor: Optional[BasePreprocessor],
         trained_augmenter: BaseAugmenter,
         loader_sql_snapshot: str,
@@ -164,10 +162,10 @@ class Factory:
         if not preprocessor_config: return None
         return Preprocessor(config=preprocessor_config, settings=self.settings)
 
-    def create_model(self) -> BaseModel:
+    def create_model(self):
         """
-        class_path 기반 동적 모델 로딩 시스템
-        무제한적인 실험 자유도를 제공합니다.
+        외부 라이브러리 직접 로딩 기반 동적 모델 생성 시스템
+        무제한적인 YAML 기반 실험 자유도를 제공합니다.
         """
         class_path = self.settings.model.class_path
         
@@ -182,21 +180,15 @@ class Factory:
             # 하이퍼파라미터 전달하여 인스턴스 생성
             hyperparams = self.settings.model.hyperparameters.root
             
-            # 모델 클래스가 settings 파라미터를 요구하는지 확인
-            # 기존 프로젝트 모델들은 settings를 받고, 외부 모델들은 하이퍼파라미터만 받음
-            try:
-                # 먼저 settings와 함께 시도 (기존 프로젝트 모델)
-                return model_class(settings=self.settings)
-            except TypeError:
-                # settings를 받지 않는 경우 하이퍼파라미터만 전달 (외부 모델)
-                return model_class(**hyperparams)
+            logger.info(f"외부 모델 로딩: {class_path}")
+            return model_class(**hyperparams)
                 
         except Exception as e:
             logger.error(f"모델 로딩 실패: {class_path}, 오류: {e}")
             raise ValueError(f"모델 클래스를 로드할 수 없습니다: {class_path}") from e
 
     def create_pyfunc_wrapper(
-        self, trained_model: BaseModel, trained_preprocessor: Optional[BasePreprocessor]
+        self, trained_model, trained_preprocessor: Optional[BasePreprocessor]
     ) -> PyfuncWrapper:
         """
         완전한 Wrapped Artifact 생성 (Blueprint v13.0)
@@ -260,7 +252,7 @@ class Factory:
     
     def _create_recipe_yaml_snapshot(self) -> str:
         """Recipe YAML 스냅샷 생성"""
-        recipe_file = self.settings.model._computed["recipe_file"]
+        recipe_file = self.settings.model.computed["recipe_file"]
         recipe_path = Path(f"recipes/{recipe_file}.yaml")
         
         if recipe_path.exists():
@@ -274,9 +266,9 @@ class Factory:
         
         return {
             "training_timestamp": datetime.now().isoformat(),
-            "model_class": self.settings.model._computed["model_class_name"],
-            "recipe_file": self.settings.model._computed["recipe_file"],
-            "run_name": self.settings.model._computed["run_name"],
+            "model_class": self.settings.model.computed["model_class_name"],
+            "recipe_file": self.settings.model.computed["recipe_file"],
+            "run_name": self.settings.model.computed["run_name"],
             "class_path": self.settings.model.class_path,
             "hyperparameters": self.settings.model.hyperparameters.root,
             "loader_uri": self.settings.model.loader.source_uri,

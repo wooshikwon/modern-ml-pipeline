@@ -5,7 +5,7 @@ import mlflow
 
 # 필요한 타입 힌트를 위해 import
 from src.settings.settings import Settings
-from src.interface.base_model import BaseModel
+# BaseModel import 제거: 외부 라이브러리 직접 사용으로 전환
 from src.core.preprocessor import Preprocessor
 
 """
@@ -32,14 +32,14 @@ class BaseFactory(ABC):
     """
 
     @abstractmethod
-    def create_model(self) -> BaseModel:
+    def create_model(self):
         """
-        프로젝트 설정에 기반하여 적절한 모델 객체를 생성합니다.
+        외부 라이브러리 기반 동적 모델 객체를 생성합니다.
         """
         raise NotImplementedError
 
     @abstractmethod
-    def create_pyfunc_wrapper(self, model: BaseModel, preprocessor: Preprocessor) -> mlflow.pyfunc.PythonModel:
+    def create_pyfunc_wrapper(self, model, preprocessor: Preprocessor) -> mlflow.pyfunc.PythonModel:
         """
         학습된 모델과 전처리기를 MLflow가 이해할 수 있는 형태로 포장합니다.
         """

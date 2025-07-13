@@ -23,7 +23,7 @@ def render_sql(
     """
     params = params or {}
     try:
-        project_root = Path(__file__).resolve().parent.parent.parent.parent
+        project_root = Path(__file__).resolve().parent.parent.parent
         env = jinja2.Environment(
             loader=jinja2.FileSystemLoader(str(project_root)),
             trim_blocks=True,
@@ -72,69 +72,3 @@ def get_selected_columns(sql_query: str) -> List[str]:
             
     logger.info(f"SQL에서 {len(columns)}개 컬럼 추출: {columns}")
     return columns
-
-
-def render_sql_template(template_path: str, params: Dict[str, Any]) -> str:
-    """
-    SQL 템플릿을 렌더링하는 함수 (render_sql의 별칭)
-    """
-    return render_sql(template_path, params)
-
-
-def parse_select_columns(sql_query: str) -> List[str]:
-    """
-    SQL 쿼리의 SELECT 절 컬럼을 파싱하는 함수 (get_selected_columns의 별칭)
-    """
-    return get_selected_columns(sql_query)
-
-
-def parse_feature_columns(sql_query: str) -> tuple[List[str], str]:
-    """
-    SQL에서 피처 컬럼과 JOIN 키를 추출합니다.
-    
-    Args:
-        sql_query: 분석할 SQL 쿼리
-    
-    Returns:
-        tuple: (feature_columns, join_key)
-    """
-    feature_columns = get_selected_columns(sql_query)
-    
-    # JOIN 키를 찾기 위해 간단한 파싱 (WHERE 절이나 JOIN 절에서 추출)
-    join_key = ""
-    lower_sql = sql_query.lower()
-    
-    # 간단한 패턴 매칭으로 JOIN 키 추출
-    if "member_id" in lower_sql:
-        join_key = "member_id"
-    elif "user_id" in lower_sql:
-        join_key = "user_id"
-    elif "id" in lower_sql:
-        join_key = "id"
-    
-    logger.info(f"피처 컬럼 {len(feature_columns)}개, JOIN 키: {join_key}")
-    return feature_columns, join_key
-
-
-def sql_to_kv_mapping(sql_query: str, member_ids: List[str]) -> Dict[str, Any]:
-    """
-    SQL을 Key-Value 조회로 변환하는 매핑 정보를 생성합니다.
-    
-    Args:
-        sql_query: 변환할 SQL 쿼리
-        member_ids: 조회할 멤버 ID 리스트
-    
-    Returns:
-        dict: Key-Value 조회를 위한 매핑 정보
-    """
-    feature_columns, join_key = parse_feature_columns(sql_query)
-    
-    mapping = {
-        "feature_columns": feature_columns,
-        "join_key": join_key,
-        "member_ids": member_ids,
-        "key_pattern": "{column}:{member_id}"
-    }
-    
-    logger.info(f"SQL-to-KV 매핑 생성: {len(feature_columns)}개 컬럼, {len(member_ids)}개 ID")
-    return mapping 

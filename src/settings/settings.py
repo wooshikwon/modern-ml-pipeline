@@ -98,8 +98,8 @@ class ModelSettings(BaseModel):
     data_interface: DataInterfaceSettings
     hyperparameters: ModelHyperparametersSettings
     
-    # 내부 계산 필드 (런타임에 생성됨)
-    _computed: Optional[Dict[str, Any]] = None
+    # 내부 계산 필드 (런타임에 생성됨) - 언더스코어 제거로 Pydantic 호환성 확보
+    computed: Optional[Dict[str, Any]] = None
 
 # --- 최종 통합 Settings 클래스 ---
 class Settings(BaseModel):
@@ -182,7 +182,7 @@ def load_settings_by_file(recipe_file: str) -> Settings:
     run_name = f"{model_class_name}_{recipe_file}_{timestamp}"
     
     # 내부 계산 필드 추가
-    recipe_data["_computed"] = {
+    recipe_data["computed"] = {
         "run_name": run_name,
         "model_class_name": model_class_name,
         "recipe_file": recipe_file,

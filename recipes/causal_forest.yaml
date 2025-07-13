@@ -2,7 +2,7 @@
 # Causal Forest 모델을 위한 모든 정의가 포함된 "올인원" 레시피
 
 # 1. 모델 기본 정보
-class_path: "src.models.causal_forest.CausalForestModel"
+class_path: "causalml.inference.tree.CausalRandomForestRegressor"
 
 # 2. 데이터 로더 정의
 loader:

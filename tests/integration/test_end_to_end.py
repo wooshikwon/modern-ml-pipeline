@@ -413,7 +413,7 @@ def test_blueprint_v13_complete_workflow():
     with patch('src.settings.settings.load_settings_by_file') as mock_load_settings:
         mock_settings = Mock()
         mock_settings.model.class_path = "src.models.xgboost_x_learner.XGBoostXLearner"
-        mock_settings.model._computed = {
+        mock_settings.model.computed = {
             "run_name": "XGBoostXLearner_test_experiment_20240115_120000",
             "model_class_name": "XGBoostXLearner",
             "recipe_file": "test_experiment",
