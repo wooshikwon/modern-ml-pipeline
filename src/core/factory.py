@@ -187,6 +187,36 @@ class Factory:
             logger.error(f"모델 로딩 실패: {class_path}, 오류: {e}")
             raise ValueError(f"모델 클래스를 로드할 수 없습니다: {class_path}") from e
 
+    def create_evaluator(self):
+        """task_type에 따른 동적 evaluator 생성"""
+        # Dynamic import로 순환 참조 방지
+        from src.core.evaluator import (
+            ClassificationEvaluator,
+            RegressionEvaluator,
+            ClusteringEvaluator,
+            CausalEvaluator,
+        )
+        
+        task_type = self.settings.model.data_interface.task_type
+        data_interface = self.settings.model.data_interface
+        
+        evaluator_map = {
+            "classification": ClassificationEvaluator,
+            "regression": RegressionEvaluator,
+            "clustering": ClusteringEvaluator,
+            "causal": CausalEvaluator,
+        }
+        
+        if task_type not in evaluator_map:
+            supported_types = list(evaluator_map.keys())
+            raise ValueError(
+                f"지원하지 않는 task_type: '{task_type}'. "
+                f"지원 가능한 타입: {supported_types}"
+            )
+        
+        logger.info(f"'{task_type}' 타입용 evaluator를 생성합니다.")
+        return evaluator_map[task_type](data_interface)
+
     def create_pyfunc_wrapper(
         self, trained_model, trained_preprocessor: Optional[BasePreprocessor]
     ) -> PyfuncWrapper:
