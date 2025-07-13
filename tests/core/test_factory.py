@@ -11,11 +11,11 @@ import pytest
 from unittest.mock import Mock, patch
 from src.core.factory import Factory
 from src.settings.settings import Settings
-from src.utils.data_adapters.bigquery_adapter import BigQueryAdapter
-from src.utils.data_adapters.gcs_adapter import GCSAdapter
-from src.utils.data_adapters.s3_adapter import S3Adapter
-from src.utils.data_adapters.file_system_adapter import FileSystemAdapter
-from src.utils.data_adapters.redis_adapter import RedisAdapter
+from src.utils.adapters.bigquery_adapter import BigQueryAdapter
+from src.utils.adapters.gcs_adapter import GCSAdapter
+from src.utils.adapters.s3_adapter import S3Adapter
+from src.utils.adapters.file_system_adapter import FileSystemAdapter
+from src.utils.adapters.redis_adapter import RedisAdapter
 from src.core.augmenter import Augmenter
 from src.core.preprocessor import Preprocessor
 from src.core.trainer import Trainer
@@ -30,7 +30,7 @@ class TestFactory:
         """Factory가 올바른 설정으로 초기화되는지 테스트"""
         factory = Factory(xgboost_settings)
         assert factory.settings == xgboost_settings
-        assert factory.settings.model.name == "xgboost_x_learner"
+        assert factory.settings.model.class_path == "src.models.xgboost_x_learner.XGBoostXLearner"
     
     def test_create_data_adapter_bigquery(self, xgboost_settings: Settings):
         """BigQuery 어댑터 생성 테스트"""
@@ -112,22 +112,62 @@ class TestFactory:
         assert model.settings == causal_forest_settings
     
     def test_create_model_unknown_type(self, xgboost_settings: Settings):
-        """알 수 없는 모델 타입에 대한 오류 처리 테스트"""
-        # 설정을 복사하고 모델명을 변경
+        """잘못된 class_path에 대한 오류 처리 테스트 (동적 모델 로딩)"""
+        # 설정을 복사하고 class_path를 변경
         modified_settings = xgboost_settings.model_copy()
-        modified_settings.model.name = "unknown_model"
+        modified_settings.model.class_path = "invalid.module.path.UnknownModel"
         
         factory = Factory(modified_settings)
-        with pytest.raises(ValueError, match="Unknown model type"):
+        with pytest.raises(ValueError, match="모델 클래스를 로드할 수 없습니다"):
             factory.create_model()
     
-    @patch('src.core.factory.PyfuncWrapper')
-    def test_create_pyfunc_wrapper(self, mock_pyfunc_wrapper, xgboost_settings: Settings):
-        """PyfuncWrapper 생성 테스트 (순수 로직 아티팩트 원칙)"""
+    def test_dynamic_model_loading_external_model(self, xgboost_settings: Settings):
+        """외부 모델 동적 로딩 테스트 (Blueprint v13.0 핵심 기능)"""
+        # 설정을 복사하고 외부 모델 class_path로 변경 (예: scikit-learn)
+        modified_settings = xgboost_settings.model_copy()
+        modified_settings.model.class_path = "sklearn.ensemble.RandomForestRegressor"
+        modified_settings.model.hyperparameters.root = {"n_estimators": 100, "random_state": 42}
+        
+        factory = Factory(modified_settings)
+        model = factory.create_model()
+        
+        # 동적으로 로드된 모델이 올바른 타입인지 확인
+        assert model.__class__.__name__ == "RandomForestRegressor"
+        assert hasattr(model, "fit")  # scikit-learn 인터페이스 확인
+        assert hasattr(model, "predict")
+    
+    def test_create_complete_wrapped_artifact(self, xgboost_settings: Settings):
+        """완전한 Wrapped Artifact 생성 테스트 (Blueprint v13.0)"""
         factory = Factory(xgboost_settings)
         
-        # Mock 컴포넌트 생성
-        mock_augmenter = Mock()
+        # Mock 학습된 컴포넌트들
+        mock_trained_model = Mock()
+        mock_trained_preprocessor = Mock()
+        
+        with patch.object(factory, '_create_loader_sql_snapshot', return_value="SELECT * FROM test_table"):
+            with patch.object(factory, '_create_augmenter_sql_snapshot', return_value="SELECT feature1 FROM features"):
+                with patch.object(factory, '_create_recipe_yaml_snapshot', return_value="model:\n  class_path: test"):
+                    with patch.object(factory, '_create_training_metadata') as mock_metadata:
+                        mock_metadata.return_value = {
+                            "training_timestamp": "2024-01-01T00:00:00",
+                            "model_class": "XGBoostXLearner",
+                            "recipe_file": "test_recipe",
+                            "run_name": "XGBoostXLearner_test_recipe_20240101_000000"
+                        }
+                        
+                        wrapper = factory.create_pyfunc_wrapper(mock_trained_model, mock_trained_preprocessor)
+                        
+                        # 완전한 Wrapped Artifact 검증
+                        assert wrapper.trained_model == mock_trained_model
+                        assert wrapper.trained_preprocessor == mock_trained_preprocessor
+                        assert wrapper.loader_sql_snapshot == "SELECT * FROM test_table"
+                        assert wrapper.augmenter_sql_snapshot == "SELECT feature1 FROM features"
+                        assert wrapper.recipe_yaml_snapshot == "model:\n  class_path: test"
+                        assert "training_timestamp" in wrapper.training_metadata
+                        
+                        # 하위 호환성 별칭 검증
+                        assert wrapper.model == mock_trained_model
+                        assert wrapper.preprocessor == mock_trained_preprocessor
         mock_preprocessor = Mock()
         mock_model = Mock()
         

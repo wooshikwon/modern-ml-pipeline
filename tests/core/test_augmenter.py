@@ -266,3 +266,166 @@ class TestAugmenter:
             
             with pytest.raises(Exception, match="Redis connection failed"):
                 augmenter.augment(sample_data, run_mode="realtime", feature_store_config={}) 
+
+    def test_batch_realtime_consistency_blueprint_v13(self, xgboost_settings: Settings):
+        """
+        Blueprint v13.0 핵심 테스트: 배치-실시간 완전 일관성
+        동일한 SQL 스냅샷을 사용하여 배치와 실시간 결과가 100% 일치하는지 검증
+        """
+        augmenter = Augmenter("bq://test_source_uri", xgboost_settings)
+        
+        # 테스트 데이터 준비
+        input_df = pd.DataFrame({
+            "member_id": ["user1", "user2", "user3"],
+            "product_id": ["prod1", "prod2", "prod3"]
+        })
+        
+        sql_snapshot = """
+        SELECT 
+            member_id,
+            user_lifetime_value,
+            recent_purchase_count
+        FROM user_features 
+        WHERE member_id IN ({{member_ids}})
+        """
+        
+        # Mock 배치 결과 (SQL 직접 실행)
+        batch_features = pd.DataFrame({
+            "member_id": ["user1", "user2", "user3"],
+            "user_lifetime_value": [100.0, 200.0, 150.0],
+            "recent_purchase_count": [5, 10, 7]
+        })
+        
+        # Mock 실시간 Feature Store 결과 (동일한 데이터)
+        feature_store_data = {
+            "user1": {"user_lifetime_value": 100.0, "recent_purchase_count": 5},
+            "user2": {"user_lifetime_value": 200.0, "recent_purchase_count": 10},
+            "user3": {"user_lifetime_value": 150.0, "recent_purchase_count": 7}
+        }
+        
+        with patch.object(augmenter.batch_adapter, 'read', return_value=batch_features):
+            # 배치 모드 실행
+            batch_result = augmenter.augment_batch(
+                input_df, 
+                sql_snapshot=sql_snapshot,
+                context_params={"member_ids": ["user1", "user2", "user3"]}
+            )
+        
+        with patch.object(augmenter.redis_adapter, 'get_features', return_value=feature_store_data):
+            # 실시간 모드 실행
+            realtime_result = augmenter.augment_realtime(
+                input_df,
+                sql_snapshot=sql_snapshot,
+                feature_store_config={"store_type": "redis"},
+                feature_columns=["user_lifetime_value", "recent_purchase_count"]
+            )
+        
+        # 배치-실시간 완전 일관성 검증
+        pd.testing.assert_frame_equal(
+            batch_result.sort_values("member_id").reset_index(drop=True),
+            realtime_result.sort_values("member_id").reset_index(drop=True),
+            check_dtype=False
+        )
+        
+        # 개별 값들도 정확히 일치하는지 확인
+        for col in ["user_lifetime_value", "recent_purchase_count"]:
+            assert batch_result[col].tolist() == realtime_result[col].tolist()
+
+    def test_augment_batch_sql_snapshot_execution(self, xgboost_settings: Settings):
+        """
+        augment_batch 메서드 테스트 (Blueprint v13.0)
+        SQL 스냅샷을 직접 실행하는 배치 모드 검증
+        """
+        augmenter = Augmenter("bq://test_source_uri", xgboost_settings)
+        
+        input_df = pd.DataFrame({"member_id": ["user1", "user2"]})
+        sql_snapshot = "SELECT member_id, feature1 FROM features WHERE member_id IN ({{member_ids}})"
+        context_params = {"member_ids": ["user1", "user2"]}
+        
+        expected_features = pd.DataFrame({
+            "member_id": ["user1", "user2"],
+            "feature1": [10.0, 20.0]
+        })
+        
+        with patch.object(augmenter.batch_adapter, 'read', return_value=expected_features) as mock_read:
+            result = augmenter.augment_batch(input_df, sql_snapshot, context_params)
+            
+            # SQL 스냅샷이 직접 실행되었는지 확인
+            mock_read.assert_called_once_with(sql_snapshot, params=context_params)
+            
+            # 결과가 올바르게 병합되었는지 확인
+            assert "member_id" in result.columns
+            assert "feature1" in result.columns
+            assert len(result) == 2
+
+    def test_augment_realtime_sql_parsing_and_feature_store_query(self, xgboost_settings: Settings):
+        """
+        augment_realtime 메서드 테스트 (Blueprint v13.0)
+        SQL 스냅샷 파싱 → Feature Store 조회 변환 검증
+        """
+        augmenter = Augmenter("bq://test_source_uri", xgboost_settings)
+        
+        input_df = pd.DataFrame({"member_id": ["user1", "user2"]})
+        sql_snapshot = """
+        SELECT 
+            member_id,
+            user_score,
+            engagement_level
+        FROM user_features 
+        WHERE member_id IN ({{member_ids}})
+        """
+        
+        feature_store_data = {
+            "user1": {"user_score": 85.5, "engagement_level": 3},
+            "user2": {"user_score": 92.1, "engagement_level": 4}
+        }
+        
+        with patch.object(augmenter.redis_adapter, 'get_features', return_value=feature_store_data) as mock_get_features:
+            with patch('src.utils.system.sql_utils.get_selected_columns', return_value=["user_score", "engagement_level"]):
+                result = augmenter.augment_realtime(
+                    input_df,
+                    sql_snapshot=sql_snapshot,
+                    feature_store_config={"store_type": "redis"}
+                )
+                
+                # Feature Store 조회가 올바르게 호출되었는지 확인
+                mock_get_features.assert_called_once_with(
+                    ["user1", "user2"], 
+                    ["user_score", "engagement_level"]
+                )
+                
+                # 결과 검증
+                assert "member_id" in result.columns
+                assert "user_score" in result.columns
+                assert "engagement_level" in result.columns
+                assert len(result) == 2
+
+    def test_sql_snapshot_parsing_feature_extraction(self, xgboost_settings: Settings):
+        """
+        SQL 스냅샷에서 피처 컬럼 자동 추출 테스트
+        Blueprint v13.0의 SQL 파싱 기능 검증
+        """
+        augmenter = Augmenter("bq://test_source_uri", xgboost_settings)
+        
+        input_df = pd.DataFrame({"member_id": ["user1"]})
+        sql_snapshot = """
+        SELECT 
+            member_id,
+            feature_a,
+            feature_b,
+            feature_c
+        FROM feature_table
+        """
+        
+        with patch('src.utils.system.sql_utils.get_selected_columns') as mock_parse:
+            mock_parse.return_value = ["member_id", "feature_a", "feature_b", "feature_c"]
+            
+            with patch.object(augmenter.redis_adapter, 'get_features', return_value={}):
+                augmenter.augment_realtime(
+                    input_df,
+                    sql_snapshot=sql_snapshot,
+                    feature_store_config={"store_type": "redis"}
+                )
+                
+                # SQL 파싱이 호출되었는지 확인
+                mock_parse.assert_called_once_with(sql_snapshot) 
