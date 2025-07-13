@@ -8,7 +8,7 @@
 from .logger import logger, setup_logging
 from .mlflow_utils import setup_mlflow, start_run
 from .schema_utils import validate_schema, convert_schema
-from .sql_utils import render_sql_template, get_selected_columns
+from .sql_utils import render_sql, get_selected_columns
 
 __all__ = [
     'logger',
@@ -17,6 +17,6 @@ __all__ = [
     'start_run',
     'validate_schema',
     'convert_schema',
-    'render_sql_template',
+    'render_sql',
     'get_selected_columns'
 ] 

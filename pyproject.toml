@@ -31,6 +31,7 @@ dependencies = [
     "sqlparse",
     "s3fs",
     "boto3",
+    "redis",
 ]
 
 [project.optional-dependencies]
@@ -44,8 +45,8 @@ dev = [
 cli = "main:app"
 
 [tool.hatch.scripts]
-train = "python main.py train --model-name xgboost_x_learner"
-serve = "python main.py serve-api --model-name xgboost_x_learner"
+train = "python main.py train --recipe-file xgboost_x_learner"
+serve = "python main.py serve-api --run-id YOUR_RUN_ID"
 test = "pytest"
 lint = "ruff check . && mypy ."
 

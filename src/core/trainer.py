@@ -4,12 +4,12 @@ from typing import Dict, Any, Tuple, Optional
 from sklearn.model_selection import train_test_split
 
 from src.settings.settings import Settings
-from src.utils.logger import logger
+from src.utils.system.logger import logger
 from src.core.augmenter import BaseAugmenter
 from src.core.preprocessor import BasePreprocessor
-from src.interface.base_model import BaseModel
+# BaseModel import 제거: 외부 라이브러리 직접 사용으로 전환
 from src.interface.base_trainer import BaseTrainer
-from src.utils.schema_utils import validate_schema
+from src.utils.system.schema_utils import validate_schema
 
 
 class Trainer(BaseTrainer):
@@ -25,11 +25,11 @@ class Trainer(BaseTrainer):
     def train(
         self,
         df: pd.DataFrame,
-        model: BaseModel,
+        model,
         augmenter: Optional[BaseAugmenter] = None,
         preprocessor: Optional[BasePreprocessor] = None,
         context_params: Optional[Dict[str, Any]] = None,
-    ) -> Tuple[Optional[BasePreprocessor], BaseModel, Dict[str, Any]]:
+    ) -> Tuple[Optional[BasePreprocessor], Any, Dict[str, Any]]:
         """
         데이터 분할, 피처 증강, 전처리, 모델 학습, 평가의 전체 파이프라인을 실행합니���.
         """
@@ -116,7 +116,7 @@ class Trainer(BaseTrainer):
 
     def _evaluate(
         self,
-        model: BaseModel,
+        model,
         train_orig: pd.DataFrame,
         X_train: pd.DataFrame,
         test_orig: pd.DataFrame,

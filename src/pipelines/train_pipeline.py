@@ -18,7 +18,7 @@ def run_training(settings: Settings, context_params: Optional[Dict[str, Any]] = 
     Factory를 통해 데이터 어댑터와 모든 컴포넌트를 생성하고, 최종적으로
     순수 로직 PyfuncWrapper를 생성하여 MLflow에 저장합니다.
     """
-    logger.info(f"'{settings.model._computed['run_name']}' 모델 학습 파이프라인을 시작합니다.")
+    logger.info(f"'{settings.model.computed['run_name']}' 모델 학습 파이프라인을 시작합니다.")
     context_params = context_params or {}
 
     factory = Factory(settings)
@@ -27,15 +27,15 @@ def run_training(settings: Settings, context_params: Optional[Dict[str, Any]] = 
         run_id = run.info.run_id
         
         # 자동 생성된 Run Name 설정
-        run_name = settings.model._computed["run_name"]
+        run_name = settings.model.computed["run_name"]
         mlflow.set_tag("mlflow.runName", run_name)
         
         # 체계적인 실험 조직을 위한 추가 태그 설정
-        mlflow.set_tag("model_class", settings.model._computed["model_class_name"])
-        mlflow.set_tag("recipe_file", settings.model._computed["recipe_file"])
+        mlflow.set_tag("model_class", settings.model.computed["model_class_name"])
+        mlflow.set_tag("recipe_file", settings.model.computed["recipe_file"])
         mlflow.set_tag("experiment_type", "training")
         mlflow.set_tag("class_path", settings.model.class_path)
-        mlflow.set_tag("timestamp", settings.model._computed["timestamp"])
+        mlflow.set_tag("timestamp", settings.model.computed["timestamp"])
 
         # 모델 설정 및 하이퍼파라미터 로깅
         mlflow.log_params(settings.model.hyperparameters.root)

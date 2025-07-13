@@ -25,7 +25,7 @@ def train(
         params = json.loads(context_params) if context_params else {}
         
         logger.info(f"'{recipe_file}' 레시피로 학습을 시작합니다.")
-        logger.info(f"생성될 Run Name: {settings.model._computed['run_name']}")
+        logger.info(f"생성될 Run Name: {settings.model.computed['run_name']}")
         run_training(settings=settings, context_params=params)
     except Exception as e:
         logger.error(f"학습 파이프라인 실행 중 오류 발생: {e}", exc_info=True)
