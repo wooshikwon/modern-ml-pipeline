@@ -42,7 +42,7 @@ def create_app(settings: Settings) -> FastAPI:
             logger.info(f"모델 로드 완료: {model_uri}")
 
             # Wrapper의 내장 SQL 스냅샷에서 PK 목록 추출
-            pk_fields = get_pk_from_loader_sql(app_context.model.sql_snapshot)
+            pk_fields = get_pk_from_loader_sql(app_context.model.augmenter_sql_snapshot)
             logger.info(f"API 요청 PK 필드를 동적으로 생성합니다: {pk_fields}")
 
             # 동적 Pydantic 모델 생성

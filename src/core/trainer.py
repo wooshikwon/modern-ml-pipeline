@@ -42,8 +42,8 @@ class Trainer(BaseTrainer):
         # 2. 피처 증강 (주입받은 Augmenter 사용)
         if augmenter:
             logger.info("피처 증강을 시작합니다.")
-            train_df = augmenter.augment(train_df, context_params)
-            test_df = augmenter.augment(test_df, context_params)
+            train_df = augmenter.augment(train_df, run_mode="batch", context_params=context_params)
+            test_df = augmenter.augment(test_df, run_mode="batch", context_params=context_params)
             logger.info("피처 증강 완료.")
         else:
             logger.info("Augmenter가 주입되지 않아 피처 증강을 건너뜁니다.")

@@ -13,6 +13,7 @@ class GCSAdapter(BaseDataAdapter):
 
     def __init__(self, settings: Settings):
         super().__init__(settings)
+        self.client = self._get_client()
 
     def _get_client(self) -> storage.Client:
         """GCS 클라이언트를 초기화하고 반환합니다."""

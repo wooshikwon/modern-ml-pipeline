@@ -7,7 +7,7 @@ from src.interface.base_augmenter import BaseAugmenter
 from src.utils.logger import logger
 from src.settings.settings import Settings
 from src.utils import sql_utils
-from src.core.factory import Factory # Adapter 생성을 위해 Factory 사용
+# Factory는 dynamic import로 사용하여 순환 참조 방지
 
 class LocalFileAugmenter(BaseAugmenter):
     """로컬 피처 파일과 조인하여 데이터를 증강하는 클래스. (개발용)"""
@@ -30,9 +30,21 @@ class Augmenter(BaseAugmenter):
     """
     def __init__(self, source_uri: str, settings: Settings):
         self.source_uri = source_uri
-        self.settings = settings # Factory에서 Adapter를 만들기 위해 필요
+        self.settings = settings
         self.sql_template_str = self._load_sql_template()
         self.realtime_features_list = sql_utils.get_selected_columns(self.sql_template_str)
+        
+        # 배치 모드를 위한 데이터 어댑터 미리 생성 (책임 분리 원칙 준수)
+        from src.core.factory import Factory
+        factory = Factory(settings)
+        self.batch_adapter = factory.create_data_adapter('bq')  # Augmenter는 항상 BigQuery를 사용
+        
+        # 실시간 모드를 위한 Redis 어댑터 (선택적)
+        try:
+            self.redis_adapter = factory.create_redis_adapter()
+        except ImportError:
+            logger.warning("Redis가 설치되지 않아 실시간 피처 조회 기능이 비활성화됩니다.")
+            self.redis_adapter = None
 
     def _load_sql_template(self) -> str:
         parsed_uri = urlparse(self.source_uri)
@@ -63,16 +75,8 @@ class Augmenter(BaseAugmenter):
     ) -> pd.DataFrame:
         logger.info(f"배치 모드 피처 증강을 시작합니다. (URI: {self.source_uri})")
         
-        factory = Factory(self.settings)
-        # Augmenter의 source_uri는 항상 bq라고 가정
-        adapter = factory.create_data_adapter('bq')
-        
-        # Augmenter는 대상 테이블을 직접 알 필요가 없음.
-        # 임시 테이블 생성 및 삭제는 파이프라인 레벨에서 처리하는 것이 더 나은 설계일 수 있음.
-        # 현재 구조 유지를 위해 임시 테이블 로직은 여기에 둠.
-        # TODO: 임시 테이블 관리 로직을 파이프라인으로 이전 고려
-        
-        feature_df = adapter.read(self.source_uri, params=context_params)
+        # 미리 생성된 배치 어댑터 사용 (Factory 생성 로직 제거)
+        feature_df = self.batch_adapter.read(self.source_uri, params=context_params)
         return pd.merge(data, feature_df, on="member_id", how="left")
 
     def _augment_realtime(
@@ -87,11 +91,14 @@ class Augmenter(BaseAugmenter):
         logger.info(f"{len(user_ids)}명의 사용자에 대한 실시간 피처 조회를 시작합니다.")
 
         store_type = feature_store_config.get("store_type")
-        factory = Factory(self.settings) # 임시 settings로 factory 생성
         
         if store_type == "redis":
-            redis_adapter = factory.create_redis_adapter(feature_store_config)
-            feature_map = redis_adapter.get_features(user_ids, self.realtime_features_list)
+            if self.redis_adapter is None:
+                logger.warning("Redis가 설치되지 않아 실시간 피처 조회를 건너뜁니다.")
+                feature_map = {}
+            else:
+                # 미리 생성된 Redis 어댑터 사용 (Factory 생성 로직 제거)
+                feature_map = self.redis_adapter.get_features(user_ids, self.realtime_features_list)
         else:
             raise NotImplementedError(f"지원하지 않는 실시간 스토어 타입입니다: {store_type}")
 

@@ -16,6 +16,13 @@ class BigQueryAdapter(BaseDataAdapter):
 
     def __init__(self, settings: Settings):
         super().__init__(settings)
+        try:
+            self.client = self._get_client()
+            self._client_available = True
+        except Exception as e:
+            logger.warning(f"BigQuery 클라이언트 초기화 실패 (로컬 개발 모드): {e}")
+            self.client = None
+            self._client_available = False
 
     def _get_client(self) -> bigquery.Client:
         """BigQuery 클라이언트를 초기화하고 반환합니다."""
@@ -43,6 +50,10 @@ class BigQueryAdapter(BaseDataAdapter):
     def read(
         self, source: str, params: Optional[Dict[str, Any]] = None, **kwargs
     ) -> pd.DataFrame:
+        if not self._client_available:
+            logger.warning("BigQuery 클라이언트가 없어 데이터 읽기를 건너뜁니다. 빈 DataFrame을 반환합니다.")
+            return pd.DataFrame()
+        
         parsed_uri = urlparse(source)
         sql_file_path = parsed_uri.path.lstrip('/')
         

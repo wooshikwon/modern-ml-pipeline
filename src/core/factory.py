@@ -16,9 +16,16 @@ from src.settings.settings import Settings
 from src.utils.logger import logger
 from src.utils.data_adapters.file_system_adapter import FileSystemAdapter
 from src.utils.data_adapters.bigquery_adapter import BigQueryAdapter
-from src.utils.data_adapters.redis_adapter import RedisAdapter
 from src.utils.data_adapters.gcs_adapter import GCSAdapter
 from src.utils.data_adapters.s3_adapter import S3Adapter
+
+# Redis는 선택적 의존성으로 처리
+try:
+    from src.utils.data_adapters.redis_adapter import RedisAdapter
+    HAS_REDIS = True
+except ImportError:
+    RedisAdapter = None
+    HAS_REDIS = False
 
 class PyfuncWrapper(mlflow.pyfunc.PythonModel):
     """
@@ -99,7 +106,11 @@ class Factory:
         else:
             raise ValueError(f"지원하지 않는 데이터 어댑터 스킴입니다: {scheme}")
 
-    def create_redis_adapter(self) -> RedisAdapter:
+    def create_redis_adapter(self):
+        if not HAS_REDIS:
+            logger.warning("Redis 라이브러리가 설치되지 않아 Redis 어댑터를 생성할 수 없습니다.")
+            raise ImportError("Redis 라이브러리가 필요합니다. `pip install redis`로 설치하세요.")
+        
         logger.info("Redis 어댑터를 생성합니다.")
         return RedisAdapter(self.settings.serving.realtime_feature_store)
 
