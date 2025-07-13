@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from causalml.inference.tree import CausalForestDML
+from causalml.inference.tree import CausalRandomForestRegressor
 from sklearn.exceptions import NotFittedError
 
 # settings.py와 BaseModel의 경로는 실제 프로젝트 구조에 맞게 조정해주세요.
@@ -10,15 +10,16 @@ from src.utils.logger import logger
 
 class CausalForestModel(BaseModel):
     """
-    CausalML의 CausalForestDML을 래핑한 Causal Forest 모델.
+    CausalML의 CausalRandomForestRegressor를 래핑한 Causal Forest 모델.
     """
     def __init__(self, settings: Settings):
         """CausalForestModel을 초기화합니다."""
         self.settings = settings
-        self.params = self.settings.model.hyperparameters
+        # RootModel에서 dict로 변환
+        self.params = self.settings.model.hyperparameters.root if hasattr(self.settings.model.hyperparameters, 'root') else self.settings.model.hyperparameters
         self.model_name = self.settings.model.name
 
-        self.model = CausalForestDML(**self.params)
+        self.model = CausalRandomForestRegressor(**self.params)
         self._is_fitted = False
         logger.info(f"CausalForestModel 초기화 완료. Parameters: {self.params}")
 

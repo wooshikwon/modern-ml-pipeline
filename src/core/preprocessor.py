@@ -7,7 +7,8 @@ import joblib
 from sklearn.preprocessing import StandardScaler
 from sklearn.exceptions import NotFittedError
 
-from src.utils.gcs_utils import upload_object_to_gcs, download_object_from_gcs, generate_model_path
+# GCS utils 함수들은 gcs_adapter로 통합됨 - 임시 비활성화
+# from src.utils.gcs_utils import upload_object_to_gcs, download_object_from_gcs, generate_model_path
 from src.settings.settings import Settings, PreprocessorSettings
 from src.interface.base_preprocessor import BasePreprocessor
 
@@ -117,23 +118,11 @@ class Preprocessor(BasePreprocessor):
         """학습된 Preprocessor 객체를 저장합니다."""
         output_type = self.config.output.type
         if output_type == "gcs":
-            bucket_name = self.config.output.bucket_name
-            if not bucket_name:
-                raise ValueError("GCS 저장을 위해 'bucket_name' 설정이 필요합니다.")
-            
-            file_path = Path(file_name)
-            gcs_path = generate_model_path(
-                model_name=file_path.stem,
-                version=version,
-                settings=self.settings,
-                extension=file_path.suffix
-            )
-            full_gcs_uri = f"gs://{bucket_name}/{gcs_path}"
-            
-            logger.info(f"학습된 Preprocessor를 GCS에 저장합니다: {full_gcs_uri}")
-            upload_object_to_gcs(self, full_gcs_uri, settings=self.settings)
-            return full_gcs_uri
-        else:
+            # TODO: GCS 저장 기능 재구현 필요 (gcs_adapter 통합 후)
+            logger.warning("GCS 저장 기능이 임시 비활성화됨. 로컬 저장으로 대체합니다.")
+            output_type = "local"
+        
+        if output_type == "local" or True:  # 임시로 모든 저장을 로컬로
             local_dir = Path("./local/artifacts")
             local_dir.mkdir(parents=True, exist_ok=True)
             version_str = version or 'latest'
@@ -149,7 +138,8 @@ class Preprocessor(BasePreprocessor):
         """경로에서 Preprocessor 객체를 로드합니다."""
         logger.info(f"경로에서 Preprocessor를 로드합니다: {path}")
         if path.startswith("gs://"):
-            return download_object_from_gcs(path, settings=settings)
+            # TODO: GCS 로딩 기능 재구현 필요 (gcs_adapter 통합 후)
+            raise NotImplementedError("GCS 로딩 기능이 임시 비활성화됨")
         else:
             return joblib.load(path)
         

@@ -3,9 +3,27 @@ from typing import Dict, Any, Optional
 
 from src.interface.base_data_adapter import BaseDataAdapter
 from src.utils.logger import logger
+from src.settings.settings import Settings
 
 class S3Adapter(BaseDataAdapter):
     """AWS S3와의 데이터 읽기/쓰기를 처리하는 어댑터."""
+
+    def __init__(self, settings: Settings):
+        super().__init__(settings)
+        self.client = self._get_client()
+
+    def _get_client(self):
+        """S3 클라이언트를 초기화하고 반환합니다."""
+        try:
+            # TODO: boto3 클라이언트 초기화 구현
+            # import boto3
+            # client = boto3.client('s3')
+            # return client
+            logger.info("S3 클라이언트 초기화 (boto3 구현 대기)")
+            return None
+        except Exception as e:
+            logger.error(f"S3 클라이언트 초기화 실패: {e}")
+            raise
 
     def read(
         self, source: str, params: Optional[Dict[str, Any]] = None, **kwargs

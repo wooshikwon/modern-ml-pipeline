@@ -15,7 +15,8 @@ class XGBoostXLearner(BaseModel):
     def __init__(self, settings: Settings):
         """XGBoostXLearner를 초기화합니다."""
         self.settings = settings
-        self.params = self.settings.model.hyperparameters
+        # RootModel에서 dict로 변환
+        self.params = self.settings.model.hyperparameters.root if hasattr(self.settings.model.hyperparameters, 'root') else self.settings.model.hyperparameters
         self.model_name = self.settings.model.name
 
         self.model = XGBTRegressor(**self.params)

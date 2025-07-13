@@ -3,7 +3,7 @@ import re
 import yaml
 from pathlib import Path
 from dotenv import load_dotenv
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, RootModel
 from typing import Dict, Any, List, Optional
 from collections.abc import Mapping
 
@@ -87,8 +87,8 @@ class DataInterfaceSettings(BaseModel):
     treatment_col: str
     treatment_value: Any
 
-class ModelHyperparametersSettings(BaseModel):
-    __root__: Dict[str, Any]
+class ModelHyperparametersSettings(RootModel[Dict[str, Any]]):
+    root: Dict[str, Any]
 
 class ModelSettings(BaseModel):
     name: str

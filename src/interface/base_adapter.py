@@ -8,7 +8,8 @@ class BaseAdapter(ABC):
     """
     def __init__(self, settings: Any):
         self.settings = settings
-        self.client = self._get_client()
+        # 클라이언트 초기화는 서브클래스에서 처리
+        # self.client = self._get_client()
 
     @abstractmethod
     def _get_client(self) -> Any:
