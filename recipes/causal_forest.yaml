@@ -25,6 +25,9 @@ preprocessor:
 
 # 5. 모델 인터페이스 및 하이퍼파라미터
 data_interface:
+  # Task type 지정 (causal inference/uplift modeling)
+  task_type: "causal"
+  
   features:
     gender: "category"
     age_group: "category"

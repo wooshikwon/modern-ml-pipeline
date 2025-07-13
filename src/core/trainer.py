@@ -31,15 +31,21 @@ class Trainer(BaseTrainer):
         context_params: Optional[Dict[str, Any]] = None,
     ) -> Tuple[Optional[BasePreprocessor], Any, Dict[str, Any]]:
         """
-        데이터 분할, 피처 증강, 전처리, 모델 학습, 평가의 전체 파이프라인을 실행합니���.
+        데이터 분할, 피처 증강, 전처리, 모델 학습, 평가의 전체 파이프라인을 실행합니다.
+        task_type에 따라 동적으로 데이터를 준비하고 적절한 evaluator를 사용합니다.
         """
         logger.info("모델 학습 프로세스 시작...")
         context_params = context_params or {}
 
-        # 1. 데이터 분할
+        # 1. 설정 검증
+        self.settings.model.data_interface.validate_required_fields()
+        task_type = self.settings.model.data_interface.task_type
+        logger.info(f"Task Type: {task_type}")
+
+        # 2. 데이터 분할
         train_df, test_df = self._split_data(df)
 
-        # 2. 피처 증강 (주입받은 Augmenter 사용)
+        # 3. 피처 증강 (주입받은 Augmenter 사용)
         if augmenter:
             logger.info("피처 증강을 시작합니다.")
             train_df = augmenter.augment(train_df, run_mode="batch", context_params=context_params)
@@ -48,26 +54,11 @@ class Trainer(BaseTrainer):
         else:
             logger.info("Augmenter가 주입되지 않아 피처 증강을 건너뜁니다.")
 
-        # 3. 데이터 준비
-        X_train = train_df.drop(
-            columns=[
-                self.settings.model.data_interface.target_col,
-                self.settings.model.data_interface.treatment_col,
-            ],
-            errors="ignore",
-        )
-        y_train = train_df[self.settings.model.data_interface.target_col]
-        treatment_train = train_df[self.settings.model.data_interface.treatment_col]
+        # 4. 동적 데이터 준비
+        X_train, y_train, additional_data = self._prepare_training_data(train_df)
+        X_test, y_test, _ = self._prepare_training_data(test_df)
 
-        X_test = test_df.drop(
-            columns=[
-                self.settings.model.data_interface.target_col,
-                self.settings.model.data_interface.treatment_col,
-            ],
-            errors="ignore",
-        )
-
-        # 4. 전처리기 ���습 및 변환 (주입받은 Preprocessor 사용)
+        # 5. 전처리기 학습 및 변환 (주입받은 Preprocessor 사용)
         if preprocessor:
             logger.info("전처리기 학습을 시작합니다.")
             preprocessor.fit(X_train)
@@ -79,83 +70,94 @@ class Trainer(BaseTrainer):
             X_test_processed = X_test
             logger.info("Preprocessor가 주입되지 않아 전처리를 건너뜁니다.")
 
-        # 5. 스키마 검증
+        # 6. 스키마 검증
         validate_schema(X_train_processed, self.settings)
 
-        # 6. 모델 학습 (주입받은 Model 사용)
-        logger.info(f"'{self.settings.model.name}' 모델 학습을 시작합니다.")
-        model.fit(X_train_processed, y_train, treatment_train)
+        # 7. 동적 모델 학습
+        logger.info(f"'{self.settings.model.class_path}' 모델 학습을 시작합니다.")
+        self._fit_model(model, X_train_processed, y_train, additional_data)
         logger.info("모델 학습 완료.")
 
-        # 7. 평가
-        metrics = self._evaluate(model, train_df, X_train_processed, test_df, X_test_processed)
+        # 8. 동적 평가
+        from src.core.factory import Factory
+        factory = Factory(self.settings)
+        evaluator = factory.create_evaluator()
+        metrics = evaluator.evaluate(model, X_test_processed, y_test, test_df)
 
         results = {"metrics": metrics, "metadata": {}}
         logger.info("모델 학습 프로세스가 성공적으로 완료되었습니다.")
 
         return preprocessor, model, results
 
-    def _split_data(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        """데이터를 학습/��스트 세트로 분할합니다."""
-        treatment_col = self.settings.model.data_interface.treatment_col
-        test_size = 0.2
-        logger.info(f"데이터 분할 (테스트 사이즈: {test_size}, 기준: {treatment_col})")
-        # stratify가 가능한지 확인
-        if treatment_col in df.columns and df[treatment_col].nunique() > 1:
-            train_df, test_df = train_test_split(
-                df, test_size=test_size, random_state=42, stratify=df[treatment_col]
-            )
+    def _prepare_training_data(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[pd.Series], Dict[str, Any]]:
+        """task_type에 따른 동적 데이터 준비"""
+        task_type = self.settings.model.data_interface.task_type
+        data_interface = self.settings.model.data_interface
+        
+        # 제외할 컬럼들 동적 결정
+        exclude_cols = []
+        if data_interface.target_col:
+            exclude_cols.append(data_interface.target_col)
+        if data_interface.treatment_col:
+            exclude_cols.append(data_interface.treatment_col)
+        
+        X = df.drop(columns=exclude_cols, errors="ignore")
+        
+        if task_type == "clustering":
+            logger.info("클러스터링 모델: target 데이터 없이 진행")
+            return X, None, {}
+        
+        y = df[data_interface.target_col]
+        
+        additional_data = {}
+        if task_type == "causal":
+            additional_data["treatment"] = df[data_interface.treatment_col]
+            logger.info("인과추론 모델: treatment 데이터 추가")
+        elif task_type == "regression" and data_interface.sample_weight_col:
+            additional_data["sample_weight"] = df[data_interface.sample_weight_col]
+            logger.info(f"회귀 모델: sample_weight 컬럼 사용 ({data_interface.sample_weight_col})")
+        
+        return X, y, additional_data
+
+    def _fit_model(self, model, X: pd.DataFrame, y: Optional[pd.Series], additional_data: Dict[str, Any]):
+        """task_type에 따른 동적 모델 학습"""
+        task_type = self.settings.model.data_interface.task_type
+        
+        if task_type == "clustering":
+            model.fit(X)
+        elif task_type == "causal":
+            model.fit(X, y, additional_data["treatment"])
+        elif task_type == "regression" and "sample_weight" in additional_data:
+            model.fit(X, y, sample_weight=additional_data["sample_weight"])
         else:
-            logger.warning(
-                f"'{treatment_col}' 컬럼으로 계층화 분할을 할 수 없어 랜덤 분할합니다."
+            # classification, regression (without sample_weight)
+            model.fit(X, y)
+
+    def _split_data(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        """데이터를 학습/테스트 세트로 분할합니다. task_type에 따라 적절한 stratify 컬럼을 선택합니다."""
+        task_type = self.settings.model.data_interface.task_type
+        data_interface = self.settings.model.data_interface
+        test_size = 0.2
+        
+        # task_type에 따라 stratify 컬럼 결정
+        stratify_col = None
+        if task_type == "causal" and data_interface.treatment_col:
+            stratify_col = data_interface.treatment_col
+        elif task_type == "classification" and data_interface.target_col:
+            stratify_col = data_interface.target_col
+        
+        logger.info(f"데이터 분할 (테스트 사이즈: {test_size}, 기준: {stratify_col})")
+        
+        # stratify가 가능한지 확인
+        if stratify_col and stratify_col in df.columns and df[stratify_col].nunique() > 1:
+            train_df, test_df = train_test_split(
+                df, test_size=test_size, random_state=42, stratify=df[stratify_col]
             )
+            logger.info(f"'{stratify_col}' 컬럼 기준 계층화 분할 수행")
+        else:
+            if stratify_col:
+                logger.warning(f"'{stratify_col}' 컬럼으로 계층화 분할을 할 수 없어 랜덤 분할합니다.")
             train_df, test_df = train_test_split(df, test_size=test_size, random_state=42)
 
         logger.info(f"분할 완료: 학습셋 {len(train_df)} 행, 테스트셋 {len(test_df)} 행")
         return train_df, test_df
-
-    def _evaluate(
-        self,
-        model,
-        train_orig: pd.DataFrame,
-        X_train: pd.DataFrame,
-        test_orig: pd.DataFrame,
-        X_test: pd.DataFrame,
-    ) -> Dict[str, Any]:
-        """학습된 모델의 성능을 종합적으로 평가합니다."""
-        logger.info("모델 성능 평가 시작...")
-        treatment_col = self.settings.model.data_interface.treatment_col
-        target_col = self.settings.model.data_interface.target_col
-        treatment_value = self.settings.model.data_interface.treatment_value
-
-        metrics = {}
-
-        # 예측
-        train_uplift = model.predict(X_train)
-        test_uplift = model.predict(X_test)
-
-        # ATE 계산
-        for prefix, df, uplift in [
-            ("train", train_orig, train_uplift),
-            ("test", test_orig, test_uplift),
-        ]:
-            treatment_mask = df[treatment_col] == treatment_value
-            control_mask = ~treatment_mask
-
-            # 그룹별 샘플이 하나 이상 있는지 확인
-            if treatment_mask.sum() > 0 and control_mask.sum() > 0:
-                actual_ate = (
-                    df.loc[treatment_mask, target_col].mean()
-                    - df.loc[control_mask, target_col].mean()
-                )
-            else:
-                actual_ate = float("nan")
-                logger.warning(
-                    f"'{prefix}' 데이터셋에 처치 또는 통제 그룹 중 하나가 없어 ATE를 계산할 수 없습니다."
-                )
-
-            metrics[f"{prefix}_actual_ate"] = actual_ate
-            metrics[f"{prefix}_predicted_ate"] = uplift.mean()
-
-        logger.info(f"모델 성능 평가 완료: {metrics}")
-        return metrics

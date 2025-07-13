@@ -29,7 +29,10 @@ preprocessor:
 
 # 5. 모델 인터페이스 및 하이퍼파라미터
 data_interface:
-  # 모델��� 기대하는 최종 피처의 스키마 (이름: 타입)
+  # Task type 지정 (causal inference/uplift modeling)
+  task_type: "causal"
+  
+  # 모델이 기대하는 최종 피처의 스키마 (이름: 타입)
   features:
     gender: "category"
     age_group: "category"
