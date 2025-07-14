@@ -47,6 +47,9 @@ class PredictionResponse(BaseModel):
         example="models:/uplift-model/Production",
         description="예측에 사용된 모델의 MLflow URI",
     )
+    # 🆕 Blueprint v17.0: 최적화 정보 포함 (Optional로 하위 호환성 보장)
+    optimization_enabled: bool = Field(default=False, description="하이퍼파라미터 최적화 여부")
+    best_score: float = Field(default=0.0, description="최적화 달성 점수 (활성화된 경우)")
 
 
 def create_batch_prediction_request(
@@ -78,6 +81,9 @@ class BatchPredictionResponse(BaseModel):
         description="예측에 사용된 모델의 MLflow URI",
     )
     sample_count: int = Field(..., example=100, description="처리된 샘플 수")
+    # 🆕 Blueprint v17.0: 최적화 정보 포함 (Optional로 하위 호환성 보장)
+    optimization_enabled: bool = Field(default=False, description="하이퍼파라미터 최적화 여부")
+    best_score: float = Field(default=0.0, description="최적화 달성 점수 (활성화된 경우)")
 
 
 class HealthCheckResponse(BaseModel):
@@ -91,3 +97,52 @@ class HealthCheckResponse(BaseModel):
         description="현재 로드된 모델의 MLflow URI",
     )
     model_name: str = Field(..., example="xgboost_x_learner", description="로드된 모델 이름")
+
+
+# 🆕 Blueprint v17.0: 새로운 메타데이터 응답 스키마들
+
+class HyperparameterOptimizationInfo(BaseModel):
+    """
+    하이퍼파라미터 최적화 결과 정보
+    """
+    enabled: bool = Field(..., description="하이퍼파라미터 최적화 수행 여부")
+    engine: str = Field(default="", description="사용된 최적화 엔진 (optuna 등)")
+    best_params: Dict[str, Any] = Field(default={}, description="최적 하이퍼파라미터 조합")
+    best_score: float = Field(default=0.0, description="달성한 최고 점수")
+    total_trials: int = Field(default=0, description="수행된 총 trial 수")
+    pruned_trials: int = Field(default=0, description="조기 중단된 trial 수")
+    optimization_time: str = Field(default="", description="총 최적화 소요 시간")
+
+
+class TrainingMethodologyInfo(BaseModel):
+    """
+    학습 방법론 및 Data Leakage 방지 정보
+    """
+    train_test_split_method: str = Field(default="", description="데이터 분할 방법")
+    train_ratio: float = Field(default=0.8, description="학습 데이터 비율")
+    validation_strategy: str = Field(default="", description="검증 전략")
+    preprocessing_fit_scope: str = Field(default="", description="전처리 fit 범위 (Data Leakage 방지)")
+    random_state: int = Field(default=42, description="재현성을 위한 시드값")
+
+
+class ModelMetadataResponse(BaseModel):
+    """
+    모델의 완전한 메타데이터 응답
+    """
+    model_uri: str = Field(..., description="모델 MLflow URI")
+    model_class_path: str = Field(default="", description="모델 클래스 경로")
+    hyperparameter_optimization: HyperparameterOptimizationInfo = Field(..., description="하이퍼파라미터 최적화 정보")
+    training_methodology: TrainingMethodologyInfo = Field(..., description="학습 방법론 정보")
+    training_metadata: Dict[str, Any] = Field(default={}, description="기타 학습 메타데이터")
+    api_schema: Dict[str, Any] = Field(default={}, description="동적 생성된 API 스키마 정보")
+
+
+class OptimizationHistoryResponse(BaseModel):
+    """
+    하이퍼파라미터 최적화 과정 상세 히스토리
+    """
+    enabled: bool = Field(..., description="최적화 수행 여부")
+    optimization_history: List[Dict[str, Any]] = Field(default=[], description="전체 최적화 과정 기록")
+    search_space: Dict[str, Any] = Field(default={}, description="탐색한 하이퍼파라미터 공간")
+    convergence_info: Dict[str, Any] = Field(default={}, description="수렴 정보")
+    timeout_occurred: bool = Field(default=False, description="타임아웃 발생 여부")

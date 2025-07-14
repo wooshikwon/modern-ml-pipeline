@@ -51,3 +51,26 @@ artifact_stores:
   prediction_results:
     enabled: true
     base_uri: "file://local/artifacts/predictions"
+
+# 🆕 5. 하이퍼파라미터 튜닝 (새로 추가 - 기본값: 비활성화)
+hyperparameter_tuning:
+  enabled: false  # 기본값: 기존 동작 유지 (고정 hyperparameters)
+  engine: "optuna"
+  timeout: 1800  # 30분 (인프라 제약)
+  pruning:
+    enabled: true
+    algorithm: "MedianPruner"
+    n_startup_trials: 5
+    n_warmup_steps: 10
+  parallelization:
+    n_jobs: 1  # 기본값: 단일 코어
+
+# 🆕 6. Feature Store (새로 추가)
+feature_store:
+  provider: "dynamic"  # runtime에서 결정
+  connection_timeout: 5000
+  retry_attempts: 3
+  connection_info:
+    # 환경별로 config/*.yaml에서 주입
+    redis_host: ${FEATURE_STORE_REDIS_HOST:localhost:6379}
+    offline_store_uri: ${FEATURE_STORE_OFFLINE_URI:file://local/features}

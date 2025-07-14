@@ -12,7 +12,7 @@ authors = [
   { name = "wesley", email = "weslery@socar.kr" },
 ]
 dependencies = [
-    "typer[all]",
+    "typer",
     "uvicorn",
     "fastapi",
     "pydantic",
@@ -43,6 +43,11 @@ dev = [
 
 [project.scripts]
 cli = "main:app"
+
+# 🆕 패키지 경로 명시 (빌드 오류 해결)
+[tool.hatch.build.targets.wheel]
+packages = ["src", "serving"]
+include = ["main.py", "config", "recipes"]
 
 [tool.hatch.scripts]
 train = "python main.py train --recipe-file xgboost_x_learner"

@@ -60,7 +60,7 @@ def run_training(settings: Settings, context_params: Optional[Dict[str, Any]] = 
 
         # 3. 모델 학습
         trainer = Trainer(settings=settings)
-        trained_preprocessor, trained_model, metrics = trainer.train(
+        trained_preprocessor, trained_model, training_results = trainer.train(  # ← training_results 활용
             df=df,
             model=model,
             augmenter=augmenter,
@@ -68,20 +68,30 @@ def run_training(settings: Settings, context_params: Optional[Dict[str, Any]] = 
             context_params=context_params,
         )
         
-        # 4. 결과 로깅
-        mlflow.log_metrics(metrics)
+        # 4. 결과 로깅 (확장)
+        if 'metrics' in training_results:
+            mlflow.log_metrics(training_results['metrics'])
+        
+        # 🆕 하이퍼파라미터 최적화 결과 로깅
+        if 'hyperparameter_optimization' in training_results:
+            hpo_result = training_results['hyperparameter_optimization']
+            if hpo_result['enabled']:
+                mlflow.log_params(hpo_result['best_params'])
+                mlflow.log_metric('best_score', hpo_result['best_score'])
+                mlflow.log_metric('total_trials', hpo_result['total_trials'])
 
-        # 5. 순수 로직 PyfuncWrapper 생성 및 저장
+        # 5. 확장된 PyfuncWrapper 생성 및 저장
         pyfunc_wrapper = factory.create_pyfunc_wrapper(
             trained_model=trained_model,
             trained_preprocessor=trained_preprocessor,
+            training_results=training_results,  # 🆕 결과 전달
         )
         
         mlflow.pyfunc.log_model(
             artifact_path=settings.model.name,
             python_model=pyfunc_wrapper,
             registered_model_name=settings.model.name,
-            description=f"Uplift model '{settings.model.name}' based on recipe.",
+            description=f"자동 최적화 모델 '{settings.model.computed['run_name']}'",
         )
         logger.info(f"순수 로직 모델 '{settings.model.name}'을 MLflow에 성공적으로 저장했습니다.")
 

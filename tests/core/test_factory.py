@@ -231,4 +231,216 @@ class TestFactory:
         
         # 인프라 정보는 설정을 통해서만 접근 가능해야 함
         assert hasattr(xgboost_settings, 'data_sources')
-        assert hasattr(xgboost_settings, 'mlflow') 
+        assert hasattr(xgboost_settings, 'mlflow')
+
+
+# 🆕 Blueprint v17.0: 새로운 어댑터 및 확장 기능 테스트 클래스
+class TestFactoryBlueprintV17Extensions:
+    """Blueprint v17.0에서 추가된 새로운 어댑터들과 확장 기능 테스트"""
+    
+    def test_create_feature_store_adapter(self, xgboost_settings: Settings):
+        """FeatureStoreAdapter 생성 테스트"""
+        from src.settings.settings import FeatureStoreSettings
+        
+        # FeatureStore 설정 추가
+        xgboost_settings.feature_store = FeatureStoreSettings(
+            provider="dynamic",
+            connection_timeout=5000,
+            retry_attempts=3,
+            connection_info={"redis_host": "localhost:6379"}
+        )
+        
+        factory = Factory(xgboost_settings)
+        
+        # FeatureStoreAdapter 생성
+        adapter = factory.create_feature_store_adapter()
+        
+        # 올바른 타입인지 확인
+        from src.utils.adapters.feature_store_adapter import FeatureStoreAdapter
+        assert isinstance(adapter, FeatureStoreAdapter)
+        assert adapter.settings == xgboost_settings
+        assert adapter.feature_store_config == xgboost_settings.feature_store
+    
+    def test_create_feature_store_adapter_without_settings(self, xgboost_settings: Settings):
+        """FeatureStore 설정 없이 어댑터 생성 시 오류 테스트"""
+        # feature_store 설정을 None으로 설정
+        xgboost_settings.feature_store = None
+        
+        factory = Factory(xgboost_settings)
+        
+        # ValueError 발생 확인
+        with pytest.raises(ValueError, match="Feature Store 설정이 없습니다"):
+            factory.create_feature_store_adapter()
+    
+    def test_create_optuna_adapter(self, xgboost_settings: Settings):
+        """OptunaAdapter 생성 테스트"""
+        from src.settings.settings import HyperparameterTuningSettings
+        
+        # 하이퍼파라미터 튜닝 설정 추가
+        xgboost_settings.hyperparameter_tuning = HyperparameterTuningSettings(
+            enabled=True,
+            n_trials=10,
+            metric="accuracy",
+            direction="maximize"
+        )
+        
+        factory = Factory(xgboost_settings)
+        
+        # OptunaAdapter 생성
+        adapter = factory.create_optuna_adapter()
+        
+        # 올바른 타입인지 확인
+        from src.utils.adapters.optuna_adapter import OptunaAdapter
+        assert isinstance(adapter, OptunaAdapter)
+        assert adapter.settings == xgboost_settings.hyperparameter_tuning
+    
+    def test_create_optuna_adapter_without_settings(self, xgboost_settings: Settings):
+        """하이퍼파라미터 튜닝 설정 없이 OptunaAdapter 생성 시 오류 테스트"""
+        # hyperparameter_tuning 설정을 None으로 설정
+        xgboost_settings.hyperparameter_tuning = None
+        
+        factory = Factory(xgboost_settings)
+        
+        # ValueError 발생 확인
+        with pytest.raises(ValueError, match="Hyperparameter tuning 설정이 없습니다"):
+            factory.create_optuna_adapter()
+    
+    def test_create_tuning_utils(self, xgboost_settings: Settings):
+        """TuningUtils 생성 테스트"""
+        factory = Factory(xgboost_settings)
+        
+        # TuningUtils 생성
+        utils = factory.create_tuning_utils()
+        
+        # 올바른 타입인지 확인
+        from src.utils.system.tuning_utils import TuningUtils
+        assert isinstance(utils, TuningUtils)
+    
+    @patch('src.core.factory.Path')
+    def test_create_pyfunc_wrapper_with_training_results(self, mock_path, xgboost_settings: Settings):
+        """확장된 PyfuncWrapper 생성 테스트 (training_results 포함)"""
+        # Mock 설정
+        mock_sql_file = Mock()
+        mock_sql_file.read_text.return_value = "SELECT user_id, feature1 FROM table"
+        mock_sql_file.exists.return_value = True
+        mock_path.return_value = mock_sql_file
+        
+        factory = Factory(xgboost_settings)
+        
+        # Mock 컴포넌트들
+        trained_model = Mock()
+        trained_preprocessor = Mock()
+        
+        # 🆕 training_results 포함
+        training_results = {
+            "metrics": {"accuracy": 0.92},
+            "hyperparameter_optimization": {
+                "enabled": True,
+                "best_params": {"learning_rate": 0.1, "n_estimators": 100},
+                "best_score": 0.92,
+                "total_trials": 50
+            },
+            "training_methodology": {
+                "train_test_split_method": "stratified",
+                "preprocessing_fit_scope": "train_only",
+                "random_state": 42
+            }
+        }
+        
+        # 확장된 PyfuncWrapper 생성
+        wrapper = factory.create_pyfunc_wrapper(
+            trained_model=trained_model,
+            trained_preprocessor=trained_preprocessor,
+            training_results=training_results
+        )
+        
+        # 확장된 속성들 확인
+        assert wrapper.model_class_path == xgboost_settings.model.class_path
+        assert wrapper.hyperparameter_optimization["enabled"] is True
+        assert wrapper.hyperparameter_optimization["best_params"]["learning_rate"] == 0.1
+        assert wrapper.training_methodology["preprocessing_fit_scope"] == "train_only"
+        
+        # 기존 속성들도 유지되는지 확인
+        assert wrapper.trained_model == trained_model
+        assert wrapper.trained_preprocessor == trained_preprocessor
+    
+    @patch('src.core.factory.Path')
+    def test_create_pyfunc_wrapper_backward_compatibility(self, mock_path, xgboost_settings: Settings):
+        """PyfuncWrapper 하위 호환성 테스트 (training_results 없이)"""
+        # Mock 설정
+        mock_sql_file = Mock()
+        mock_sql_file.read_text.return_value = "SELECT user_id, feature1 FROM table"
+        mock_sql_file.exists.return_value = True
+        mock_path.return_value = mock_sql_file
+        
+        factory = Factory(xgboost_settings)
+        
+        # Mock 컴포넌트들
+        trained_model = Mock()
+        trained_preprocessor = Mock()
+        
+        # 기존 방식으로 PyfuncWrapper 생성 (training_results 없이)
+        wrapper = factory.create_pyfunc_wrapper(
+            trained_model=trained_model,
+            trained_preprocessor=trained_preprocessor
+        )
+        
+        # 기본값들이 올바르게 설정되었는지 확인
+        assert wrapper.model_class_path == xgboost_settings.model.class_path
+        assert wrapper.hyperparameter_optimization["enabled"] is False
+        assert wrapper.training_methodology == {}
+        
+        # 기존 속성들이 유지되는지 확인
+        assert wrapper.trained_model == trained_model
+        assert wrapper.trained_preprocessor == trained_preprocessor
+    
+    def test_enhanced_pyfunc_wrapper_predict_metadata(self, xgboost_settings: Settings):
+        """확장된 PyfuncWrapper의 predict 메서드 메타데이터 포함 테스트"""
+        from src.core.factory import PyfuncWrapper
+        
+        # Mock 컴포넌트들
+        trained_model = Mock()
+        trained_preprocessor = Mock()
+        trained_augmenter = Mock()
+        
+        # 최적화 결과 포함
+        hyperparameter_optimization = {
+            "enabled": True,
+            "best_params": {"learning_rate": 0.1},
+            "best_score": 0.92
+        }
+        
+        training_methodology = {
+            "preprocessing_fit_scope": "train_only",
+            "train_test_split_method": "stratified"
+        }
+        
+        # 확장된 PyfuncWrapper 생성
+        wrapper = PyfuncWrapper(
+            trained_model=trained_model,
+            trained_preprocessor=trained_preprocessor,
+            trained_augmenter=trained_augmenter,
+            loader_sql_snapshot="SELECT user_id FROM table",
+            augmenter_sql_snapshot="SELECT * FROM features",
+            recipe_yaml_snapshot="model: test",
+            training_metadata={},
+            model_class_path="test.Model",
+            hyperparameter_optimization=hyperparameter_optimization,
+            training_methodology=training_methodology
+        )
+        
+        # Mock 예측 설정
+        input_df = pd.DataFrame({"user_id": [1, 2, 3]})
+        predictions_df = pd.DataFrame({"user_id": [1, 2, 3], "uplift_score": [0.1, 0.2, 0.3]})
+        
+        trained_augmenter.augment_batch.return_value = input_df
+        trained_model.predict.return_value = predictions_df["uplift_score"].values
+        
+        # return_intermediate=True로 예측 실행
+        result = wrapper.predict(None, input_df, params={"run_mode": "batch", "return_intermediate": True})
+        
+        # 메타데이터가 포함되었는지 확인
+        assert "hyperparameter_optimization" in result
+        assert "training_methodology" in result
+        assert result["hyperparameter_optimization"]["enabled"] is True
+        assert result["training_methodology"]["preprocessing_fit_scope"] == "train_only" 

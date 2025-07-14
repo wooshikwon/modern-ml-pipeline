@@ -72,3 +72,56 @@ def get_selected_columns(sql_query: str) -> List[str]:
             
     logger.info(f"SQL에서 {len(columns)}개 컬럼 추출: {columns}")
     return columns
+
+
+def parse_select_columns(sql_snapshot: str) -> List[str]:
+    """
+    🆕 Blueprint v17.0: loader_sql_snapshot에서 API 입력 스키마용 컬럼 추출
+    
+    SELECT 절에서 컬럼을 추출하되, event_timestamp 등 시간 컬럼은 제외
+    주로 PK: user_id, product_id, session_id 등을 API 입력으로 사용
+    """
+    try:
+        columns = get_selected_columns(sql_snapshot)
+        
+        # API 입력에서 제외할 컬럼들 (시간 관련 컬럼)
+        excluded_columns = {"event_timestamp", "timestamp", "created_at", "updated_at"}
+        
+        # PK 용도의 컬럼만 필터링
+        api_columns = [col for col in columns if col.lower() not in excluded_columns]
+        
+        logger.info(f"API 스키마용 컬럼 추출 완료: {api_columns}")
+        return api_columns
+        
+    except Exception as e:
+        logger.warning(f"SQL 파싱 실패, 빈 목록 반환: {e}")
+        return []
+
+
+def parse_feature_columns(augmenter_sql_snapshot: str) -> tuple[List[str], str]:
+    """
+    🆕 Blueprint v17.0: augmenter_sql_snapshot에서 피처 컬럼과 JOIN 키 추출
+    
+    Feature Store 조회를 위한 컬럼 목록과 JOIN 키를 분석
+    """
+    try:
+        columns = get_selected_columns(augmenter_sql_snapshot)
+        
+        # 일반적인 JOIN 키 패턴들
+        join_key_patterns = ["user_id", "member_id", "customer_id", "product_id", "session_id"]
+        
+        join_key = ""
+        for pattern in join_key_patterns:
+            if pattern in columns:
+                join_key = pattern
+                break
+        
+        if not join_key and columns:
+            join_key = columns[0]  # 첫 번째 컬럼을 기본 JOIN 키로 사용
+        
+        logger.info(f"피처 컬럼 분석 완료: {len(columns)}개, JOIN 키: {join_key}")
+        return columns, join_key
+        
+    except Exception as e:
+        logger.warning(f"Augmenter SQL 파싱 실패: {e}")
+        return [], ""
