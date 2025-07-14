@@ -65,12 +65,59 @@ hyperparameter_tuning:
   parallelization:
     n_jobs: 1  # 기본값: 단일 코어
 
-# 🆕 6. Feature Store (새로 추가)
+# �� 6. Feature Store (Blueprint v17.0: config 통합)
 feature_store:
   provider: "dynamic"  # runtime에서 결정
+  
+  # 🎯 Blueprint 원칙 1 준수: 로컬 환경 기본 설정
+  # LOCAL 환경의 기본값 (data/ 디렉토리 기반)
+  feast_config:
+    project: "ml_pipeline_local"
+    provider: "local"
+    
+    # Registry (로컬 파일 기반)
+    registry: "data/feature_store/registry.sqlite"
+    
+    # Offline Store (로컬 파일 시스템)
+    offline_store:
+      type: "file"
+      path: "data/feature_store/offline"
+    
+    # Online Store (로컬 SQLite)
+    online_store:
+      type: "sqlite"
+      path: "data/feature_store/online.sqlite"
+    
+    # 기본 엔티티 정의
+    entities:
+      - name: "user"
+        value_type: "STRING"
+        description: "사용자 식별자"
+      - name: "product"
+        value_type: "STRING"
+        description: "상품 식별자"
+      - name: "session"
+        value_type: "STRING"
+        description: "세션 식별자"
+    
+    # 설정 플래그
+    entity_key_serialization_version: 2
+    flags:
+      alpha_features: true
+      beta_features: false  # 로컬에서는 안정성 우선
+    
+    # 배치 엔진
+    batch_engine:
+      type: "local"
+    
+    # Feature Server (로컬에서는 비활성화)
+    feature_server:
+      enabled: false
+  
+  # 연결 정보 (하위 호환성)
   connection_timeout: 5000
   retry_attempts: 3
   connection_info:
     # 환경별로 config/*.yaml에서 주입
     redis_host: ${FEATURE_STORE_REDIS_HOST:localhost:6379}
-    offline_store_uri: ${FEATURE_STORE_OFFLINE_URI:file://local/features}
+    offline_store_uri: ${FEATURE_STORE_OFFLINE_URI:file://data/feature_store/offline}

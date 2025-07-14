@@ -1,0 +1,63 @@
+# Support Vector Regressor - Blueprint v17.0 Automated Excellence
+# 🎯 고차원 데이터에서 강건한 회귀 예측을 수행하는 SVM
+
+# 1. 모델 기본 정보 (직접 동적 import)
+class_path: "sklearn.svm.SVR"
+
+# 2. 데이터 로더 정의
+loader:
+  name: "regression_dataset"
+  source_uri: "bq://recipes/sql/loader/regression_features.sql"
+  local_override_uri: "file://local/data/sample_regression.csv"
+
+# 3. 피처 증강기 정의 (🆕 Blueprint v17.0 - Feature Store 방식)
+augmenter:
+  type: "feature_store"
+  features:
+    # 기본 수치형 피처
+    - feature_namespace: "numerical_features"
+      features: ["feature_1", "feature_2", "feature_3", "feature_4"]
+    # 사용자 행동 피처
+    - feature_namespace: "user_engagement"
+      features: ["page_views", "time_spent", "bounce_rate"]
+
+# 4. 전처리기 정의 (SVR에는 특히 중요)
+preprocessor:
+  name: "simple_scaler"
+  params:
+    criterion_col: null
+    exclude_cols: ["user_id", "event_timestamp"]
+
+# 5. 모델 인터페이스
+data_interface:
+  task_type: "regression"
+  
+  features:
+    feature_1: "numeric"
+    feature_2: "numeric"
+    feature_3: "numeric"
+    feature_4: "numeric"
+    page_views: "numeric"
+    time_spent: "numeric"
+    bounce_rate: "numeric"
+  
+  target_col: "target_value"
+
+# 🆕 6. 하이퍼파라미터 (Dictionary 형식 + 자동 튜닝)
+hyperparameters:
+  # 🔥 자동 최적화 범위 (SVR 특화)
+  C: {type: "float", low: 0.1, high: 100, log: true}
+  epsilon: {type: "float", low: 0.01, high: 1.0, log: true}
+  kernel: {type: "categorical", choices: ["linear", "poly", "rbf", "sigmoid"]}
+  gamma: {type: "categorical", choices: ["scale", "auto"]}
+  degree: {type: "int", low: 2, high: 5}  # poly kernel용
+  
+  # 🔧 고정값
+  # SVR에는 random_state가 없음
+
+# 🆕 7. 하이퍼파라미터 튜닝 설정
+hyperparameter_tuning:
+  enabled: true
+  n_trials: 30
+  metric: "rmse"
+  direction: "minimize" 

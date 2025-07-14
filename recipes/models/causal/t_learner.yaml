@@ -1,0 +1,79 @@
+# T-Learner (Two Model) - Blueprint v17.0 Automated Excellence
+# 🎭 처리군과 대조군을 별도 모델로 학습하는 클래식 인과추론
+
+# 1. 모델 기본 정보 (직접 동적 import)
+class_path: "causalml.inference.meta.TRegressor"
+
+# 2. 데이터 로더 정의
+loader:
+  name: "causal_experiment_data"
+  source_uri: "bq://recipes/sql/loader/causal_experiment_features.sql"
+  local_override_uri: "file://local/data/sample_causal_experiment.csv"
+
+# 3. 피처 증강기 정의 (🆕 Blueprint v17.0 - Feature Store 방식)
+augmenter:
+  type: "feature_store"
+  features:
+    # 사용자 기본 특성
+    - feature_namespace: "user_demographics"
+      features: ["age", "gender", "education_level", "income_bracket"]
+    # 과거 행동 패턴
+    - feature_namespace: "historical_behavior"
+      features: ["past_purchases", "engagement_score", "loyalty_level"]
+    # 실험 컨텍스트
+    - feature_namespace: "experiment_context"
+      features: ["channel", "timing", "seasonal_factor"]
+    # T-Learner 특화 피처
+    - feature_namespace: "treatment_specific_features"
+      features: ["baseline_propensity", "heterogeneity_score"]
+
+# 4. 전처리기 정의
+preprocessor:
+  name: "simple_scaler"
+  params:
+    criterion_col: null
+    exclude_cols: ["user_id", "event_timestamp"]
+
+# 5. 모델 인터페이스
+data_interface:
+  task_type: "causal"
+  
+  features:
+    age: "numeric"
+    gender: "category"
+    education_level: "category"
+    income_bracket: "category"
+    past_purchases: "numeric"
+    engagement_score: "numeric"
+    loyalty_level: "category"
+    channel: "category"
+    timing: "category"
+    seasonal_factor: "numeric"
+    baseline_propensity: "numeric"
+    heterogeneity_score: "numeric"
+  
+  target_col: "outcome"
+  treatment_col: "treatment"
+  treatment_value: "treated"
+
+# 🆕 6. 하이퍼파라미터 (Dictionary 형식 + 자동 튜닝)
+hyperparameters:
+  # 🔥 자동 최적화 범위 (T-Learner는 내부 base learner의 하이퍼파라미터)
+  # 기본적으로 RandomForest를 사용
+  n_estimators: {type: "int", low: 50, high: 500}
+  max_depth: {type: "int", low: 3, high: 20}
+  min_samples_split: {type: "int", low: 2, high: 20}
+  min_samples_leaf: {type: "int", low: 1, high: 10}
+  max_features: {type: "categorical", choices: ["sqrt", "log2", "auto"]}
+  bootstrap: {type: "categorical", choices: [true, false]}
+  
+  # 🔧 고정값
+  random_state: 42
+  n_jobs: -1
+
+# 🆕 7. 하이퍼파라미터 튜닝 설정
+hyperparameter_tuning:
+  enabled: true
+  n_trials: 70
+  metric: "uplift_auc"
+  direction: "maximize" 

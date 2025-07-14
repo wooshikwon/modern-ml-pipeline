@@ -1,0 +1,70 @@
+# Lasso Regression - Blueprint v17.0 Automated Excellence
+# ✂️ L1 정규화로 자동 피처 선택을 수행하는 스파스 회귀
+
+# 1. 모델 기본 정보 (직접 동적 import)
+class_path: "sklearn.linear_model.Lasso"
+
+# 2. 데이터 로더 정의
+loader:
+  name: "regression_dataset"
+  source_uri: "bq://recipes/sql/loader/regression_features.sql"
+  local_override_uri: "file://local/data/sample_regression.csv"
+
+# 3. 피처 증강기 정의 (🆕 Blueprint v17.0 - Feature Store 방식)
+augmenter:
+  type: "feature_store"
+  features:
+    # 기본 수치형 피처
+    - feature_namespace: "numerical_features"
+      features: ["feature_1", "feature_2", "feature_3", "feature_4"]
+    # 사용자 행동 피처
+    - feature_namespace: "user_engagement"
+      features: ["page_views", "time_spent", "bounce_rate"]
+    # 많은 피처 (Lasso의 자동 선택 능력 활용)
+    - feature_namespace: "extended_features"
+      features: ["ext_1", "ext_2", "ext_3", "ext_4", "ext_5"]
+
+# 4. 전처리기 정의
+preprocessor:
+  name: "simple_scaler"
+  params:
+    criterion_col: null
+    exclude_cols: ["user_id", "event_timestamp"]
+
+# 5. 모델 인터페이스
+data_interface:
+  task_type: "regression"
+  
+  features:
+    feature_1: "numeric"
+    feature_2: "numeric"
+    feature_3: "numeric"
+    feature_4: "numeric"
+    page_views: "numeric"
+    time_spent: "numeric"
+    bounce_rate: "numeric"
+    ext_1: "numeric"
+    ext_2: "numeric"
+    ext_3: "numeric"
+    ext_4: "numeric"
+    ext_5: "numeric"
+  
+  target_col: "target_value"
+
+# 🆕 6. 하이퍼파라미터 (Dictionary 형식 + 자동 튜닝)
+hyperparameters:
+  # 🔥 자동 최적화 범위 (Lasso 특화)
+  alpha: {type: "float", low: 0.0001, high: 10, log: true}
+  selection: {type: "categorical", choices: ["cyclic", "random"]}
+  
+  # 🔧 고정값
+  random_state: 42
+  max_iter: 1000
+  fit_intercept: true
+
+# 🆕 7. 하이퍼파라미터 튜닝 설정
+hyperparameter_tuning:
+  enabled: true
+  n_trials: 25
+  metric: "r2"
+  direction: "maximize" 

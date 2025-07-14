@@ -1,0 +1,59 @@
+# Gaussian Naive Bayes - Blueprint v17.0 Automated Excellence
+# 🧮 확률 기반의 간단하고 효과적인 분류 알고리즘
+
+# 1. 모델 기본 정보 (직접 동적 import)
+class_path: "sklearn.naive_bayes.GaussianNB"
+
+# 2. 데이터 로더 정의
+loader:
+  name: "classification_dataset"
+  source_uri: "bq://recipes/sql/loader/classification_features.sql"
+  local_override_uri: "file://local/data/sample_classification.csv"
+
+# 3. 피처 증강기 정의 (🆕 Blueprint v17.0 - Feature Store 방식)
+augmenter:
+  type: "feature_store"
+  features:
+    # 사용자 기본 정보
+    - feature_namespace: "user_demographics"
+      features: ["age", "gender", "education_level", "income_bracket"]
+    # 행동 패턴 피처
+    - feature_namespace: "user_behavior"
+      features: ["click_through_rate", "session_frequency", "avg_session_duration"]
+
+# 4. 전처리기 정의
+preprocessor:
+  name: "simple_scaler"
+  params:
+    criterion_col: null
+    exclude_cols: ["user_id", "event_timestamp"]
+
+# 5. 모델 인터페이스
+data_interface:
+  task_type: "classification"
+  
+  features:
+    age: "numeric"
+    gender: "category"
+    education_level: "category"
+    income_bracket: "category"
+    click_through_rate: "numeric"
+    session_frequency: "numeric"
+    avg_session_duration: "numeric"
+  
+  target_col: "target_class"
+  average: "weighted"
+
+# 🆕 6. 하이퍼파라미터 (Dictionary 형식 + 자동 튜닝)
+hyperparameters:
+  # 🔥 자동 최적화 범위 (Naive Bayes 특화)
+  var_smoothing: {type: "float", low: 1e-12, high: 1e-3, log: true}
+  
+  # 🔧 고정값 - Naive Bayes는 하이퍼파라미터가 적음
+
+# 🆕 7. 하이퍼파라미터 튜닝 설정
+hyperparameter_tuning:
+  enabled: true
+  n_trials: 20
+  metric: "f1"
+  direction: "maximize" 

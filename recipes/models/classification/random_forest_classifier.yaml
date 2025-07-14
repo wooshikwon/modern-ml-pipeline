@@ -1,0 +1,73 @@
+# Random Forest Classifier - Blueprint v17.0 Automated Excellence
+# 🌲 앙상블 기반 분류의 강력함과 해석 가능성을 동시에 제공하는 Random Forest
+
+# 1. 모델 기본 정보 (직접 동적 import)
+class_path: "sklearn.ensemble.RandomForestClassifier"
+
+# 2. 데이터 로더 정의
+loader:
+  name: "classification_dataset"
+  source_uri: "bq://recipes/sql/loader/classification_features.sql"
+  local_override_uri: "file://local/data/sample_classification.csv"
+
+# 3. 피처 증강기 정의 (🆕 Blueprint v17.0 - Feature Store 방식)
+augmenter:
+  type: "feature_store"
+  features:
+    # 사용자 기본 정보
+    - feature_namespace: "user_demographics"
+      features: ["age", "gender", "education_level", "income_bracket"]
+    # 행동 패턴 피처
+    - feature_namespace: "user_behavior"
+      features: ["click_through_rate", "session_frequency", "avg_session_duration"]
+    # 구매 이력 피처
+    - feature_namespace: "purchase_history"
+      features: ["total_orders", "avg_order_value", "preferred_category"]
+
+# 4. 전처리기 정의
+preprocessor:
+  name: "simple_scaler"
+  params:
+    criterion_col: null
+    exclude_cols: ["user_id", "event_timestamp"]
+
+# 5. 모델 인터페이스
+data_interface:
+  task_type: "classification"
+  
+  features:
+    age: "numeric"
+    gender: "category"
+    education_level: "category"
+    income_bracket: "category"
+    click_through_rate: "numeric"
+    session_frequency: "numeric"
+    avg_session_duration: "numeric"
+    total_orders: "numeric"
+    avg_order_value: "numeric"
+    preferred_category: "category"
+  
+  target_col: "target_class"
+  class_weight: "balanced"  # 불균형 데이터 대응
+  average: "weighted"       # F1 계산 방식
+
+# 🆕 6. 하이퍼파라미터 (Dictionary 형식 + 자동 튜닝)
+hyperparameters:
+  # 🔥 자동 최적화 범위
+  n_estimators: {type: "int", low: 50, high: 500}
+  max_depth: {type: "int", low: 3, high: 20}
+  min_samples_split: {type: "int", low: 2, high: 20}
+  min_samples_leaf: {type: "int", low: 1, high: 10}
+  max_features: {type: "categorical", choices: ["sqrt", "log2", "auto"]}
+  
+  # 🔧 고정값
+  random_state: 42
+  class_weight: "balanced"
+  n_jobs: -1
+
+# 🆕 7. 하이퍼파라미터 튜닝 설정
+hyperparameter_tuning:
+  enabled: true
+  n_trials: 100
+  metric: "f1"           # F1 score로 최적화
+  direction: "maximize" 

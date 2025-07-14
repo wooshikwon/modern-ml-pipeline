@@ -1,849 +1,631 @@
-# 🚀 Blueprint v17.0 "Automated Excellence" 완전 구현 계획 (next_step.md) - v2.0 FIXED
+# 🚀 Blueprint v17.0 Post-Implementation: 3-Tier 환경별 실전 운영 시스템 구축 계획
 
-## 💎 **THE ULTIMATE MISSION: From Legacy to Excellence (호환성 검증 완료)**
+## 💎 **THE ULTIMATE MISSION: From Theory to Production Excellence**
 
-현재 코드베이스와 **Blueprint v17.0 "Automated Excellence Vision"** 사이의 완전한 gap 분석 및 **호환성 검증**을 통해, **진정한 MLOps 엑셀런스**를 달성하기 위한 **실행 가능한** 체계적 로드맵을 제시합니다.
+Blueprint v17.0 "Automated Excellence Vision"의 **철학적 설계 완료** 후, **9대 핵심 설계 원칙에 기반한 환경별 차등적 기능 분리를 통한 실제 운영 가능한 프로덕션 시스템**으로 발전시키기 위한 **단계별 실행 로드맵**입니다. 
 
----
-
-## 🔍 **Phase 0: Gap Analysis & Compatibility Check (현실 진단 + 호환성 검증)**
-
-### **🚨 Critical Gaps Identified (수정된 분석)**
-
-**1. 🔥 Hyperparameter Optimization System 완전 누락**
-- ❌ 현재: 고정 hyperparameters만 지원
-- ✅ 목표: **기존 Trainer 인터페이스 유지하면서** Optuna 기반 자동 최적화 + Data Leakage 방지
-
-**2. 🔥 Settings 구조 확장 필요**  
-- ❌ 현재: `hyperparameter_tuning`, `feature_store` 설정 없음
-- ✅ 목표: **기존 Settings와 호환되는 확장**
-
-**3. 🔥 Recipe 구조 Blueprint 불일치**
-- ❌ 현재: 고정값 hyperparameters
-- ✅ 목표: **하위 호환성 유지하면서** Dictionary 형식 + hyperparameter_tuning 섹션
-
-**4. 🔥 Config 인프라 제약 관리 누락**
-- ❌ 현재: hyperparameter_tuning config 없음
-- ✅ 목표: **기존 config 구조 확장**
-
-**5. 🔥 Factory 메서드 누락**
-- ❌ 현재: feature_store_adapter, optuna_adapter 메서드 없음
-- ✅ 목표: **기존 Factory 패턴 확장**
-
-**6. 🔥 Data Leakage 방지 메커니즘 없음**
-- ❌ 현재: Preprocessor가 전체 데이터에 fit
-- ✅ 목표: **기존 Trainer 내부에서** Train-only fit + 각 trial별 독립 split
+**🎯 Blueprint의 환경별 운영 철학 구현:**
+- **LOCAL**: "제약은 단순함을 낳고, 단순함은 집중을 낳는다" - 빠른 실험과 디버깅의 성지
+- **DEV**: "모든 기능이 완전히 작동하는 안전한 실험실" - 통합 개발과 협업의 허브  
+- **PROD**: "성능, 안정성, 관측 가능성의 완벽한 삼위일체" - 확장성과 안정성의 정점
 
 ---
 
-## 🎯 **Phase 1: Core Architecture Revolution (Week 1-2) - 호환성 중심**
+## 🏗️ **Blueprint v17.0 철학의 실체화: 환경별 아키텍처 정의**
 
-### **1.1 Settings 구조 확장 (기존 호환성 유지)**
+### **📊 9대 원칙 기반 환경별 기능 매트릭스**
 
-**📋 변경 작업:**
+| 기능 | LOCAL | DEV | PROD | Blueprint 원칙 |
+|------|-------|-----|------|---------------|
+| **Data Loading** | 파일 직접 로드 | PostgreSQL + SQL | BigQuery + SQL | 원칙 2: 통합 데이터 어댑터 |
+| **Augmenter** | ❌ Pass Through | ✅ Feature Store | ✅ Feature Store | 원칙 9: 환경별 차등적 기능 분리 |
+| **Preprocessor** | ✅ | ✅ | ✅ | 원칙 8: Data Leakage 완전 방지 |
+| **Training** | ✅ | ✅ | ✅ | 원칙 8: 자동 하이퍼파라미터 최적화 |
+| **Batch Inference** | ✅ | ✅ | ✅ | 원칙 4: 순수 로직 아티팩트 |
+| **Evaluate** | ✅ | ✅ | ✅ | 원칙 4: 완전한 재현성 |
+| **API Serving** | ❌ **시스템 차단** | ✅ | ✅ | 원칙 9: 환경별 차등적 기능 분리 |
+| **MLflow 실험관리** | ✅ (로컬) | ✅ (팀 공유) | ✅ (클라우드) | 원칙 1: 레시피는 논리, 설정은 인프라 |
+| **Hyperparameter Tuning** | ✅ (제한적) | ✅ (빠른 실험) | ✅ (철저한 탐색) | 원칙 8: Trainer의 이원적 지혜 |
 
-**A. src/settings/settings.py 점진적 확장**
-```python
-# 새로운 Settings 클래스들 추가 (기존 것은 유지)
-class HyperparameterTuningSettings(BaseModel):
-    enabled: bool = False  # 기본값: 기존 동작 유지
-    n_trials: int = 10
-    metric: str = "accuracy"
-    direction: str = "maximize"
-
-class FeatureStoreSettings(BaseModel):
-    provider: str = "dynamic"
-    connection_timeout: int = 5000
-    retry_attempts: int = 3
-    connection_info: Dict[str, Any] = {}
-
-# 기존 ModelSettings 확장 (하위 호환성 유지)
-class ModelSettings(BaseModel):
-    class_path: str
-    loader: LoaderSettings
-    augmenter: Optional[AugmenterSettings] = None
-    preprocessor: Optional[PreprocessorSettings] = None
-    data_interface: DataInterfaceSettings
-    hyperparameters: ModelHyperparametersSettings
-    
-    # 🆕 새로 추가 (Optional로 하위 호환성 보장)
-    hyperparameter_tuning: Optional[HyperparameterTuningSettings] = None
-    computed: Optional[Dict[str, Any]] = None
-
-# 기존 Settings 확장 (하위 호환성 유지)
-class Settings(BaseModel):
-    environment: EnvironmentSettings
-    mlflow: MlflowSettings
-    serving: ServingSettings
-    artifact_stores: Dict[str, ArtifactStoreSettings]
-    model: ModelSettings
-    
-    # 🆕 새로 추가 (Optional로 하위 호환성 보장)
-    hyperparameter_tuning: Optional[HyperparameterTuningSettings] = None
-    feature_store: Optional[FeatureStoreSettings] = None
-```
-
-**B. config/base.yaml 점진적 확장**
+### **🏠 LOCAL 환경: Blueprint의 "제약은 단순함을 낳는다" 철학 구현**
 ```yaml
-# 🆕 기존 설정들은 그대로 유지하고 새로운 섹션 추가
+철학적 근거: 9대 원칙 중 "환경별 차등적 기능 분리"
+목적: 빠른 실험, 디버깅, 제한된 실험
+구성: data/ 디렉토리 + 파일 시스템 기반
+구현 원칙:
+- 원칙 2 적용: FileSystemAdapter를 통한 통합 데이터 접근
+- 원칙 9 적용: PassThroughAugmenter로 의도적 기능 제한
+- 원칙 4 적용: 동일한 Wrapped Artifact 생성 보장
+특징:
+- Factory 분기: APP_ENV=local시 PassThroughAugmenter 생성
+- 시스템적 차단: API Serving 진입점에서 환경 검증
+- 완전 독립성: 외부 서비스 의존성 제거
+장점: 복잡성 없는 즉시 실행, 핵심 로직 집중
+제약: Feature Store 미지원, 실시간 서빙 불가 (의도된 설계)
+```
 
-# 5. 하이퍼파라미터 튜닝 (새로 추가)
-hyperparameter_tuning:
-  enabled: false  # 기본값: 기존 동작 유지
-  engine: "optuna"
-  timeout: 1800  # 30분 (인프라 제약)
-  pruning:
-    enabled: true
-    algorithm: "MedianPruner"
-    n_startup_trials: 5
-  parallelization:
-    n_jobs: 1  # 기본값
+### **🔧 DEV 환경: Blueprint의 "완전한 실험실" 철학 구현**
+```yaml
+철학적 근거: 모든 9대 원칙의 완전한 구현
+목적: 팀 공유 통합 개발, 전체 기능 테스트
+구성: mmp-local-dev (PostgreSQL + Redis + Feast)
+구현 원칙:
+- 원칙 2 적용: FeatureStoreAdapter를 통한 완전한 Feature Store 연동
+- 원칙 5 적용: 단일 Augmenter, 배치/실시간 컨텍스트 주입
+- 원칙 6 적용: 자기 기술 API를 통한 동적 스키마 생성
+특징:
+- 모든 기능 완전 지원
+- PROD와 동일한 아키텍처, 다른 스케일
+- 팀 공유 MLflow와 Feature Store
+- 실제 Feast 기반 Point-in-time join
+위치: ../mmp-local-dev/ (외부 인프라)
+```
 
-# 6. Feature Store (새로 추가)
-feature_store:
-  provider: "dynamic"
-  connection_timeout: 5000
-  retry_attempts: 3
-  connection_info:
-    redis_host: ${FEATURE_STORE_REDIS_HOST:localhost:6379}
-    offline_store_uri: ${FEATURE_STORE_OFFLINE_URI:file://local/features}
+### **🚀 PROD 환경: Blueprint의 "완벽한 삼위일체" 철학 구현**
+```yaml
+철학적 근거: 9대 원칙 + 확장성과 안정성 극대화
+목적: 실제 운영 서비스
+구성: GCP BigQuery + Redis Labs + Cloud Run
+구현 원칙:
+- 원칙 3 적용: URI 기반 동적 어댑터 선택 (BigQueryAdapter)
+- 원칙 1 적용: 환경별 config 완전 분리
+- 원칙 8 적용: 클라우드 리소스 활용한 대규모 HPO
+특징:
+- 확장성: 서버리스, 무제한 스케일
+- 안정성: 관리형 서비스, 자동 백업
+- 관측성: 완전한 모니터링 시스템
 ```
 
 ---
 
-### **1.2 Trainer 아키텍처 확장 (기존 인터페이스 유지)**
+## 🔍 **Phase 0: Blueprint 철학 검증 + 환경별 요구사항 정의**
 
-**🎪 호환성 중심 설계**
-```python
-# ❌ 잘못된 접근 (인터페이스 변경):
-def train(self, augmented_data, recipe, config):
+### **🎯 Blueprint v17.0 철학적 완성도 ✅**
+1. **✅ 9대 핵심 설계 원칙 정립** (환경별 차등적 기능 분리 포함)
+2. **✅ 환경별 운영 철학 명확화** (LOCAL/DEV/PROD 각각의 존재 이유)
+3. **✅ Trainer의 이원적 지혜 정의** (조건부 최적화 + 완전한 투명성)
+4. **✅ Wrapped Artifact 철학 정립** (순수 로직 캡슐화 + 최적화 결과 보존)
+5. **✅ 하이브리드 통합 인터페이스 완성** (SQL 자유도 + Feature Store 연결성)
 
-# ✅ 올바른 접근 (기존 인터페이스 유지):
-def train(self, df, model, augmenter=None, preprocessor=None, context_params=None):
+### **🚨 Critical Implementation Gaps (Blueprint 철학 구현 필요)**
+
+**💎 구현도 스코어카드:**
+- Blueprint 철학: 100% ✅ | 환경별 분리: 30% 🚨 | Factory 분기: 20% 🚨 | Trainer 이원성: 40% 🚨
+
+1. **🔥 [CRITICAL] 9대 원칙 중 "환경별 차등적 기능 분리" 미구현**
+   - **Factory의 환경별 분기 로직 없음** - 모든 환경에서 동일한 컴포넌트 생성
+   - **PassThroughAugmenter 미구현** - LOCAL 환경의 의도적 제약 없음
+   - **API Serving 환경별 차단 로직 없음** - LOCAL에서 시스템적 차단 미구현
+
+2. **🔥 [CRITICAL] Trainer의 "이원적 지혜" 미구현**
+   - **조건부 최적화 로직 없음** - hyperparameter_tuning.enabled 분기 없음
+   - **완전한 투명성 메타데이터 누락** - 최적화 과정 추적 불가
+   - **Data Leakage 방지 메타데이터 없음** - training_methodology 기록 없음
+
+3. **🔥 [CRITICAL] 인자/함수 호환성 문제 (즉시 수정 필요)**
+   - **Factory.create_tuning_utils() 메서드 완전 누락** - Trainer에서 호출하지만 구현 없음
+   - **OptunaAdapter.create_study() 인자 불일치** - pruner 인자 위치 문제
+   - **suggest_hyperparameters() 타입 불일치** - hyperparameters.root vs hyperparams_config
+
+4. **🔥 [CRITICAL] 의존성 누락 (즉시 수정 필요)**
+   - **optuna>=3.4.0** - Trainer의 이원적 지혜 구현 필수
+   - **catboost>=1.2.0, lightgbm>=4.1.0** - 다양한 모델 생태계 지원 필수
+   - **requirements.lock과 pyproject.toml 불일치**
+
+5. **🔥 [CRITICAL] Settings 구조 개선 및 import 정리 (체계적 수정 필요)**
+   - **30개+ 파일의 import 패턴 업데이트** - `from src.settings.settings import` → `from src.settings import`
+   - **config 통합 완료 후 호환성 검증** - Blueprint 원칙 1 (설정은 인프라) 완전 구현 확인
+   - **분리된 settings 모듈 구조 검증** - models.py, loaders.py, extensions.py 정상 동작 확인
+
+### **🆕 Blueprint 기반 환경별 요구사항**
+
+**LOCAL 환경 요구사항 (Blueprint 원칙 9 구현):**
+```yaml
+Factory 분기 로직:
+  - APP_ENV=local 감지
+  - PassThroughAugmenter 생성 (FeatureStoreAugmenter 대신)
+  - FileSystemAdapter 우선 선택
+
+API Serving 차단:
+  - main.py serve-api 진입점에서 환경 검증
+  - LOCAL 환경시 명확한 에러 메시지와 해결책 제공
+
+data/ 구조:
+  - raw/ (원본 데이터)
+  - processed/ (이미 피처가 포함된 완성 데이터)
+  - artifacts/ (로컬 MLflow)
 ```
 
-**📋 구체적 작업:**
+**DEV 환경 요구사항 (모든 Blueprint 원칙 구현):**
+```yaml
+mmp-local-dev/ 완전 연동:
+  - PostgreSQL (Feast registry + Offline store)
+  - Redis (Online store)
+  - Feast 완전 구성
 
-**A. src/core/trainer.py 내부 로직 확장 (인터페이스 유지)**
+Factory 분기 로직:
+  - APP_ENV=dev 감지
+  - FeatureStoreAdapter 생성
+  - PostgreSQLAdapter + RedisAdapter 조합
+
+완전한 기능:
+  - 원칙 6: 자기 기술 API 구현
+  - 원칙 5: 컨텍스트 주입 Augmenter
+  - 원칙 8: Trainer 이원적 지혜 (빠른 HPO)
+```
+
+**PROD 환경 요구사항 (Enterprise급 구현):**
+```yaml
+GCP 완전 연동:
+  - BigQuery (대규모 SQL + Feast offline)
+  - Redis Labs (고성능 online store)
+  - Cloud Run (서버리스 serving)
+
+Factory 분기 로직:
+  - APP_ENV=prod 감지
+  - BigQueryAdapter + RedisLabsAdapter
+  - 고급 모니터링 컴포넌트 추가
+
+운영급 기능:
+  - 원칙 8: 대규모 자원 활용 HPO
+  - 완전한 관측 가능성
+  - 자동 백업 및 재해복구
+```
+
+---
+
+## 🎯 **Phase 1: Blueprint 핵심 원칙 구현 (Week 1-2)**
+
+### **1.0 원칙 9 구현: 환경별 차등적 기능 분리 (Day 1-2)**
+
+**📋 Priority 1: Factory의 환경별 분기 로직 구현**
+
+**A. Factory.create_augmenter() 환경별 분기 (Blueprint 원칙 9)**
 ```python
-import optuna
-from typing import Optional, Dict, Any, Tuple
+# src/core/factory.py
+def create_augmenter(self) -> BaseAugmenter:
+    """Blueprint 원칙 9: 환경별 차등적 기능 분리"""
+    app_env = self.settings.environment.app_env
+    
+    if app_env == "local":
+        # LOCAL: 의도적 제약을 통한 단순함과 집중
+        logger.info("LOCAL 환경: PassThroughAugmenter 생성 (Blueprint 원칙 9)")
+        return PassThroughAugmenter()
+    
+    elif self.settings.model.augmenter.type == "feature_store":
+        # DEV/PROD: 완전한 Feature Store 활용
+        logger.info(f"{app_env.upper()} 환경: FeatureStoreAugmenter 생성")
+        return FeatureStoreAugmenter(
+            feature_config=self.settings.model.augmenter.features,
+            settings=self.settings
+        )
+    else:
+        raise ValueError(
+            f"지원하지 않는 augmenter 타입: {self.settings.model.augmenter.type} "
+            f"(환경: {app_env})"
+        )
+```
 
-class Trainer(BaseTrainer):
-    def __init__(self, settings: Settings):
-        self.settings = settings
-        logger.info("Trainer가 초기화되었습니다.")
-
-    def train(
-        self,
-        df: pd.DataFrame,
-        model,
-        augmenter: Optional[BaseAugmenter] = None,
-        preprocessor: Optional[BasePreprocessor] = None,
+**B. PassThroughAugmenter 구현 (Blueprint 원칙 9)**
+```python
+# src/core/augmenter.py
+class PassThroughAugmenter(BaseAugmenter):
+    """
+    Blueprint 원칙 9 구현: LOCAL 환경의 의도적 제약
+    "제약은 단순함을 낳고, 단순함은 집중을 낳는다"
+    """
+    
+    def __init__(self):
+        pass
+    
+    def augment(
+        self, 
+        data: pd.DataFrame, 
+        run_mode: str = "batch",
         context_params: Optional[Dict[str, Any]] = None,
-    ) -> Tuple[Optional[BasePreprocessor], Any, Dict[str, Any]]:
-        """
-        기존 인터페이스 유지하면서 내부에서 하이퍼파라미터 최적화 처리
-        """
-        logger.info("모델 학습 프로세스 시작...")
-        context_params = context_params or {}
-
-        # 🆕 하이퍼파라미터 튜닝 여부 확인
-        hyperparameter_tuning_config = self.settings.model.hyperparameter_tuning
-        is_tuning_enabled = (
-            hyperparameter_tuning_config and 
-            hyperparameter_tuning_config.enabled and
-            self.settings.hyperparameter_tuning and
-            self.settings.hyperparameter_tuning.enabled
-        )
-
-        if is_tuning_enabled:
-            return self._train_with_hyperparameter_optimization(
-                df, model, augmenter, preprocessor, context_params
-            )
-        else:
-            return self._train_with_fixed_hyperparameters(
-                df, model, augmenter, preprocessor, context_params
-            )
-    
-    def _train_with_hyperparameter_optimization(self, df, model, augmenter, preprocessor, context_params):
-        """Optuna 기반 자동 최적화 (내부 메서드)"""
-        
-        # 기본 설정 검증 및 데이터 분할
-        self.settings.model.data_interface.validate_required_fields()
-        train_df, test_df = self._split_data(df)
-        
-        # 피처 증강
-        if augmenter:
-            logger.info("피처 증강을 시작합니다.")
-            train_df = augmenter.augment(train_df, run_mode="batch", context_params=context_params)
-            test_df = augmenter.augment(test_df, run_mode="batch", context_params=context_params)
-        
-        # Optuna Study 생성
-        study = optuna.create_study(
-            direction=self.settings.model.hyperparameter_tuning.direction,
-            pruner=optuna.pruners.MedianPruner()
-        )
-        
-        def objective(trial):
-            # 하이퍼파라미터 샘플링
-            params = self._sample_hyperparameters(trial, self.settings.model.hyperparameters.root)
-            
-            # 단일 학습 실행 (Data Leakage 방지)
-            result = self._single_training_iteration(
-                train_df, params, seed=trial.number
-            )
-            
-            # Pruning 지원
-            trial.report(result['score'], step=trial.number)
-            if trial.should_prune():
-                raise optuna.TrialPruned()
-                
-            return result['score']
-        
-        # 최적화 실행 (실험 논리 + 인프라 제약)
-        study.optimize(
-            objective,
-            n_trials=self.settings.model.hyperparameter_tuning.n_trials,
-            timeout=self.settings.hyperparameter_tuning.timeout
-        )
-        
-        # 최적 파라미터로 최종 학습
-        best_params = study.best_params
-        final_result = self._single_training_iteration(
-            train_df, best_params, seed=42
-        )
-        
-        # 🆕 최적화 메타데이터 포함
-        final_result['hyperparameter_optimization'] = {
-            'enabled': True,
-            'best_params': best_params,
-            'best_score': study.best_value,
-            'total_trials': len(study.trials),
-            'optimization_time': str(study.trials[-1].datetime_complete - study.trials[0].datetime_start)
-        }
-        
-        # 기존 인터페이스와 호환되는 반환값
-        return final_result['preprocessor'], final_result['model'], final_result
-    
-    def _train_with_fixed_hyperparameters(self, df, model, augmenter, preprocessor, context_params):
-        """기존 고정 하이퍼파라미터 방식 (기존 로직 재사용)"""
-        
-        # 기존 train 메서드의 로직을 그대로 사용
-        self.settings.model.data_interface.validate_required_fields()
-        task_type = self.settings.model.data_interface.task_type
-        
-        # 데이터 분할
-        train_df, test_df = self._split_data(df)
-        
-        # 피처 증강
-        if augmenter:
-            train_df = augmenter.augment(train_df, run_mode="batch", context_params=context_params)
-            test_df = augmenter.augment(test_df, run_mode="batch", context_params=context_params)
-        
-        # 데이터 준비
-        X_train, y_train, additional_data = self._prepare_training_data(train_df)
-        X_test, y_test, _ = self._prepare_training_data(test_df)
-        
-        # 전처리 (Train-only fit for Data Leakage prevention)
-        if preprocessor:
-            preprocessor.fit(X_train)  # ← ✅ Data Leakage 방지
-            X_train_processed = preprocessor.transform(X_train)
-            X_test_processed = preprocessor.transform(X_test)
-        else:
-            X_train_processed = X_train
-            X_test_processed = X_test
-        
-        # 모델 학습
-        self._fit_model(model, X_train_processed, y_train, additional_data)
-        
-        # 평가
-        from src.core.factory import Factory
-        factory = Factory(self.settings)
-        evaluator = factory.create_evaluator()
-        metrics = evaluator.evaluate(model, X_test_processed, y_test, test_df)
-        
-        results = {
-            "metrics": metrics,
-            "hyperparameter_optimization": {"enabled": False}  # 🆕 일관성 유지
-        }
-        
-        return preprocessor, model, results
-    
-    def _single_training_iteration(self, train_df, params, seed):
-        """핵심: Data Leakage 방지 + 단일 학습 로직"""
-        
-        # 1. Train/Validation Split (Data Leakage 방지)
-        train_data, val_data = train_test_split(
-            train_df, test_size=0.2, random_state=seed, 
-            stratify=self._get_stratify_column(train_df)
-        )
-        
-        # 2. 동적 데이터 준비
-        X_train, y_train, additional_data = self._prepare_training_data(train_data)
-        X_val, y_val, _ = self._prepare_training_data(val_data)
-        
-        # 3. Preprocessor fit (Train only) ← ✅ Data Leakage 방지
-        from src.core.factory import Factory
-        factory = Factory(self.settings)
-        preprocessor = factory.create_preprocessor()
-        
-        if preprocessor:
-            preprocessor.fit(X_train)  # Train 데이터에만 fit
-            X_train_processed = preprocessor.transform(X_train)
-            X_val_processed = preprocessor.transform(X_val)
-        else:
-            X_train_processed = X_train
-            X_val_processed = X_val
-        
-        # 4. Model 생성 및 학습 (동적 하이퍼파라미터 적용)
-        model = self._create_model_with_params(self.settings.model.class_path, params)
-        self._fit_model(model, X_train_processed, y_train, additional_data)
-        
-        # 5. 평가
-        evaluator = factory.create_evaluator()
-        metrics = evaluator.evaluate(model, X_val_processed, y_val, val_data)
-        
-        # 주요 메트릭 추출 (tuning에 사용)
-        score = self._extract_optimization_score(metrics)
-        
-        return {
-            'model': model,
-            'preprocessor': preprocessor,
-            'score': score,
-            'metrics': metrics,
-            'training_methodology': {
-                'train_test_split_method': 'stratified',
-                'preprocessing_fit_scope': 'train_only',  # Data Leakage 방지 증명
-                'random_state': seed
-            }
-        }
-    
-    def _create_model_with_params(self, class_path, params):
-        """동적 하이퍼파라미터로 모델 생성"""
-        try:
-            module_path, class_name = class_path.rsplit('.', 1)
-            module = importlib.import_module(module_path)
-            model_class = getattr(module, class_name)
-            return model_class(**params)
-        except Exception as e:
-            logger.error(f"모델 생성 실패: {class_path}, 파라미터: {params}, 오류: {e}")
-            raise ValueError(f"모델을 생성할 수 없습니다: {class_path}") from e
-    
-    def _sample_hyperparameters(self, trial, hyperparams_config):
-        """Optuna trial을 사용한 하이퍼파라미터 샘플링"""
-        sampled_params = {}
-        
-        for param_name, param_config in hyperparams_config.items():
-            if isinstance(param_config, dict) and 'type' in param_config:
-                # Dictionary 형식 하이퍼파라미터 처리
-                param_type = param_config['type']
-                
-                if param_type == 'float':
-                    low = param_config['low']
-                    high = param_config['high']
-                    log = param_config.get('log', False)
-                    sampled_params[param_name] = trial.suggest_float(
-                        param_name, low, high, log=log
-                    )
-                elif param_type == 'int':
-                    low = param_config['low']
-                    high = param_config['high']
-                    sampled_params[param_name] = trial.suggest_int(
-                        param_name, low, high
-                    )
-                elif param_type == 'categorical':
-                    choices = param_config['choices']
-                    sampled_params[param_name] = trial.suggest_categorical(
-                        param_name, choices
-                    )
-            else:
-                # 고정값 하이퍼파라미터 처리 (하위 호환성)
-                sampled_params[param_name] = param_config
-        
-        return sampled_params
-    
-    def _extract_optimization_score(self, metrics):
-        """메트릭에서 최적화용 점수 추출"""
-        optimization_metric = self.settings.model.hyperparameter_tuning.metric
-        
-        if optimization_metric in metrics:
-            return metrics[optimization_metric]
-        else:
-            # 기본값으로 첫 번째 메트릭 사용
-            return list(metrics.values())[0]
-    
-    # 기존 메서드들 유지 (변경 없음)
-    def _prepare_training_data(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[pd.Series], Dict[str, Any]]:
-        # 기존 로직 유지
-        pass
-    
-    def _fit_model(self, model, X: pd.DataFrame, y: Optional[pd.Series], additional_data: Dict[str, Any]):
-        # 기존 로직 유지
-        pass
-    
-    def _split_data(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        # 기존 로직 유지
-        pass
+        **kwargs
+    ) -> pd.DataFrame:
+        """데이터를 변경 없이 그대로 반환 (의도된 설계)"""
+        logger.info("LOCAL 환경: Augmenter Pass-Through 모드 (Blueprint 철학 구현)")
+        return data
 ```
 
----
-
-### **1.3 Factory 패턴 확장 (기존 호환성 유지)**
-
-**📋 구체적 작업:**
-
-**A. src/core/factory.py 메서드 추가**
+**C. API Serving 환경별 차단 (Blueprint 원칙 9)**
 ```python
-class Factory:
-    # 기존 메서드들 모두 유지
+# main.py serve-api 명령어 수정
+@click.command()
+def serve_api(...):
+    settings = Settings.load()
     
-    # 🆕 새로운 메서드들 추가
-    def create_feature_store_adapter(self):
-        """환경별 Feature Store 어댑터 생성"""
-        if not self.settings.feature_store:
-            raise ValueError("Feature Store 설정이 없습니다.")
-        
-        logger.info("Feature Store 어댑터를 생성합니다.")
-        from src.utils.adapters.feature_store_adapter import FeatureStoreAdapter
-        return FeatureStoreAdapter(self.settings)
-    
-    def create_optuna_adapter(self):
-        """Optuna SDK 래퍼 생성"""
-        if not self.settings.hyperparameter_tuning:
-            raise ValueError("Hyperparameter tuning 설정이 없습니다.")
-        
-        logger.info("Optuna 어댑터를 생성합니다.")
-        from src.utils.adapters.optuna_adapter import OptunaAdapter
-        return OptunaAdapter(self.settings.hyperparameter_tuning)
-    
-    def create_tuning_utils(self):
-        """하이퍼파라미터 튜닝 유틸리티 생성"""
-        logger.info("Tuning 유틸리티를 생성합니다.")
-        from src.utils.system.tuning_utils import TuningUtils
-        return TuningUtils()
+    if not settings.environment.features_enabled.api_serving:
+        click.echo(
+            click.style("❌ API Serving이 현재 환경에서 비활성화되어 있습니다.", fg="red") +
+            f"\n현재 환경: {settings.environment.app_env}" +
+            "\n🎯 Blueprint 철학: LOCAL 환경은 '빠른 실험과 디버깅의 성지'입니다." +
+            "\n💡 해결방법: DEV 또는 PROD 환경을 사용하세요." +
+            "\n   APP_ENV=dev python main.py serve-api --run-id 12345" +
+            "\n   APP_ENV=prod python main.py serve-api --run-id 12345"
+        )
+        raise click.Abort()
 ```
 
----
+### **1.1 원칙 8 구현: Trainer의 이원적 지혜 (Day 2-3)**
 
-### **1.4 Recipe 구조 확장 (하위 호환성 유지)**
+**A. Trainer.train() 이원적 분기 로직**
+```python
+# src/core/trainer.py 
+def train(self, augmented_data, recipe, config):
+    """
+    Blueprint 철학: Trainer의 이원적 지혜
+    - 조건부 최적화의 지혜
+    - 실험 논리와 인프라 제약의 완벽한 분리
+    """
+    
+    if recipe.hyperparameter_tuning.enabled:
+        logger.info("자동 하이퍼파라미터 최적화 모드 시작")
+        return self._train_with_hyperparameter_optimization(
+            augmented_data, recipe, config
+        )
+    else:
+        logger.info("고정 하이퍼파라미터 모드 (기존 워크플로우 유지)")
+        return self._train_with_fixed_hyperparameters(
+            augmented_data, recipe, config
+        )
+```
 
-**📋 변경 작업:**
+**B. 완전한 투명성 메타데이터 구현**
+```python
+# Wrapped Artifact에 포함될 최적화 투명성 데이터
+hyperparameter_optimization = {
+    'enabled': True,
+    'engine': 'optuna', 
+    'best_params': best_params,
+    'best_score': study.best_value,
+    'optimization_history': study.trials_dataframe().to_dict(),
+    'total_trials': len(study.trials),
+    'pruned_trials': pruned_count,
+    'optimization_time': total_time,
+    'search_space': recipe.model.hyperparameters,
+    'timeout_occurred': timeout_flag
+}
 
-**A. recipes/*.yaml 파일 점진적 확장**
+training_methodology = {
+    'train_test_split_method': 'stratified',
+    'train_ratio': 0.8,
+    'validation_strategy': 'train_validation_split',
+    'preprocessing_fit_scope': 'train_only'  # Data Leakage 방지 보장
+}
+```
+
+### **1.2 호환성 문제 해결 (Critical 수정)**
+
+**A. Factory.create_tuning_utils() 메서드 추가**
+```python
+# src/core/factory.py
+def create_tuning_utils(self):
+    """
+    Trainer에서 호출하는 누락된 메서드
+    Blueprint 원칙 8 지원: 자동화된 하이퍼파라미터 최적화
+    """
+    logger.info("Tuning 유틸리티를 생성합니다.")
+    from src.utils.system.tuning_utils import TuningUtils
+    return TuningUtils()
+```
+
+**B. 핵심 의존성 설치**
+```bash
+# Blueprint의 자동화된 엑셀런스 구현에 필수
+pip install optuna>=3.4.0 catboost>=1.2.0 lightgbm>=4.1.0
+
+# requirements.lock 재생성 
+uv pip compile pyproject.toml -o requirements.lock
+```
+
+**C. Settings Import 패턴 정리 (Blueprint 원칙 1 완전 구현)**
+```bash
+# 🎯 목표: 30개+ 파일의 import 패턴을 체계적으로 업데이트
+# 현재: from src.settings.settings import Settings
+# 변경: from src.settings import Settings
+
+# Phase 1에서 수행할 파일들 (핵심 우선순위):
+echo "🔧 Settings Import 정리 시작..."
+
+# 1. 핵심 Factory 시스템
+sed -i 's/from src\.settings\.settings import/from src.settings import/g' src/core/factory.py
+sed -i 's/from src\.settings\.settings import/from src.settings import/g' src/core/trainer.py
+sed -i 's/from src\.settings\.settings import/from src.settings import/g' src/core/augmenter.py
+
+# 2. 주요 파이프라인
+sed -i 's/from src\.settings\.settings import/from src.settings import/g' main.py
+sed -i 's/from src\.settings\.settings import/from src.settings import/g' src/pipelines/train_pipeline.py
+sed -i 's/from src\.settings\.settings import/from src.settings import/g' src/pipelines/inference_pipeline.py
+
+# 3. 시스템 유틸리티
+sed -i 's/from src\.settings\.settings import/from src.settings import/g' src/utils/system/logger.py
+sed -i 's/from src\.settings\.settings import/from src.settings import/g' src/utils/system/mlflow_utils.py
+
+# 4. 어댑터들
+sed -i 's/from src\.settings\.settings import/from src.settings import/g' src/utils/adapters/*.py
+
+# 5. API 서빙
+sed -i 's/from src\.settings\.settings import/from src.settings import/g' serving/api.py
+
+echo "✅ Settings Import 정리 완료"
+echo "🧪 테스트 실행으로 호환성 검증 필요"
+```
+
+**D. Settings 분리 구조 검증**
+```python
+# 분리된 settings 모듈이 정상 동작하는지 검증
+python -c "
+from src.settings import Settings, load_settings_by_file
+from src.settings.extensions import validate_environment_settings
+
+# 기본 로딩 테스트
+settings = load_settings_by_file('models/classification/random_forest_classifier')
+print(f'✅ Settings 로딩 성공: {settings.environment.app_env}')
+
+# 확장 기능 테스트  
+validation = validate_environment_settings(settings)
+print(f'✅ 환경 검증 성공: {validation[\"status\"]}')
+
+print('🎯 Blueprint v17.0 Settings 분리 구조 검증 완료!')
+"
+```
+
+### **1.3 LOCAL 환경 데이터 구조 구축 (Day 3)**
+
+**A. data/ 디렉토리 구조 생성 (Blueprint 원칙 9)**
+```bash
+# LOCAL 환경의 완전 독립성 구현
+mkdir -p data/{raw,processed,artifacts}
+
+# 테스트 데이터 구축
+python scripts/setup_local_test_data.py
+```
+
+**B. LOCAL 환경 Recipe 테스트**
 ```yaml
-# recipes/xgboost_x_learner.yaml - v17.0 호환 (기존 구조 유지)
+# tests/recipes/local_test_classification.yaml
+# Blueprint 원칙 적용: LOCAL에서도 동일한 Recipe 구조
 model:
-  class_path: "causalml.inference.meta.XGBTRegressor"
+  class_path: "sklearn.ensemble.RandomForestClassifier"
   hyperparameters:
-    # 🆕 Dictionary 형식과 기존 고정값 모두 지원
-    learning_rate: {type: "float", low: 0.01, high: 0.3, log: true}
-    n_estimators: {type: "int", low: 50, high: 1000}
-    max_depth: {type: "int", low: 3, high: 10}
-    subsample: {type: "float", low: 0.5, high: 1.0}
-    # 고정값도 계속 지원
+    n_estimators: 100  # 고정값 (LOCAL은 HPO 비활성화)
     random_state: 42
-    objective: "reg:squarederror"
-
-# 🆕 하이퍼파라미터 튜닝 설정 (Optional)
-hyperparameter_tuning:
-  enabled: true
-  n_trials: 50
-  metric: "roc_auc"
-  direction: "maximize"
-
-# 기존 섹션들 모두 유지
-loader:
-  name: "campaign_users"
-  source_uri: "bq://recipes/sql/loaders/user_features.sql"
-  local_override_uri: "file://local/data/sample_user_features.csv"
 
 augmenter:
-  name: "point_in_time_features"
-  source_uri: "bq://recipes/sql/features/user_summary.sql"
-  local_override_uri: "file://local/data/sample_user_features.parquet"
+  type: "pass_through"  # LOCAL 환경 전용
 
-preprocessor:
-  name: "simple_scaler"
-  params:
-    criterion_col: null
-    exclude_cols: ["member_id", "event_timestamp"]
+loader:
+  local_override_uri: "file://data/processed/test_features.parquet"
 
-data_interface:
-  task_type: "causal"
-  features:
-    gender: "category"
-    age_group: "category"
-    days_since_last_visit: "numeric"
-    lifetime_purchase_count: "numeric"
-    avg_purchase_amount_90d: "numeric"
-    avg_session_duration_30d: "numeric"
-  target_col: "outcome"
-  treatment_col: "grp"
-  treatment_value: "treatment"
+# Blueprint 원칙 8: 조건부 최적화
+hyperparameter_tuning:
+  enabled: false  # LOCAL에서는 비활성화
+```
+
+### **1.4 테스트 파일 Settings Import 정리 (Day 3)**
+
+**A. 테스트 파일들 일괄 정리**
+```bash
+# 🧪 테스트 파일들의 import 패턴 업데이트 (Blueprint 호환성 보장)
+echo "🧪 테스트 파일 Settings Import 정리 시작..."
+
+# 1. 핵심 테스트들
+sed -i 's/from src\.settings\.settings import/from src.settings import/g' tests/conftest.py
+sed -i 's/from src\.settings\.settings import/from src.settings import/g' tests/settings/test_settings.py
+
+# 2. Core 컴포넌트 테스트들  
+sed -i 's/from src\.settings\.settings import/from src.settings import/g' tests/core/test_factory.py
+sed -i 's/from src\.settings\.settings import/from src.settings import/g' tests/core/test_trainer.py
+sed -i 's/from src\.settings\.settings import/from src.settings import/g' tests/core/test_augmenter.py
+
+# 3. 통합 테스트들
+sed -i 's/from src\.settings\.settings import/from src.settings import/g' tests/integration/test_end_to_end.py
+sed -i 's/from src\.settings\.settings import/from src.settings import/g' tests/integration/test_compatibility.py
+
+# 4. 파이프라인 테스트들
+sed -i 's/from src\.settings\.settings import/from src.settings import/g' tests/pipelines/test_train_pipeline.py
+sed -i 's/from src\.settings\.settings import/from src.settings import/g' tests/pipelines/test_inference_pipeline.py
+
+# 5. 모델별 테스트들
+sed -i 's/from src\.settings\.settings import/from src.settings import/g' tests/models/test_*.py
+
+# 6. 유틸리티 테스트들
+sed -i 's/from src\.settings\.settings import/from src.settings import/g' tests/utils/test_data_adapters.py
+sed -i 's/from src\.settings\.settings import/from src.settings import/g' tests/serving/test_api.py
+
+echo "✅ 테스트 파일 Settings Import 정리 완료"
+```
+
+**B. 전체 테스트 스위트 실행으로 호환성 검증**
+```bash
+# Blueprint v17.0 Settings 분리 구조 호환성 검증
+echo "🧪 전체 테스트 스위트 실행으로 Settings 호환성 검증..."
+
+# 1. 단위 테스트 (빠른 검증)
+python -m pytest tests/settings/ -v
+python -m pytest tests/core/test_factory.py -v
+
+# 2. 통합 테스트 (핵심 워크플로우 검증)
+python -m pytest tests/integration/test_compatibility.py -v
+
+# 3. 전체 테스트 스위트 (완전한 검증)
+python -m pytest tests/ -v --tb=short
+
+echo "🎯 Blueprint v17.0 Settings 호환성 검증 완료!"
+echo "📊 이제 9대 원칙 구현으로 진행 가능합니다."
+```
+
+**C. 기존 settings.py 제거 (검증 완료 후)**
+```bash
+# ⚠️  모든 테스트가 통과한 후에만 실행
+echo "🗑️  기존 settings.py 정리..."
+
+# 백업 생성
+cp src/settings/settings.py src/settings/settings.py.backup_$(date +%Y%m%d)
+
+# 기존 파일 제거 (새로운 분리 구조로 완전 전환)
+rm src/settings/settings.py
+
+echo "✅ Blueprint v17.0 Settings 분리 구조로 완전 전환 완료!"
+echo "🎯 이제 모든 import가 src.settings 모듈을 통해 이루어집니다."
 ```
 
 ---
 
-## 🎯 **Phase 2: Feature Store Enhancement (Week 3-4) - 점진적 확장**
+## 🎯 **Phase 2: 환경별 완전 구현 및 검증 (Week 3)**
 
-### **2.1 기존 Augmenter 확장 (인터페이스 유지)**
+### **2.1 LOCAL 환경 Blueprint 철학 검증 (Day 1-2)**
 
-**📋 구체적 작업:**
+**A. LOCAL 환경 전체 워크플로우 테스트**
+```bash
+# 1. 환경 설정 확인
+export APP_ENV=local
 
-**A. src/utils/adapters/feature_store_adapter.py 생성**
-```python
-from src.interface.base_adapter import BaseAdapter
-from src.settings.settings import Settings
+# 2. LOCAL 철학 검증: "제약은 단순함을 낳는다"
+python main.py train --recipe-file "tests/recipes/local_test_classification"
+# → PassThroughAugmenter 동작 확인
 
-class FeatureStoreAdapter(BaseAdapter):
-    """환경별 Feature Store 통합 어댑터 (기존 Redis 어댑터 확장)"""
-    
-    def __init__(self, settings: Settings):
-        self.settings = settings
-        self.feature_store_config = settings.feature_store
-        self._init_connections()
-    
-    def _init_connections(self):
-        """환경별 연결 초기화"""
-        # 기존 Redis 어댑터 활용
-        from src.core.factory import Factory
-        factory = Factory(self.settings)
-        
-        try:
-            self.redis_adapter = factory.create_redis_adapter()
-        except ImportError:
-            logger.warning("Redis 어댑터를 생성할 수 없습니다.")
-            self.redis_adapter = None
-    
-    def get_historical_features(self, entity_df, features):
-        """배치 모드: 기존 SQL 기반 방식 사용"""
-        # 기존 방식과 호환성 유지
-        return entity_df  # 임시 구현
-    
-    def get_online_features(self, entity_keys, features):
-        """실시간 모드: 기존 Redis 어댑터 활용"""
-        if self.redis_adapter:
-            return self.redis_adapter.get_features(entity_keys, features)
-        else:
-            return {}
-    
-    # BaseAdapter 인터페이스 구현
-    def read(self, source: str, params=None, **kwargs):
-        return self.get_historical_features(params.get('entity_df'), params.get('features'))
-    
-    def write(self, df, target: str, options=None, **kwargs):
-        pass
+# 3. LOCAL 제약 검증: API Serving 차단
+python main.py serve-api --run-id "latest"
+# → 예상: Blueprint 철학 메시지와 함께 차단
+
+# 4. LOCAL 기능 검증: Batch Inference
+python main.py batch-inference --run-id "latest" --input-file "data/processed/test.parquet"
+# → 정상 동작 확인
 ```
 
-**B. 기존 Augmenter 점진적 확장 (인터페이스 유지)**
-```python
-# src/core/augmenter.py - 기존 코드에 기능 추가
-class Augmenter(BaseAugmenter):
-    def __init__(self, source_uri: str, settings: Settings):
-        # 기존 초기화 로직 유지
-        self.source_uri = source_uri
-        self.settings = settings
-        self.sql_template_str = self._load_sql_template()
-        
-        # 기존 어댑터들 유지
-        from src.core.factory import Factory
-        factory = Factory(settings)
-        self.batch_adapter = factory.create_data_adapter('bq')
-        
-        try:
-            self.redis_adapter = factory.create_redis_adapter()
-        except ImportError:
-            self.redis_adapter = None
-        
-        # 🆕 Feature Store 어댑터 추가 (Optional)
-        try:
-            self.feature_store_adapter = factory.create_feature_store_adapter()
-        except (ValueError, ImportError):
-            self.feature_store_adapter = None
-    
-    # 기존 augment 메서드 유지 (인터페이스 변경 없음)
-    def augment(
-        self,
-        data: pd.DataFrame,
-        run_mode: str,
-        context_params: Optional[Dict[str, Any]] = None,
-        **kwargs,
-    ) -> pd.DataFrame:
-        # 기존 로직 유지 (변경 없음)
-        if run_mode == "batch":
-            return self._augment_batch(data, context_params)
-        elif run_mode == "serving":
-            return self._augment_realtime(data, kwargs.get("feature_store_config"))
-        else:
-            raise ValueError(f"지원하지 않는 Augmenter 실행 모드입니다: {run_mode}")
-    
-    # 기존 메서드들 모두 유지
-    def _augment_batch(self, data, context_params):
-        # 기존 로직 유지
-        logger.info(f"배치 모드 피처 증강을 시작합니다. (URI: {self.source_uri})")
-        feature_df = self.batch_adapter.read(self.source_uri, params=context_params)
-        return pd.merge(data, feature_df, on="member_id", how="left")
-    
-    def _augment_realtime(self, data, feature_store_config):
-        # 기존 로직 유지 (변경 없음)
-        # ... 기존 코드 그대로
-        pass
-    
-    # 기존 augment_batch, augment_realtime 메서드들도 모두 유지
-    def augment_batch(self, data, sql_snapshot, context_params=None):
-        # 기존 로직 유지
-        pass
-    
-    def augment_realtime(self, data, sql_snapshot, feature_store_config=None, feature_columns=None):
-        # 기존 로직 유지
-        pass
+### **2.2 DEV 환경 Blueprint 완전 구현 (Day 3-4)**
+
+**A. DEV 환경 "완전한 실험실" 검증**
+```bash
+# 1. 외부 인프라 시작
+cd ../mmp-local-dev
+./setup.sh
+
+# 2. DEV 환경 설정
+export APP_ENV=dev
+
+# 3. Blueprint 원칙 6: 자기 기술 API 검증
+python main.py train --recipe-file "models/classification/random_forest_classifier"
+# → FeatureStoreAugmenter + 완전한 기능 확인
+
+# 4. Blueprint 원칙 5: 컨텍스트 주입 검증
+python main.py serve-api --run-id "latest"
+curl -X POST "http://localhost:8000/predict" -H "Content-Type: application/json" \
+     -d '{"user_id": "123", "event_timestamp": "2023-01-01T00:00:00"}'
+# → 동적 스키마 + 실시간 Feature Store 조회 확인
+```
+
+### **2.3 PROD 환경 기본 구축 (Day 5-7)**
+
+**A. GCP 기본 설정**
+```bash
+# Blueprint의 클라우드 네이티브 철학 구현
+gcloud projects create ml-pipeline-prod-001
+gcloud config set project ml-pipeline-prod-001
+
+# BigQuery Feature Store 구축
+# (Blueprint 원칙 2: 통합 데이터 어댑터)
 ```
 
 ---
 
-## 🎯 **Phase 3: Wrapped Artifact Enhancement (Week 5) - 점진적 확장**
+## 🎯 **Phase 3: Blueprint 엑셀런스 완성 (Week 4-5)**
 
-### **3.1 PyfuncWrapper 점진적 확장 (호환성 유지)**
+### **3.1 Trainer 이원적 지혜 완전 검증**
 
-**📋 구체적 작업:**
+**A. 자동 하이퍼파라미터 최적화 테스트**
+```bash
+# Blueprint 원칙 8 검증: 조건부 최적화의 지혜
+python main.py train --recipe-file "models/classification/xgboost_classifier"
+# → hyperparameter_tuning.enabled=true시 Optuna 동작 확인
 
-**A. src/core/factory.py의 PyfuncWrapper 확장 (기존 인터페이스 유지)**
-```python
-class PyfuncWrapper(mlflow.pyfunc.PythonModel):
-    def __init__(
-        self,
-        trained_model,
-        trained_preprocessor: Optional[BasePreprocessor],
-        trained_augmenter: BaseAugmenter,
-        loader_sql_snapshot: str,
-        augmenter_sql_snapshot: str,  # 기존 이름 유지
-        recipe_yaml_snapshot: str,
-        training_metadata: Dict[str, Any],
-        # 🆕 새로운 인자들 (Optional로 하위 호환성 보장)
-        model_class_path: Optional[str] = None,
-        hyperparameter_optimization: Optional[Dict[str, Any]] = None,
-        training_methodology: Optional[Dict[str, Any]] = None,
-    ):
-        # 기존 속성들 유지
-        self.trained_model = trained_model
-        self.trained_preprocessor = trained_preprocessor
-        self.trained_augmenter = trained_augmenter
-        self.loader_sql_snapshot = loader_sql_snapshot
-        self.augmenter_sql_snapshot = augmenter_sql_snapshot
-        self.recipe_yaml_snapshot = recipe_yaml_snapshot
-        self.training_metadata = training_metadata
-        
-        # 🆕 새로운 속성들 (Optional)
-        self.model_class_path = model_class_path
-        self.hyperparameter_optimization = hyperparameter_optimization or {"enabled": False}
-        self.training_methodology = training_methodology or {}
-    
-    # 기존 predict 메서드 유지 (변경 최소화)
-    def predict(self, context, model_input, params=None):
-        # 기존 로직 유지하되 새로운 메타데이터 활용
-        params = params or {}
-        run_mode = params.get("run_mode", "serving")
-        return_intermediate = params.get("return_intermediate", False)
-
-        logger.info(f"PyfuncWrapper.predict 실행 시작 (모드: {run_mode})")
-
-        # 1. 피처 증강 (기존 방식 유지)
-        if run_mode == "batch":
-            augmented_df = self.trained_augmenter.augment_batch(
-                model_input, 
-                sql_snapshot=self.augmenter_sql_snapshot,
-                context_params=params.get("context_params", {})
-            )
-        else:
-            augmented_df = self.trained_augmenter.augment_realtime(
-                model_input,
-                sql_snapshot=self.augmenter_sql_snapshot,
-                feature_store_config=params.get("feature_store_config"),
-                feature_columns=params.get("feature_columns")
-            )
-
-        # 2. 전처리 (Data Leakage 방지 보장)
-        if self.trained_preprocessor:
-            preprocessed_df = self.trained_preprocessor.transform(augmented_df)
-        else:
-            preprocessed_df = augmented_df
-
-        # 3. 최적 하이퍼파라미터 모델로 예측
-        predictions = self.trained_model.predict(preprocessed_df)
-
-        # 4. 결과 정리 (기존 방식 유지)
-        results_df = model_input.merge(
-            pd.DataFrame(predictions, index=model_input.index, columns=["uplift_score"]),
-            left_index=True,
-            right_index=True,
-        )
-        
-        if return_intermediate:
-            return {
-                "final_predictions": results_df,
-                "augmented_data": augmented_df,
-                "preprocessed_data": preprocessed_df,
-                "hyperparameter_optimization": self.hyperparameter_optimization,  # 🆕 메타데이터 포함
-            }
-        
-        return results_df
+# 완전한 투명성 검증
+python -c "
+import mlflow
+model = mlflow.pyfunc.load_model('runs:/latest/model')
+# Wrapped Artifact의 최적화 메타데이터 확인
+print(model.unwrap_python_model().hyperparameter_optimization)
+print(model.unwrap_python_model().training_methodology)
+"
 ```
 
-**B. Factory의 create_pyfunc_wrapper 확장**
-```python
-def create_pyfunc_wrapper(
-    self, 
-    trained_model, 
-    trained_preprocessor: Optional[BasePreprocessor],
-    training_results: Optional[Dict[str, Any]] = None  # 🆕 Trainer 결과 전달
-) -> PyfuncWrapper:
-    """
-    완전한 Wrapped Artifact 생성 (기존 호환성 유지하면서 확장)
-    """
-    logger.info("완전한 Wrapped Artifact 생성을 시작합니다.")
-    
-    # 기존 로직 유지
-    trained_augmenter = self.create_augmenter()
-    loader_sql_snapshot = self._create_loader_sql_snapshot()
-    augmenter_sql_snapshot = self._create_augmenter_sql_snapshot()
-    recipe_yaml_snapshot = self._create_recipe_yaml_snapshot()
-    training_metadata = self._create_training_metadata()
-    
-    # 🆕 새로운 메타데이터 (Optional)
-    model_class_path = self.settings.model.class_path
-    hyperparameter_optimization = None
-    training_methodology = None
-    
-    if training_results:
-        hyperparameter_optimization = training_results.get('hyperparameter_optimization')
-        training_methodology = training_results.get('training_methodology')
-    
-    # 확장된 Wrapper 생성 (하위 호환성 유지)
-    return PyfuncWrapper(
-        trained_model=trained_model,
-        trained_preprocessor=trained_preprocessor,
-        trained_augmenter=trained_augmenter,
-        loader_sql_snapshot=loader_sql_snapshot,
-        augmenter_sql_snapshot=augmenter_sql_snapshot,
-        recipe_yaml_snapshot=recipe_yaml_snapshot,
-        training_metadata=training_metadata,
-        # 🆕 새로운 인자들
-        model_class_path=model_class_path,
-        hyperparameter_optimization=hyperparameter_optimization,
-        training_methodology=training_methodology,
-    )
-```
+### **3.2 환경별 전환 완전성 테스트**
 
-**C. train_pipeline.py 수정 (최소 변경)**
-```python
-def run_training(settings: Settings, context_params: Optional[Dict[str, Any]] = None):
-    # 기존 로직 대부분 유지
-    
-    # 3. 모델 학습 (인터페이스 유지)
-    trainer = Trainer(settings=settings)
-    trained_preprocessor, trained_model, training_results = trainer.train(  # ← training_results 활용
-        df=df,
-        model=model,
-        augmenter=augmenter,
-        preprocessor=preprocessor,
-        context_params=context_params,
-    )
-    
-    # 4. 결과 로깅 (확장)
-    if 'metrics' in training_results:
-        mlflow.log_metrics(training_results['metrics'])
-    
-    # 🆕 하이퍼파라미터 최적화 결과 로깅
-    if 'hyperparameter_optimization' in training_results:
-        hpo_result = training_results['hyperparameter_optimization']
-        if hpo_result['enabled']:
-            mlflow.log_params(hpo_result['best_params'])
-            mlflow.log_metric('best_score', hpo_result['best_score'])
-            mlflow.log_metric('total_trials', hpo_result['total_trials'])
+**A. 동일 Recipe, 다른 환경 검증**
+```bash
+# 동일한 Recipe로 3개 환경 모두 테스트
+for env in local dev prod; do
+    echo "=== $env 환경 테스트 ==="
+    APP_ENV=$env python main.py train --recipe-file "models/regression/lightgbm_regressor"
+done
 
-    # 5. 확장된 PyfuncWrapper 생성
-    pyfunc_wrapper = factory.create_pyfunc_wrapper(
-        trained_model=trained_model,
-        trained_preprocessor=trained_preprocessor,
-        training_results=training_results,  # 🆕 결과 전달
-    )
-    
-    # 기존 저장 로직 유지
-    mlflow.pyfunc.log_model(
-        artifact_path="model",
-        python_model=pyfunc_wrapper,
-        description=f"자동 최적화 모델 '{settings.model.computed['run_name']}'",
-    )
+# Blueprint 원칙 4: 순수 로직 아티팩트 검증
+# → 모든 환경에서 동일한 Wrapped Artifact 구조 확인
 ```
 
 ---
 
-## 🎯 **Phase 4-6: 나머지 구현 (Week 6-8) - 기존 계획 유지**
+## 📈 **실행 타임라인: Blueprint 철학 구현 우선순위**
 
-### **4.1 API Self-Description (Week 6)**
-- 기존 serving/api.py 확장 (인터페이스 유지)
-- SQL 파싱 유틸리티 확장
+### **즉시 시작 (Day 1-2) - 9대 원칙 핵심 구현**
+1. **[CRITICAL] Factory 환경별 분기 로직** (2시간) - 원칙 9
+2. **[CRITICAL] PassThroughAugmenter 구현** (1시간) - 원칙 9  
+3. **[CRITICAL] API Serving 환경별 차단** (1시간) - 원칙 9
+4. **[CRITICAL] Factory.create_tuning_utils() 추가** (1시간) - 호환성
+5. **[CRITICAL] 핵심 의존성 설치** (30분) - 인프라
+6. **[CRITICAL] Settings Import 패턴 정리** (1시간) - Blueprint 원칙 1
 
-### **5.1 Testing & Documentation (Week 7)**
-- 하이퍼파라미터 최적화 테스트
-- 호환성 테스트 추가
+### **단기 집중 (Day 3-7) - Trainer 이원적 지혜 구현**
+7. **Trainer 조건부 최적화 로직** (1일) - 원칙 8
+8. **완전한 투명성 메타데이터** (1일) - 원칙 8
+9. **LOCAL 환경 완전 검증** (1일) - 원칙 9
+10. **DEV 환경 "완전한 실험실" 구현** (2일) - 모든 원칙
 
-### **6.1 Example Recipes & Documentation (Week 8)**
-- 23개 모델 패키지 예시
-- 하위 호환성 가이드
+### **중기 목표 (Week 2-3) - 시스템 안정화**  
+11. **환경별 전환 완전성 테스트** (2일)
+12. **Blueprint 철학 준수 검증** (2일)
+13. **전체 워크플로우 환경별 검증** (3일)
 
----
-
-## 🎯 **Final Validation: 호환성 중심 체크리스트**
-
-### **✅ 호환성 보장**
-1. **✅ 기존 인터페이스 100% 유지**
-   - Trainer.train() 시그니처 변경 없음
-   - Augmenter.augment() 시그니처 변경 없음
-   - PyfuncWrapper 생성자 하위 호환성
-
-2. **✅ 점진적 확장**
-   - 모든 새로운 기능은 Optional
-   - 기존 동작은 enabled=false로 유지
-   - 설정 파일 하위 호환성
-
-3. **✅ 실행 가능성**
-   - 현재 코드베이스와 100% 호환
-   - 단계별 독립적 구현 가능
-   - 테스트 코드 영향 최소화
-
-### **🎯 성과 지표 (수정됨)**
-- **호환성**: 기존 코드 100% 동작 보장
-- **확장성**: 새로운 기능 점진적 활성화 가능
-- **안정성**: 실험적 기능은 opt-in 방식
+### **장기 목표 (Week 4-5) - 운영급 완성**
+14. **PROD 환경 완전 구축** (1주) - 원칙 1,2,3
+15. **Blueprint 엑셀런스 메트릭 달성** (3일)
+16. **운영급 모니터링 시스템** (점진적)
 
 ---
 
-## 🚀 **Implementation Timeline (수정됨)**
+## 🎉 **Blueprint v17.0 성공 메트릭**
 
-| Week | Phase | 호환성 중심 Deliverables |
-|------|-------|-------------|
-| 1-2 | Settings & Trainer | 기존 인터페이스 유지하면서 내부 로직 확장 |
-| 3-4 | Feature Store | 기존 Augmenter 점진적 확장 |
-| 5 | Wrapped Artifact | 기존 PyfuncWrapper 하위 호환성 유지하면서 확장 |
-| 6 | API Enhancement | 기존 API 점진적 개선 |
-| 7 | Testing | 호환성 테스트 + 새로운 기능 테스트 |
-| 8 | Documentation | 하위 호환성 가이드 + 마이그레이션 가이드 |
+### **Phase 1 완료 기준 (9대 원칙 구현):**
+- [ ] **원칙 9 구현**: 환경별 차등적 기능 분리 완전 동작
+- [ ] **원칙 8 구현**: Trainer의 이원적 지혜 (조건부 최적화)
+- [ ] **원칙 4 보장**: 환경별 동일한 Wrapped Artifact 생성
+- [ ] **LOCAL 철학**: "제약은 단순함을 낳는다" 완전 구현
+- [ ] **DEV 철학**: "완전한 실험실" 모든 기능 지원
 
-**🎯 마일스톤 검증 (수정됨):**
-- Week 2: 기존 테스트 100% 통과하면서 첫 번째 자동 최적화 성공
-- Week 4: 기존 API 100% 동작하면서 Feature Store 확장 성공
-- Week 8: 완전한 하위 호환성 보장하면서 Blueprint v17.0 구현 완료
+### **Phase 2 완료 기준 (환경별 완전성):**
+- [ ] **LOCAL**: Pass-through augmenter + API serving 차단 + 빠른 실험
+- [ ] **DEV**: 모든 기능 + Feature Store + 팀 공유 MLflow
+- [ ] **PROD**: 클라우드 네이티브 + 확장성 + 운영 안정성
+- [ ] **환경 전환**: APP_ENV 변경으로 즉시 전환 가능
+
+### **Phase 3 완료 기준 (Blueprint 엑셀런스):**
+- [ ] **완전한 투명성**: 모든 최적화 과정 추적 가능
+- [ ] **Data Leakage 완전 방지**: training_methodology 메타데이터 완전
+- [ ] **하이브리드 인터페이스**: SQL 자유도 + Feature Store 연결성
+- [ ] **자동화된 최적화**: Optuna 기반 HPO 완전 동작
+
+### **최종 성공 기준 (Blueprint 철학 완성):**
+- [ ] **9대 핵심 설계 원칙** 모두 실코드로 구현 완료
+- [ ] **환경별 운영 철학** 각각의 존재 이유와 가치 실현
+- [ ] **Trainer의 이원적 지혜** 조건부 최적화 + 완전한 투명성
+- [ ] **Blueprint의 "Automated Excellence Vision"** 완전 구현
 
 ---
 
-**🏆 THE ULTIMATE RESULT: 호환성 보장하는 점진적 MLOps 엑셀런스!**
+**�� Blueprint v17.0의 9대 원칙이 살아 숨쉬는 실제 시스템으로 구현 완료! 이제 철학이 코드가 되고, 원칙이 기능이 되어 진정한 "Automated Excellence"를 실현합니다!**
 
-이 **수정된 계획**을 통해:
-- 🔄 **기존 코드 100% 호환성 보장**
-- 🤖 **점진적 자동화된 하이퍼파라미터 최적화**
-- 🛡️ **안전한 Data Leakage 방지**
-- 🎯 **실행 가능한 단계별 구현**
-
-**Blueprint v17.0 "Automated Excellence Vision" - 호환성 보장 완료! 🎉**
+**💡 Next Action: Factory 환경별 분기 로직 구현부터 시작하시겠어요?**

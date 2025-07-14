@@ -1,0 +1,74 @@
+# CatBoost Classifier - Blueprint v17.0 Automated Excellence  
+# 🐱 범주형 피처를 자동으로 처리하는 고성능 Gradient Boosting
+
+# 1. 모델 기본 정보 (직접 동적 import)
+class_path: "catboost.CatBoostClassifier"
+
+# 2. 데이터 로더 정의
+loader:
+  name: "classification_dataset"
+  source_uri: "bq://recipes/sql/loader/classification_features.sql"
+  local_override_uri: "file://local/data/sample_classification.csv"
+
+# 3. 피처 증강기 정의 (🆕 Blueprint v17.0 - Feature Store 방식)
+augmenter:
+  type: "feature_store"
+  features:
+    # 사용자 기본 정보
+    - feature_namespace: "user_demographics"
+      features: ["age", "gender", "education_level", "income_bracket"]
+    # 행동 패턴 피처
+    - feature_namespace: "user_behavior"
+      features: ["click_through_rate", "session_frequency", "avg_session_duration"]
+    # 구매 이력 피처  
+    - feature_namespace: "purchase_history"
+      features: ["total_orders", "avg_order_value", "preferred_category"]
+
+# 4. 전처리기 정의 (CatBoost는 범주형 처리가 내장됨)
+preprocessor:
+  name: "simple_scaler"
+  params:
+    criterion_col: null
+    exclude_cols: ["user_id", "event_timestamp"]
+
+# 5. 모델 인터페이스
+data_interface:
+  task_type: "classification"
+  
+  features:
+    age: "numeric"
+    gender: "category"
+    education_level: "category"
+    income_bracket: "category"
+    click_through_rate: "numeric"
+    session_frequency: "numeric"
+    avg_session_duration: "numeric"
+    total_orders: "numeric"
+    avg_order_value: "numeric"
+    preferred_category: "category"
+  
+  target_col: "target_class"
+  class_weight: "balanced"
+  average: "weighted"
+
+# 🆕 6. 하이퍼파라미터 (Dictionary 형식 + 자동 튜닝)
+hyperparameters:
+  # 🔥 자동 최적화 범위 (CatBoost 특화)
+  learning_rate: {type: "float", low: 0.01, high: 0.3, log: true}
+  iterations: {type: "int", low: 100, high: 1000}
+  depth: {type: "int", low: 4, high: 10}
+  l2_leaf_reg: {type: "float", low: 1.0, high: 10.0}
+  border_count: {type: "int", low: 32, high: 255}
+  bagging_temperature: {type: "float", low: 0.0, high: 1.0}
+  
+  # 🔧 고정값
+  random_seed: 42
+  verbose: false
+  class_weights: [1, 1]  # 균형 맞춤
+
+# 🆕 7. 하이퍼파라미터 튜닝 설정
+hyperparameter_tuning:
+  enabled: true
+  n_trials: 60
+  metric: "roc_auc"
+  direction: "maximize" 

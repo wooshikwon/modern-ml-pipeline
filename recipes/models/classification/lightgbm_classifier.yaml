@@ -1,0 +1,80 @@
+# LightGBM Classifier - Blueprint v17.0 Automated Excellence
+# ⚡ 메모리 효율적이고 빠른 Gradient Boosting의 진화
+
+# 1. 모델 기본 정보 (직접 동적 import)
+class_path: "lightgbm.LGBMClassifier"
+
+# 2. 데이터 로더 정의
+loader:
+  name: "classification_dataset"
+  source_uri: "bq://recipes/sql/loader/classification_features.sql"
+  local_override_uri: "file://local/data/sample_classification.csv"
+
+# 3. 피처 증강기 정의 (🆕 Blueprint v17.0 - Feature Store 방식)
+augmenter:
+  type: "feature_store"
+  features:
+    # 사용자 기본 정보
+    - feature_namespace: "user_demographics"
+      features: ["age", "gender", "education_level", "income_bracket"]
+    # 행동 패턴 피처
+    - feature_namespace: "user_behavior"
+      features: ["click_through_rate", "session_frequency", "avg_session_duration"]
+    # 구매 이력 피처
+    - feature_namespace: "purchase_history"
+      features: ["total_orders", "avg_order_value", "preferred_category"]
+
+# 4. 전처리기 정의
+preprocessor:
+  name: "simple_scaler"
+  params:
+    criterion_col: null
+    exclude_cols: ["user_id", "event_timestamp"]
+
+# 5. 모델 인터페이스
+data_interface:
+  task_type: "classification"
+  
+  features:
+    age: "numeric"
+    gender: "category"
+    education_level: "category"
+    income_bracket: "category"
+    click_through_rate: "numeric"
+    session_frequency: "numeric"
+    avg_session_duration: "numeric"
+    total_orders: "numeric"
+    avg_order_value: "numeric"
+    preferred_category: "category"
+  
+  target_col: "target_class"
+  class_weight: "balanced"
+  average: "weighted"
+
+# 🆕 6. 하이퍼파라미터 (Dictionary 형식 + 자동 튜닝)
+hyperparameters:
+  # 🔥 자동 최적화 범위 (LightGBM 특화)
+  learning_rate: {type: "float", low: 0.01, high: 0.3, log: true}
+  n_estimators: {type: "int", low: 100, high: 1000}
+  num_leaves: {type: "int", low: 10, high: 300}
+  max_depth: {type: "int", low: 3, high: 15}
+  feature_fraction: {type: "float", low: 0.4, high: 1.0}
+  bagging_fraction: {type: "float", low: 0.4, high: 1.0}
+  bagging_freq: {type: "int", low: 1, high: 7}
+  min_child_samples: {type: "int", low: 5, high: 100}
+  reg_alpha: {type: "float", low: 0.0, high: 1.0}
+  reg_lambda: {type: "float", low: 0.0, high: 1.0}
+  
+  # 🔧 고정값
+  random_state: 42
+  objective: "binary"
+  metric: "binary_logloss"
+  verbosity: -1
+  class_weight: "balanced"
+
+# 🆕 7. 하이퍼파라미터 튜닝 설정
+hyperparameter_tuning:
+  enabled: true
+  n_trials: 80
+  metric: "f1"
+  direction: "maximize" 

@@ -1,0 +1,68 @@
+# Hierarchical Clustering (Agglomerative) - Blueprint v17.0 Automated Excellence
+# 🌳 계층적 구조를 발견하는 트리 기반 클러스터링
+
+# 1. 모델 기본 정보 (직접 동적 import)
+class_path: "sklearn.cluster.AgglomerativeClustering"
+
+# 2. 데이터 로더 정의
+loader:
+  name: "clustering_dataset"
+  source_uri: "bq://recipes/sql/loader/clustering_features.sql"
+  local_override_uri: "file://local/data/sample_clustering.csv"
+
+# 3. 피처 증강기 정의 (🆕 Blueprint v17.0 - Feature Store 방식)
+augmenter:
+  type: "feature_store"
+  features:
+    # 사용자 행동 패턴
+    - feature_namespace: "user_behavior"
+      features: ["page_views", "session_duration", "click_rate"]
+    # 구매 패턴
+    - feature_namespace: "purchase_behavior"
+      features: ["avg_order_value", "purchase_frequency", "category_preference"]
+    # 시간 기반 패턴
+    - feature_namespace: "temporal_patterns"
+      features: ["morning_activity", "evening_activity", "weekend_ratio"]
+
+# 4. 전처리기 정의
+preprocessor:
+  name: "simple_scaler"
+  params:
+    criterion_col: null
+    exclude_cols: ["user_id", "event_timestamp"]
+
+# 5. 모델 인터페이스
+data_interface:
+  task_type: "clustering"
+  
+  features:
+    page_views: "numeric"
+    session_duration: "numeric"
+    click_rate: "numeric"
+    avg_order_value: "numeric"
+    purchase_frequency: "numeric"
+    category_preference: "category"
+    morning_activity: "numeric"
+    evening_activity: "numeric"
+    weekend_ratio: "numeric"
+  
+  # 클러스터링 전용 설정
+  n_clusters: 4
+  true_labels_col: "true_cluster"  # 평가용 (선택적)
+
+# 🆕 6. 하이퍼파라미터 (Dictionary 형식 + 자동 튜닝)
+hyperparameters:
+  # 🔥 자동 최적화 범위 (Hierarchical Clustering 특화)
+  n_clusters: {type: "int", low: 2, high: 8}
+  linkage: {type: "categorical", choices: ["ward", "complete", "average", "single"]}
+  metric: {type: "categorical", choices: ["euclidean", "manhattan", "cosine"]}
+  
+  # 🔧 고정값
+  # Hierarchical clustering에는 random_state가 없음
+
+# 🆕 7. 하이퍼파라미터 튜닝 설정
+hyperparameter_tuning:
+  enabled: true
+  n_trials: 25
+  metric: "silhouette_score"
+  direction: "maximize" 
