@@ -1,27 +1,85 @@
-# Python
-__pycache__/
-*.pyc
-.venv/
+# MacOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
 
-# Local artifacts & logs
-/local/
-/logs/
+# Docker volumes and data
+postgres_data/
+redis_data/
+pgadmin_data/
+mlflow_artifacts/
 
-# Secrets
+# Logs
+logs/
+*.log
+
+# Environment variables
 .env
-/credentials/
-/config/local.yaml
+.env.local
+.env.production
 
-# IDE & OS specific
-.idea/
+# Temporary files
+*.tmp
+*.temp
+/tmp/
+
+# IDE
 .vscode/
-*.DS_Store
+.idea/
+*.swp
+*.swo
+*~
 
-# Vibe coding docs
-.cursor/
-blueprint.md
-factoringlog.md
-GEMINI.md
+# Python (if any helper scripts)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
-# Old lock files
-hatch.lock
+# Backup files
+backup.sql
+*.backup
+*.bak
+
+# Test artifacts
+test_results/
+*.test
+
+# OS generated files
+.directory
+.fuse_hidden*
+.nfs*
+
+# Docker Compose override files
+docker-compose.override.yml
+docker-compose.local.yml
+
+# Configuration backups
+config/*.backup
+config/*~
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
