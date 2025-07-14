@@ -4,7 +4,7 @@ from datetime import datetime
 
 from sklearn.model_selection import train_test_split
 
-from src.settings.settings import Settings
+from src.settings import Settings
 from src.utils.system.logger import logger
 from src.core.augmenter import BaseAugmenter
 from src.core.preprocessor import BasePreprocessor

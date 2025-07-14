@@ -3,7 +3,7 @@ from typing import Dict, Any, Optional
 
 from src.interface.base_adapter import BaseAdapter
 from src.utils.system.logger import logger
-from src.settings.settings import Settings
+from src.settings import Settings
 
 class S3Adapter(BaseAdapter):
     """AWS S3와의 데이터 읽기/쓰기를 처리하는 어댑터."""

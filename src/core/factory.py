@@ -7,10 +7,10 @@ from urllib.parse import urlparse
 import mlflow
 import pandas as pd
 
-from src.core.augmenter import Augmenter, LocalFileAugmenter, BaseAugmenter
+from src.core.augmenter import Augmenter, LocalFileAugmenter, BaseAugmenter, PassThroughAugmenter
 from src.core.preprocessor import BasePreprocessor, Preprocessor
 from src.interface.base_adapter import BaseAdapter
-from src.settings.settings import Settings
+from src.settings import Settings
 from src.utils.system.logger import logger
 from src.utils.adapters.file_system_adapter import FileSystemAdapter
 from src.utils.adapters.bigquery_adapter import BigQueryAdapter
@@ -137,8 +137,129 @@ class Factory:
         self.settings = settings
         logger.info("Factory가 초기화되었습니다.")
 
-    def create_data_adapter(self, scheme: str) -> BaseAdapter:
-        logger.info(f"'{scheme}' 스킴에 대한 데이터 어댑터를 생성합니다.")
+    def create_data_adapter(self, adapter_purpose: str = "loader", source_path: str = None) -> BaseAdapter:
+        """
+        🆕 Blueprint v17.0: Config-driven Dynamic Factory
+        
+        환경별 어댑터 매핑과 동적 생성을 통해 Blueprint 원칙을 완전히 구현합니다.
+        - 원칙 1: "레시피는 논리, 설정은 인프라" - config 기반 어댑터 선택
+        - 원칙 9: "환경별 차등적 기능 분리" - 동일한 논리 경로가 환경별로 다른 어댑터
+        
+        Args:
+            adapter_purpose: 어댑터 목적 ("loader", "storage", "feature_store")
+            source_path: 논리적 경로 (선택적, 어댑터 초기화에 사용)
+            
+        Returns:
+            BaseAdapter: 환경별로 동적으로 생성된 어댑터
+            
+        Example:
+            # LOCAL 환경: FileSystemAdapter 생성
+            adapter = factory.create_data_adapter("loader", "recipes/sql/loaders/user_spine.sql")
+            
+            # PROD 환경: BigQueryAdapter 생성 (동일한 논리 경로)
+            adapter = factory.create_data_adapter("loader", "recipes/sql/loaders/user_spine.sql")
+        """
+        logger.info(f"Config-driven Dynamic Factory: {adapter_purpose} 어댑터 생성 시작")
+        
+        # 1. data_adapters 설정 확인
+        if not self.settings.data_adapters:
+            raise ValueError(
+                "data_adapters 설정이 없습니다. config/*.yaml에 data_adapters 섹션을 추가해주세요."
+            )
+        
+        # 2. 목적별 기본 어댑터 조회
+        try:
+            adapter_name = self.settings.data_adapters.get_default_adapter(adapter_purpose)
+            logger.info(f"환경 '{self.settings.environment.app_env}'에서 {adapter_purpose} 목적으로 '{adapter_name}' 어댑터 선택")
+        except ValueError as e:
+            raise ValueError(f"어댑터 목적 조회 실패: {e}")
+        
+        # 3. 어댑터 설정 조회
+        try:
+            adapter_config = self.settings.data_adapters.get_adapter_config(adapter_name)
+            logger.info(f"어댑터 '{adapter_name}' 설정 조회 완료: {adapter_config.class_name}")
+        except ValueError as e:
+            raise ValueError(f"어댑터 설정 조회 실패: {e}")
+        
+        # 4. 동적 어댑터 클래스 import
+        try:
+            adapter_class = self._get_adapter_class(adapter_config.class_name)
+            logger.info(f"어댑터 클래스 '{adapter_config.class_name}' 동적 import 완료")
+        except Exception as e:
+            raise ValueError(f"어댑터 클래스 import 실패: {adapter_config.class_name}, 오류: {e}")
+        
+        # 5. 어댑터 인스턴스 생성
+        try:
+            adapter_instance = adapter_class(
+                config=adapter_config.config,
+                settings=self.settings,
+                source_path=source_path
+            )
+            logger.info(f"어댑터 인스턴스 생성 완료: {adapter_config.class_name}")
+            return adapter_instance
+            
+        except Exception as e:
+            logger.error(f"어댑터 인스턴스 생성 실패: {adapter_config.class_name}, 오류: {e}")
+            # 기존 방식으로 fallback 시도
+            try:
+                logger.warning("기존 방식으로 fallback 시도")
+                adapter_instance = adapter_class(self.settings)
+                logger.info(f"Fallback 어댑터 생성 성공: {adapter_config.class_name}")
+                return adapter_instance
+            except Exception as fallback_error:
+                raise ValueError(
+                    f"어댑터 생성 실패: {adapter_config.class_name}\n"
+                    f"새로운 방식 오류: {e}\n"
+                    f"Fallback 오류: {fallback_error}"
+                )
+    
+    def _get_adapter_class(self, class_name: str):
+        """
+        어댑터 클래스 동적 import
+        
+        Args:
+            class_name: 어댑터 클래스 이름 (e.g., "FileSystemAdapter")
+            
+        Returns:
+            어댑터 클래스 객체
+        """
+        # 기존 import 매핑 (하위 호환성)
+        adapter_import_mapping = {
+            "FileSystemAdapter": "src.utils.adapters.file_system_adapter",
+            "BigQueryAdapter": "src.utils.adapters.bigquery_adapter", 
+            "GCSAdapter": "src.utils.adapters.gcs_adapter",
+            "S3Adapter": "src.utils.adapters.s3_adapter",
+            "PostgreSQLAdapter": "src.utils.adapters.postgresql_adapter",
+            "RedisAdapter": "src.utils.adapters.redis_adapter",
+            "FeatureStoreAdapter": "src.utils.adapters.feature_store_adapter",
+            "OptunaAdapter": "src.utils.adapters.optuna_adapter",
+        }
+        
+        if class_name not in adapter_import_mapping:
+            raise ValueError(f"지원하지 않는 어댑터 클래스: {class_name}")
+        
+        module_path = adapter_import_mapping[class_name]
+        
+        try:
+            # 동적 모듈 import
+            module = importlib.import_module(module_path)
+            adapter_class = getattr(module, class_name)
+            return adapter_class
+            
+        except ImportError as e:
+            raise ValueError(f"어댑터 모듈 import 실패: {module_path}, 오류: {e}")
+        except AttributeError as e:
+            raise ValueError(f"어댑터 클래스를 찾을 수 없습니다: {class_name} in {module_path}, 오류: {e}")
+        
+    # 🔄 기존 메서드 유지 (하위 호환성)
+    def create_data_adapter_legacy(self, scheme: str) -> BaseAdapter:
+        """
+        🔄 기존 URI 스킴 기반 어댑터 생성 (하위 호환성 유지)
+        
+        ⚠️ DEPRECATED: 새로운 코드에서는 create_data_adapter() 사용 권장
+        """
+        logger.warning(f"DEPRECATED: URI 스킴 기반 어댑터 생성 (scheme: {scheme}). 새로운 config 기반 방식 사용 권장")
+        
         if scheme == 'file':
             return FileSystemAdapter(self.settings)
         elif scheme == 'bq':
@@ -161,15 +282,22 @@ class Factory:
     def create_augmenter(self) -> BaseAugmenter:
         """
         🆕 Blueprint v17.0: Feature Store 방식과 기존 SQL 방식 모두 지원하는 Augmenter 생성
+        + Blueprint 원칙 9: 환경별 차등적 기능 분리
         """
         augmenter_config = self.settings.model.augmenter
         if not augmenter_config:
             raise ValueError("Augmenter 설정이 레시피에 없습니다.")
         
-        # 로컬 환경에서 local_override_uri가 있는 경우 (기존 방식 유지)
+        # Blueprint 원칙 9: LOCAL 환경의 의도적 제약
         is_local = self.settings.environment.app_env == "local"
+        if is_local:
+            # LOCAL 환경에서는 PassThroughAugmenter 우선 사용 (Blueprint 철학)
+            logger.info("LOCAL 환경: PassThroughAugmenter 생성 (Blueprint 원칙 9 - 의도적 제약)")
+            return PassThroughAugmenter()
+        
+        # 로컬 환경에서 local_override_uri가 있는 경우 (하위 호환성)
         if is_local and hasattr(augmenter_config, 'local_override_uri') and augmenter_config.local_override_uri:
-            logger.info("로컬 환경: LocalFileAugmenter 사용")
+            logger.info("로컬 환경: LocalFileAugmenter 사용 (하위 호환성)")
             return LocalFileAugmenter(uri=augmenter_config.local_override_uri)
         
         # 🆕 Feature Store 방식 체크

@@ -20,7 +20,47 @@ database:
   max_overflow: 10
   echo_sql: true  # 개발 중 SQL 로깅
 
-# �� Feature Store 설정 (Blueprint v17.0: config 통합)
+# 🆕 데이터 어댑터 설정 (Blueprint v17.0: Config-driven Dynamic Factory)
+data_adapters:
+  # DEV 환경 어댑터 매핑 (PostgreSQL 중심)
+  default_loader: "postgresql"
+  default_storage: "postgresql"
+  default_feature_store: "postgresql"
+  
+  # DEV 환경 특화 어댑터 설정
+  adapters:
+    postgresql:
+      class_name: "PostgreSQLAdapter"
+      config:
+        host: "localhost"
+        port: 5432
+        database: "mlpipeline"
+        user: "mluser"
+        password: "mlpassword"
+        schema: "public"
+        pool_size: 10
+        max_overflow: 20
+        echo_sql: true  # 개발 환경에서 SQL 로깅 활성화
+    
+    redis:
+      class_name: "RedisAdapter"
+      config:
+        host: "localhost"
+        port: 6379
+        db: 0
+        password: ""
+        decode_responses: true
+        socket_timeout: 5
+        connection_pool_max_connections: 20
+    
+    filesystem:
+      class_name: "FileSystemAdapter"
+      config:
+        base_path: "./data"
+        supported_formats: ["parquet", "csv", "json"]
+        auto_create_dirs: true
+
+#  Feature Store 설정 (Blueprint v17.0: config 통합)
 feature_store:
   provider: "feast"
   

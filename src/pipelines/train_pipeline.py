@@ -5,7 +5,7 @@ from urllib.parse import urlparse
 
 import mlflow
 
-from src.settings.settings import Settings
+from src.settings import Settings
 from src.core.factory import Factory
 from src.core.trainer import Trainer
 from src.utils.system.logger import logger
@@ -46,7 +46,7 @@ def run_training(settings: Settings, context_params: Optional[Dict[str, Any]] = 
         if settings.environment.app_env == "local" and settings.model.loader.local_override_uri:
             loader_uri = settings.model.loader.local_override_uri
         
-        scheme = urlparse(loader_uri).scheme
+        scheme = urlparse(loader_uri).scheme or 'file'  # 기본값으로 file 스킴 사용
         data_adapter = factory.create_data_adapter(scheme)
         
         df = data_adapter.read(loader_uri, params=context_params)

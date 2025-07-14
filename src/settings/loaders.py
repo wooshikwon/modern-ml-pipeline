@@ -126,15 +126,23 @@ def load_settings_by_file(recipe_file: str) -> Settings:
     # 2. Recipe 파일 로딩
     recipe_data = load_recipe_file(recipe_file)
     
-    # 3. 최종 병합: config + recipe
-    # Recipe의 model 섹션이 최종 모델 논리가 됨
-    final_data = _recursive_merge(config_data.copy(), {"model": recipe_data})
+    # 3. Recipe 데이터를 model 키 아래로 감싸기 (Settings 모델 구조 준수)
+    if recipe_data and "model" not in recipe_data:
+        # recipe 데이터가 있고 model 키가 없는 경우 자동으로 감싸기
+        recipe_data = {"model": recipe_data}
     
-    # 4. Settings 객체 생성
+    # 4. 최종 병합: config + recipe
+    # Recipe의 내용을 직접 병합 (Blueprint 원칙: 레시피는 논리)
+    final_data = _recursive_merge(config_data.copy(), recipe_data)
+    
+    # 5. Settings 객체 생성
     try:
         settings = Settings(**final_data)
         
-        # 5. 유효성 검증
+        # 6. computed 필드 생성
+        settings.model.computed = _create_computed_fields(settings, recipe_file)
+        
+        # 7. 유효성 검증
         if settings.model.augmenter:
             settings.model.augmenter.validate_augmenter_config()
         settings.model.data_interface.validate_required_fields()
@@ -143,6 +151,27 @@ def load_settings_by_file(recipe_file: str) -> Settings:
         
     except Exception as e:
         raise ValueError(f"Settings 객체 생성 실패: {e}\n설정 데이터: {final_data}")
+
+
+def _create_computed_fields(settings: Settings, recipe_file: str) -> Dict[str, Any]:
+    """computed 필드 생성"""
+    from datetime import datetime
+    
+    # 모델 클래스에서 간단한 이름 추출
+    class_name = settings.model.class_path.split('.')[-1]
+    
+    # 타임스탬프 생성
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    # run_name 생성
+    run_name = f"{class_name}_{recipe_file}_{timestamp}"
+    
+    return {
+        "run_name": run_name,
+        "timestamp": timestamp,
+        "model_class_name": class_name,
+        "recipe_file": recipe_file
+    }
 
 
 # 편의 함수들

@@ -59,7 +59,7 @@ hyperparameter_tuning:
 
 # 1. Loader: 예측의 '뼈대'(Spine)를 SQL로 자유롭게 정의
 loader:
-  source_uri: "bq://recipes/sql/loaders/user_session_spine.sql"
+  source_uri: "recipes/sql/loaders/user_session_spine.sql"
 
 # 2. Augmenter: '뼈대'에 붙일 피처(살)들을 환경별 Feature Store를 통해 선언적으로 정의
 augmenter:
@@ -410,8 +410,8 @@ graph TD
 
   * **철학:** 시스템의 동작은 선언적이어야 한다. "무엇을 할지"는 URI나 설정으로 선언하고, "어떻게 할지"는 팩토리가 알아서 결정해야 한다.
   * **구현:**
-      * **URI:** `recipe`의 `loader.source_uri`는 `bq://...`, `gs://...` 같은 URI 형식으로 기술되어, Spine 데이터의 위치와 종류를 명시한다.
-      * **`Factory` (in `src/core/`):** 이 URI의 스킴(`bq`, `gs` 등)을 보고, 해당 기술에 맞는 데이터 어댑터를 동적으로 생성하여 반환하는 유일한 창구이다. `augmenter`의 `type`이 `"feature_store"`로 선언되면 `FeatureStoreAdapter`를 생성한다.
+      * **논리적 경로:** `recipe`의 `loader.source_uri`는 `recipes/sql/loaders/...` 같은 순수한 논리적 경로로 기술되어, 실행할 SQL의 위치만을 명시한다.
+      * **`Factory` (in `src/core/`):** 현재 환경 설정(`APP_ENV`)과 파일 패턴을 조합하여, 해당 환경에 적합한 데이터 어댑터를 동적으로 생성하여 반환하는 유일한 창구이다. `augmenter`의 `type`이 `"feature_store"`로 선언되면 `FeatureStoreAdapter`를 생성한다.
       * **동적 모델 생성:** `class_path`를 파싱하여 실제 모델 클래스를 runtime에 import하고 인스턴스를 생성한다.
 
 #### 4\. 실행 시점에 조립되는 순수 로직 아티팩트 (Runtime-Assembled, Pure-Logic Artifact)
@@ -525,7 +525,7 @@ graph TD
 3.  **Run Name 생성:** `XGBTRegressor_uplift_model_exp3_...` 와 같이 자동 생성된다.
 4.  **팩토리 생성:** `factory = Factory(settings)` 코드를 통해 중앙 팩토리를 초기화한다.
 5.  **주요 데이터 로딩 (Loader/Spine 생성):**
-      * `train_pipeline`은 `settings.loader.source_uri` (e.g., `bq://recipes/sql/loaders/user_session_spine.sql`)를 확인한다.
+      * `train_pipeline`은 `settings.loader.source_uri` (e.g., `recipes/sql/loaders/user_session_spine.sql`)를 확인한다.
       * `factory`가 `BigQueryAdapter` 인스턴스를 생성한다.
       * `adapter.read()`를 호출하여 BigQuery에 `user_session_spine.sql` 쿼리를 실행, **`user_id`, `product_id`, `session_id`, `event_timestamp` 컬럼을 포함하는 Spine 데이터프레임**을 가져온다.
 6.  **피처 증강 (Augmenter via Feature Store):**

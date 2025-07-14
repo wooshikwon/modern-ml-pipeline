@@ -5,9 +5,51 @@ from pathlib import Path
 
 from src.interface.base_augmenter import BaseAugmenter
 from src.utils.system.logger import logger
-from src.settings.settings import Settings
+from src.settings import Settings
 from src.utils.system import sql_utils
 # Factory는 dynamic import로 사용하여 순환 참조 방지
+
+class PassThroughAugmenter(BaseAugmenter):
+    """
+    Blueprint 원칙 9 구현: LOCAL 환경의 의도적 제약
+    "제약은 단순함을 낳고, 단순함은 집중을 낳는다"
+    
+    LOCAL 환경에서 사용되는 Augmenter로, 데이터를 변경 없이 그대로 반환하여
+    Feature Store나 복잡한 피처 증강 없이 빠른 실험과 디버깅에 집중할 수 있게 합니다.
+    """
+    
+    def __init__(self):
+        logger.info("LOCAL 환경: PassThroughAugmenter 초기화 (Blueprint 원칙 9)")
+    
+    def augment(
+        self, 
+        data: pd.DataFrame, 
+        run_mode: str = "batch",
+        context_params: Optional[Dict[str, Any]] = None,
+        **kwargs
+    ) -> pd.DataFrame:
+        """데이터를 변경 없이 그대로 반환 (의도된 설계)"""
+        logger.info("LOCAL 환경: Augmenter Pass-Through 모드 - 피처 증강 건너뛰기 (Blueprint 철학)")
+        logger.info(f"입력 데이터: {len(data)} 행, {len(data.columns)} 컬럼")
+        return data
+
+    def augment_batch(
+        self, data: pd.DataFrame, sql_snapshot: str, context_params: Optional[Dict[str, Any]] = None
+    ) -> pd.DataFrame:
+        """배치 모드에서도 데이터를 그대로 반환"""
+        logger.info("LOCAL 환경: 배치 모드 Pass-Through")
+        return data
+
+    def augment_realtime(
+        self, 
+        data: pd.DataFrame, 
+        sql_snapshot: str,
+        feature_store_config: Optional[Dict[str, Any]] = None,
+        feature_columns: Optional[List[str]] = None
+    ) -> pd.DataFrame:
+        """실시간 모드에서도 데이터를 그대로 반환"""
+        logger.info("LOCAL 환경: 실시간 모드 Pass-Through")
+        return data
 
 class LocalFileAugmenter(BaseAugmenter):
     """로컬 피처 파일과 조인하여 데이터를 증강하는 클래스. (개발용)"""

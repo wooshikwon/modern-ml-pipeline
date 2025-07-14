@@ -28,6 +28,48 @@ class MlflowSettings(BaseModel):
     experiment_name: str
 
 
+class AdapterConfigSettings(BaseModel):
+    """개별 어댑터 설정 (Blueprint v17.0: Config-driven Dynamic Factory)"""
+    class_name: str  # e.g., "FileSystemAdapter", "BigQueryAdapter"
+    config: Dict[str, Any] = {}  # 어댑터별 구체적 설정
+
+
+class DataAdapterSettings(BaseModel):
+    """
+    데이터 어댑터 설정 (Blueprint v17.0: Config-driven Dynamic Factory)
+    
+    환경별 어댑터 매핑과 동적 어댑터 생성을 위한 설정 모델.
+    Blueprint 원칙 1 "레시피는 논리, 설정은 인프라"를 완전히 구현합니다.
+    """
+    
+    # 환경별 기본 어댑터 매핑
+    default_loader: str = "filesystem"
+    default_storage: str = "filesystem"
+    default_feature_store: str = "filesystem"
+    
+    # 어댑터별 구체적 설정
+    adapters: Dict[str, AdapterConfigSettings] = {}
+    
+    def get_adapter_config(self, adapter_name: str) -> AdapterConfigSettings:
+        """어댑터 설정 조회"""
+        if adapter_name not in self.adapters:
+            raise ValueError(f"어댑터 설정을 찾을 수 없습니다: {adapter_name}")
+        return self.adapters[adapter_name]
+    
+    def get_default_adapter(self, purpose: str) -> str:
+        """목적별 기본 어댑터 조회"""
+        purpose_mapping = {
+            "loader": self.default_loader,
+            "storage": self.default_storage,
+            "feature_store": self.default_feature_store
+        }
+        
+        if purpose not in purpose_mapping:
+            raise ValueError(f"지원하지 않는 어댑터 목적: {purpose}")
+        
+        return purpose_mapping[purpose]
+
+
 class RealtimeFeatureStoreConnectionSettings(BaseModel):
     """실시간 Feature Store 연결 설정"""
     host: str
@@ -82,6 +124,9 @@ class AugmenterSettings(BaseModel):
             # Feature Store 방식: features가 필요
             if not self.features:
                 raise ValueError("Feature Store 방식 Augmenter에는 features 설정이 필요합니다.")
+        elif self.type == "pass_through":
+            # Blueprint 원칙 9: LOCAL 환경의 의도적 제약 - 추가 검증 불필요
+            pass
         else:
             # 기존 SQL 방식: source_uri가 필요 (기본값)
             if not self.source_uri:
@@ -202,6 +247,9 @@ class Settings(BaseModel):
     mlflow: MlflowSettings
     serving: ServingSettings
     artifact_stores: Dict[str, ArtifactStoreSettings]
+    
+    # 🆕 Blueprint v17.0: Config-driven Dynamic Factory
+    data_adapters: Optional[DataAdapterSettings] = None
     
     # recipes/*.yaml에서 오는 필드 (모델 논리)
     model: ModelSettings

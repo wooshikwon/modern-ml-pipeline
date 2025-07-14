@@ -1,5 +1,5 @@
 from typing import Dict, Any, Optional
-from src.settings.settings import HyperparameterTuningSettings
+from src.settings import HyperparameterTuningSettings
 from src.utils.system.logger import logger
 
 # Optuna는 선택적 의존성으로 처리
