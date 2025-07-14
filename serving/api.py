@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException
 from typing import Dict, Any, List, Type
 from pydantic import BaseModel, create_model
 
-from src.settings.settings import Settings
+from src.settings import Settings
 from src.utils.system.logger import logger
 from src.utils.system import mlflow_utils
 from serving.schemas import (
@@ -48,7 +48,7 @@ def create_app(run_id: str) -> FastAPI:
             logger.info(f"모델 로드 완료: {model_uri}")
 
             # 2. 현재 환경의 config 로드 (서빙 설정만 필요)
-            from src.settings.settings import load_settings
+            from src.settings import load_settings
             temp_settings = load_settings("xgboost_x_learner")  # 환경 설정만 사용
             app_context.settings = temp_settings
             app_context.feature_store_config = temp_settings.serving.realtime_feature_store

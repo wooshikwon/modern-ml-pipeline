@@ -1,5 +1,5 @@
 import pandas as pd
-from src.settings.settings import Settings
+from src.settings import Settings
 from src.utils.system.logger import logger
 
 def validate_schema(df: pd.DataFrame, settings: Settings):

@@ -1,0 +1,14 @@
+artifact_uri: /Users/wooshikwon/Desktop/github_wooshikwon/modern-ml-pipeline/mlruns/357996457199697807/14d3d0e492f241ac9735d28d63e7f338/artifacts
+end_time: 1752511547746
+entry_point_name: ''
+experiment_id: '357996457199697807'
+lifecycle_stage: active
+run_id: 14d3d0e492f241ac9735d28d63e7f338
+run_name: RandomForestClassifier_local_classification_test_20250715_014547
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1752511547701
+status: 4
+tags: []
+user_id: wooshikwon

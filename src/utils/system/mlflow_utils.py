@@ -7,7 +7,7 @@ from pathlib import Path
 # 순환 참조를 피하기 위해 타입 힌트만 임포트
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from src.settings.settings import Settings
+    from src.settings import Settings
     from mlflow.entities import Run
     from mlflow.pyfunc import PyFuncModel
 

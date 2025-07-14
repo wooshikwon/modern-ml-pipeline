@@ -23,7 +23,63 @@ database:
   credentials_path: "${GOOGLE_APPLICATION_CREDENTIALS}"
   service_account_key: "${GCP_SERVICE_ACCOUNT_KEY}"
 
-# �� Feature Store 설정 (Blueprint v17.0: config 통합)
+# 🆕 데이터 어댑터 설정 (Blueprint v17.0: Config-driven Dynamic Factory)
+data_adapters:
+  # PROD 환경 어댑터 매핑 (BigQuery + GCS 중심)
+  default_loader: "bigquery"
+  default_storage: "gcs"
+  default_feature_store: "bigquery"
+  
+  # PROD 환경 특화 어댑터 설정
+  adapters:
+    bigquery:
+      class_name: "BigQueryAdapter"
+      config:
+        project_id: "${GCP_PROJECT_ID}"
+        dataset_id: "ml_pipeline_prod"
+        location: "us-central1"
+        credentials_path: "${GOOGLE_APPLICATION_CREDENTIALS}"
+        use_legacy_sql: false
+        use_query_cache: true
+        maximum_bytes_billed: 10737418240  # 10GB limit for production
+        query_timeout: 300  # 5분 타임아웃
+        
+        # 운영 환경 최적화
+        labels:
+          environment: "production"
+          team: "ml-platform"
+          service: "ml-pipeline"
+    
+    gcs:
+      class_name: "GCSAdapter"
+      config:
+        bucket: "${GCS_DATA_BUCKET:ml-pipeline-prod-data}"
+        prefix: "ml-pipeline-data/"
+        credentials_path: "${GOOGLE_APPLICATION_CREDENTIALS}"
+        chunk_size: 16777216  # 16MB for production
+        max_retry_delay: 120
+        
+        # 운영 환경 최적화
+        predefined_acl: "projectPrivate"
+        storage_class: "STANDARD"
+    
+    redis:
+      class_name: "RedisAdapter"
+      config:
+        host: "${REDIS_LABS_HOST}"
+        port: "${REDIS_LABS_PORT:6379}"
+        db: 0
+        password: "${REDIS_LABS_PASSWORD}"
+        ssl: true
+        decode_responses: true
+        socket_timeout: 10
+        connection_pool_max_connections: 100
+        
+        # 운영 환경 최적화
+        retry_on_timeout: true
+        health_check_interval: 30
+
+#  Feature Store 설정 (Blueprint v17.0: config 통합)
 feature_store:
   provider: "feast"
   

@@ -16,8 +16,8 @@ environment:
 
 # 2. 모델 아티팩트 스토어 (MLflow Model Registry)
 mlflow:
-  # 로컬에서 실행되는 MLflow 서버를 기본값으로 합니다.
-  tracking_uri: ${MLFLOW_TRACKING_URI:http://127.0.0.1:5000}
+  # LOCAL 환경에서는 파일 시스템 기반 MLflow 사용
+  tracking_uri: ${MLFLOW_TRACKING_URI:./mlruns}
   # 모든 실험의 통합 목적을 명확히 정의
   experiment_name: "Campaign-Uplift-Modeling"
 
@@ -121,3 +121,73 @@ feature_store:
     # 환경별로 config/*.yaml에서 주입
     redis_host: ${FEATURE_STORE_REDIS_HOST:localhost:6379}
     offline_store_uri: ${FEATURE_STORE_OFFLINE_URI:file://data/feature_store/offline}
+
+# 7. 데이터 어댑터 설정 (Blueprint v17.0: Config-driven Dynamic Factory)
+data_adapters:
+  # LOCAL 환경 기본 어댑터 매핑
+  default_loader: "filesystem"
+  default_storage: "filesystem"
+  default_feature_store: "filesystem"
+  
+  # 어댑터별 구체적 설정
+  adapters:
+    filesystem:
+      class_name: "FileSystemAdapter"
+      config:
+        base_path: "./data"
+        supported_formats: ["parquet", "csv", "json"]
+        auto_create_dirs: true
+    
+    postgresql:
+      class_name: "PostgreSQLAdapter"
+      config:
+        host: "${DB_HOST:localhost}"
+        port: "${DB_PORT:5432}"
+        database: "${DB_NAME:mlpipeline}"
+        user: "${DB_USER:mluser}"
+        password: "${DB_PASSWORD:mlpassword}"
+        schema: "${DB_SCHEMA:public}"
+        pool_size: 5
+        max_overflow: 10
+        echo_sql: false
+    
+    bigquery:
+      class_name: "BigQueryAdapter"
+      config:
+        project_id: "${GCP_PROJECT_ID}"
+        dataset_id: "${BQ_DATASET:ml_pipeline}"
+        location: "${BQ_LOCATION:us-central1}"
+        credentials_path: "${GOOGLE_APPLICATION_CREDENTIALS}"
+        use_legacy_sql: false
+        use_query_cache: true
+        maximum_bytes_billed: 1073741824  # 1GB limit
+    
+    redis:
+      class_name: "RedisAdapter"
+      config:
+        host: "${REDIS_HOST:localhost}"
+        port: "${REDIS_PORT:6379}"
+        db: "${REDIS_DB:0}"
+        password: "${REDIS_PASSWORD:}"
+        decode_responses: true
+        socket_timeout: 5
+        connection_pool_max_connections: 50
+    
+    gcs:
+      class_name: "GCSAdapter"
+      config:
+        bucket: "${GCS_BUCKET:ml-pipeline-data}"
+        prefix: "${GCS_PREFIX:data/}"
+        credentials_path: "${GOOGLE_APPLICATION_CREDENTIALS}"
+        chunk_size: 8388608  # 8MB
+        max_retry_delay: 60
+    
+    s3:
+      class_name: "S3Adapter"
+      config:
+        bucket: "${S3_BUCKET:ml-pipeline-data}"
+        prefix: "${S3_PREFIX:data/}"
+        region: "${AWS_REGION:us-east-1}"
+        access_key_id: "${AWS_ACCESS_KEY_ID}"
+        secret_access_key: "${AWS_SECRET_ACCESS_KEY}"
+        endpoint_url: "${S3_ENDPOINT_URL:}"

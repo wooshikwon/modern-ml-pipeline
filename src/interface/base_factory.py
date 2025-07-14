@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 import mlflow
 
 # 필요한 타입 힌트를 위해 import
-from src.settings.settings import Settings
+from src.settings import Settings
 # BaseModel import 제거: 외부 라이브러리 직접 사용으로 전환
 from src.core.preprocessor import Preprocessor
 

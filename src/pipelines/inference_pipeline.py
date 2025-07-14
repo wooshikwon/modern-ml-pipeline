@@ -7,7 +7,7 @@ import mlflow
 from src.utils.system.logger import logger
 from src.utils.system import mlflow_utils
 from src.core.factory import Factory
-from src.settings.settings import Settings, load_settings
+from src.settings import Settings, load_settings
 
 
 def run_batch_inference(

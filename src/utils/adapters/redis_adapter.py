@@ -4,7 +4,7 @@ import json
 import pandas as pd
 
 from src.interface.base_adapter import BaseAdapter
-from src.settings.settings import RealtimeFeatureStoreSettings
+from src.settings import RealtimeFeatureStoreSettings
 from src.utils.system.logger import logger
 
 class RedisAdapter(BaseAdapter):

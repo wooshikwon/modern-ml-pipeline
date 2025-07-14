@@ -9,7 +9,7 @@ from sklearn.exceptions import NotFittedError
 
 # GCS utils 함수들은 gcs_adapter로 통합됨 - 임시 비활성화
 # from src.utils.gcs_utils import upload_object_to_gcs, download_object_from_gcs, generate_model_path
-from src.settings.settings import Settings, PreprocessorSettings
+from src.settings import Settings, PreprocessorSettings
 from src.interface.base_preprocessor import BasePreprocessor
 
 logger = logging.getLogger(__name__)

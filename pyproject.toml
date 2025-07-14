@@ -23,6 +23,13 @@ dependencies = [
     "mlflow",
     "causalml",
     "xgboost",
+    # 🆕 Blueprint v17.0: 자동화된 하이퍼파라미터 최적화
+    "optuna>=3.4.0",
+    # 🆕 다양한 모델 생태계 지원
+    "catboost>=1.2.0",
+    "lightgbm>=4.1.0",
+    # 🆕 Feast Feature Store 완전 지원
+    "feast>=0.35.0",
     "google-cloud-bigquery",
     "google-cloud-storage",
     "pyarrow",
