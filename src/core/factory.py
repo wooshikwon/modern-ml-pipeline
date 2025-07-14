@@ -27,8 +27,9 @@ except ImportError:
 
 class PyfuncWrapper(mlflow.pyfunc.PythonModel):
     """
-    완전한 Wrapped Artifact 구현: Blueprint v13.0
+    완전한 Wrapped Artifact 구현: Blueprint v17.0
     학습 시점의 모든 로직과 메타데이터를 완전히 캡슐화한 자기 완결적 아티팩트
+    + 하이퍼파라미터 최적화 결과 및 Data Leakage 방지 메타데이터 포함
     """
     def __init__(
         self,
@@ -39,6 +40,10 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
         augmenter_sql_snapshot: str,
         recipe_yaml_snapshot: str,
         training_metadata: Dict[str, Any],
+        # 🆕 새로운 인자들 (Optional로 하위 호환성 보장)
+        model_class_path: Optional[str] = None,
+        hyperparameter_optimization: Optional[Dict[str, Any]] = None,
+        training_methodology: Optional[Dict[str, Any]] = None,
     ):
         # 학습된 컴포넌트들
         self.trained_model = trained_model
@@ -52,6 +57,11 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
         
         # 메타데이터
         self.training_metadata = training_metadata
+        
+        # 🆕 새로운 메타데이터 (Blueprint v17.0)
+        self.model_class_path = model_class_path
+        self.hyperparameter_optimization = hyperparameter_optimization or {"enabled": False}
+        self.training_methodology = training_methodology or {}
         
         # 하위 호환성을 위한 별칭
         self.augmenter = trained_augmenter
@@ -112,6 +122,9 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
                 "final_results": results_df,
                 "augmented_data": augmented_df,
                 "preprocessed_data": preprocessed_df,
+                # 🆕 최적화 메타데이터 포함 (Blueprint v17.0)
+                "hyperparameter_optimization": self.hyperparameter_optimization,
+                "training_methodology": self.training_methodology,
             }
         else:
             return results_df
@@ -146,16 +159,39 @@ class Factory:
         return RedisAdapter(self.settings.serving.realtime_feature_store)
 
     def create_augmenter(self) -> BaseAugmenter:
+        """
+        🆕 Blueprint v17.0: Feature Store 방식과 기존 SQL 방식 모두 지원하는 Augmenter 생성
+        """
         augmenter_config = self.settings.model.augmenter
         if not augmenter_config:
             raise ValueError("Augmenter 설정이 레시피에 없습니다.")
+        
+        # 로컬 환경에서 local_override_uri가 있는 경우 (기존 방식 유지)
         is_local = self.settings.environment.app_env == "local"
-        if is_local and augmenter_config.local_override_uri:
+        if is_local and hasattr(augmenter_config, 'local_override_uri') and augmenter_config.local_override_uri:
+            logger.info("로컬 환경: LocalFileAugmenter 사용")
             return LocalFileAugmenter(uri=augmenter_config.local_override_uri)
-        return Augmenter(
-            source_uri=augmenter_config.source_uri,
-            settings=self.settings,
-        )
+        
+        # 🆕 Feature Store 방식 체크
+        if hasattr(augmenter_config, 'type') and augmenter_config.type == "feature_store":
+            logger.info("🆕 Feature Store 방식 Augmenter 생성")
+            return Augmenter(
+                source_uri=None,
+                settings=self.settings,
+                augmenter_config=augmenter_config.dict()  # Pydantic 모델을 dict로 변환
+            )
+        else:
+            # 🔄 기존 SQL 방식 (완전 호환성 유지)
+            logger.info("🔄 기존 SQL 방식 Augmenter 생성")
+            source_uri = augmenter_config.source_uri if hasattr(augmenter_config, 'source_uri') else None
+            if not source_uri:
+                raise ValueError("기존 SQL 방식 Augmenter에는 source_uri가 필요합니다.")
+            
+            return Augmenter(
+                source_uri=source_uri,
+                settings=self.settings,
+                augmenter_config={'type': 'sql'}  # 기존 방식 명시
+            )
 
     def create_preprocessor(self) -> Optional[BasePreprocessor]:
         preprocessor_config = self.settings.model.preprocessor
@@ -217,12 +253,41 @@ class Factory:
         logger.info(f"'{task_type}' 타입용 evaluator를 생성합니다.")
         return evaluator_map[task_type](data_interface)
 
+    # 🆕 새로운 메서드들 추가
+    def create_feature_store_adapter(self):
+        """환경별 Feature Store 어댑터 생성"""
+        if not self.settings.feature_store:
+            raise ValueError("Feature Store 설정이 없습니다.")
+        
+        logger.info("Feature Store 어댑터를 생성합니다.")
+        from src.utils.adapters.feature_store_adapter import FeatureStoreAdapter
+        return FeatureStoreAdapter(self.settings)
+    
+    def create_optuna_adapter(self):
+        """Optuna SDK 래퍼 생성"""
+        if not self.settings.hyperparameter_tuning:
+            raise ValueError("Hyperparameter tuning 설정이 없습니다.")
+        
+        logger.info("Optuna 어댑터를 생성합니다.")
+        from src.utils.adapters.optuna_adapter import OptunaAdapter
+        return OptunaAdapter(self.settings.hyperparameter_tuning)
+    
+    def create_tuning_utils(self):
+        """하이퍼파라미터 튜닝 유틸리티 생성"""
+        logger.info("Tuning 유틸리티를 생성합니다.")
+        from src.utils.system.tuning_utils import TuningUtils
+        return TuningUtils()
+
     def create_pyfunc_wrapper(
-        self, trained_model, trained_preprocessor: Optional[BasePreprocessor]
+        self, 
+        trained_model, 
+        trained_preprocessor: Optional[BasePreprocessor],
+        training_results: Optional[Dict[str, Any]] = None  # 🆕 Trainer 결과 전달
     ) -> PyfuncWrapper:
         """
-        완전한 Wrapped Artifact 생성 (Blueprint v13.0)
+        완전한 Wrapped Artifact 생성 (Blueprint v17.0)
         학습 시점의 모든 로직과 메타데이터를 완전히 캡슐화
+        + 하이퍼파라미터 최적화 결과 및 Data Leakage 방지 메타데이터 포함
         """
         logger.info("완전한 Wrapped Artifact 생성을 시작합니다.")
         
@@ -239,7 +304,16 @@ class Factory:
         # 4. 메타데이터 생성
         training_metadata = self._create_training_metadata()
         
-        # 5. 완전한 Wrapper 생성
+        # 🆕 5. 새로운 메타데이터 처리 (Blueprint v17.0)
+        model_class_path = self.settings.model.class_path
+        hyperparameter_optimization = None
+        training_methodology = None
+        
+        if training_results:
+            hyperparameter_optimization = training_results.get('hyperparameter_optimization')
+            training_methodology = training_results.get('training_methodology')
+        
+        # 6. 확장된 Wrapper 생성 (하위 호환성 유지)
         return PyfuncWrapper(
             trained_model=trained_model,
             trained_preprocessor=trained_preprocessor,
@@ -248,6 +322,10 @@ class Factory:
             augmenter_sql_snapshot=augmenter_sql_snapshot,
             recipe_yaml_snapshot=recipe_yaml_snapshot,
             training_metadata=training_metadata,
+            # 🆕 새로운 인자들
+            model_class_path=model_class_path,
+            hyperparameter_optimization=hyperparameter_optimization,
+            training_methodology=training_methodology,
         )
     
     def _create_loader_sql_snapshot(self) -> str:

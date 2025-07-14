@@ -15,6 +15,11 @@ from serving.schemas import (
     PredictionResponse,
     BatchPredictionResponse,
     HealthCheckResponse,
+    # 🆕 Blueprint v17.0: 새로운 메타데이터 스키마들
+    ModelMetadataResponse,
+    OptimizationHistoryResponse,
+    HyperparameterOptimizationInfo,
+    TrainingMethodologyInfo,
 )
 
 class AppContext:
@@ -48,13 +53,14 @@ def create_app(run_id: str) -> FastAPI:
             app_context.settings = temp_settings
             app_context.feature_store_config = temp_settings.serving.realtime_feature_store
 
-            # 3. Wrapper의 내장 SQL 스냅샷에서 PK 목록 추출 (동적 API 스키마 생성)
-            from serving.schemas import get_pk_from_loader_sql
-            pk_fields = get_pk_from_loader_sql(app_context.model.loader_sql_snapshot)
+            # 🆕 3. Blueprint v17.0: 정교한 SQL 파싱으로 API 스키마 생성
+            from src.utils.system.sql_utils import parse_select_columns, parse_feature_columns
+            
+            # loader_sql_snapshot에서 API 입력 컬럼 추출
+            pk_fields = parse_select_columns(app_context.model.loader_sql_snapshot)
             logger.info(f"API 요청 PK 필드를 동적으로 생성합니다: {pk_fields}")
 
             # 4. Feature Store 조회 준비 (Blueprint 4.2.3의 4번)
-            from src.utils.system.sql_utils import parse_feature_columns
             feature_columns, join_key = parse_feature_columns(app_context.model.augmenter_sql_snapshot)
             app_context.feature_columns = feature_columns
             app_context.join_key = join_key
@@ -123,8 +129,16 @@ def create_app(run_id: str) -> FastAPI:
             
             uplift_score = predictions["uplift_score"].iloc[0]
             
+            # 🆕 Blueprint v17.0: 최적화 정보 포함
+            hpo_info = app_context.model.hyperparameter_optimization
+            optimization_enabled = hpo_info.get("enabled", False)
+            best_score = hpo_info.get("best_score", 0.0) if optimization_enabled else 0.0
+            
             return PredictionResponse(
-                uplift_score=uplift_score, model_uri=app_context.model_uri
+                uplift_score=uplift_score, 
+                model_uri=app_context.model_uri,
+                optimization_enabled=optimization_enabled,
+                best_score=best_score,
             )
         except Exception as e:
             logger.error(f"예측 중 오류 발생: {e}", exc_info=True)
@@ -147,13 +161,136 @@ def create_app(run_id: str) -> FastAPI:
             }
             predictions_df = app_context.model.predict(input_df, params=predict_params)
             
+            # 🆕 Blueprint v17.0: 최적화 정보 포함
+            hpo_info = app_context.model.hyperparameter_optimization
+            optimization_enabled = hpo_info.get("enabled", False)
+            best_score = hpo_info.get("best_score", 0.0) if optimization_enabled else 0.0
+            
             return BatchPredictionResponse(
                 predictions=predictions_df.to_dict(orient="records"),
                 model_uri=app_context.model_uri,
                 sample_count=len(predictions_df),
+                optimization_enabled=optimization_enabled,
+                best_score=best_score,
             )
         except Exception as e:
             logger.error(f"배치 예측 중 오류 발생: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e))
+
+    # 🆕 Blueprint v17.0: 모델 메타데이터 자기 기술 엔드포인트들
+    
+    @app.get("/model/metadata", response_model=ModelMetadataResponse, tags=["Model Metadata"])
+    async def get_model_metadata() -> ModelMetadataResponse:
+        """
+        모델의 완전한 메타데이터 반환 (하이퍼파라미터 최적화, Data Leakage 방지 정보 포함)
+        """
+        try:
+            if app_context.model is None:
+                raise HTTPException(status_code=503, detail="모델이 로드되지 않았습니다.")
+            
+            # 하이퍼파라미터 최적화 정보 구성
+            hpo_info = app_context.model.hyperparameter_optimization
+            hyperparameter_optimization = HyperparameterOptimizationInfo(
+                enabled=hpo_info.get("enabled", False),
+                engine=hpo_info.get("engine", ""),
+                best_params=hpo_info.get("best_params", {}),
+                best_score=hpo_info.get("best_score", 0.0),
+                total_trials=hpo_info.get("total_trials", 0),
+                pruned_trials=hpo_info.get("pruned_trials", 0),
+                optimization_time=str(hpo_info.get("optimization_time", "")),
+            )
+            
+            # 학습 방법론 정보 구성
+            tm_info = app_context.model.training_methodology
+            training_methodology = TrainingMethodologyInfo(
+                train_test_split_method=tm_info.get("train_test_split_method", ""),
+                train_ratio=tm_info.get("train_ratio", 0.8),
+                validation_strategy=tm_info.get("validation_strategy", ""),
+                preprocessing_fit_scope=tm_info.get("preprocessing_fit_scope", ""),
+                random_state=tm_info.get("random_state", 42),
+            )
+            
+            # API 스키마 정보 구성
+            api_schema = {
+                "input_fields": [field for field in app_context.PredictionRequest.__fields__.keys()],
+                "sql_source": "loader_sql_snapshot",
+                "feature_columns": app_context.feature_columns,
+                "join_key": app_context.join_key,
+            }
+            
+            return ModelMetadataResponse(
+                model_uri=app_context.model_uri,
+                model_class_path=getattr(app_context.model, "model_class_path", ""),
+                hyperparameter_optimization=hyperparameter_optimization,
+                training_methodology=training_methodology,
+                training_metadata=app_context.model.training_metadata,
+                api_schema=api_schema,
+            )
+            
+        except Exception as e:
+            logger.error(f"모델 메타데이터 조회 중 오류 발생: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.get("/model/optimization", response_model=OptimizationHistoryResponse, tags=["Model Metadata"])
+    async def get_optimization_history() -> OptimizationHistoryResponse:
+        """
+        하이퍼파라미터 최적화 과정의 상세 히스토리 반환
+        """
+        try:
+            if app_context.model is None:
+                raise HTTPException(status_code=503, detail="모델이 로드되지 않았습니다.")
+            
+            hpo_info = app_context.model.hyperparameter_optimization
+            
+            if not hpo_info.get("enabled", False):
+                return OptimizationHistoryResponse(
+                    enabled=False,
+                    optimization_history=[],
+                    search_space={},
+                    convergence_info={"message": "하이퍼파라미터 최적화가 비활성화되었습니다."},
+                    timeout_occurred=False,
+                )
+            
+            return OptimizationHistoryResponse(
+                enabled=True,
+                optimization_history=hpo_info.get("optimization_history", []),
+                search_space=hpo_info.get("search_space", {}),
+                convergence_info={
+                    "best_score": hpo_info.get("best_score", 0.0),
+                    "total_trials": hpo_info.get("total_trials", 0),
+                    "pruned_trials": hpo_info.get("pruned_trials", 0),
+                    "optimization_time": str(hpo_info.get("optimization_time", "")),
+                },
+                timeout_occurred=hpo_info.get("timeout_occurred", False),
+            )
+            
+        except Exception as e:
+            logger.error(f"최적화 히스토리 조회 중 오류 발생: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.get("/model/schema", tags=["Model Metadata"])
+    async def get_api_schema() -> Dict[str, Any]:
+        """
+        동적으로 생성된 API 스키마 정보 반환
+        """
+        try:
+            if app_context.model is None:
+                raise HTTPException(status_code=503, detail="모델이 로드되지 않았습니다.")
+            
+            return {
+                "prediction_request_schema": app_context.PredictionRequest.schema(),
+                "batch_prediction_request_schema": app_context.BatchPredictionRequest.schema(),
+                "loader_sql_snapshot": app_context.model.loader_sql_snapshot,
+                "extracted_fields": [field for field in app_context.PredictionRequest.__fields__.keys()],
+                "feature_store_info": {
+                    "feature_columns": app_context.feature_columns,
+                    "join_key": app_context.join_key,
+                    "feature_store_config": app_context.feature_store_config,
+                },
+            }
+            
+        except Exception as e:
+            logger.error(f"API 스키마 조회 중 오류 발생: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e))
 
     return app

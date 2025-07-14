@@ -69,9 +69,25 @@ class LoaderSettings(BaseModel):
     local_override_uri: Optional[str] = None
 
 class AugmenterSettings(BaseModel):
-    name: str
-    source_uri: str
+    # 🔄 기존 필드들 (하위 호환성 유지)
+    name: Optional[str] = None
+    source_uri: Optional[str] = None
     local_override_uri: Optional[str] = None
+    
+    # 🆕 Feature Store 방식 필드들 (Blueprint v17.0)
+    type: Optional[str] = None  # "feature_store" or "sql" (기본값: sql)
+    features: Optional[List[Dict[str, Any]]] = None  # Feature Store 피처 설정
+    
+    def validate_augmenter_config(self):
+        """Augmenter 설정의 유효성 검증"""
+        if self.type == "feature_store":
+            # Feature Store 방식: features가 필요
+            if not self.features:
+                raise ValueError("Feature Store 방식 Augmenter에는 features 설정이 필요합니다.")
+        else:
+            # 기존 SQL 방식: source_uri가 필요 (기본값)
+            if not self.source_uri:
+                raise ValueError("기존 SQL 방식 Augmenter에는 source_uri가 필요합니다.")
 
 class PreprocessorParamsSettings(BaseModel):
     criterion_col: Optional[str] = None
@@ -80,6 +96,24 @@ class PreprocessorParamsSettings(BaseModel):
 class PreprocessorSettings(BaseModel):
     name: str
     params: PreprocessorParamsSettings
+
+# 🆕 하이퍼파라미터 튜닝 설정 (새로 추가)
+class HyperparameterTuningSettings(BaseModel):
+    enabled: bool = False  # 기본값: 기존 동작 유지
+    engine: str = "optuna"
+    n_trials: int = 10
+    metric: str = "accuracy"
+    direction: str = "maximize"
+    timeout: Optional[int] = None  # 초 단위, None이면 제한 없음
+    pruning: Optional[Dict[str, Any]] = None
+    parallelization: Optional[Dict[str, Any]] = None
+
+# 🆕 Feature Store 설정 (새로 추가)  
+class FeatureStoreSettings(BaseModel):
+    provider: str = "dynamic"
+    connection_timeout: int = 5000
+    retry_attempts: int = 3
+    connection_info: Dict[str, Any] = {}
 
 class DataInterfaceSettings(BaseModel):
     # 필수 필드
@@ -133,7 +167,8 @@ class ModelSettings(BaseModel):
     data_interface: DataInterfaceSettings
     hyperparameters: ModelHyperparametersSettings
     
-    # 내부 계산 필드 (런타임에 생성됨) - 언더스코어 제거로 Pydantic 호환성 확보
+    # 🆕 새로 추가 (Optional로 하위 호환성 보장)
+    hyperparameter_tuning: Optional[HyperparameterTuningSettings] = None
     computed: Optional[Dict[str, Any]] = None
 
 # --- 최종 통합 Settings 클래스 ---
@@ -145,6 +180,10 @@ class Settings(BaseModel):
     artifact_stores: Dict[str, ArtifactStoreSettings]
     # recipes/*.yaml에서 오는 필드
     model: ModelSettings
+    
+    # 🆕 새로 추가 (Optional로 하위 호환성 보장)
+    hyperparameter_tuning: Optional[HyperparameterTuningSettings] = None
+    feature_store: Optional[FeatureStoreSettings] = None
 
 # --- 설정 로드 함수 ---
 def load_settings(model_name: str) -> Settings:

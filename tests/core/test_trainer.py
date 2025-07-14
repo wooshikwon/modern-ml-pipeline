@@ -329,4 +329,207 @@ class TestTrainer:
         
         # 올바른 순서로 호출되었는지 확인
         expected_order = ['augment', 'fit', 'transform', 'model_fit']
-        assert call_order == expected_order 
+        assert call_order == expected_order
+
+
+# 🆕 Blueprint v17.0: 하이퍼파라미터 최적화 테스트 클래스
+class TestTrainerHyperparameterOptimization:
+    """하이퍼파라미터 최적화 관련 테스트"""
+    
+    def test_hyperparameter_optimization_disabled_by_default(self, xgboost_settings: Settings):
+        """기본적으로 하이퍼파라미터 최적화가 비활성화되는지 테스트 (하위 호환성)"""
+        trainer = Trainer(xgboost_settings)
+        
+        # 기본 설정에서는 hyperparameter_tuning이 None이거나 비활성화
+        assert xgboost_settings.hyperparameter_tuning is None or not xgboost_settings.hyperparameter_tuning.enabled
+        assert xgboost_settings.model.hyperparameter_tuning is None or not xgboost_settings.model.hyperparameter_tuning.enabled
+    
+    @patch('src.core.trainer.Factory')
+    def test_fixed_hyperparameters_when_optimization_disabled(self, mock_factory, xgboost_settings: Settings):
+        """최적화 비활성화 시 기존 고정 하이퍼파라미터 방식 사용 테스트"""
+        # Mock 설정
+        mock_factory_instance = Mock()
+        mock_preprocessor = Mock()
+        mock_model = Mock()
+        mock_evaluator = Mock()
+        
+        mock_factory_instance.create_preprocessor.return_value = mock_preprocessor
+        mock_factory_instance.create_evaluator.return_value = mock_evaluator
+        mock_evaluator.evaluate.return_value = {"accuracy": 0.85}
+        mock_factory.return_value = mock_factory_instance
+        
+        # 샘플 데이터
+        sample_data = pd.DataFrame({
+            'feature1': [1, 2, 3, 4, 5, 6],
+            'feature2': [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+            'outcome': [0, 1, 0, 1, 0, 1]
+        })
+        
+        trainer = Trainer(xgboost_settings)
+        
+        with patch.object(trainer, '_train_with_fixed_hyperparameters') as mock_fixed_train:
+            mock_fixed_train.return_value = (mock_preprocessor, mock_model, {"metrics": {"accuracy": 0.85}, "hyperparameter_optimization": {"enabled": False}})
+            
+            # 학습 실행
+            result = trainer.train(sample_data, mock_model)
+            
+            # 고정 하이퍼파라미터 방식이 호출되었는지 확인
+            mock_fixed_train.assert_called_once()
+            
+            # 결과에 최적화 비활성화 메타데이터 포함 확인
+            assert result[2]["hyperparameter_optimization"]["enabled"] is False
+    
+    @patch('src.core.trainer.optuna')
+    @patch('src.core.trainer.Factory')  
+    def test_hyperparameter_optimization_enabled(self, mock_factory, mock_optuna, xgboost_settings: Settings):
+        """하이퍼파라미터 최적화 활성화 시 Optuna 기반 최적화 테스트"""
+        # 최적화 활성화 설정
+        from src.settings.settings import HyperparameterTuningSettings
+        xgboost_settings.hyperparameter_tuning = HyperparameterTuningSettings(
+            enabled=True, n_trials=10, metric="accuracy", direction="maximize"
+        )
+        xgboost_settings.model.hyperparameter_tuning = HyperparameterTuningSettings(
+            enabled=True, n_trials=5, metric="roc_auc", direction="maximize"
+        )
+        
+        # Mock 설정
+        mock_factory_instance = Mock()
+        mock_study = Mock()
+        mock_optuna.create_study.return_value = mock_study
+        mock_optuna.pruners.MedianPruner.return_value = Mock()
+        mock_factory.return_value = mock_factory_instance
+        
+        # 샘플 데이터
+        sample_data = pd.DataFrame({
+            'feature1': [1, 2, 3, 4, 5, 6, 7, 8],
+            'feature2': [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8],
+            'outcome': [0, 1, 0, 1, 0, 1, 0, 1]
+        })
+        
+        trainer = Trainer(xgboost_settings)
+        
+        with patch.object(trainer, '_train_with_hyperparameter_optimization') as mock_hpo_train:
+            mock_hpo_train.return_value = (
+                Mock(), Mock(), 
+                {
+                    "metrics": {"roc_auc": 0.92}, 
+                    "hyperparameter_optimization": {
+                        "enabled": True,
+                        "best_params": {"learning_rate": 0.1, "n_estimators": 100},
+                        "best_score": 0.92,
+                        "total_trials": 5
+                    }
+                }
+            )
+            
+            # 학습 실행
+            result = trainer.train(sample_data, Mock())
+            
+            # 하이퍼파라미터 최적화 방식이 호출되었는지 확인
+            mock_hpo_train.assert_called_once()
+            
+            # 결과에 최적화 메타데이터 포함 확인
+            hpo_result = result[2]["hyperparameter_optimization"]
+            assert hpo_result["enabled"] is True
+            assert "best_params" in hpo_result
+            assert "best_score" in hpo_result
+    
+    @patch('src.core.trainer.train_test_split')
+    @patch('src.core.trainer.Factory')
+    def test_data_leakage_prevention(self, mock_factory, mock_split, xgboost_settings: Settings):
+        """Data Leakage 방지 메커니즘 테스트 (Train-only fit)"""
+        # Mock 설정
+        mock_factory_instance = Mock()
+        mock_preprocessor = Mock()
+        mock_factory_instance.create_preprocessor.return_value = mock_preprocessor
+        mock_factory.return_value = mock_factory_instance
+        
+        # 분할된 데이터 Mock
+        train_data = pd.DataFrame({
+            'feature1': [1, 2, 3, 4],
+            'feature2': [0.1, 0.2, 0.3, 0.4],
+            'outcome': [0, 1, 0, 1]
+        })
+        val_data = pd.DataFrame({
+            'feature1': [5, 6],
+            'feature2': [0.5, 0.6],
+            'outcome': [1, 0]
+        })
+        mock_split.return_value = (train_data, val_data)
+        
+        trainer = Trainer(xgboost_settings)
+        
+        # _single_training_iteration 호출로 Data Leakage 방지 테스트
+        with patch.object(trainer, '_prepare_training_data') as mock_prepare:
+            mock_prepare.side_effect = [
+                (train_data[['feature1', 'feature2']], train_data['outcome'], {}),
+                (val_data[['feature1', 'feature2']], val_data['outcome'], {})
+            ]
+            
+            with patch.object(trainer, '_create_model_with_params') as mock_create_model:
+                mock_model = Mock()
+                mock_create_model.return_value = mock_model
+                
+                with patch.object(trainer, '_fit_model'):
+                    with patch.object(trainer, '_extract_optimization_score', return_value=0.85):
+                        # 단일 학습 반복 실행
+                        result = trainer._single_training_iteration(train_data, {"param": "value"}, 42)
+                        
+                        # Preprocessor가 Train 데이터에만 fit되었는지 확인
+                        mock_preprocessor.fit.assert_called_once()
+                        # Transform은 train과 validation 모두에 적용되었는지 확인  
+                        assert mock_preprocessor.transform.call_count == 2
+                        
+                        # 결과에 Data Leakage 방지 메타데이터 포함 확인
+                        assert result['training_methodology']['preprocessing_fit_scope'] == 'train_only'
+    
+    def test_training_results_structure(self, xgboost_settings: Settings):
+        """학습 결과 구조체가 올바르게 반환되는지 테스트"""
+        trainer = Trainer(xgboost_settings)
+        
+        # Mock을 사용한 학습 실행
+        with patch.object(trainer, '_train_with_fixed_hyperparameters') as mock_train:
+            expected_result = {
+                "metrics": {"accuracy": 0.85, "precision": 0.80},
+                "hyperparameter_optimization": {"enabled": False},
+                "training_methodology": {
+                    "train_test_split_method": "stratified",
+                    "preprocessing_fit_scope": "train_only"
+                }
+            }
+            mock_train.return_value = (Mock(), Mock(), expected_result)
+            
+            result = trainer.train(pd.DataFrame({'a': [1, 2], 'b': [3, 4]}), Mock())
+            
+            # 반환값 구조 확인
+            assert len(result) == 3  # preprocessor, model, training_results
+            assert isinstance(result[2], dict)
+            assert "metrics" in result[2]
+            assert "hyperparameter_optimization" in result[2]
+            assert "training_methodology" in result[2]
+    
+    @patch('src.core.trainer.importlib')
+    def test_dynamic_model_creation(self, mock_importlib, xgboost_settings: Settings):
+        """동적 모델 생성 테스트 (class_path 기반)"""
+        # Mock 모델 클래스
+        mock_model_class = Mock()
+        mock_model_instance = Mock()
+        mock_model_class.return_value = mock_model_instance
+        
+        # Mock 모듈
+        mock_module = Mock()
+        mock_module.XGBTRegressor = mock_model_class
+        mock_importlib.import_module.return_value = mock_module
+        
+        trainer = Trainer(xgboost_settings)
+        
+        # 동적 모델 생성 테스트
+        params = {"learning_rate": 0.1, "n_estimators": 100}
+        model = trainer._create_model_with_params("causalml.inference.meta.XGBTRegressor", params)
+        
+        # 올바른 모듈과 클래스가 import되었는지 확인
+        mock_importlib.import_module.assert_called_with("causalml.inference.meta")
+        
+        # 모델이 파라미터와 함께 생성되었는지 확인
+        mock_model_class.assert_called_with(**params)
+        assert model == mock_model_instance 
