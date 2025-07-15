@@ -242,7 +242,7 @@ performance_monitoring:
   - 안전한 실험: 운영에 영향 없는 독립 환경
 
 동작 방식:
-  Setup: ./setup-dev-environment.sh → 완전한 개발 환경 (15분 이내)
+  Setup: ./setup-dev-environment.sh → 완전한 개발 환경 (5분 이내)
   Data Loading: PostgreSQL SQL 실행
   Feature Store: PostgreSQL(Offline) + Redis(Online) + Feast
   기능 지원: 모든 기능 완전 지원
@@ -400,16 +400,16 @@ graph TD
 #### 환경별 실행 가능성 보장
 ```yaml
 LOCAL: git clone → uv sync → 즉시 실행 (외부 의존성 없음)
-DEV: ./setup-dev-environment.sh → 완전한 기능 (PostgreSQL + Redis + Feast)
+DEV: ./setup-dev-environment.sh → 완전한 기능 (5분 이내)
 ```
 
 이 철학은 **개발자의 인지 부하를 최소화**하여 ML 로직 자체에 집중할 수 있게 하는 우리 시스템의 핵심 가치이다.
 
 -----
 
-## 제 3장: 9대 핵심 설계 원칙 (The Nine Pillars)
+## 제 3장: 10대 핵심 설계 원칙 (The Ten Pillars)
 
-우리 아키텍처를 지탱하는 9개의 기둥이다. 이 원칙들은 상호 보완적이며, 하나라도 무너지면 시스템 전체의 안정성이 위협받는다.
+우리 아키텍처를 지탱하는 10개의 기둥이다. 이 원칙들은 상호 보완적이며, 하나라도 무너지면 시스템 전체의 안정성이 위협받는다.
 
 #### 1\. 레시피는 논리, 설정은 인프라 (Recipe is Logic, Config is Infra)
 
@@ -417,6 +417,7 @@ DEV: ./setup-dev-environment.sh → 완전한 기능 (PostgreSQL + Redis + Feast
   * **구현:**
       * **`recipes/*.yaml`:** 모델의 **논리적 'what'**을 정의한다. "**어떤 SQL 로직으로 예측의 뼈대(Entity, Timestamp)를 만들고**, **어떤 Feature Store 피처들을 그 뼈대에 결합**하며, **어떤 클래스(class_path)를 동적 import하여 학습**하고, **어떤 하이퍼파라미터 범위에서 몇 번 최적화**할 것인가?"에 대한 답을 담는다.
       * **`config/*.yaml`:** 모델이 실행될 **물리적 'where'**와 **인프라 제약 'how'**를 정의한다. "개발 환경의 DB는 어디에 있고, 운영 환경의 MLflow와 Feature Store는 어디에 연결되어 있으며, 하이퍼파라미터 튜닝을 최대 몇 분간 허용할 것인가?"에 대한 답을 담는다. `APP_ENV` 환경 변수를 통해 이 설정들을 동적으로 교체한다.
+      * **환경변수 기반 인프라 분리:** config 파일은 논리적 설정(experiment_name, hyperparameter_tuning 등)은 유지하되, 인프라 연결 정보(host, port, password)는 환경변수로 완전 분리한다. 이를 통해 ML 코드가 인프라 세부사항을 알지 못하도록 보장하며, 동일한 Recipe가 다양한 인프라 환경에서 수정 없이 동작할 수 있게 한다.
 
 #### 2\. 통합 데이터 어댑터 (The Unified Data Adapter)
 
@@ -434,6 +435,7 @@ DEV: ./setup-dev-environment.sh → 완전한 기능 (PostgreSQL + Redis + Feast
       * **`Factory` (in `src/core/`):** 현재 환경 설정(`APP_ENV`)과 파일 패턴을 조합하여, 해당 환경에 적합한 데이터 어댑터를 동적으로 생성하여 반환하는 유일한 창구이다. `augmenter`의 `type`이 `"feature_store"`로 선언되면 `FeatureStoreAdapter`를 생성한다.
       * **동적 모델 생성:** `class_path`를 파싱하여 실제 모델 클래스를 runtime에 import하고 인스턴스를 생성한다.
       * **아키텍처 완전성:** 모든 데이터 접근은 Factory를 통해서만 이루어지며, Pipeline에서 직접 URI 파싱이나 환경별 분기를 수행하는 것은 이 원칙의 위반이다.
+      * **Registry 패턴 확장성:** Factory는 if-else 분기 대신 Registry 패턴을 사용하여 완전한 확장성을 보장한다. 새로운 어댑터 추가 시 Factory 코드 수정 없이 데코레이터 기반 등록만으로 자동 인식되며, 이는 시스템의 유연성과 유지보수성을 극대화한다.
 
 #### 4\. 실행 시점에 조립되는 순수 로직 아티팩트 (Runtime-Assembled, Pure-Logic Artifact)
 
@@ -441,6 +443,7 @@ DEV: ./setup-dev-environment.sh → 완전한 기능 (PostgreSQL + Redis + Feast
   * **구현:**
       * **`PyfuncWrapper`:** 학습 시점에 생성되며, 실행 로직 컴포넌트(`Augmenter`, `Preprocessor`, `Model`)와 로직의 **완전한 스냅샷**(`loader_sql_snapshot`, `augmenter_config_snapshot`) 그리고 **최적화 결과**(`hyperparameter_optimization`)를 내장한다. **특정 DB 주소나 API 키 같은 인프라 설정은 절대 포함하지 않는다.**
       * **실행 시점 조립:** 이 순수한 Wrapper는 배치 추론이나 API 서빙 시점에, 해당 환경의 `config` 파일로부터 온 인프라 설정과 결합되어 비로소 완전한 실행 능력을 갖추게 된다.
+      * **동적 Signature 생성:** MLflow 모델 저장 시 동적으로 생성된 signature를 통해 params 전달을 완벽하게 지원한다. 이는 `run_mode`, `return_intermediate` 등의 실행 컨텍스트를 아티팩트가 완전히 캡슐화하여 배치 추론과 API 서빙 모두에서 일관된 인터페이스를 제공할 수 있게 한다.
 
 #### 5\. 단일 Augmenter, 컨텍스트 주입 (Single Augmenter, Context Injection)
 
@@ -482,6 +485,16 @@ DEV: ./setup-dev-environment.sh → 완전한 기능 (PostgreSQL + Redis + Feast
       * **DEV 환경:** 모든 기능 활성화 - 완전한 Feature Store, API serving, 팀 공유 MLflow로 실제 운영과 동일한 아키텍처 검증
       * **PROD 환경:** 운영 최적화 - 클라우드 네이티브 서비스, 무제한 확장, 고급 모니터링으로 엔터프라이즈급 안정성
       * **Factory 분기 로직:** `APP_ENV` 환경 변수를 기반으로 Factory가 환경별로 적절한 컴포넌트(PassThroughAugmenter vs FeatureStoreAugmenter)를 생성하여 동일한 Recipe가 환경별로 다르게 동작하도록 보장한다.
+      * **환경별 설정 특화:** config/local.yaml을 통한 LOCAL 환경 전용 설정으로 완전한 환경별 차등 기능을 구현한다. 각 환경의 철학에 맞는 기능 활성화/비활성화가 시스템 레벨에서 강제되어, 개발자가 환경의 의도를 벗어난 사용을 할 수 없도록 보장한다.
+
+#### 10\. 복잡성 최소화 원칙 (Complexity Minimization Principle)
+
+  * **철학:** 시스템의 발전은 기존 구현의 가치를 최대한 활용하여 이루어져야 한다. 새로운 기능 추가나 개선 시, 과도한 추상화나 불필요한 새로운 컴포넌트 생성을 지양하고, 기존 아키텍처의 견고함 위에서 점진적으로 완성도를 높여야 한다.
+  * **구현:**
+      * **기존 구현 최대 활용:** 이미 완성된 컴포넌트(PassThroughAugmenter, Factory 분기 로직 등)는 수정 없이 그대로 활용하며, 새로운 요구사항을 기존 구조에 자연스럽게 통합한다.
+      * **최소 필수 변경:** 목표 달성에 필요한 최소한의 변경만 수행하며, 기존 동작 방식의 대폭 변경이나 복잡한 마이그레이션 과정을 피한다.
+      * **단순성 우선:** 복잡한 새로운 추상화층 추가보다는 기존 인터페이스의 확장이나 개선을 통해 문제를 해결한다.
+      * **점진적 완성:** 시스템의 완성도는 급진적인 재설계가 아닌, 기존 견고함을 유지하면서 세밀한 부분의 개선을 통해 달성한다.
 
 -----
 
@@ -493,6 +506,7 @@ DEV: ./setup-dev-environment.sh → 완전한 기능 (PostgreSQL + Redis + Feast
 /
 ├── config/                 # [인프라] 환경별 DB, MLflow, Feature Store, 튜닝 제약 등.
 │   ├── base.yaml           #  - 모든 환경의 공통 기반. 로컬 개발의 기본값.
+│   ├── local.yaml          #  - 로컬(local) 환경 전용 설정. 의도적 제약 구현.
 │   ├── dev.yaml            #  - 개발(dev) 환경에서 덮어쓸 설정.
 │   └── prod.yaml           #  - 운영(prod) 환경에서 덮어쓸 설정.
 ├── recipes/                # [모델 논리] 모델의 논리적 정의. 데이터 과학자의 핵심 작업 공간.

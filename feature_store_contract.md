@@ -1,278 +1,525 @@
-## The Unified Data Architecture: Environment-Driven Feature Store Contract
+# Feature Store & Infrastructure Contract
 
-### 제 1장: 데이터 헌장 (The Data Charter)
+## 📋 **문서 목적**
 
-**"우리의 파이프라인은 어떤 데이터 위에서 동작해야 하는가?"**
+이 문서는 **modern-ml-pipeline**과 **mmp-local-dev** 프로젝트 간의 인프라 책임 분리와 연동 방식을 정의합니다. Blueprint v17.0의 **"레시피는 논리, 설정은 인프라"** 원칙에 따라 **완전한 책임 분리**를 구현하는 계약서입니다.
 
-이 문서는 `Modern ML Pipeline Blueprint (v16.0)`의 잠재력을 최대한 발휘하기 위해, 우리 시스템이 기대하고 요구하는 **환경별 Feature Store 아키텍처의 이상적인 상태와 상호작용 방식**을 정의하는 전략적 설계도이다. Blueprint가 **'어떻게(How)'** 실행되는지에 대한 해답이라면, 이 문서는 **'무엇을(What)'** 읽고 쓰는가에 대한 명확한 청사진을 제공한다.
+---
 
-우리의 목표는 훈련-서빙 스큐를 원천적으로 제거하는 것이다. 이를 위해 우리는 **환경별로 독립적으로 관리되는 Feature Store**를 통해 그 진실을 훈련과 서빙 양쪽에 일관되게 공급하는, 예측 가능하고 확장 가능한 데이터 아키텍처를 구축한다. **Feature Store의 실제 구현과 데이터는 각 환경의 데이터 엔지니어링 팀이 독립적으로 관리하며, 우리의 ML 파이프라인은 이를 소비하는 역할에만 집중한다.**
+## 🏗️ **아키텍처 책임 분리**
 
------
-
-### 제 2장: 핵심 아키텍처 원칙
-
-이 데이터 아키텍처는 네 가지 흔들림 없는 원칙 위에 세워진다.
-
-#### 1\. 위대한 분리: 엔티티 뼈대 vs. 피처 살
-
-`Blueprint`의 하이브리드 철학을 계승하여, 데이터의 역할은 명확히 분리된다.
-
-  * **엔티티 뼈대 (Entity Spine)**: 예측의 대상. **Data Lake** 안에 존재하며, `Loader SQL`을 통해 자유롭게 정의된다.
-  * **피처 살 (Feature Flesh)**: 예측에 사용될 정보. **환경별 Feature Store**를 통해 관리되며, `Augmenter`가 뼈대에 결합시킨다.
-
-#### 2\. 환경별 Feature Store 독립성
-
-**각 환경(dev, staging, prod)의 Feature Store는 완전히 독립적으로 관리되며, ML 파이프라인은 단순한 소비자 역할만 수행한다.**
-
-  * **Feature Store 관리 책임**: 각 환경의 데이터 엔지니어링 팀
-  * **ML 파이프라인 책임**: Feature Store에서 피처를 조회하고 소비하는 것만
-  * **연결 정보 관리**: `config/` 디렉토리의 환경별 설정 파일
-
-#### 3\. 동적 피처 발견 (Dynamic Feature Discovery)
-
-  * ML 파이프라인은 Feature Store의 스키마나 구조를 사전에 알 필요가 없다.
-  * `recipes/` 파일에서 선언한 피처 이름을 통해 runtime에 Feature Store를 조회한다.
-  * Feature Store가 제공하는 피처가 변경되어도, ML 파이프라인 코드는 수정할 필요가 없다.
-
-#### 4\. 표준 Feature Store 인터페이스
-
-  * 모든 환경의 Feature Store는 동일한 조회 인터페이스를 제공해야 한다.
-  * **Key-Value 조회**: `{namespace}:{feature_name}:{entity_key}` 형식
-  * **Batch 조회**: 여러 엔티티에 대한 대량 조회 지원
-  * **Online 조회**: 실시간 단일/소량 엔티티 조회 지원
-
------
-
-### 제 3장: 환경별 Feature Store 설정 관리
-
-우리의 ML 파이프라인이 최적으로 동작하기 위해, 각 환경별로 Feature Store 연결 정보가 `config/` 디렉토리에 독립적으로 관리된다.
-
-#### 3.1. 기본 설정 구조 (`config/base.yaml`)
-
+### **modern-ml-pipeline 프로젝트 책임**
 ```yaml
-# config/base.yaml - 모든 환경의 공통 기반
-feature_store:
-  provider: "redis"  # 기본 provider
-  connection_timeout: 5000
-  retry_attempts: 3
-  
-  # 로컬 개발용 기본값
-  connection_info:
-    redis_host: "localhost:6379"
-    redis_db: 0
-    redis_password: null
-    offline_store_uri: "file://./local_features"
+역할: ML 로직 및 어댑터 타입 정의
+책임:
+  - Recipe 파일 관리 (모델 논리)
+  - 어댑터 타입 선택 (config/*.yaml)
+  - 환경변수 읽기 및 연결
+  - Factory Registry 패턴 구현
+
+관여하지 않는 영역:
+  - 실제 인프라 구축
+  - 데이터베이스 설정
+  - 컨테이너 관리
+  - 연결 정보 관리
 ```
 
-#### 3.2. 개발 환경 설정 (`config/dev.yaml`)
-
+### **mmp-local-dev 프로젝트 책임**
 ```yaml
-# config/dev.yaml - 개발 환경 전용
-feature_store:
-  connection_info:
-    redis_host: "dev-redis.company.com:6379"
-    redis_db: 1
-    redis_password: "${DEV_REDIS_PASSWORD}"
-    offline_store_uri: "bq://dev-project.feature_mart"
-    
-  # 개발 환경 전용 설정
-  cache_ttl: 3600
-  enable_debug_logging: true
+역할: 완전한 인프라 관리 및 제공
+책임:
+  - Docker Compose 인프라 구축
+  - 환경변수 템플릿 제공
+  - 실제 연결 정보 관리
+  - Feature Store 데이터 구축
+  - Health Check 및 모니터링
+
+제공하지 않는 영역:
+  - ML 모델 논리
+  - Recipe 파일 관리
+  - 어댑터 구현
+  - 비즈니스 로직
 ```
 
-#### 3.3. 운영 환경 설정 (`config/prod.yaml`)
+---
 
-```yaml
-# config/prod.yaml - 운영 환경 전용
-feature_store:
-  connection_info:
-    redis_host: "prod-redis-cluster.company.com:6379"
-    redis_db: 0
-    redis_password: "${PROD_REDIS_PASSWORD}"
-    offline_store_uri: "bq://prod-project.feature_mart"
-    
-  # 운영 환경 전용 설정
-  connection_pool_size: 100
-  cache_ttl: 7200
-  enable_monitoring: true
-  monitoring_endpoint: "https://monitoring.company.com/features"
-```
+## 🔧 **환경변수 기반 연결 체계**
 
------
-
-### 제 4장: Feature Store 표준 인터페이스 계약
-
-각 환경의 Feature Store는 다음 표준 인터페이스를 구현해야 한다.
-
-#### 4.1. Key-Value 조회 계약
-
-**Key 형식:** `{namespace}:{feature_name}:{entity_key}`
-
+### **환경변수 구조 설계**
 ```bash
-# 예시 Key-Value 구조
-user_demographics:age:user123 → 34
-user_demographics:country_code:user123 → "KR"
-user_purchase_summary:ltv:user123 → 1250.50
-product_details:price:product456 → 99.99
-session_summary:click_count:session789 → 15
+# mmp-local-dev/.env.example
+# PostgreSQL (필수)
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_USER=mluser
+POSTGRES_DB=mlpipeline
+POSTGRES_PASSWORD=  # 필수 설정
+
+# Redis (선택적)
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=  # 선택적 설정
+
+# MLflow (선택적)
+MLFLOW_TRACKING_URI=http://localhost:5000
+MLFLOW_ARTIFACT_ROOT=./mlruns
+
+# Feature Store (선택적)
+FEATURE_STORE_OFFLINE_URI=postgresql://mluser:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
+FEATURE_STORE_ONLINE_URI=redis://${REDIS_HOST}:${REDIS_PORT}
 ```
 
-#### 4.2. Batch 조회 인터페이스
-
-**목적:** 학습/배치 추론 시 대량 피처 조회
-
-```python
-# 표준 Batch 조회 API (Redis MGET 스타일)
-def batch_get_features(
-    entity_spine: List[Dict[str, Any]],  # [{"user_id": "123", "product_id": "456"}, ...]
-    feature_specs: List[Dict[str, Any]]   # [{"namespace": "user_demographics", "features": ["age", "country"]}, ...]
-) -> Dict[str, Dict[str, Any]]:
-    """
-    반환 형식:
-    {
-        "user123": {
-            "user_demographics:age": 34,
-            "user_demographics:country_code": "KR",
-            "user_purchase_summary:ltv": 1250.50
-        },
-        "user456": { ... }
-    }
-    """
-```
-
-#### 4.3. Online 조회 인터페이스
-
-**목적:** API 서빙 시 실시간 피처 조회
-
-```python
-# 표준 Online 조회 API (Redis GET 스타일)
-def online_get_features(
-    entity_keys: Dict[str, str],          # {"user_id": "123", "product_id": "456"}
-    feature_specs: List[Dict[str, Any]]   # [{"namespace": "user_demographics", "features": ["age", "country"]}, ...]
-) -> Dict[str, Any]:
-    """
-    반환 형식:
-    {
-        "user_demographics:age": 34,
-        "user_demographics:country_code": "KR",
-        "product_details:price": 99.99
-    }
-    """
-```
-
------
-
-### 제 5장: ML 파이프라인과 Feature Store의 상호작용
-
-#### 5.1. Recipe에서의 피처 선언
-
+### **환경변수 사용 원칙**
 ```yaml
-# recipes/experiment.yaml
-augmenter:
-  type: "feature_store"
-  features:
-    # 피처는 namespace와 feature 이름으로만 선언
-    - feature_namespace: "user_demographics"
-      features: ["age", "country_code", "gender"]
-    - feature_namespace: "user_purchase_summary"  
-      features: ["ltv", "total_purchase_count"]
-    - feature_namespace: "product_details"
-      features: ["price", "category", "brand"]
+1. 필수 vs 선택적 분리:
+   - 필수: POSTGRES_PASSWORD (보안상 반드시 사용자 입력)
+   - 선택적: 기본값 제공, 필요시 오버라이드
+
+2. 조합 가능한 구조:
+   - Base 설정 + 환경별 오버라이드
+   - 개발자별 로컬 설정 가능
+
+3. 보안 고려사항:
+   - 민감정보는 .env에만 저장
+   - 기본값은 개발환경에 적합하게 설정
 ```
 
-#### 5.2. 학습 시 피처 증강 흐름
+---
 
+## 🏭 **Factory Registry 패턴**
+
+### **확장적 어댑터 시스템**
+```python
+# modern-ml-pipeline/src/core/registry.py
+class AdapterRegistry:
+    """완전히 확장적인 어댑터 등록 시스템"""
+    
+    _adapters = {}
+    
+    @classmethod
+    def register(cls, adapter_type: str):
+        """어댑터 등록 데코레이터"""
+        def decorator(adapter_class):
+            cls._adapters[adapter_type] = adapter_class
+            return adapter_class
+        return decorator
+    
+    @classmethod
+    def create(cls, adapter_type: str, settings: Settings) -> BaseAdapter:
+        """동적 어댑터 생성"""
+        if adapter_type not in cls._adapters:
+            raise ValueError(f"Unknown adapter type: {adapter_type}")
+        return cls._adapters[adapter_type](settings)
+```
+
+### **어댑터 구현 예시**
+```python
+# modern-ml-pipeline/src/utils/adapters/postgresql_adapter.py
+from src.core.registry import AdapterRegistry
+import os
+
+@AdapterRegistry.register("postgresql")
+class PostgreSQLAdapter(BaseAdapter):
+    """환경변수 기반 PostgreSQL 어댑터"""
+    
+    def __init__(self, settings: Settings):
+        super().__init__(settings)
+        self.host = os.getenv('POSTGRES_HOST', 'localhost')
+        self.port = int(os.getenv('POSTGRES_PORT', '5432'))
+        self.user = os.getenv('POSTGRES_USER', 'mluser')
+        self.database = os.getenv('POSTGRES_DB', 'mlpipeline')
+        self.password = os.getenv('POSTGRES_PASSWORD')  # 필수
+        
+        if not self.password:
+            raise ValueError("POSTGRES_PASSWORD 환경변수가 설정되지 않았습니다")
+    
+    def read(self, source_uri: str, **kwargs) -> pd.DataFrame:
+        """SQL 파일 실행 및 결과 반환"""
+        # 환경변수 기반 연결 정보로 PostgreSQL 접속
+        pass
+```
+
+### **Config 기반 동적 결정**
+```yaml
+# modern-ml-pipeline/config/dev.yaml
+data_adapters:
+  loader: "postgresql"        # Registry에서 PostgreSQLAdapter 선택
+  storage: "filesystem"       # Registry에서 FileSystemAdapter 선택
+  feature_store: "postgresql" # Registry에서 PostgreSQLAdapter 선택
+
+# 실제 연결 정보는 환경변수에서 주입
+# if-else 분기 없이 YAML 설정으로 자연스럽게 결정
+```
+
+---
+
+## 🐳 **mmp-local-dev 프로젝트 구조**
+
+### **디렉토리 구조**
+```
+mmp-local-dev/
+├── docker-compose.yml          # 핵심 인프라 정의
+├── .env.example               # 환경변수 템플릿
+├── setup.sh                   # 원스톱 설치 스크립트
+├── scripts/
+│   ├── init-database.sql      # PostgreSQL 초기화
+│   ├── seed-features.sql      # 샘플 Feature 데이터
+│   └── health-check.sh        # 서비스 상태 확인
+├── config/
+│   ├── postgres.conf          # PostgreSQL 설정
+│   └── redis.conf             # Redis 설정
+├── feast/
+│   ├── feature_store.yaml     # Feast 설정
+│   └── feature_definitions.py # 피처 정의
+└── README.md                  # 사용법 가이드
+```
+
+### **핵심 구성 요소**
+
+#### **1. Docker Compose 인프라**
+```yaml
+# docker-compose.yml
+version: '3.8'
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-database.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./scripts/seed-features.sql:/docker-entrypoint-initdb.d/seed.sql
+  
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${REDIS_PORT}:6379"
+    volumes:
+      - redis_data:/data
+  
+  mlflow:
+    image: python:3.11-slim
+    command: >
+      sh -c "pip install mlflow psycopg2-binary &&
+             mlflow server --host 0.0.0.0 --port 5000"
+    ports:
+      - "5000:5000"
+    depends_on:
+      - postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+
+volumes:
+  postgres_data:
+  redis_data:
+```
+
+#### **2. 원스톱 설치 스크립트**
+```bash
+# setup.sh
+#!/bin/bash
+set -e
+
+echo "🚀 MMP Local Dev Environment Setup"
+
+# 환경변수 파일 확인
+if [ ! -f .env ]; then
+    cp .env.example .env
+    echo "⚠️  .env 파일에서 POSTGRES_PASSWORD를 설정해주세요"
+    exit 1
+fi
+
+# 인프라 시작
+echo "🐳 Docker 인프라 시작 중..."
+docker-compose up -d
+
+# 서비스 대기
+echo "⏳ 서비스 준비 대기 중..."
+./scripts/health-check.sh
+
+echo "✅ 개발 환경 준비 완료!"
+echo "  PostgreSQL: localhost:${POSTGRES_PORT}"
+echo "  Redis: localhost:${REDIS_PORT}"
+echo "  MLflow: http://localhost:5000"
+```
+
+#### **3. Feature Store 데이터 구축**
+```sql
+-- scripts/seed-features.sql
+-- 샘플 피처 데이터 생성
+CREATE SCHEMA IF NOT EXISTS features;
+
+-- 사용자 기본 정보
+CREATE TABLE features.user_demographics (
+    user_id VARCHAR(50) PRIMARY KEY,
+    age INTEGER,
+    country_code VARCHAR(2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 사용자 구매 요약
+CREATE TABLE features.user_purchase_summary (
+    user_id VARCHAR(50) PRIMARY KEY,
+    ltv DECIMAL(10,2),
+    total_purchase_count INTEGER,
+    last_purchase_date DATE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 제품 상세 정보
+CREATE TABLE features.product_details (
+    product_id VARCHAR(50) PRIMARY KEY,
+    price DECIMAL(10,2),
+    category VARCHAR(100),
+    brand VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 샘플 데이터 삽입
+INSERT INTO features.user_demographics (user_id, age, country_code) VALUES
+    ('user_001', 25, 'US'),
+    ('user_002', 32, 'UK'),
+    ('user_003', 28, 'CA');
+
+INSERT INTO features.user_purchase_summary (user_id, ltv, total_purchase_count, last_purchase_date) VALUES
+    ('user_001', 1250.50, 15, '2025-01-10'),
+    ('user_002', 850.75, 8, '2025-01-08'),
+    ('user_003', 2100.30, 25, '2025-01-12');
+
+INSERT INTO features.product_details (product_id, price, category, brand) VALUES
+    ('prod_001', 29.99, 'Electronics', 'TechBrand'),
+    ('prod_002', 149.99, 'Fashion', 'StyleCorp'),
+    ('prod_003', 79.99, 'Home', 'HomeInc');
+```
+
+---
+
+## 🔄 **연동 워크플로우**
+
+### **개발 환경 구성 프로세스**
+```bash
+# 1. mmp-local-dev 클론 및 설정
+git clone https://github.com/your-org/mmp-local-dev.git
+cd mmp-local-dev
+cp .env.example .env
+# .env 파일에서 POSTGRES_PASSWORD 설정
+
+# 2. 인프라 시작
+./setup.sh
+
+# 3. modern-ml-pipeline 프로젝트로 이동
+cd ../modern-ml-pipeline
+
+# 4. 환경변수 로드 및 실행
+source ../mmp-local-dev/.env  # 또는 direnv 사용
+APP_ENV=dev python main.py train --recipe-file dev_classification_test
+```
+
+### **어댑터 연동 흐름**
 ```mermaid
 graph TD
-    A[Loader SQL 실행] --> B[Entity Spine DataFrame];
-    B --> C[Recipe 피처 선언 파싱];
-    C --> D[환경별 config 로드];
-    D --> E[FeatureStoreAdapter 초기화];
-    E --> F[Batch 피처 조회];
-    F --> G[피처 증강된 DataFrame];
-    
-    subgraph Feature Store Environment
-        H[Redis/BigQuery]
-        I[Feature Data]
-    end
-    
-    F --> H;
-    H --> I;
-    I --> F;
+    A[Recipe 실행] --> B[Config 읽기]
+    B --> C[data_adapters.loader = 'postgresql']
+    C --> D[Factory.create_data_adapter('loader')]
+    D --> E[AdapterRegistry.create('postgresql')]
+    E --> F[PostgreSQLAdapter.__init__]
+    F --> G[환경변수 읽기]
+    G --> H[POSTGRES_HOST, POSTGRES_PORT, POSTGRES_PASSWORD]
+    H --> I[실제 PostgreSQL 연결]
 ```
 
-#### 5.3. 서빙 시 피처 증강 흐름
+---
 
-```mermaid
-graph TD
-    A[API 요청 수신] --> B[Entity Keys 추출];
-    B --> C[Recipe 피처 선언 파싱];
-    C --> D[환경별 config 로드];
-    D --> E[FeatureStoreAdapter 초기화];
-    E --> F[Online 피처 조회];
-    F --> G[피처 증강된 DataFrame];
-    
-    subgraph Feature Store Environment
-        H[Redis Cache]
-        I[Feature Data]
-    end
-    
-    F --> H;
-    H --> I;
-    I --> F;
+## 🚀 **확장 방식**
+
+### **새로운 어댑터 추가**
+```python
+# 1. 새 어댑터 구현
+@AdapterRegistry.register("snowflake")
+class SnowflakeAdapter(BaseAdapter):
+    def __init__(self, settings: Settings):
+        super().__init__(settings)
+        self.account = os.getenv('SNOWFLAKE_ACCOUNT')
+        self.user = os.getenv('SNOWFLAKE_USER')
+        self.password = os.getenv('SNOWFLAKE_PASSWORD')
+        # ... 환경변수 기반 설정
+
+# 2. Config에서 선택
+# config/prod.yaml
+data_adapters:
+  loader: "snowflake"  # Registry에서 SnowflakeAdapter 자동 선택
+
+# 3. 환경변수 설정
+# .env
+SNOWFLAKE_ACCOUNT=your-account
+SNOWFLAKE_USER=your-user
+SNOWFLAKE_PASSWORD=your-password
 ```
 
------
+### **새로운 환경 추가**
+```yaml
+# config/staging.yaml
+data_adapters:
+  loader: "bigquery"
+  storage: "gcs"
+  feature_store: "bigquery"
 
-### 제 6장: 데이터 생명주기와 책임 분리
-
-#### 6.1. 환경별 Feature Store 구축 책임
-
-**데이터 엔지니어링 팀의 책임:**
-
-1.  **피처 생성 파이프라인**: dbt, Spark 등을 이용한 피처 ETL 구축
-2.  **Feature Store 인프라**: Redis, BigQuery 등 Feature Store 인프라 구축 및 운영
-3.  **피처 데이터 품질**: 피처 데이터의 정확성, 최신성, 완성도 보장
-4.  **성능 최적화**: 피처 조회 성능 모니터링 및 최적화
-5.  **스키마 관리**: 피처 스키마 버전 관리 및 하위 호환성 보장
-
-**ML 파이프라인 팀의 책임:**
-
-1.  **피처 소비**: Recipe에서 필요한 피처 선언 및 조회
-2.  **연결 설정 관리**: 환경별 `config/` 파일의 Feature Store 연결 정보 관리
-3.  **피처 활용**: 조회된 피처를 이용한 모델 학습 및 추론
-4.  **오류 처리**: Feature Store 조회 실패 시 적절한 오류 처리
-
-#### 6.2. 완전한 데이터 흐름
-
-```mermaid
-graph TD
-    subgraph Data Engineering Team
-        A[Raw Data] --> B[ETL Pipeline];
-        B --> C[Feature Computation];
-        C --> D[Feature Store];
-    end
-    
-    subgraph ML Pipeline Team
-        E[Recipe Definition] --> F[Feature Discovery];
-        F --> D;
-        D --> G[Feature Augmentation];
-        G --> H[Model Training/Inference];
-    end
-    
-    subgraph Environment Management
-        I[config/dev.yaml] --> F;
-        J[config/prod.yaml] --> F;
-    end
+# 환경변수만 설정하면 자동으로 연결
+# GCP_PROJECT_ID, GCP_CREDENTIALS_PATH 등
 ```
 
-### 제 7장: 공생 관계의 완성
+---
 
-이 환경별 Feature Store 아키텍처는 `Blueprint v16.0`과 완벽한 **공생 관계(Symbiotic Relationship)**를 이룬다.
+## 🛡️ **보안 고려사항**
 
-  * `Blueprint`의 **실행 유연성**은 이 아키텍처가 제공하는 **환경별 Feature Store 연결성** 위에서만 가능하다.
-  * 이 아키텍처가 제공하는 **피처 데이터의 가치**는 `Blueprint`의 **강력한 실행 엔진**을 통해서만 완벽하게 실현된다.
-  * **관심사의 완전한 분리**: 데이터 엔지니어링 팀은 피처 생성에, ML 팀은 피처 활용에만 집중할 수 있다.
+### **환경변수 관리**
+```bash
+# 개발환경
+# mmp-local-dev/.env (git ignore에 포함)
+POSTGRES_PASSWORD=local_dev_password
 
-이로써 우리는 중앙 집중식 Feature Store 관리의 복잡성을 제거하고, 환경별로 독립적이면서도 표준화된 Feature Store 인터페이스를 통해 모든 과정이 시스템적으로 통제되는, 진정으로 확장 가능한 ML 시스템의 기반을 완성한다.
+# 운영환경
+# 시스템 환경변수 또는 시크릿 관리 도구 사용
+export POSTGRES_PASSWORD="$(kubectl get secret postgres-secret -o jsonpath='{.data.password}' | base64 -d)"
+```
+
+### **접근 제어**
+```yaml
+보안 원칙:
+  - 민감정보는 환경변수에만 저장
+  - .env 파일은 반드시 .gitignore에 포함
+  - 운영환경에서는 시크릿 관리 도구 사용
+  - 개발환경과 운영환경의 완전한 분리
+```
+
+---
+
+## 📊 **성능 및 모니터링**
+
+### **Health Check 시스템**
+```bash
+# scripts/health-check.sh
+#!/bin/bash
+
+echo "🔍 서비스 상태 확인 중..."
+
+# PostgreSQL 연결 테스트
+docker-compose exec postgres pg_isready -U $POSTGRES_USER -d $POSTGRES_DB
+if [ $? -eq 0 ]; then
+    echo "✅ PostgreSQL 정상"
+else
+    echo "❌ PostgreSQL 연결 실패"
+    exit 1
+fi
+
+# Redis 연결 테스트
+docker-compose exec redis redis-cli ping
+if [ $? -eq 0 ]; then
+    echo "✅ Redis 정상"
+else
+    echo "❌ Redis 연결 실패"
+    exit 1
+fi
+
+echo "🎉 모든 서비스 정상 동작 중"
+```
+
+### **모니터링 대시보드**
+```yaml
+제공 서비스:
+  - MLflow UI: http://localhost:5000 (실험 추적)
+  - pgAdmin: http://localhost:8082 (PostgreSQL 관리)
+  - Redis Commander: http://localhost:8081 (Redis 모니터링)
+```
+
+---
+
+## 🎯 **사용 시나리오**
+
+### **시나리오 1: 새로운 개발자 온보딩**
+```bash
+# 1. 저장소 클론
+git clone https://github.com/your-org/mmp-local-dev.git
+git clone https://github.com/your-org/modern-ml-pipeline.git
+
+# 2. 개발환경 구성 (5분)
+cd mmp-local-dev
+cp .env.example .env
+# .env에서 POSTGRES_PASSWORD 설정
+./setup.sh
+
+# 3. 첫 번째 실험 실행 (2분)
+cd ../modern-ml-pipeline
+APP_ENV=dev python main.py train --recipe-file dev_classification_test
+
+# 총 7분 이내 완전한 개발환경 구축 완료
+```
+
+### **시나리오 2: 새로운 데이터 소스 추가**
+```python
+# 1. 어댑터 구현
+@AdapterRegistry.register("mongodb")
+class MongoDBAdapter(BaseAdapter):
+    def __init__(self, settings: Settings):
+        self.connection_string = os.getenv('MONGODB_CONNECTION_STRING')
+        # ... 구현
+
+# 2. Config 수정
+# config/dev.yaml
+data_adapters:
+  loader: "mongodb"  # Factory가 자동으로 MongoDBAdapter 선택
+
+# 3. 환경변수 설정
+# .env
+MONGODB_CONNECTION_STRING=mongodb://localhost:27017/mlpipeline
+```
+
+### **시나리오 3: 운영환경 배포**
+```yaml
+# 1. 운영환경 Config 생성
+# config/prod.yaml
+data_adapters:
+  loader: "bigquery"
+  storage: "gcs"
+  feature_store: "bigquery"
+
+# 2. 운영환경 환경변수 설정
+# 시크릿 관리 도구 또는 시스템 환경변수
+export GCP_PROJECT_ID="your-prod-project"
+export GCP_CREDENTIALS_PATH="/path/to/credentials.json"
+
+# 3. 동일한 코드로 운영환경 실행
+APP_ENV=prod python main.py train --recipe-file prod_model_recipe
+```
+
+---
+
+## 🏆 **핵심 장점**
+
+### **Blueprint 철학 완전 구현**
+```yaml
+1. 완전한 책임 분리:
+   - ML 코드는 어댑터 타입만 선택
+   - 인프라는 mmp-local-dev가 완전 관리
+   - 환경변수를 통한 느슨한 결합
+
+2. 확장성 보장:
+   - 새 어댑터 추가 시 Factory 코드 변경 불필요
+   - Registry 패턴으로 완전 동적 생성
+   - YAML 설정으로 자연스러운 선택
+
+3. 개발자 경험:
+   - 5분 이내 완전한 개발환경 구축
+   - 코드 변경 없이 환경별 전환
+   - 명확한 에러 메시지와 디버깅 지원
+```
+
+---
+
+이 계약에 따라 **modern-ml-pipeline**은 ML 로직에만 집중하고, **mmp-local-dev**는 인프라 관리에만 집중하여 **Blueprint v17.0의 완전한 실현**을 달성할 수 있습니다. 🚀

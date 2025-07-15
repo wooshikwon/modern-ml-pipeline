@@ -3,6 +3,9 @@
 import mlflow
 from contextlib import contextmanager
 from pathlib import Path
+import pandas as pd
+from mlflow.models.signature import ModelSignature
+from mlflow.types import Schema, ColSpec, ParamSpec, ParamSchema
 
 # 순환 참조를 피하기 위해 타입 힌트만 임포트
 from typing import TYPE_CHECKING
@@ -102,3 +105,104 @@ def download_artifact(run_id: str, artifact_path: str, settings: "Settings") -> 
     except Exception as e:
         logger.error(f"Failed to download artifact '{artifact_path}' from run '{run_id}': {e}", exc_info=True)
         raise 
+
+def create_model_signature(input_df: pd.DataFrame, output_df: pd.DataFrame) -> ModelSignature:
+    """
+    입력 및 출력 데이터프레임을 기반으로 MLflow ModelSignature를 동적으로 생성합니다.
+    
+    Args:
+        input_df (pd.DataFrame): 모델 입력 데이터프레임 (학습 시 사용된 형태)
+        output_df (pd.DataFrame): 모델 출력 데이터프레임 (예측 결과 형태)
+    
+    Returns:
+        ModelSignature: run_mode, return_intermediate 파라미터를 포함한 완전한 signature
+    """
+    try:
+        # 입력 스키마 생성
+        input_schema = Schema([
+            ColSpec(
+                type=_infer_pandas_dtype_to_mlflow_type(input_df[col].dtype),
+                name=col
+            )
+            for col in input_df.columns
+        ])
+        
+        # 출력 스키마 생성
+        output_schema = Schema([
+            ColSpec(
+                type=_infer_pandas_dtype_to_mlflow_type(output_df[col].dtype),
+                name=col
+            )
+            for col in output_df.columns
+        ])
+        
+        # 파라미터 스키마 생성 (run_mode, return_intermediate 지원)
+        params_schema = ParamSchema([
+            ParamSpec(
+                name="run_mode",
+                dtype="string",
+                default="batch",
+                shape=None
+            ),
+            ParamSpec(
+                name="return_intermediate",
+                dtype="boolean", 
+                default=False,
+                shape=None
+            )
+        ])
+        
+        # ModelSignature 생성
+        signature = ModelSignature(
+            inputs=input_schema,
+            outputs=output_schema,
+            params=params_schema
+        )
+        
+        logger.info(f"ModelSignature 생성 완료:")
+        logger.info(f"  - 입력 컬럼: {len(input_schema.inputs)}개")
+        logger.info(f"  - 출력 컬럼: {len(output_schema.inputs)}개")
+        logger.info(f"  - 파라미터: run_mode, return_intermediate")
+        
+        return signature
+        
+    except Exception as e:
+        logger.error(f"ModelSignature 생성 실패: {e}", exc_info=True)
+        raise
+
+def _infer_pandas_dtype_to_mlflow_type(pandas_dtype) -> str:
+    """
+    pandas dtype을 MLflow type으로 변환하는 헬퍼 함수
+    
+    Args:
+        pandas_dtype: pandas 컬럼의 dtype
+    
+    Returns:
+        str: MLflow 호환 타입 문자열
+    """
+    dtype_str = str(pandas_dtype)
+    
+    # 정수형
+    if pandas_dtype.name in ['int8', 'int16', 'int32', 'int64', 'uint8', 'uint16', 'uint32', 'uint64']:
+        return "long"
+    
+    # 실수형
+    elif pandas_dtype.name in ['float16', 'float32', 'float64']:
+        return "double"
+    
+    # 불린형
+    elif pandas_dtype.name == 'bool':
+        return "boolean"
+    
+    # 문자열형
+    elif pandas_dtype.name == 'object' or 'string' in dtype_str:
+        return "string"
+    
+    # 날짜/시간형
+    elif pandas_dtype.name.startswith('datetime'):
+        return "datetime"
+    
+    # 기본값 (알 수 없는 타입)
+    else:
+        logger.warning(f"알 수 없는 pandas dtype: {pandas_dtype}, 'string'으로 처리")
+        return "string" 
