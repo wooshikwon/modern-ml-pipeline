@@ -1,0 +1,39 @@
+artifact_path: /Users/wesley/Desktop/wooshikwon/modern-ml-pipeline/mlruns/505438549407622258/models/m-c62fe81dc7ba495fb373e51cbb75c57e/artifacts
+flavors:
+  python_function:
+    cloudpickle_version: 3.1.1
+    code: null
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.pyfunc.model
+    python_model: python_model.pkl
+    python_version: 3.11.10
+    streamable: false
+is_signature_from_type_hint: false
+mlflow_version: 3.1.1
+model_id: m-c62fe81dc7ba495fb373e51cbb75c57e
+model_size_bytes: 1083216
+model_uuid: m-c62fe81dc7ba495fb373e51cbb75c57e
+prompts: null
+run_id: ae1d43cd127947c3addec1d81035c996
+signature:
+  inputs: '[{"type": "string", "name": "user_id", "required": true}, {"type": "long",
+    "name": "age", "required": true}, {"type": "double", "name": "income", "required":
+    true}, {"type": "string", "name": "education_level", "required": true}, {"type":
+    "string", "name": "region", "required": true}, {"type": "long", "name": "credit_score",
+    "required": true}, {"type": "long", "name": "num_products", "required": true},
+    {"type": "datetime", "name": "event_timestamp", "required": true}, {"type": "long",
+    "name": "approved", "required": true}]'
+  outputs: '[{"type": "string", "name": "user_id", "required": true}, {"type": "long",
+    "name": "age", "required": true}, {"type": "double", "name": "income", "required":
+    true}, {"type": "string", "name": "education_level", "required": true}, {"type":
+    "string", "name": "region", "required": true}, {"type": "long", "name": "credit_score",
+    "required": true}, {"type": "long", "name": "num_products", "required": true},
+    {"type": "datetime", "name": "event_timestamp", "required": true}, {"type": "long",
+    "name": "approved", "required": true}, {"type": "long", "name": "uplift_score",
+    "required": true}]'
+  params: '[{"name": "run_mode", "default": "batch", "shape": null, "type": "string"},
+    {"name": "return_intermediate", "default": false, "shape": null, "type": "boolean"}]'
+type_hint_from_example: false
+utc_time_created: '2025-07-15 06:13:41.743044'

@@ -1,0 +1,14 @@
+artifact_uri: /Users/wesley/Desktop/wooshikwon/modern-ml-pipeline/mlruns/505438549407622258/e9fc5868a6b24aa8a70ec856efb33608/artifacts
+end_time: 1752560013991
+entry_point_name: ''
+experiment_id: '505438549407622258'
+lifecycle_stage: active
+run_id: e9fc5868a6b24aa8a70ec856efb33608
+run_name: RandomForestClassifier_local_classification_test.yaml_20250715_151330
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1752560010546
+status: 3
+tags: []
+user_id: wesley
