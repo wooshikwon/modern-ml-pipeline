@@ -1,484 +1,475 @@
-# 🚀 Blueprint v17.0 - Architecture Excellence: 최종 완성 계획
-
-## 💎 **현재 상황: 95% 완성 → 100% 완성으로**
-
-Blueprint v17.0의 **10대 원칙이 95% 실코드로 구현**되었으며, 최종 5% 완성을 위해 **깔끔한 아키텍처 정리**가 필요합니다. 과도한 복잡성 없이 **Blueprint 원칙의 완전한 준수**를 달성하는 것이 목표입니다.
+### mmp-local-dev를 활용한 Blueprint v17.0 Architecture Excellence 100% 함수 단위 테스트 전략
 
 ---
 
-## 🔍 **현재 달성 상태 (재검토 결과)**
+## 📊 **현재 테스트 현황 분석**
 
-### **📊 실제 구현 현황**
+### **기존 테스트 자산 현황**
 ```yaml
-Blueprint 10대 원칙 실코드 구현: 95% ✅
-핵심 기능들 구현 완료:
-  - PassThroughAugmenter: 100% ✅ (이미 구현됨)
-  - 환경별 Factory 분기: 100% ✅ (이미 구현됨)
-  - 기본 워크플로우: 100% ✅
-  - 환경별 기능 분리: 100% ✅
-
-남은 5%:
-  - Factory Registry 패턴 (확장성 개선)
-  - 환경변수 기반 연결 분리 (config/base.yaml 정리)
-  - MLflow 통합 완성 (params 전달)
-  - 환경별 API 서빙 제어 (Blueprint 원칙 9)
+테스트 파일 수: 17개
+테스트 함수 수: 174개
+테스트 타입 분포:
+  - Unit Tests: 65% (Mock 기반)
+  - Integration Tests: 25% (컴포넌트 간 연동)
+  - End-to-End Tests: 10% (전체 워크플로우)
 ```
 
-### **🔧 실제 필요한 변경사항 (단순화)**
-
-#### **1. config/base.yaml 역할 재정의**
+### **현재 커버리지 분석**
 ```yaml
-현재 상태: 논리적 설정 + 인프라 연결 정보 혼재
-수정 방향: 논리적 설정 유지 + 인프라 연결 정보만 환경변수로 분리
+✅ 완전 커버리지 영역:
+  - Blueprint 10대 원칙 검증 (100%)
+  - Factory 패턴 및 Registry 시스템
+  - 설정 로딩 및 환경별 분리
+  - 모든 데이터 어댑터 (BigQuery, GCS, S3, File, Redis)
+  - 모델 학습 파이프라인 (Mock 기반)
 
-유지할 설정:
-  - environment: 환경별 기본 설정
-  - mlflow: experiment_name 등 논리적 설정
-  - hyperparameter_tuning: 실험 의도 설정
-  - feature_store: Feast 기본 설정 (논리적)
-  - artifact_stores: 중간 산출물 저장 설정
+⚠️ 부분 커버리지 영역:
+  - 실제 데이터베이스 연동 테스트 (Mock 위주)
+  - Feature Store 실제 데이터 흐름 테스트
+  - 환경별 API 서빙 테스트
+  - 성능 및 부하 테스트
+  - 재현성 테스트 (시뮬레이션)
 
-환경변수로 분리:
-  - data_adapters.adapters 하위 connection 정보 (host, port, password)
+❌ 미비 커버리지 영역:
+  - 실제 인프라 장애 복구 테스트
+  - 대용량 데이터 처리 테스트
+  - 동시성 및 병렬 처리 테스트
+  - 메모리 누수 및 리소스 관리 테스트
 ```
 
-#### **2. config/local.yaml 생성**
-```yaml
-# config/local.yaml (신규 생성)
-data_adapters:
-  default_loader: "filesystem"
-  default_storage: "filesystem"
-  default_feature_store: "passthrough"
+---
 
-# API serving 차단 설정 (Blueprint 원칙 9)
-api_serving:
-  enabled: false
-  message: "LOCAL 환경에서는 API 서빙이 지원되지 않습니다. DEV 환경을 사용하세요."
+## 🏗️ **mmp-local-dev 스택 현황**
+
+### **현재 인프라 구성**
+```yaml
+mmp-local-dev/:
+  - docker-compose.yml: PostgreSQL + Redis + MLflow
+  - feast/: Feature Store 설정
+  - setup-dev-environment.sh: 원스톱 환경 구성
+  - test-integration.py: 통합 테스트 스크립트
+  - scripts/: 각종 헬퍼 스크립트
 ```
 
-#### **3. Factory Registry 패턴 (확장성 개선)**
+### **활용 가능한 테스트 인프라**
+```yaml
+✅ 데이터베이스 테스트:
+  - PostgreSQL: 실제 쿼리 실행 및 성능 테스트
+  - Redis: 캐싱 및 세션 관리 테스트
+  - MLflow: 모델 버전 관리 및 메타데이터 테스트
+
+✅ Feature Store 테스트:
+  - Feast: 실제 Feature Store 데이터 흐름 테스트
+  - 시계열 데이터 처리 테스트
+  - 온라인/오프라인 Feature 서빙 테스트
+
+✅ 완전한 환경 테스트:
+  - LOCAL vs DEV 환경 차등 동작 테스트
+  - 환경별 성능 벤치마크 테스트
+  - 실제 데이터를 활용한 End-to-End 테스트
+```
+
+---
+
+## 🎯 **완전한 100% 함수 단위 테스트 전략**
+
+### **Phase 1: 기존 테스트 강화 (2주)**
+
+#### **1.1 Mock 기반 테스트 → 실제 인프라 테스트 전환**
 ```python
-# src/core/registry.py (신규 생성)
-class AdapterRegistry:
-    _adapters = {}
+# 기존 (Mock 기반)
+@patch('src.utils.adapters.postgresql_adapter.psycopg2.connect')
+def test_postgresql_connection(mock_connect):
+    mock_connect.return_value = Mock()
+    # ...
+
+# 신규 (실제 인프라 기반)
+@pytest.mark.integration
+@pytest.mark.requires_dev_stack
+def test_postgresql_real_connection():
+    """실제 PostgreSQL 연결 및 쿼리 실행 테스트"""
+    # mmp-local-dev 스택 활용
+    adapter = PostgreSQLAdapter(settings)
+    result = adapter.read("SELECT 1 as test_column")
+    assert result.shape == (1, 1)
+    assert result.iloc[0]['test_column'] == 1
+```
+
+#### **1.2 환경별 차등 테스트 자동화**
+```python
+class TestEnvironmentSpecificBehavior:
+    """환경별 차등 동작 테스트"""
     
-    @classmethod
-    def register(cls, adapter_type: str):
-        def decorator(adapter_class):
-            cls._adapters[adapter_type] = adapter_class
-            return adapter_class
-        return decorator
+    def test_local_env_api_blocking(self):
+        """LOCAL 환경에서 API 서빙 차단 테스트"""
+        os.environ['APP_ENV'] = 'local'
+        with pytest.raises(EnvironmentError, match="LOCAL 환경에서는 API 서빙이 지원되지 않습니다"):
+            run_api_server()
     
-    @classmethod
-    def create(cls, adapter_type: str, settings: Settings) -> BaseAdapter:
-        return cls._adapters[adapter_type](settings)
+    @pytest.mark.requires_dev_stack
+    def test_dev_env_full_functionality(self):
+        """DEV 환경에서 모든 기능 활성화 테스트"""
+        os.environ['APP_ENV'] = 'dev'
+        # PostgreSQL + Redis + MLflow 모든 기능 테스트
+        client = TestClient(app)
+        response = client.get("/health")
+        assert response.status_code == 200
+        assert response.json()["database"] == "connected"
+        assert response.json()["redis"] == "connected"
+        assert response.json()["mlflow"] == "connected"
+```
+
+### **Phase 2: Feature Store 완전 테스트 (2주)**
+
+#### **2.1 Feast Feature Store 실제 데이터 흐름 테스트**
+```python
+@pytest.mark.integration
+@pytest.mark.requires_dev_stack
+class TestFeatureStoreIntegration:
+    """Feature Store 완전 통합 테스트"""
+    
+    def test_feature_store_data_ingestion(self):
+        """실제 Feature Store 데이터 수집 테스트"""
+        # 실제 PostgreSQL에 테스트 데이터 삽입
+        self.setup_test_data()
+        
+        # Feast를 통한 Feature 수집
+        store = FeatureStore(repo_path="../mmp-local-dev/feast")
+        features = store.get_online_features(
+            features=["user_demographics:age", "user_demographics:gender"],
+            entity_rows=[{"user_id": "test_user_123"}]
+        )
+        
+        assert features.to_dict()["age"][0] is not None
+        assert features.to_dict()["gender"][0] is not None
+    
+    def test_feature_store_time_travel(self):
+        """Feature Store 시계열 데이터 처리 테스트"""
+        # 시간별 Feature 변화 테스트
+        # 과거 시점 데이터 조회 테스트
+        pass
+```
+
+#### **2.2 온라인/오프라인 Feature 서빙 테스트**
+```python
+def test_online_feature_serving():
+    """실시간 Feature 서빙 테스트"""
+    # Redis 기반 온라인 Feature Store 테스트
+    pass
+
+def test_offline_feature_serving():
+    """배치 Feature 서빙 테스트"""
+    # PostgreSQL 기반 오프라인 Feature Store 테스트
+    pass
+```
+
+### **Phase 3: 성능 및 부하 테스트 (2주)**
+
+#### **3.1 환경별 성능 벤치마크 테스트**
+```python
+@pytest.mark.performance
+class TestPerformanceBenchmarks:
+    """성능 벤치마크 테스트"""
+    
+    def test_local_env_performance(self):
+        """LOCAL 환경 성능 목표 달성 테스트"""
+        start_time = time.time()
+        run_training(load_settings("local_classification_test"))
+        execution_time = time.time() - start_time
+        
+        # 목표: 3분 이내
+        assert execution_time < 180, f"LOCAL 환경 성능 목표 미달성: {execution_time:.2f}초"
+    
+    @pytest.mark.requires_dev_stack
+    def test_dev_env_performance(self):
+        """DEV 환경 성능 목표 달성 테스트"""
+        start_time = time.time()
+        run_training(load_settings("dev_classification_test"))
+        execution_time = time.time() - start_time
+        
+        # 목표: 5분 이내
+        assert execution_time < 300, f"DEV 환경 성능 목표 미달성: {execution_time:.2f}초"
+```
+
+#### **3.2 대용량 데이터 처리 테스트**
+```python
+def test_large_dataset_processing():
+    """대용량 데이터 처리 테스트"""
+    # 100만 건 이상 데이터 처리 테스트
+    # 메모리 사용량 모니터링
+    # 처리 시간 측정
+    pass
+```
+
+### **Phase 4: 재현성 및 안정성 테스트 (1주)**
+
+#### **4.1 완전한 재현성 테스트**
+```python
+@pytest.mark.reproducibility
+class TestReproducibility:
+    """재현성 테스트"""
+    
+    def test_multiple_runs_consistency(self):
+        """동일 조건 다중 실행 일관성 테스트"""
+        results = []
+        for i in range(5):
+            result = run_training(load_settings("local_classification_test"))
+            results.append(result)
+        
+        # 모든 결과가 동일한지 확인
+        base_result = results[0]
+        for result in results[1:]:
+            assert result.model_metrics == base_result.model_metrics
+            assert result.feature_importance == base_result.feature_importance
+    
+    def test_environment_isolation(self):
+        """환경별 격리 테스트"""
+        # LOCAL 환경에서 실행 후 DEV 환경에서 실행
+        # 서로 영향을 주지 않는지 확인
+        pass
 ```
 
 ---
 
-## 🎯 **최종 완성 계획: 4일 완료**
+## 🔄 **테스트 자동화 전략**
 
-### **🛠️ Day 1: 핵심 아키텍처 정리**
-
-#### **A. Factory Registry 패턴 도입**
+### **테스트 마커 기반 분류**
 ```python
-# src/core/registry.py 생성
-# 모든 어댑터를 @AdapterRegistry.register() 데코레이터로 등록
-# src/core/factory.py에서 if-else 분기를 Registry.create()로 교체
+# pytest.ini 설정
+[tool:pytest]
+markers =
+    unit: 단위 테스트 (빠른 실행)
+    integration: 통합 테스트 (중간 실행)
+    e2e: End-to-End 테스트 (느린 실행)
+    requires_dev_stack: mmp-local-dev 스택 필요
+    performance: 성능 테스트
+    reproducibility: 재현성 테스트
 ```
 
-#### **B. Config 인프라 분리**
-```yaml
-# config/base.yaml 수정: 인프라 연결 정보를 환경변수로 교체
-postgresql:
-  host: "${POSTGRES_HOST:localhost}"
-  port: "${POSTGRES_PORT:5432}"
-  password: "${POSTGRES_PASSWORD}"  # 필수 환경변수
-
-# config/local.yaml 생성: LOCAL 환경 특화 설정
-```
-
-#### **C. 환경별 API 서빙 제어**
-```python
-# serving/api.py 수정: LOCAL 환경 체크 후 서빙 차단
-if settings.environment.app_env == "local":
-    raise RuntimeError("LOCAL 환경에서는 API 서빙이 지원되지 않습니다.")
-```
-
-#### **D. 개발환경 호환성 검증**
-```python
-# 환경 요구사항 사전 검증
-# Python 3.11.x 버전 확인 (causalml 호환성: 3.12 미지원)
-# 필수 패키지 호환성 사전 검증 (uv 0.7.21 + Python 3.11.10 조합)
-# 에러 핸들링 강화 (6가지 실제 오류 패턴 대응)
-```
-
-### **🐳 Day 2: 완전한 Feature Store 통합 테스트 환경 구축**
-
-#### **A. mmp-local-dev 완전 스택 구성**
-```yaml
-# ../mmp-local-dev/docker-compose.yml
-# PostgreSQL + Redis + MLflow + Feast 완전 스택
-# 개발자 로컬에서 완전한 통합 테스트 환경 제공
-
-services:
-  postgresql:
-    image: postgres:15
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    ports:
-      - "${POSTGRES_PORT}:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./scripts/init-database.sql:/docker-entrypoint-initdb.d/01-init.sql
-      - ./scripts/seed-features.sql:/docker-entrypoint-initdb.d/02-seed.sql
-  
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "${REDIS_PORT}:6379"
-    volumes:
-      - redis_data:/data
-  
-  mlflow:
-    image: python:3.11-slim
-    command: >
-      sh -c "pip install mlflow psycopg2-binary &&
-             mlflow server --host 0.0.0.0 --port 5000"
-    ports:
-      - "5000:5000"
-    depends_on:
-      - postgresql
-```
-
-#### **B. Feature Store 데이터 구축**
-```sql
--- ../mmp-local-dev/scripts/seed-features.sql
--- Blueprint 중심 샘플 피처 데이터 생성
-CREATE SCHEMA IF NOT EXISTS features;
-
--- 사용자 기본 정보 피처
-CREATE TABLE features.user_demographics (
-    user_id VARCHAR(50) PRIMARY KEY,
-    age INTEGER,
-    country_code VARCHAR(2),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- 사용자 구매 요약 피처
-CREATE TABLE features.user_purchase_summary (
-    user_id VARCHAR(50) PRIMARY KEY,
-    ltv DECIMAL(10,2),
-    total_purchase_count INTEGER,
-    last_purchase_date DATE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- 상품 상세 정보 피처
-CREATE TABLE features.product_details (
-    product_id VARCHAR(50) PRIMARY KEY,
-    price DECIMAL(10,2),
-    category VARCHAR(100),
-    brand VARCHAR(100),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- 세션 요약 피처
-CREATE TABLE features.session_summary (
-    session_id VARCHAR(50) PRIMARY KEY,
-    time_on_page_seconds INTEGER,
-    click_count INTEGER,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-```
-
-#### **C. Feast 설정 완성**
-```yaml
-# ../mmp-local-dev/feast/feature_store.yaml
-project: ml_pipeline_local
-registry: data/registry.db
-provider: local
-offline_store:
-  type: postgres
-  host: localhost
-  port: 5432
-  database: mlpipeline
-  db_schema: features
-  user: mluser
-  password: ${POSTGRES_PASSWORD}
-online_store:
-  type: redis
-  connection_string: "redis://localhost:6379"
-```
-
-```python
-# ../mmp-local-dev/feast/features.py
-from feast import Entity, FeatureView, Field, FileSource
-from feast.types import Float64, Int64, String
-from datetime import timedelta
-
-# 엔티티 정의
-user = Entity(name="user_id", value_type=String)
-product = Entity(name="product_id", value_type=String)
-session = Entity(name="session_id", value_type=String)
-
-# 피처 뷰 정의
-user_demographics_fv = FeatureView(
-    name="user_demographics",
-    entities=[user],
-    ttl=timedelta(days=365),
-    schema=[
-        Field(name="age", dtype=Int64),
-        Field(name="country_code", dtype=String),
-    ],
-    source=PostgreSQLSource(
-        name="user_demographics_source",
-        query="SELECT user_id, age, country_code FROM features.user_demographics",
-        timestamp_field="created_at",
-    ),
-)
-```
-
-#### **D. 통합 테스트 자동화**
+### **환경별 테스트 실행 전략**
 ```bash
-# setup-dev-environment.sh (5분 이내 완료)
-#!/bin/bash
-set -e
+# 개발자 로컬 환경 (빠른 피드백)
+pytest -m "unit and not requires_dev_stack" --maxfail=5
 
-echo "🚀 완전한 Feature Store 통합 테스트 환경 구축 시작"
+# CI/CD 환경 (완전한 검증)
+./start-dev-stack.sh  # mmp-local-dev 스택 시작
+pytest -m "integration or e2e" --maxfail=1
+./stop-dev-stack.sh   # 스택 종료
 
-# 1. mmp-local-dev 클론/업데이트
-# 2. Docker 환경 확인 (Docker Desktop vs OrbStack)
-# 3. 환경변수 설정 확인 및 .env 파일 생성
-# 4. docker-compose up -d 실행
-# 5. 서비스 health check (PostgreSQL, Redis, MLflow)
-# 6. Feast materialize 실행 (offline → online store)
-# 7. 통합 테스트 실행 (Feature Store 조회 테스트)
-# 8. 완료 메시지 및 접속 정보 안내
-
-echo "✅ 완전한 Feature Store 스택 구축 완료!"
-echo "  PostgreSQL: localhost:${POSTGRES_PORT}"
-echo "  Redis: localhost:${REDIS_PORT}"
-echo "  MLflow: http://localhost:5000"
-echo "  Feast: 피처 materialization 완료"
+# 릴리스 전 검증 (모든 테스트)
+pytest --maxfail=1 --tb=short
 ```
 
-### **🔗 Day 3: MLflow 통합 완성**
+---
 
-#### **A. Dynamic Signature 생성**
-```python
-# src/utils/system/mlflow_utils.py
-def create_model_signature(input_df, output_df):
-    # params schema 포함 (run_mode, return_intermediate)
-    return ModelSignature(inputs=input_schema, outputs=output_schema, params=params_schema)
-```
+## 🏃‍♂️ **실행 가능한 구체적 계획**
 
-#### **B. Train Pipeline 수정**
-```python
-# src/pipelines/train_pipeline.py
-signature = create_model_signature(train_input, train_output)
-mlflow.pyfunc.log_model(signature=signature, ...)
-```
+### **Week 1-2: 기존 테스트 강화**
 
-#### **C. API 서빙 Mock 제거**
-```python
-# serving/api.py
-# 실제 모델 예측 호출로 교체
-result = app_context.model.predict(params={"run_mode": "serving"})
-```
-
-### **🎯 Day 4: 최종 검증**
-
-#### **A. 자동화된 검증 시스템**
-```python
-# test_verification.py 생성 (Phase 3.2 test_phase32.py 기반)
-# 환경별 전환 테스트 자동화
-# Trainer 이원적 지혜 검증 (자동 최적화 vs 고정 파라미터)
-# 완전한 재현성 검증 (다중 실행 동일성)
-```
-
-#### **B. 성능 벤치마크 측정**
+#### **Day 1-3: 환경별 차등 테스트**
 ```bash
-# 성능 기준 달성 확인
-# LOCAL 환경: 3분 이내 (실제 달성: 3.086초)
-# DEV 환경: 5분 이내 (하이퍼파라미터 자동 최적화 포함)
-# 실행 시간 vs 목표 시간 비교 데이터 수집
+# 1. 환경별 테스트 마커 추가
+mkdir -p tests/environments/
+touch tests/environments/test_local_env.py
+touch tests/environments/test_dev_env.py
+
+# 2. 환경별 테스트 함수 작성
+python -m pytest tests/environments/ -v
+
+# 3. mmp-local-dev 스택 연동 테스트
+cd ../mmp-local-dev
+./setup-dev-environment.sh
+cd ../modern-ml-pipeline
+python -m pytest -m "requires_dev_stack" -v
 ```
 
-#### **C. 환경별 전환 테스트**
+#### **Day 4-7: 실제 인프라 테스트 전환**
 ```bash
-# LOCAL 환경 (3분 이내)
-uv sync && python main.py train --recipe-file local_classification_test
+# 1. PostgreSQL 실제 연결 테스트
+python -m pytest tests/utils/test_data_adapters.py::TestPostgreSQLAdapter -v
 
-# DEV 환경 (5분 이내)  
-./setup-dev-environment.sh && APP_ENV=dev python main.py train --recipe-file dev_classification_test
+# 2. Redis 실제 연결 테스트
+python -m pytest tests/utils/test_data_adapters.py::TestRedisAdapter -v
 
-# API 서빙 테스트 (환경별 데이터 정합성 확인)
-APP_ENV=dev python main.py serve-api --run-id <run_id>
+# 3. MLflow 실제 연결 테스트
+python -m pytest tests/integration/test_mlflow_integration.py -v
 ```
 
-#### **D. Blueprint 원칙 완전 준수 확인**
-```yaml
-1. 레시피는 논리, 설정은 인프라: 100% ✅
-2. 통합 데이터 어댑터: 100% ✅
-3. URI 기반 동작 및 동적 팩토리: 100% ✅
-4. 순수 로직 아티팩트: 100% ✅
-5. 단일 Augmenter, 컨텍스트 주입: 100% ✅
-6. 자기 기술 API: 100% ✅
-7. 하이브리드 통합 인터페이스: 100% ✅
-8. 자동 HPO + Data Leakage 방지: 100% ✅
-9. 환경별 차등적 기능 분리: 100% ✅
-10. 복잡성 최소화 원칙: 100% ✅
-```
-
----
-
-## 🎉 **최종 달성 목표**
-
-### **완성된 시스템 특징**
-```yaml
-✅ 즉시 실행 가능: git clone → uv sync → 3분 이내 실행
-✅ 환경별 최적화: LOCAL(빠른 실험) → DEV(완전 기능) → PROD(확장성)
-✅ 인프라 완전 분리: ML 코드에서 DB 연결 정보 완전 제거
-✅ 확장성 보장: Registry 패턴으로 새 어댑터 추가 용이
-✅ 실제 운영 가능: 모든 기능 실제 동작, Mock 코드 제거
-✅ Blueprint 준수: 10대 원칙 100% 실코드 구현
-```
-
-### **개발자 경험**
+#### **Day 8-14: API 서빙 완전 테스트**
 ```bash
-# 로컬 개발 (의도적 제약으로 집중)
-uv sync
-python main.py train --recipe-file local_classification_test
+# 1. 환경별 API 서빙 테스트
+python -m pytest tests/serving/test_api_environment.py -v
 
-# 개발 환경 (완전한 실험실)
-./setup-dev-environment.sh  # 5분 이내 완료
-APP_ENV=dev python main.py train --recipe-file dev_classification_test
-APP_ENV=dev python main.py serve-api --run-id <run_id>
+# 2. 실제 Feature Store 연동 API 테스트
+python -m pytest tests/serving/test_api_feature_store.py -v
 
-# 운영 환경 (확장성과 안정성)
-APP_ENV=prod python main.py train --recipe-file prod_classification_test
+# 3. 자동 스키마 생성 테스트
+python -m pytest tests/serving/test_dynamic_schema.py -v
 ```
 
-### **시스템 철학 구현**
-```yaml
-LOCAL 환경: "제약은 단순함을 낳고, 단순함은 집중을 낳는다"
-  - PassThroughAugmenter 자동 적용
-  - API 서빙 시스템적 차단
-  - 파일 기반 빠른 실험
+### **Week 3-4: Feature Store 완전 테스트**
 
-DEV 환경: "모든 기능이 완전히 작동하는 안전한 실험실"
-  - PostgreSQL + Redis + MLflow
-  - 모든 기능 완전 활성화
-  - 팀 공유 중앙 집중 관리
+#### **Day 15-21: Feast Feature Store 테스트**
+```bash
+# 1. Feature Store 데이터 수집 테스트
+python -m pytest tests/feature_store/test_data_ingestion.py -v
 
-PROD 환경: "성능, 안정성, 관측 가능성의 완벽한 삼위일체"
-  - 클라우드 네이티브 서비스
-  - 무제한 확장성
-  - 엔터프라이즈급 모니터링
+# 2. 온라인/오프라인 Feature 서빙 테스트
+python -m pytest tests/feature_store/test_online_serving.py -v
+python -m pytest tests/feature_store/test_offline_serving.py -v
+
+# 3. 시계열 데이터 처리 테스트
+python -m pytest tests/feature_store/test_time_travel.py -v
 ```
 
----
+#### **Day 22-28: 데이터 파이프라인 완전 테스트**
+```bash
+# 1. 전체 데이터 파이프라인 테스트
+python -m pytest tests/pipelines/test_complete_pipeline.py -v
 
-## 🔥 **실행 우선순위**
+# 2. 에러 처리 및 복구 테스트
+python -m pytest tests/pipelines/test_error_handling.py -v
 
-### **🚀 즉시 시작 (외부 의존성 없음)**
-1. **Registry 패턴 도입** - 확장성 개선
-2. **config/local.yaml 생성** - 환경별 기능 분리
-3. **API 서빙 제어** - Blueprint 원칙 9 완성
-4. **Config 인프라 분리** - 환경변수 기반 연결
-
-### **🐳 Docker 환경 필요**
-5. **mmp-local-dev 간소화** - 실제 인프라 테스트
-6. **MLflow 통합 완성** - params 전달 문제 해결
-7. **setup-dev-environment.sh 단순화** - 5분 이내 완료
-
-### **🎯 최종 검증**
-8. **환경별 전환 테스트** - 완전성 확인
-9. **Blueprint 원칙 검증** - 10대 원칙 100% 달성
-
----
-
-## 💡 **복잡성 최소화 원칙**
-
-### **불필요한 복잡성 제거**
-- ❌ 과도한 추상화 계층 추가
-- ❌ 불필요한 새로운 컴포넌트 생성
-- ❌ 기존 동작 방식 대폭 변경
-- ❌ 복잡한 마이그레이션 과정
-
-### **필요한 최소 변경**
-- ✅ Registry 패턴 (확장성 개선)
-- ✅ 환경변수 분리 (Blueprint 원칙 1)
-- ✅ config/local.yaml (환경별 차등 기능)
-- ✅ MLflow signature (기능 완성)
-
-### **기존 구현 최대 활용**
-- ✅ PassThroughAugmenter: 이미 완벽 구현
-- ✅ 환경별 Factory 분기: 이미 동작
-- ✅ 10대 원칙 구현: 95% 완성됨
-- ✅ 기본 워크플로우: 완전 동작
-
----
-
-## 🎯 **최종 목적과의 일치성 검증**
-
-### **Blueprint v17.0 핵심 가치 달성**
-```yaml
-"무제한적인 실험 자유도": ✅
-  - Recipe 시스템으로 완전한 실험 자유도
-  - 환경별 차등 기능으로 점진적 복잡성 증가
-
-"완전히 일관된 wrapped artifact 실행": ✅
-  - PyfuncWrapper로 100% 재현 가능한 실행
-  - 환경 독립적 아티팩트 구현
-
-"누가 보아도 그 의도가 명확하게 읽히는 시스템": ✅
-  - Blueprint 10대 원칙 명확한 코드 구현
-  - 환경별 철학 명확한 분리
-
-"어떤 운영 환경에서도 예측 가능하게 동작": ✅
-  - 환경변수 기반 인프라 분리
-  - 동일한 코드로 모든 환경 지원
-
-"미래의 어떤 요구사항에도 유연하게 확장": ✅
-  - Registry 패턴으로 확장성 보장
-  - 명확한 인터페이스와 추상화
+# 3. 데이터 검증 및 품질 테스트
+python -m pytest tests/pipelines/test_data_quality.py -v
 ```
 
-### **자동화된 최적화와 데이터 누출 방지**
-```yaml
-"수동 튜닝의 한계를 뛰어넘는 자동화": ✅
-  - Optuna 기반 HPO 완전 구현
-  - Trainer 이원적 지혜 구현
+### **Week 5-6: 성능 및 부하 테스트**
 
-"데이터 누출 위험을 원천 차단": ✅
-  - Train 데이터에만 fit하는 Preprocessor
-  - 완전한 Train/Validation 분리
+#### **Day 29-35: 성능 벤치마크 테스트**
+```bash
+# 1. 환경별 성능 목표 달성 테스트
+python -m pytest tests/performance/test_benchmarks.py -v
+
+# 2. 대용량 데이터 처리 테스트
+python -m pytest tests/performance/test_large_dataset.py -v
+
+# 3. 메모리 사용량 및 리소스 관리 테스트
+python -m pytest tests/performance/test_resource_management.py -v
+```
+
+#### **Day 36-42: 부하 및 안정성 테스트**
+```bash
+# 1. 동시성 테스트
+python -m pytest tests/performance/test_concurrency.py -v
+
+# 2. 장애 복구 테스트
+python -m pytest tests/stability/test_fault_tolerance.py -v
+
+# 3. 장시간 실행 안정성 테스트
+python -m pytest tests/stability/test_long_running.py -v
+```
+
+### **Week 7: 최종 검증 및 자동화**
+
+#### **Day 43-49: 재현성 및 최종 검증**
+```bash
+# 1. 완전한 재현성 테스트
+python -m pytest tests/reproducibility/test_consistency.py -v
+
+# 2. 환경별 격리 테스트
+python -m pytest tests/reproducibility/test_isolation.py -v
+
+# 3. 최종 종합 테스트
+python test_verification.py  # 기존 검증 스크립트 실행
 ```
 
 ---
 
-## 🚀 **최종 확정: 이것이 우리의 마지막 next_step.md**
+## 🎯 **예상 결과 및 KPI**
 
-이 계획은 **Blueprint v17.0의 이상향과 현실의 완벽한 조화**를 달성하는 최종 완성 계획입니다. 
-
-### **핵심 특징**
-- **복잡성 최소화**: 기존 구현 최대 활용
-- **Blueprint 원칙 100% 준수**: 10대 원칙 완전 구현
-- **실행 가능성 보장**: 4일 내 완료 가능
-- **확장성 확보**: Registry 패턴으로 미래 확장 보장
-- **운영 준비**: 실제 인프라 연동 완료
-
-### **달성 후 상태**
+### **테스트 커버리지 목표**
 ```yaml
-Blueprint v17.0 완성도: 100% 🎉
-개발자 경험: 완벽 (3분 LOCAL, 5분 DEV)
-시스템 안정성: 완전 (모든 환경 동작)
-확장성: 무제한 (Registry 패턴)
-Blueprint 철학: 완전 구현 (10대 원칙)
+전체 테스트 커버리지: 95% 이상
+함수 단위 테스트 커버리지: 100%
+환경별 테스트 커버리지: 100%
+실제 인프라 테스트 비율: 80% 이상
 ```
 
-**이 계획으로 우리는 진정한 'Modern ML Pipeline Blueprint v17.0 - The Automated Excellence Vision'을 완성합니다.** 🚀
+### **성능 목표**
+```yaml
+LOCAL 환경: 3분 이내 (현재 6.25초 달성)
+DEV 환경: 5분 이내 (mmp-local-dev 스택 활용)
+테스트 실행 시간: 전체 30분 이내
+```
+
+### **품질 목표**
+```yaml
+테스트 안정성: 99% 이상 (flaky test 1% 이하)
+재현성: 100% (동일 조건 동일 결과)
+환경별 격리: 100% (상호 영향 없음)
+```
+
+---
+
+## 🛠️ **필요한 도구 및 리소스**
+
+### **추가 테스트 도구**
+```bash
+# 성능 테스트
+pip install pytest-benchmark
+pip install memory-profiler
+
+# 커버리지 측정
+pip install pytest-cov
+
+# 부하 테스트
+pip install locust
+
+# 테스트 병렬 실행
+pip install pytest-xdist
+```
+
+### **CI/CD 통합**
+```yaml
+# GitHub Actions 예시
+name: Complete Test Suite
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:6
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.11
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest-cov pytest-benchmark
+      - name: Run tests
+        run: |
+          pytest --cov=src --cov-report=html --benchmark-only
+```
+
+---
+
+## 🎉 **결론**
+
+이 전략을 통해 **mmp-local-dev 스택을 완전히 활용한 100% 함수 단위 테스트**를 구현할 수 있습니다:
+
+1. **실제 인프라 테스트**: Mock 기반에서 실제 PostgreSQL + Redis + MLflow 테스트로 전환
+2. **환경별 차등 테스트**: LOCAL vs DEV 환경 완전 분리 테스트
+3. **Feature Store 완전 테스트**: Feast 기반 실제 데이터 흐름 테스트
+4. **성능 및 안정성 테스트**: 실제 운영 환경 수준의 테스트
+5. **완전한 자동화**: CI/CD 통합 및 지속적 검증
+
+**7주간의 체계적인 실행으로 Blueprint v17.0 Architecture Excellence의 100% 품질 보장이 가능합니다.** 
