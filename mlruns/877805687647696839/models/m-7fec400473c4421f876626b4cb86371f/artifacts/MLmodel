@@ -1,0 +1,19 @@
+artifact_path: /Users/wesley/Desktop/wooshikwon/modern-ml-pipeline/mlruns/877805687647696839/models/m-7fec400473c4421f876626b4cb86371f/artifacts
+flavors:
+  python_function:
+    cloudpickle_version: 3.1.1
+    code: null
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.pyfunc.model
+    python_model: python_model.pkl
+    python_version: 3.11.10
+    streamable: false
+mlflow_version: 3.1.1
+model_id: m-7fec400473c4421f876626b4cb86371f
+model_size_bytes: 2370233
+model_uuid: m-7fec400473c4421f876626b4cb86371f
+prompts: null
+run_id: 32f1c27678724b8bb54b34236f427017
+utc_time_created: '2025-07-15 01:39:31.913190'

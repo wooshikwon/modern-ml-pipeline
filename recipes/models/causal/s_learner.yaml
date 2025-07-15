@@ -6,9 +6,8 @@ class_path: "causalml.inference.meta.SRegressor"
 
 # 2. 데이터 로더 정의
 loader:
-  name: "causal_experiment_data"
-  source_uri: "bq://recipes/sql/loader/causal_experiment_features.sql"
-  local_override_uri: "file://local/data/sample_causal_experiment.csv"
+  name: "causal_experiment_dataset"
+  source_uri: "recipes/sql/loader/causal_experiment_features.sql"
 
 # 3. 피처 증강기 정의 (🆕 Blueprint v17.0 - Feature Store 방식)
 augmenter:

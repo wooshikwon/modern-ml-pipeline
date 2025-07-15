@@ -7,8 +7,7 @@ class_path: "sklearn.ensemble.RandomForestRegressor"
 # 2. 데이터 로더 정의
 loader:
   name: "regression_dataset"
-  source_uri: "bq://recipes/sql/loader/regression_features.sql"
-  local_override_uri: "file://local/data/sample_regression.csv"
+  source_uri: "recipes/sql/loader/regression_features.sql"
 
 # 3. 피처 증강기 정의 (🆕 Blueprint v17.0 - Feature Store 방식)
 augmenter:

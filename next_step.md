@@ -403,9 +403,14 @@ APP_ENV=dev python main.py train --recipe-file "models/classification/random_for
 철학: 9대 원칙 모두 실코드로 구현
 성공 기준: 환경별 전환 + 완전한 재현성 + 자동화된 최적화
 소요 시간: 4일
+
+접근 방식:
+- Phase 3.1 & 3.2: 외부 인프라 없이 진행
+- Phase 3.3: 간단한 Docker Compose로 최소 인프라 구성 후 실제 테스트
 ```
 
 ### **📄 Phase 3.1: Recipe 시스템 완전 정리 (Day 11-12)**
+*외부 인프라 불필요*
 
 #### **A. URI 스킴 제거 (Blueprint 원칙 1 완전 준수)**
 ```bash
@@ -443,7 +448,8 @@ def create_data_adapter_legacy(self, scheme: str) -> BaseAdapter:
     # 기존 방식 지원
 ```
 
-### **⚙️ Phase 3.2: 시스템 완전성 검증 (Day 13-14)**
+### **⚙️ Phase 3.2: 시스템 완전성 검증 (Day 13)**
+*외부 인프라 불필요*
 
 #### **A. 환경별 전환 테스트**
 ```bash
@@ -502,23 +508,185 @@ print('✅ 다중 실행 결과 완전 동일' if len(runs) >= 3 else '❌ 재�
 "
 ```
 
+### **⚙️ Phase 3.3: MLflow 통합 완성 + 실제 Feature Store 연동 (Day 14)**
+*Docker Compose 기반 최소 인프라 구성*
+
+#### **A. 문제 상황 분석**
+```yaml
+현재 문제:
+- DEV 환경에서 Mock 응답 사용 중
+- MLflow가 params 전달 실패
+- "model signature defines a params schema" 오류
+
+원인:
+- src/pipelines/train_pipeline.py:89에서 signature 미정의
+- mlflow.pyfunc.log_model 호출 시 signature 파라미터 없음
+
+해결 방향:
+- MLflow signature 정의 수정 (코드 수정)
+- 실제 Feature Store 연동 테스트 (간단한 Docker Compose 인프라)
+```
+
+#### **B. 단계별 실행 안내**
+
+**Step 1: Docker 설치 확인 및 설치**
+```bash
+# Docker 설치 확인
+docker --version
+
+# 설치되지 않은 경우 (macOS 기준)
+# 1. https://docs.docker.com/desktop/install/mac-install/ 접속
+# 2. Docker Desktop for Mac 다운로드 및 설치
+# 3. 설치 후 Docker Desktop 실행
+# 4. 터미널에서 확인: docker --version
+```
+
+**Step 2: mmp-local-dev repo 클론 및 Docker Compose 파일 생성**
+```bash
+# 상위 디렉토리로 이동
+cd ..
+
+# mmp-local-dev repo 클론
+git clone https://github.com/your-org/mmp-local-dev.git
+
+# 디렉토리 이동
+cd mmp-local-dev
+
+# 간단한 Docker Compose 파일 생성
+cat > docker-compose.yml << 'EOF'
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:13
+    environment:
+      POSTGRES_DB: mlpipeline
+      POSTGRES_USER: mluser
+      POSTGRES_PASSWORD: mlpassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+volumes:
+  postgres_data:
+EOF
+```
+
+**Step 3: 인프라 실행 및 연결 테스트**
+```bash
+# Docker Compose 실행
+docker-compose up -d
+
+# 서비스 상태 확인
+docker-compose ps
+
+# PostgreSQL 연결 테스트
+docker-compose exec postgres psql -U mluser -d mlpipeline -c "SELECT version();"
+
+# Redis 연결 테스트
+docker-compose exec redis redis-cli ping
+```
+
+**Step 4: ML Pipeline 프로젝트로 돌아가서 코드 수정**
+```bash
+# ML Pipeline 프로젝트로 돌아가기
+cd ../modern-ml-pipeline
+
+# 이제 코드 수정 진행 (assistant가 안내)
+# 1. src/pipelines/train_pipeline.py - signature 추가
+# 2. serving/api.py - Mock 제거
+```
+
+**Step 5: 실제 Feature Store 연동 테스트**
+```bash
+# DEV 환경에서 PostgreSQL + Redis 연동 테스트
+APP_ENV=dev python main.py train --recipe-file "dev_classification_test"
+
+# API 서빙 실제 Feature Store 연동 테스트
+APP_ENV=dev python main.py serve-api --run-id "latest"
+
+# 다른 터미널에서 API 테스트
+curl -X POST "http://localhost:8000/predict" \
+  -H "Content-Type: application/json" \
+  -d '{"user_id": "test_user_123"}'
+```
+
+**Step 6: 정리 및 종료**
+```bash
+# 테스트 완료 후 인프라 종료
+cd ../mmp-local-dev
+docker-compose down
+
+# 필요시 데이터 완전 삭제
+docker-compose down -v
+```
+
+#### **C. 완료 기준**
+```yaml
+인프라 구성:
+- ✅ Docker 설치 완료
+- ✅ PostgreSQL, Redis 정상 실행
+- ✅ 연결 테스트 성공
+
+코드 수정:
+- ✅ MLflow model signature 정의 완료
+- ✅ params 전달 정상 동작 확인
+- ✅ Mock 코드 완전 제거
+
+실제 연동 테스트:
+- ✅ DEV 환경에서 실제 Feature Store 연동
+- ✅ API 서빙 완전 기능 동작
+- ✅ PostgreSQL, Redis 실제 연결 확인
+```
+
+#### **D. 안전 장치**
+```yaml
+문제 발생 시 롤백:
+- Docker 문제: docker-compose down → 재시작
+- 연결 문제: PostgreSQL/Redis 상태 확인
+- 코드 문제: Git으로 이전 상태 복원
+
+완료 후 정리:
+- docker-compose down으로 인프라 종료
+- 필요시 docker-compose down -v로 데이터 완전 삭제
+```
+
 ### **✅ Phase 3 완료 기준**
 ```yaml
-Recipe 시스템:
+Phase 3.1 - Recipe 시스템:
 - ✅ 모든 핵심 Recipe URI 스킴 제거
 - ✅ 순수 논리 경로만 사용
 - ✅ 레거시 호환성 유지
 
-시스템 완전성:
+Phase 3.2 - 시스템 완전성:
 - ✅ 환경별 전환 완벽 동작
 - ✅ Trainer 이원적 지혜 완전 구현
 - ✅ 완전한 재현성 보장
 - ✅ 9대 원칙 모두 실코드 구현
 
-검증 명령어:
-# 환경별 전환
+Phase 3.3 - MLflow 통합 + 실제 인프라:
+- ✅ Docker 설치 및 PostgreSQL/Redis 실행
+- ✅ MLflow model signature 정의 완료
+- ✅ Params 전달 정상 동작
+- ✅ Mock 코드 완전 제거
+- ✅ 실제 Feature Store 연동 테스트
+
+전체 검증 명령어:
+# Phase 3.1 & 3.2 (외부 인프라 없음)
 APP_ENV=local python main.py train --recipe-file "models/classification/random_forest_classifier"
 APP_ENV=dev python main.py train --recipe-file "models/classification/random_forest_classifier"
+
+# Phase 3.3 (Docker Compose 인프라 포함)
+cd ../mmp-local-dev && docker-compose up -d
+cd ../modern-ml-pipeline
+APP_ENV=dev python main.py train --recipe-file "dev_classification_test"
+APP_ENV=dev python main.py serve-api --run-id "latest"
 ```
 
 ---
