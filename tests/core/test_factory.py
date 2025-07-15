@@ -10,7 +10,7 @@ Blueprint 원칙 검증:
 import pytest
 from unittest.mock import Mock, patch
 from src.core.factory import Factory
-from src.settings.settings import Settings
+from src.settings import Settings
 from src.utils.adapters.bigquery_adapter import BigQueryAdapter
 from src.utils.adapters.gcs_adapter import GCSAdapter
 from src.utils.adapters.s3_adapter import S3Adapter
@@ -240,7 +240,7 @@ class TestFactoryBlueprintV17Extensions:
     
     def test_create_feature_store_adapter(self, xgboost_settings: Settings):
         """FeatureStoreAdapter 생성 테스트"""
-        from src.settings.settings import FeatureStoreSettings
+        from src.settings import FeatureStoreSettings
         
         # FeatureStore 설정 추가
         xgboost_settings.feature_store = FeatureStoreSettings(
@@ -274,7 +274,7 @@ class TestFactoryBlueprintV17Extensions:
     
     def test_create_optuna_adapter(self, xgboost_settings: Settings):
         """OptunaAdapter 생성 테스트"""
-        from src.settings.settings import HyperparameterTuningSettings
+        from src.settings import HyperparameterTuningSettings
         
         # 하이퍼파라미터 튜닝 설정 추가
         xgboost_settings.hyperparameter_tuning = HyperparameterTuningSettings(

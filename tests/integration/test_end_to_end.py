@@ -13,7 +13,7 @@ from src.core.factory import Factory
 from src.core.trainer import Trainer
 from src.pipelines.train_pipeline import run_training
 from src.pipelines.inference_pipeline import run_batch_inference
-from src.settings.settings import Settings, load_settings
+from src.settings import Settings, load_settings
 
 
 class TestEndToEndIntegration:
@@ -528,7 +528,7 @@ def test_blueprint_v13_seven_principles_compliance():
         mock_settings.environment.app_env = "prod"  # 환경 분리
         mock_load.return_value = mock_settings
         
-        from src.settings.settings import load_settings_by_file
+        from src.settings import load_settings_by_file
         settings = load_settings_by_file("test_recipe")
         
         # 레시피(논리)와 환경(인프라)이 분리되어 있는지 확인

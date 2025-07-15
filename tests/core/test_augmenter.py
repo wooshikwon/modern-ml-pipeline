@@ -10,7 +10,7 @@ import pytest
 import pandas as pd
 from unittest.mock import Mock, patch, MagicMock
 from src.core.augmenter import Augmenter
-from src.settings.settings import Settings
+from src.settings import Settings
 
 
 class TestAugmenter:

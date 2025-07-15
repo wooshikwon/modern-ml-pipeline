@@ -9,7 +9,7 @@ import pandas as pd
 import numpy as np
 from unittest.mock import Mock, patch, MagicMock
 from src.models.xgboost_x_learner import XGBoostXLearner
-from src.settings.settings import Settings
+from src.settings import Settings
 
 
 class TestXGBoostXLearner:

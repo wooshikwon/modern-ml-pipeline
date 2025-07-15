@@ -9,7 +9,7 @@ import os
 import tempfile
 import yaml
 from unittest.mock import patch, mock_open
-from src.settings.settings import Settings, load_settings, ModelHyperparametersSettings
+from src.settings import Settings, load_settings, ModelHyperparametersSettings
 
 
 class TestSettings:

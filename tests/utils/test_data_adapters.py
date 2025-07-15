@@ -12,7 +12,7 @@ from src.utils.data_adapters.gcs_adapter import GCSAdapter
 from src.utils.data_adapters.s3_adapter import S3Adapter
 from src.utils.data_adapters.file_system_adapter import FileSystemAdapter
 from src.utils.data_adapters.redis_adapter import RedisAdapter
-from src.settings.settings import Settings
+from src.settings import Settings
 
 
 class TestBigQueryAdapter:

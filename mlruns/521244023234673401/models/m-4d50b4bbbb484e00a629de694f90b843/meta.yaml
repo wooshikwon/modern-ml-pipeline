@@ -1,0 +1,10 @@
+artifact_location: file:///Users/wesley/Desktop/wooshikwon/modern-ml-pipeline/mlruns/521244023234673401/models/m-4d50b4bbbb484e00a629de694f90b843/artifacts
+creation_timestamp: 1752539977269
+experiment_id: '521244023234673401'
+last_updated_timestamp: 1752539978779
+model_id: m-4d50b4bbbb484e00a629de694f90b843
+model_type: null
+name: model
+source_run_id: 294e0fdc429748babf434350cbb70595
+status: 2
+status_message: null

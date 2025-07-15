@@ -8,7 +8,7 @@ import pytest
 import pandas as pd
 from unittest.mock import Mock, patch, MagicMock
 from src.core.trainer import Trainer
-from src.settings.settings import Settings
+from src.settings import Settings
 
 
 class TestTrainer:
@@ -384,7 +384,7 @@ class TestTrainerHyperparameterOptimization:
     def test_hyperparameter_optimization_enabled(self, mock_factory, mock_optuna, xgboost_settings: Settings):
         """하이퍼파라미터 최적화 활성화 시 Optuna 기반 최적화 테스트"""
         # 최적화 활성화 설정
-        from src.settings.settings import HyperparameterTuningSettings
+        from src.settings import HyperparameterTuningSettings
         xgboost_settings.hyperparameter_tuning = HyperparameterTuningSettings(
             enabled=True, n_trials=10, metric="accuracy", direction="maximize"
         )

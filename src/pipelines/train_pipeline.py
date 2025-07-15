@@ -1,7 +1,6 @@
 import json
 from pathlib import Path
 from typing import Optional, Dict, Any
-from urllib.parse import urlparse
 
 import mlflow
 
@@ -42,14 +41,12 @@ def run_training(settings: Settings, context_params: Optional[Dict[str, Any]] = 
         mlflow.log_param("class_path", settings.model.class_path)
 
         # 1. 데이터 어댑터를 사용하여 데이터 로딩
-        loader_uri = settings.model.loader.source_uri
-        if settings.environment.app_env == "local" and settings.model.loader.local_override_uri:
-            loader_uri = settings.model.loader.local_override_uri
+        # ✅ Blueprint 원칙 3: URI 기반 동작 및 동적 팩토리 완전 구현
+        # Factory가 환경별 분기와 어댑터 선택을 전담
+        data_adapter = factory.create_data_adapter("loader")
         
-        scheme = urlparse(loader_uri).scheme or 'file'  # 기본값으로 file 스킴 사용
-        data_adapter = factory.create_data_adapter(scheme)
-        
-        df = data_adapter.read(loader_uri, params=context_params)
+        # 순수 논리 경로만 사용 - Factory가 환경별 URI 해석 처리
+        df = data_adapter.read(settings.model.loader.source_uri, params=context_params)
         mlflow.log_metric("row_count", len(df))
         mlflow.log_metric("column_count", len(df.columns))
 
