@@ -3,7 +3,7 @@ import pytest
 from unittest.mock import patch, MagicMock
 import pandas as pd
 
-from src.settings.settings import Settings
+from src.settings import Settings
 from src.pipelines.inference_pipeline import run_batch_inference
 
 @pytest.mark.integration

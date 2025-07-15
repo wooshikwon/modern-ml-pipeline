@@ -1,6 +1,5 @@
 import pandas as pd
 from typing import Dict, Any, Optional
-from urllib.parse import urlparse
 from datetime import datetime
 import mlflow
 
@@ -39,11 +38,11 @@ def run_batch_inference(
         factory = Factory(temp_settings)
 
         # 4. Wrapper의 내장 loader_uri를 사용하여 데이터 로드
-        loader_uri = wrapper.loader_uri
-        scheme = urlparse(loader_uri).scheme
-        data_adapter = factory.create_data_adapter(scheme)
+        # ✅ Blueprint 원칙 3: URI 기반 동작 및 동적 팩토리 완전 구현
+        # Factory가 환경별 분기와 어댑터 선택을 전담
+        data_adapter = factory.create_data_adapter("loader")
         
-        input_df = data_adapter.read(loader_uri, params=context_params)
+        input_df = data_adapter.read(wrapper.loader_uri, params=context_params)
         if input_df.empty:
             logger.warning("입력 데이터가 비어있어 추론을 중단합니다.")
             return
@@ -100,10 +99,10 @@ def _save_dataset(
         return
 
     base_uri = store_config.base_uri
-    parsed_uri = urlparse(base_uri)
-    scheme = parsed_uri.scheme
-
-    adapter = factory.create_data_adapter(scheme)
+    
+    # ✅ Blueprint 원칙 3: URI 기반 동작 및 동적 팩토리 완전 구현
+    # Factory가 환경별 분기와 어댑터 선택을 전담
+    adapter = factory.create_data_adapter("storage")
 
     # 저장될 최종 경로(테이블명 또는 파일명) 생성
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -111,13 +110,8 @@ def _save_dataset(
     model_identifier = "batch_inference"
     artifact_name = f"{model_identifier}_{timestamp}"
     
-    if scheme == "bq":
-        # BigQuery: 데이터셋.테이블명 형태로 구성
-        dataset_table = f"{parsed_uri.netloc}.{artifact_name}"
-        final_target = f"bq://{dataset_table}"
-    else:
-        # 다른 스토리지: 기본 URI + 아티팩트명
-        final_target = f"{base_uri.rstrip('/')}/{artifact_name}"
+    # ✅ Blueprint 원칙 3: Factory가 URI 해석 처리 - 단순한 artifact 이름만 전달
+    final_target = f"{base_uri.rstrip('/')}/{artifact_name}"
 
     logger.info(f"'{store_name}' 아티팩트 저장 시작: {final_target}")
     adapter.write(df, final_target, options)

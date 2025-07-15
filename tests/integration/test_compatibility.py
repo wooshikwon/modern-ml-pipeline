@@ -7,7 +7,7 @@ Blueprint v17.0 호환성 보장 통합 테스트
 import pytest
 import pandas as pd
 from unittest.mock import Mock, patch, MagicMock
-from src.settings.settings import Settings
+from src.settings import Settings
 from src.core.trainer import Trainer
 from src.core.factory import Factory
 
@@ -117,7 +117,7 @@ class TestBlueprintV17Compatibility:
     
     def test_new_features_activation(self, xgboost_settings: Settings):
         """새로운 기능들이 올바르게 활성화되는지 테스트"""
-        from src.settings.settings import HyperparameterTuningSettings, FeatureStoreSettings
+        from src.settings import HyperparameterTuningSettings, FeatureStoreSettings
         
         # 새로운 설정들 추가
         xgboost_settings.hyperparameter_tuning = HyperparameterTuningSettings(
@@ -153,7 +153,7 @@ class TestBlueprintV17Compatibility:
     @patch('src.core.trainer.Factory')
     def test_hyperparameter_optimization_integration(self, mock_factory, mock_optuna, xgboost_settings: Settings):
         """하이퍼파라미터 최적화가 기존 학습과 통합되는지 테스트"""
-        from src.settings.settings import HyperparameterTuningSettings
+        from src.settings import HyperparameterTuningSettings
         
         # 최적화 활성화
         xgboost_settings.hyperparameter_tuning = HyperparameterTuningSettings(
@@ -269,7 +269,7 @@ class TestBlueprintV17GradualActivation:
     
     def test_feature_store_only_activation(self, xgboost_settings: Settings):
         """Feature Store만 활성화하고 하이퍼파라미터 최적화는 비활성화"""
-        from src.settings.settings import FeatureStoreSettings
+        from src.settings import FeatureStoreSettings
         
         # Feature Store만 활성화
         xgboost_settings.feature_store = FeatureStoreSettings(
@@ -294,7 +294,7 @@ class TestBlueprintV17GradualActivation:
     
     def test_hyperparameter_optimization_only_activation(self, xgboost_settings: Settings):
         """하이퍼파라미터 최적화만 활성화하고 Feature Store는 비활성화"""
-        from src.settings.settings import HyperparameterTuningSettings
+        from src.settings import HyperparameterTuningSettings
         
         # 하이퍼파라미터 최적화만 활성화
         xgboost_settings.hyperparameter_tuning = HyperparameterTuningSettings(
@@ -316,7 +316,7 @@ class TestBlueprintV17GradualActivation:
     
     def test_all_features_activation(self, xgboost_settings: Settings):
         """모든 새로운 기능들을 동시에 활성화"""
-        from src.settings.settings import HyperparameterTuningSettings, FeatureStoreSettings
+        from src.settings import HyperparameterTuningSettings, FeatureStoreSettings
         
         # 모든 새로운 기능 활성화
         xgboost_settings.hyperparameter_tuning = HyperparameterTuningSettings(

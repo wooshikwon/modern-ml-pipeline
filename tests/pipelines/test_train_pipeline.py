@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import patch, MagicMock
 
-from src.settings.settings import Settings
+from src.settings import Settings
 from src.pipelines.train_pipeline import run_training
 
 @pytest.mark.integration

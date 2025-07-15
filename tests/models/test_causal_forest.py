@@ -9,7 +9,7 @@ import pandas as pd
 import numpy as np
 from unittest.mock import Mock, patch, MagicMock
 from src.models.causal_forest import CausalForestModel
-from src.settings.settings import Settings
+from src.settings import Settings
 
 
 class TestCausalForestModel:

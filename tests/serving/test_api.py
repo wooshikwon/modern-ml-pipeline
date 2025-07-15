@@ -8,7 +8,7 @@ import pytest
 import pandas as pd
 from unittest.mock import Mock, patch, MagicMock
 from fastapi.testclient import TestClient
-from src.settings.settings import Settings
+from src.settings import Settings
 
 
 class TestServingAPI:

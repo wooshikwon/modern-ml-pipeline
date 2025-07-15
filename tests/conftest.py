@@ -1,5 +1,5 @@
 import pytest
-from src.settings.settings import load_settings, Settings
+from src.settings import load_settings, Settings
 
 @pytest.fixture(scope="session")
 def xgboost_settings() -> Settings:
