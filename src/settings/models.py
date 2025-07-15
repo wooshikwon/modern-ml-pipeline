@@ -61,7 +61,9 @@ class DataAdapterSettings(BaseModel):
         purpose_mapping = {
             "loader": self.default_loader,
             "storage": self.default_storage,
-            "feature_store": self.default_feature_store
+            "feature_store": self.default_feature_store,
+            # Phase 0 임시 수정: file 스킴을 loader로 매핑 (Phase 1에서 완전 정리 예정)
+            "file": self.default_loader,
         }
         
         if purpose not in purpose_mapping:

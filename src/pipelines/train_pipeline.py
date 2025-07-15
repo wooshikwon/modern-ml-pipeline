@@ -87,16 +87,17 @@ def run_training(settings: Settings, context_params: Optional[Dict[str, Any]] = 
             training_results=training_results,  # 🆕 결과 전달
         )
         
+        # model.name이 정의되지 않은 경우 run_name을 사용
+        model_name = getattr(settings.model, 'name', None) or settings.model.computed['run_name']
+        
         mlflow.pyfunc.log_model(
-            artifact_path=settings.model.name,
+            artifact_path="model",
             python_model=pyfunc_wrapper,
-            registered_model_name=settings.model.name,
-            description=f"자동 최적화 모델 '{settings.model.computed['run_name']}'",
         )
-        logger.info(f"순수 로직 모델 '{settings.model.name}'을 MLflow에 성공적으로 저장했습니다.")
+        logger.info(f"순수 로직 모델 '{model_name}'을 MLflow에 성공적으로 저장했습니다.")
 
         # 6. (선택적) 메타데이터 저장
-        metadata = {"run_id": run_id, "model_name": settings.model.name}
+        metadata = {"run_id": run_id, "model_name": model_name}
         local_dir = Path("./local/artifacts")
         local_dir.mkdir(parents=True, exist_ok=True)
         metadata_path = local_dir / f"metadata-{run_id}.json"
