@@ -477,6 +477,10 @@ class Factory:
         
         augmenter_uri = self.settings.model.augmenter.source_uri
         
+        # pass_through augmenter는 source_uri가 없을 수 있음
+        if not augmenter_uri:
+            return ""
+        
         if augmenter_uri.startswith("bq://"):
             sql_path = augmenter_uri.replace("bq://", "")
             sql_file = Path(sql_path)

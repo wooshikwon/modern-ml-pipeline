@@ -223,6 +223,7 @@ performance_monitoring:
   - 빠른 피드백: 파일 기반 데이터로 최소 지연
 
 동작 방식:
+  Setup: uv sync → 즉시 실행 (3분 이내)
   Data Loading: data/ 디렉토리에서 파일 직접 로드
   Augmenter: Pass Through (데이터를 그대로 반환)
   기능 지원: Training ✅, Batch Inference ✅, Evaluate ✅
@@ -235,11 +236,13 @@ performance_monitoring:
 철학: "모든 기능이 완전히 작동하는 안전한 실험실"
 특징:
   - 완전 기능: 모든 파이프라인 컴포넌트 지원
+  - 자동화된 설정: ./setup-dev-environment.sh으로 원클릭 구성
   - 팀 공유: 통합된 Feature Store와 MLflow
   - 실제 환경: PROD와 동일한 아키텍처, 다른 스케일
   - 안전한 실험: 운영에 영향 없는 독립 환경
 
 동작 방식:
+  Setup: ./setup-dev-environment.sh → 완전한 개발 환경 (15분 이내)
   Data Loading: PostgreSQL SQL 실행
   Feature Store: PostgreSQL(Offline) + Redis(Online) + Feast
   기능 지원: 모든 기능 완전 지원
@@ -385,6 +388,23 @@ graph TD
    └─ 최적 하이퍼파라미터가 적용된 모델로 고성능 실시간 예측
 ```
 
+### 2.6. 현대적 개발 환경 철학 (Modern Development Environment Philosophy)
+
+우리 시스템은 **uv 기반 현대적 패키지 관리**를 채택하여 개발 환경의 재현성과 성능을 근본적으로 보장한다. 이는 단순한 도구 선택이 아니라, **즉시 실행 가능한 시스템 구축을 위한 핵심 설계 결정**이다.
+
+#### 패키지 관리 철학
+- **uv 우선**: pip 대비 10-100배 빠른 의존성 해결과 정확한 lock 파일 기반 재현성
+- **Python 3.12+ 표준화**: 모든 환경에서 현대적 Python 버전 사용
+- **즉시 실행 보장**: 복잡한 설정 없이 `uv sync` 한 번으로 완전한 환경 구성
+
+#### 환경별 실행 가능성 보장
+```yaml
+LOCAL: git clone → uv sync → 즉시 실행 (외부 의존성 없음)
+DEV: ./setup-dev-environment.sh → 완전한 기능 (PostgreSQL + Redis + Feast)
+```
+
+이 철학은 **개발자의 인지 부하를 최소화**하여 ML 로직 자체에 집중할 수 있게 하는 우리 시스템의 핵심 가치이다.
+
 -----
 
 ## 제 3장: 9대 핵심 설계 원칙 (The Nine Pillars)
@@ -408,11 +428,12 @@ graph TD
 
 #### 3\. URI 기반 동작 및 동적 팩토리 (URI-Driven Operation & The Dynamic Factory)
 
-  * **철학:** 시스템의 동작은 선언적이어야 한다. "무엇을 할지"는 URI나 설정으로 선언하고, "어떻게 할지"는 팩토리가 알아서 결정해야 한다.
+  * **철학:** 시스템의 동작은 선언적이어야 한다. "무엇을 할지"는 URI나 설정으로 선언하고, "어떻게 할지"는 팩토리가 알아서 결정해야 한다. **모든 시스템 컴포넌트는 이 단일한 패턴을 일관되게 따라야 하며, 부분적 구현이나 혼재된 접근을 허용하지 않는다.**
   * **구현:**
       * **논리적 경로:** `recipe`의 `loader.source_uri`는 `recipes/sql/loaders/...` 같은 순수한 논리적 경로로 기술되어, 실행할 SQL의 위치만을 명시한다.
       * **`Factory` (in `src/core/`):** 현재 환경 설정(`APP_ENV`)과 파일 패턴을 조합하여, 해당 환경에 적합한 데이터 어댑터를 동적으로 생성하여 반환하는 유일한 창구이다. `augmenter`의 `type`이 `"feature_store"`로 선언되면 `FeatureStoreAdapter`를 생성한다.
       * **동적 모델 생성:** `class_path`를 파싱하여 실제 모델 클래스를 runtime에 import하고 인스턴스를 생성한다.
+      * **아키텍처 완전성:** 모든 데이터 접근은 Factory를 통해서만 이루어지며, Pipeline에서 직접 URI 파싱이나 환경별 분기를 수행하는 것은 이 원칙의 위반이다.
 
 #### 4\. 실행 시점에 조립되는 순수 로직 아티팩트 (Runtime-Assembled, Pure-Logic Artifact)
 

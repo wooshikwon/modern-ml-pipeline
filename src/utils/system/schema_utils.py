@@ -17,6 +17,11 @@ def validate_schema(df: pd.DataFrame, settings: Settings):
     errors = []
     logger.info("모델 입력 데이터 스키마를 검증합니다...")
 
+    # features 스키마가 정의되지 않은 경우 검증 스킵 (LOCAL 환경에서 주로 발생)
+    if expected_schema is None:
+        logger.info("features 스키마가 정의되지 않아 검증을 스킵합니다.")
+        return
+
     for col, expected_type in expected_schema.items():
         if col not in df.columns:
             errors.append(f"- 필수 컬럼 누락: '{col}'")

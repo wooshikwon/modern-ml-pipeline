@@ -25,12 +25,14 @@ class Preprocessor(BasePreprocessor):
         self.settings = settings
         self.criterion_col = config.params.criterion_col
 
-        special_cols = {
-            self.settings.model.data_interface.target_col,
-            self.settings.model.data_interface.treatment_col,
-        }
-        # set.union()을 사용하여 가독성 개선
-        self.exclude_cols = sorted(list(set(self.config.params.exclude_cols).union(special_cols)))
+        special_cols = {self.settings.model.data_interface.target_col}
+        # treatment_col이 존재하는 경우만 추가 (causal inference에서만 사용)
+        if hasattr(self.settings.model.data_interface, 'treatment_col') and self.settings.model.data_interface.treatment_col:
+            special_cols.add(self.settings.model.data_interface.treatment_col)
+        
+        # None 값 필터링 후 정렬
+        all_exclude_cols = set(self.config.params.exclude_cols).union(special_cols)
+        self.exclude_cols = sorted([col for col in all_exclude_cols if col is not None])
         
         logger.info(f"Preprocessor 제외 컬럼: {self.exclude_cols}")
 
