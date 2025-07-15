@@ -84,12 +84,36 @@ def run_training(settings: Settings, context_params: Optional[Dict[str, Any]] = 
             training_results=training_results,  # 🆕 결과 전달
         )
         
+        # 🆕 Dynamic Signature 생성 (Day 3)
+        # 학습 데이터로 샘플 예측을 수행하여 signature 생성
+        logger.info("ModelSignature 생성을 위한 샘플 예측 수행 중...")
+        
+        # 작은 샘플 데이터로 예측 수행 (처음 5개 행 사용)
+        sample_input = df.head(5)
+        sample_output = pyfunc_wrapper.predict(
+            context=None,
+            model_input=sample_input,
+            params={"run_mode": "batch", "return_intermediate": False}
+        )
+        
+        # DataFrame이 아닌 경우 DataFrame으로 변환
+        if not hasattr(sample_output, 'columns'):
+            import pandas as pd
+            sample_output = pd.DataFrame(sample_output)
+        
+        # ModelSignature 생성
+        signature = mlflow_utils.create_model_signature(
+            input_df=sample_input,
+            output_df=sample_output
+        )
+        
         # model.name이 정의되지 않은 경우 run_name을 사용
         model_name = getattr(settings.model, 'name', None) or settings.model.computed['run_name']
         
         mlflow.pyfunc.log_model(
             artifact_path="model",
             python_model=pyfunc_wrapper,
+            signature=signature,  # 🆕 signature 추가
         )
         logger.info(f"순수 로직 모델 '{model_name}'을 MLflow에 성공적으로 저장했습니다.")
 

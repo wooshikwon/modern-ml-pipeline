@@ -141,12 +141,14 @@ data_adapters:
     postgresql:
       class_name: "PostgreSQLAdapter"
       config:
-        host: "${DB_HOST:localhost}"
-        port: "${DB_PORT:5432}"
-        database: "${DB_NAME:mlpipeline}"
-        user: "${DB_USER:mluser}"
-        password: "${DB_PASSWORD:mlpassword}"
-        schema: "${DB_SCHEMA:public}"
+        # 🔐 Blueprint 원칙 1: 인프라 연결 정보 환경변수 분리
+        host: "${POSTGRES_HOST:localhost}"
+        port: "${POSTGRES_PORT:5432}"
+        database: "${POSTGRES_DB:mlpipeline}"
+        user: "${POSTGRES_USER:mluser}"
+        password: "${POSTGRES_PASSWORD}"  # 필수 환경변수 (보안상 기본값 제거)
+        schema: "${POSTGRES_SCHEMA:public}"
+        # 논리적 설정은 유지 (환경변수 분리 대상 아님)
         pool_size: 5
         max_overflow: 10
         echo_sql: false
@@ -154,10 +156,12 @@ data_adapters:
     bigquery:
       class_name: "BigQueryAdapter"
       config:
-        project_id: "${GCP_PROJECT_ID}"
+        # 🔐 Blueprint 원칙 1: 인프라 연결 정보 환경변수 분리
+        project_id: "${GCP_PROJECT_ID}"  # 필수 환경변수 (기본값 제거)
         dataset_id: "${BQ_DATASET:ml_pipeline}"
         location: "${BQ_LOCATION:us-central1}"
-        credentials_path: "${GOOGLE_APPLICATION_CREDENTIALS}"
+        credentials_path: "${GOOGLE_APPLICATION_CREDENTIALS}"  # 필수 환경변수 (기본값 제거)
+        # 논리적 설정은 유지 (환경변수 분리 대상 아님)
         use_legacy_sql: false
         use_query_cache: true
         maximum_bytes_billed: 1073741824  # 1GB limit
@@ -165,10 +169,12 @@ data_adapters:
     redis:
       class_name: "RedisAdapter"
       config:
+        # 🔐 Blueprint 원칙 1: 인프라 연결 정보 환경변수 분리
         host: "${REDIS_HOST:localhost}"
         port: "${REDIS_PORT:6379}"
         db: "${REDIS_DB:0}"
-        password: "${REDIS_PASSWORD:}"
+        password: "${REDIS_PASSWORD:}"  # 선택적 환경변수 (기본값: 빈 문자열)
+        # 논리적 설정은 유지 (환경변수 분리 대상 아님)
         decode_responses: true
         socket_timeout: 5
         connection_pool_max_connections: 50

@@ -16,6 +16,8 @@ from src.utils.adapters.file_system_adapter import FileSystemAdapter
 from src.utils.adapters.bigquery_adapter import BigQueryAdapter
 from src.utils.adapters.gcs_adapter import GCSAdapter
 from src.utils.adapters.s3_adapter import S3Adapter
+# 🆕 Blueprint v17.0: Registry 패턴 import
+from src.core.registry import AdapterRegistry
 
 # Redis는 선택적 의존성으로 처리
 try:
@@ -215,7 +217,8 @@ class Factory:
     
     def _get_adapter_class(self, class_name: str):
         """
-        어댑터 클래스 동적 import
+        🆕 Blueprint v17.0: Registry 패턴 기반 어댑터 클래스 조회
+        기존 클래스명 -> 어댑터 타입 변환 후 Registry에서 조회
         
         Args:
             class_name: 어댑터 클래스 이름 (e.g., "FileSystemAdapter")
@@ -223,33 +226,36 @@ class Factory:
         Returns:
             어댑터 클래스 객체
         """
-        # 기존 import 매핑 (하위 호환성)
-        adapter_import_mapping = {
-            "FileSystemAdapter": "src.utils.adapters.file_system_adapter",
-            "BigQueryAdapter": "src.utils.adapters.bigquery_adapter", 
-            "GCSAdapter": "src.utils.adapters.gcs_adapter",
-            "S3Adapter": "src.utils.adapters.s3_adapter",
-            "PostgreSQLAdapter": "src.utils.adapters.postgresql_adapter",
-            "RedisAdapter": "src.utils.adapters.redis_adapter",
-            "FeatureStoreAdapter": "src.utils.adapters.feature_store_adapter",
-            "OptunaAdapter": "src.utils.adapters.optuna_adapter",
+        # 클래스명 -> 어댑터 타입 매핑 (하위 호환성)
+        class_to_type_mapping = {
+            "FileSystemAdapter": "filesystem",
+            "BigQueryAdapter": "bigquery",
+            "GCSAdapter": "gcs",
+            "S3Adapter": "s3",
+            "PostgreSQLAdapter": "postgresql",
+            "RedisAdapter": "redis",
+            "FeatureStoreAdapter": "feature_store",
+            "OptunaAdapter": "optuna",
         }
         
-        if class_name not in adapter_import_mapping:
+        # 1. 클래스명을 어댑터 타입으로 변환
+        adapter_type = class_to_type_mapping.get(class_name)
+        if not adapter_type:
             raise ValueError(f"지원하지 않는 어댑터 클래스: {class_name}")
         
-        module_path = adapter_import_mapping[class_name]
+        # 2. Registry에서 어댑터 클래스 조회
+        registered_adapters = AdapterRegistry.get_registered_adapters()
+        if adapter_type not in registered_adapters:
+            available_types = list(registered_adapters.keys())
+            raise ValueError(
+                f"Registry에 등록되지 않은 어댑터 타입: '{adapter_type}'\n"
+                f"사용 가능한 타입: {available_types}"
+            )
         
-        try:
-            # 동적 모듈 import
-            module = importlib.import_module(module_path)
-            adapter_class = getattr(module, class_name)
-            return adapter_class
-            
-        except ImportError as e:
-            raise ValueError(f"어댑터 모듈 import 실패: {module_path}, 오류: {e}")
-        except AttributeError as e:
-            raise ValueError(f"어댑터 클래스를 찾을 수 없습니다: {class_name} in {module_path}, 오류: {e}")
+        adapter_class = registered_adapters[adapter_type]
+        logger.info(f"Registry에서 어댑터 클래스 조회: {class_name} -> {adapter_type} -> {adapter_class.__name__}")
+        
+        return adapter_class
         
     # 🔄 기존 메서드 유지 (하위 호환성)
     def create_data_adapter_legacy(self, scheme: str) -> BaseAdapter:

@@ -1,0 +1,92 @@
+# config/local.yaml: LOCAL 환경 전용 설정
+# -----------------------------------------------------------------------------
+# Blueprint 원칙 9: 환경별 차등적 기능 분리
+# "제약은 단순함을 낳고, 단순함은 집중을 낳는다"
+# 
+# LOCAL 환경의 철학:
+# - 빠른 실험과 디버깅에 집중
+# - 복잡한 인프라 의존성 제거
+# - 의도적 제약을 통한 핵심 로직 집중
+# - 파일 기반 단순한 데이터 처리
+# -----------------------------------------------------------------------------
+
+# 🔐 Blueprint 원칙 9: LOCAL 환경 데이터 어댑터 특화 설정
+data_adapters:
+  # LOCAL 환경: 모든 어댑터를 filesystem으로 통일
+  default_loader: "filesystem"
+  default_storage: "filesystem"
+  default_feature_store: "filesystem"  # PassThroughAugmenter와 연동
+  
+  # LOCAL 환경 특화 어댑터 설정
+  adapters:
+    filesystem:
+      class_name: "FileSystemAdapter"
+      config:
+        base_path: "./data"
+        supported_formats: ["parquet", "csv", "json"]
+        auto_create_dirs: true
+        # LOCAL 환경: 더 상세한 로깅 활성화
+        enable_detailed_logging: true
+        # LOCAL 환경: 빠른 처리를 위한 최적화
+        cache_enabled: true
+        max_cache_size: 100  # 100MB
+
+# 🚫 Blueprint 원칙 9: LOCAL 환경 API 서빙 차단 설정
+api_serving:
+  enabled: false
+  message: "LOCAL 환경에서는 API 서빙이 지원되지 않습니다. DEV 환경을 사용하세요."
+  reason: "LOCAL 환경의 철학에 따라 빠른 실험과 디버깅에만 집중합니다."
+
+# 🔧 LOCAL 환경 하이퍼파라미터 튜닝 제약
+hyperparameter_tuning:
+  enabled: true  # LOCAL에서도 실험 가능
+  # 하지만 더 제한적인 제약
+  timeout: 300  # 5분 제한 (빠른 실험 목적)
+  pruning:
+    enabled: true
+    algorithm: "MedianPruner"
+    n_startup_trials: 3  # 더 빠른 pruning
+    n_warmup_steps: 5
+  parallelization:
+    n_jobs: 1  # 단일 코어 (단순성 유지)
+
+# 📊 LOCAL 환경 MLflow 설정
+mlflow:
+  tracking_uri: "./mlruns"  # 로컬 파일 시스템
+  experiment_name: "Local-Experiments"  # LOCAL 환경 전용
+
+# 🎯 LOCAL 환경 Feature Store 설정 (PassThrough 모드)
+feature_store:
+  provider: "passthrough"  # LOCAL 환경에서는 PassThrough 모드
+  
+  # 기본 Feast 설정 (사용하지 않지만 호환성 유지)
+  feast_config:
+    project: "ml_pipeline_local"
+    provider: "local"
+    registry: "data/feature_store/registry.sqlite"
+    offline_store:
+      type: "file"
+      path: "data/feature_store/offline"
+    online_store:
+      type: "sqlite"
+      path: "data/feature_store/online.sqlite"
+
+# 🔧 LOCAL 환경 성능 최적화 설정
+performance:
+  # 메모리 사용량 제한
+  max_memory_mb: 2048  # 2GB 제한
+  # 병렬 처리 비활성화 (단순성 유지)
+  parallel_processing: false
+  # 캐싱 활성화 (빠른 반복 실험)
+  enable_caching: true
+  
+# 🐛 LOCAL 환경 디버깅 설정
+debugging:
+  # 상세한 로깅 활성화
+  verbose_logging: true
+  # 중간 결과 저장 활성화
+  save_intermediate_results: true
+  # 에러 발생 시 상세 정보 출력
+  detailed_error_messages: true
+  # 실행 시간 측정 활성화
+  measure_execution_time: true 

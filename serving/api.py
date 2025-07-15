@@ -43,17 +43,34 @@ def create_app(run_id: str) -> FastAPI:
         logger.info("FastAPI 애플리케이션 시작...")
         
         try:
+            # 🚫 Blueprint 원칙 9: LOCAL 환경 API 서빙 차단
+            from src.settings.loaders import load_config_files
+            config_data = load_config_files()  # recipe 없이 config만 로드
+            
+            # LOCAL 환경 체크 및 서빙 차단
+            app_env = config_data.get('environment', {}).get('app_env', 'local')
+            api_serving_config = config_data.get('api_serving', {})
+            
+            if app_env == 'local' or not api_serving_config.get('enabled', True):
+                error_message = api_serving_config.get(
+                    'message', 
+                    "LOCAL 환경에서는 API 서빙이 지원되지 않습니다. DEV 환경을 사용하세요."
+                )
+                error_reason = api_serving_config.get(
+                    'reason',
+                    "LOCAL 환경의 철학에 따라 빠른 실험과 디버깅에만 집중합니다."
+                )
+                logger.error(f"API 서빙 차단: {error_message}")
+                logger.info(f"차단 이유: {error_reason}")
+                raise RuntimeError(f"API 서빙 차단: {error_message}\n이유: {error_reason}")
+            
             # 1. 지정된 run_id로 완전한 Wrapped Artifact 로드
             model_uri = f"runs:/{run_id}/model"
             app_context.model = mlflow.pyfunc.load_model(model_uri)
             app_context.model_uri = model_uri
             logger.info(f"모델 로드 완료: {model_uri}")
 
-            # 2. 현재 환경의 config 로드 (서빙 설정만 필요)
-            from src.settings.loaders import load_config_files
-            config_data = load_config_files()  # recipe 없이 config만 로드
-            
-            # 서빙에 필요한 설정만 추출
+            # 2. 서빙에 필요한 설정만 추출
             app_context.settings = type('ConfigOnlySettings', (), {
                 'serving': config_data.get('serving', {}),
                 'feature_store': config_data.get('feature_store', {}),
@@ -135,31 +152,38 @@ def create_app(run_id: str) -> FastAPI:
         try:
             input_df = pd.DataFrame([request.model_dump()])
             
-            # DEV 환경에서 Feature Store 연결 문제를 우회하기 위해 Mock 응답 사용
-            if app_context.settings.environment.get('app_env') == 'dev':
-                # Mock 예측 결과 반환
-                uplift_score = 0.7523
-                logger.info(f"DEV 환경 Mock 예측 결과: {uplift_score}")
-            else:
-                # 실제 예측 실행
-                predict_params = {
-                    "run_mode": "serving",
-                    "feature_store_config": app_context.feature_store_config,
-                    "feature_columns": app_context.feature_columns,
-                }
-                predictions = app_context.model.predict(input_df, params=predict_params)
-                uplift_score = predictions["uplift_score"].iloc[0]
+            # 🆕 Day 3: Mock 제거 - 실제 모델 예측 호출
+            logger.info("실제 모델 예측 실행 중...")
             
-            # 🆕 Blueprint v17.0: 최적화 정보 포함
-            if app_context.settings.environment.get('app_env') == 'dev':
-                # DEV 환경에서는 Mock 최적화 정보 사용
-                optimization_enabled = True
-                best_score = 0.5875
+            # 모델 예측 파라미터 설정
+            predict_params = {
+                "run_mode": "serving",
+                "return_intermediate": False
+            }
+            
+            # 실제 모델 예측 실행
+            predictions = app_context.model.predict(input_df, params=predict_params)
+            
+            # 예측 결과 처리
+            if isinstance(predictions, pd.DataFrame):
+                # DataFrame인 경우 첫 번째 행의 첫 번째 컬럼 사용
+                uplift_score = predictions.iloc[0, 0]
             else:
-                # 실제 최적화 정보 사용
-                hpo_info = app_context.model.unwrap_python_model().hyperparameter_optimization
+                # 단일 값인 경우 그대로 사용
+                uplift_score = float(predictions)
+            
+            logger.info(f"실제 모델 예측 결과: {uplift_score}")
+            
+            # 🆕 Blueprint v17.0: 실제 최적화 정보 사용
+            try:
+                wrapped_model = app_context.model.unwrap_python_model()
+                hpo_info = getattr(wrapped_model, 'hyperparameter_optimization', {})
                 optimization_enabled = hpo_info.get("enabled", False)
                 best_score = hpo_info.get("best_score", 0.0) if optimization_enabled else 0.0
+            except (AttributeError, Exception) as e:
+                logger.warning(f"최적화 정보 조회 실패, 기본값 사용: {e}")
+                optimization_enabled = False
+                best_score = 0.0
             
             return PredictionResponse(
                 uplift_score=uplift_score, 
@@ -182,30 +206,35 @@ def create_app(run_id: str) -> FastAPI:
             if input_df.empty:
                 raise HTTPException(status_code=400, detail="입력 샘플이 비어있습니다.")
             
-            # DEV 환경에서는 Mock 배치 예측 사용
-            if app_context.settings.environment.get('app_env') == 'dev':
-                # Mock 배치 예측 결과 생성
-                predictions_df = input_df.copy()
-                predictions_df['uplift_score'] = 0.7523
-                logger.info(f"DEV 환경 Mock 배치 예측 결과: {len(predictions_df)} 개")
-            else:
-                # 실제 배치 예측 실행
-                predict_params = {
-                    "run_mode": "serving",
-                    "feature_store_config": app_context.settings.serving.realtime_feature_store,
-                }
-                predictions_df = app_context.model.predict(input_df, params=predict_params)
+            # 🆕 Day 3: Mock 제거 - 실제 배치 예측 호출
+            logger.info(f"실제 배치 예측 실행 중... (샘플 수: {len(input_df)})")
             
-            # 🆕 Blueprint v17.0: 최적화 정보 포함
-            if app_context.settings.environment.get('app_env') == 'dev':
-                # DEV 환경에서는 Mock 최적화 정보 사용
-                optimization_enabled = True
-                best_score = 0.5875
-            else:
-                # 실제 최적화 정보 사용
-                hpo_info = app_context.model.unwrap_python_model().hyperparameter_optimization
+            # 배치 예측 파라미터 설정
+            predict_params = {
+                "run_mode": "serving",
+                "return_intermediate": False
+            }
+            
+            # 실제 배치 예측 실행
+            predictions_df = app_context.model.predict(input_df, params=predict_params)
+            
+            # 배치 예측 결과 처리
+            if not isinstance(predictions_df, pd.DataFrame):
+                # DataFrame이 아닌 경우 DataFrame으로 변환
+                predictions_df = pd.DataFrame(predictions_df)
+            
+            logger.info(f"실제 배치 예측 결과: {len(predictions_df)}개 샘플")
+            
+            # 🆕 Blueprint v17.0: 실제 최적화 정보 사용
+            try:
+                wrapped_model = app_context.model.unwrap_python_model()
+                hpo_info = getattr(wrapped_model, 'hyperparameter_optimization', {})
                 optimization_enabled = hpo_info.get("enabled", False)
                 best_score = hpo_info.get("best_score", 0.0) if optimization_enabled else 0.0
+            except (AttributeError, Exception) as e:
+                logger.warning(f"최적화 정보 조회 실패, 기본값 사용: {e}")
+                optimization_enabled = False
+                best_score = 0.0
             
             return BatchPredictionResponse(
                 predictions=predictions_df.to_dict(orient="records"),

@@ -1,479 +1,442 @@
-# Modern ML Pipeline 개발 히스토리 (Factoring Log)
-
-*Blueprint v17.0 기반 시스템 구축 - 이상향과 현실의 완벽한 조화*
-
 ---
-
-### 작업 계획: Phase 0 재시작 - 호환성 문제 해결 후 실행 기반 구축
-**일시**: 2025년 1월 14일 (호환성 문제 해결 후)  
-**목표**: pyproject.toml 수정으로 해결된 호환성 기반으로 Blueprint v17.0 Phase 0 완료
-
+### 작업 계획: Blueprint v17.0 - Architecture Excellence 최종 완성 (95% → 100%)
 * **[PLAN]**
-    * **목표:** "uv sync → python main.py train --recipe-file local_classification_test" 3분 이내 완료
-    * **전략:** 현재 Python 3.11.10 환경에서 uv 기반 의존성 설치 후 최소 워크플로우 검증
+    * **목표:** next_step.md에 기술된 Blueprint v17.0의 완전한 실현을 위한 4일 완성 계획 실행
+    * **전략:** 복잡성 최소화 원칙을 준수하며 기존 구현의 95%를 기반으로 최종 5% 완성
     * **예상 변경 파일:**
-        * `uv.lock`: uv sync 실행으로 의존성 잠금
-        * `.venv/`: 가상환경 패키지 설치
-        * `data/processed/`: 테스트 데이터 확인
-        * `mlruns/`: MLflow 실행 결과 저장
-
-**호환성 문제 해결 확인:**
-- ✅ pyproject.toml 수정됨 (shap>=0.48.0, numba>=0.60.0, llvmlite>=0.43.0)
-- ✅ uv sync --dry-run 성공
-- ✅ Python 3.11.10 환경 (causalml 호환)
-- ✅ uv 0.7.21 설치 완료
-
-**Phase 0 실행 계획:**
-1. **환경 검증**
-   - 현재 Python 3.11.10 확인
-   - uv sync 실행 및 의존성 설치
-   - 기본 import 테스트
-
-2. **데이터 준비**
-   - data/processed/ 디렉토리 확인
-   - 테스트 데이터 존재 확인
-   - 필요시 generate_local_test_data.py 실행
-
-3. **기본 워크플로우 검증**
-   - recipes/local_classification_test.yaml 검증
-   - python main.py train 실행
-   - 에러 없이 완료 확인
-
-**Phase 0 성공 기준:**
-- ✅ uv sync 완료 (모든 의존성 설치)
-- ✅ python main.py train --recipe-file "local_classification_test" 정상 실행
-- ✅ 3분 이내 완료 (LOCAL 환경 철학 구현)
-- ✅ MLflow 로컬 저장 확인
-
-**Blueprint 철학 구현 측면:**
-- 원칙 2.6: "현대적 개발 환경 철학" 완전 구현
-- LOCAL 환경: "uv sync → 3분 이내 즉시 실행" 달성
-- 실행 가능성: 이상향과 현실의 완벽한 조화
-
-**Critical 실행 저해 요소 해결:**
-- 개발 환경 불일치 → Python 3.12.4 + uv 표준화
-- 테스트 실행 불가능 → 최소 워크플로우 검증
-- 의존성 문제 → uv 기반 완전 해결
-
-**다음 단계 (Phase 0 완료 후):**
-- Phase 1: 아키텍처 완전성 달성 (Pipeline URI 파싱 제거)
-- Phase 2: 환경별 기능 검증 (LOCAL/DEV 실제 동작)
-- Phase 3: Blueprint 엑셀런스 완성 (9대 원칙 100% 달성)
-
-* **[CRITICAL DISCOVERY]** Phase 0.1 실행 중 호환성 문제 발견
-    * **문제**: causalml 0.15.5 → shap → numba → llvmlite==0.36.0이 Python 3.12 미지원
-    * **원인**: llvmlite==0.36.0은 Python >=3.6,<3.10만 지원 (Python 3.12 완전 미지원)
-    * **영향**: Python 3.12.4 환경에서 uv sync 완전 실패
-    * **해결 방안**: 
-        1. Python 3.9 또는 3.10 사용 (호환성 확보)
-        2. causalml 제거 후 대안 패키지 사용
-        3. 패키지 버전 조정
-    * **결정**: Python 3.10.11 환경 유지 + uv 없이 pip 기반 진행
+        * `src/core/registry.py`: Factory Registry 패턴 구현을 위한 새로운 파일 생성
+        * `src/core/factory.py`: if-else 분기를 Registry.create()로 교체
+        * `config/base.yaml`: 인프라 연결 정보를 환경변수로 분리
+        * `config/local.yaml`: LOCAL 환경 특화 설정 파일 생성
+        * `serving/api.py`: LOCAL 환경 API 서빙 차단 로직 추가
+        * `src/utils/system/mlflow_utils.py`: Dynamic Signature 생성 함수 추가
+        * `src/pipelines/train_pipeline.py`: MLflow signature 포함 수정
 
 ---
-
-**Phase 0 실행 내역:**
-
-* **[ACTION COMPLETED]** **Phase 0 - 환경 정리 및 기반 구축 완료**
-    * **목표 달성:** "uv sync → python main.py train --recipe-file local_classification_test" 3초 이내 완료 ✅
-    * **실행 시간:** 총 3.086초 (Blueprint 목표 3분 이내 달성!)
-    * **MLflow 저장:** mlruns/521244023234673401/ 성공적으로 생성
-
-* **[FIXED]** **Critical 실행 저해 요소 해결**
-    * **문제1:** "지원하지 않는 어댑터 목적: file" 
-      * **해결:** src/settings/models.py - "file" 목적을 "loader"로 매핑 (Phase 1에서 완전 정리 예정)
-    * **문제2:** None 값 정렬 오류 (Preprocessor)
-      * **해결:** src/core/preprocessor.py - None 값 필터링 로직 추가
-    * **문제3:** features 스키마 None 참조 오류
-      * **해결:** src/utils/system/schema_utils.py - None 스키마 검증 스킵 로직 추가
-    * **문제4:** augmenter source_uri None 참조 오류
-      * **해결:** src/core/factory.py - pass_through augmenter source_uri 체크 추가
-    * **문제5:** ModelSettings name 속성 없음
-      * **해결:** src/pipelines/train_pipeline.py - run_name 대체 사용
-    * **문제6:** MLflow 권한 오류 (잘못된 경로)
-      * **해결:** MLflow 디렉토리 초기화 + URI 재설정
-
-* **[VERIFIED]** **Blueprint v17.0 핵심 기능 동작**
-    * **LOCAL 환경 철학:** "제약은 단순함을 낳는다" - PassThroughAugmenter 정상 동작 ✅
-    * **uv 기반 의존성 관리:** Python 3.11.10 + uv 0.7.21 완전 동작 ✅
-    * **현대적 개발 환경:** 호환성 문제 해결 후 안정적 실행 ✅
-
-* **[METRICS]** **Phase 0 성공 지표**
-    * **uv sync:** 성공 (172 packages resolved)
-    * **핵심 의존성:** 모든 import 정상 (typer, mlflow, pandas, sklearn, causalml, xgboost, optuna, catboost, lightgbm)
-    * **Recipe 로딩:** local_classification_test 정상 로딩 (sklearn.ensemble.RandomForestClassifier)
-    * **데이터 준비:** classification_test.parquet (1000 rows, 9 columns) 정상 로딩
-    * **실행 시간:** 3.086초 (Blueprint 목표 3분의 1.7% 달성!)
-
-**Phase 0 완료 상태:** 100% 달성 🎉
-
-**다음 단계:** Phase 1 - 아키텍처 완전성 달성 준비
-- train_pipeline.py URI 파싱 제거
-- Factory 중심 아키텍처 완전 구현
-- Blueprint 원칙 3 "URI 기반 동작 및 동적 팩토리" 완전 준수
-
----
-
-### 작업 계획: Phase 1 - 아키텍처 완전성 달성 (Blueprint 원칙 3 완전 구현)
-**일시**: 2025년 1월 14일 (Phase 0 완료 후)  
-**목표**: Blueprint 원칙 3 "URI 기반 동작 및 동적 팩토리" 완전 구현
-
+### Day 1: 핵심 아키텍처 정리 계획
 * **[PLAN]**
-    * **목표:** Pipeline의 Factory 역할 침범 완전 제거하여 "모든 데이터 접근은 Factory를 통해서만" 달성
-    * **전략:** 현재 Pipeline의 URI 파싱 로직을 Factory 중심으로 완전 리팩토링
+    * **목표:** Blueprint 원칙 3 "URI 기반 동작 및 동적 팩토리"의 완전한 구현
+    * **전략:** 
+        1. Registry 패턴 도입으로 확장성 개선 (원칙 3 완성)
+        2. 환경변수 기반 인프라 분리 (원칙 1 완성)
+        3. LOCAL 환경 API 서빙 차단 (원칙 9 완성)
+        4. 개발환경 호환성 검증 강화
     * **예상 변경 파일:**
-        * `src/pipelines/train_pipeline.py`: URI 파싱 제거, Factory 중심 호출
-        * `src/pipelines/inference_pipeline.py`: 동일 수정
-        * `src/settings/models.py`: Phase 0 임시 수정 제거
-        * `tests/` 파일들: Settings import 패턴 정리
-
-**Phase 1 세부 계획:**
-
-**Phase 1.1: Pipeline 아키텍처 위반 수정**
-- **문제:** train_pipeline.py:50 - `scheme = urlparse(loader_uri).scheme or 'file'`
-- **위반:** Blueprint 원칙 3 - "Pipeline에서 직접 URI 파싱이나 환경별 분기를 수행하는 것은 원칙 위반"
-- **해결:** 
-  - `data_adapter = factory.create_data_adapter("loader")` 로 변경
-  - Factory가 환경별 분기 처리 전담
-  - 순수 논리 경로만 사용
-
-**Phase 1.2: Settings Import 패턴 정리**
-- **문제:** tests/ 파일들에서 `from src.settings.settings import` 패턴 사용
-- **해결:** `from src.settings import` 로 통일
-
-**Phase 1.3: 임시 수정 제거**
-- **문제:** Phase 0에서 추가한 `"file": self.default_loader` 임시 매핑
-- **해결:** 정상적인 Factory 호출 방식으로 완전 정리
-
-**Phase 1 성공 기준:**
-- ✅ Pipeline에서 `urlparse()` 완전 제거
-- ✅ 모든 데이터 접근이 Factory 경유
-- ✅ 환경별 분기 로직 Factory에서만 처리
-- ✅ Settings import 패턴 완전 정리
-- ✅ 전체 테스트 스위트 통과
-
-**Blueprint 원칙 3 준수 확인:**
-- 철학: "모든 시스템 컴포넌트는 이 단일한 패턴을 일관되게 따라야 하며, 부분적 구현이나 혼재된 접근을 허용하지 않는다"
-- 구현: "모든 데이터 접근은 Factory를 통해서만 이루어지며, Pipeline에서 직접 URI 파싱이나 환경별 분기를 수행하는 것은 이 원칙의 위반이다"
+        * `src/core/registry.py`: 
+            - AdapterRegistry 클래스 생성
+            - @register 데코레이터 패턴 구현
+            - create() 메서드로 동적 어댑터 생성
+        * `src/core/factory.py`:
+            - _get_adapter_class() 메서드의 if-else 분기 제거
+            - AdapterRegistry.create() 호출로 교체
+            - 하위 호환성 유지를 위한 fallback 로직 보존
+        * `config/base.yaml`:
+            - postgresql, redis, bigquery 등 어댑터 설정에서 connection 정보를 환경변수로 분리
+            - 논리적 설정은 유지하되 host, port, password 등은 ${VAR_NAME:default} 형식으로 변경
+        * `config/local.yaml`:
+            - LOCAL 환경 전용 설정 파일 생성
+            - data_adapters 기본값을 filesystem으로 설정
+            - api_serving.enabled: false 설정 추가
+        * `serving/api.py`:
+            - lifespan 이벤트에서 LOCAL 환경 체크 로직 추가
+            - LOCAL 환경 감지 시 RuntimeError 발생시켜 서빙 차단
+            - 명확한 에러 메시지 제공
 
 ---
-
-**Phase 1 실행 내역:**
-
-* **[ACTION COMPLETED]** **Phase 1 - 아키텍처 완전성 달성 완료**
-    * **목표 달성:** Blueprint 원칙 3 "URI 기반 동작 및 동적 팩토리" 완전 구현 ✅
-    * **핵심 성과:** "모든 데이터 접근은 Factory를 통해서만" 완전 달성
-    * **실행 시간:** train 명령어 정상 동작 확인
-
-* **[FIXED]** **Pipeline 아키텍처 위반 완전 수정**
-    * **수정1:** src/pipelines/train_pipeline.py
-      * **Before:** `scheme = urlparse(loader_uri).scheme or 'file'` + `data_adapter = factory.create_data_adapter(scheme)`
-      * **After:** `data_adapter = factory.create_data_adapter("loader")` + Factory 중심 처리
-    * **수정2:** src/pipelines/inference_pipeline.py
-      * **Before:** `scheme = urlparse(loader_uri).scheme` + `data_adapter = factory.create_data_adapter(scheme)`
-      * **After:** `data_adapter = factory.create_data_adapter("loader")` + Factory 중심 처리
-    * **수정3:** _save_dataset 함수
-      * **Before:** `scheme = parsed_uri.scheme` + `adapter = factory.create_data_adapter(scheme)`
-      * **After:** `adapter = factory.create_data_adapter("storage")` + Factory 중심 처리
-    * **수정4:** Import 정리
-      * **Removed:** `from urllib.parse import urlparse` 완전 제거
-
-* **[FIXED]** **Settings Import 패턴 완전 정리**
-    * **수정 범위:** tests/ 디렉토리 전체 (22개 파일)
-    * **Before:** `from src.settings.settings import` (잘못된 패턴)
-    * **After:** `from src.settings import` (올바른 패턴)
-    * **수정 방법:** `find tests/ -name "*.py" -exec sed -i '' 's/from src\.settings\.settings import/from src.settings import/g' {} \;`
-
-* **[FIXED]** **Phase 0 임시 수정 완전 제거**
-    * **수정:** src/settings/models.py
-    * **Removed:** `"file": self.default_loader` 임시 매핑 제거
-    * **결과:** 정상적인 Factory 호출 방식으로 완전 정리
-
-* **[VERIFIED]** **Phase 1 성공 기준 모두 달성**
-    * ✅ Pipeline에서 `urlparse()` 완전 제거 확인
-    * ✅ Pipeline에서 `from urllib.parse import` 완전 제거 확인
-    * ✅ 모든 데이터 접근이 Factory 경유 확인 (`create_data_adapter("loader")`)
-    * ✅ 환경별 분기 로직 Factory에서만 처리 확인
-    * ✅ Settings import 패턴 완전 정리 확인 (`grep` 결과 0개)
-    * ✅ 전체 시스템 정상 동작 확인 (`python main.py train` 성공)
-
-* **[VERIFIED]** **Blueprint 원칙 3 완전 준수**
-    * **철학:** "모든 시스템 컴포넌트는 이 단일한 패턴을 일관되게 따라야 하며, 부분적 구현이나 혼재된 접근을 허용하지 않는다" ✅
-    * **구현:** "모든 데이터 접근은 Factory를 통해서만 이루어지며, Pipeline에서 직접 URI 파싱이나 환경별 분기를 수행하는 것은 이 원칙의 위반이다" ✅
-    * **결과:** 부분적 구현 및 혼재된 접근 완전 제거, 단일 패턴 일관성 확보
-
-**Phase 1 완료 상태:** 100% 달성 🎉
-
-**다음 단계:** Phase 2 - 환경별 기능 검증
-- LOCAL 환경 완전 검증 (PassThroughAugmenter 동작)
-- DEV 환경 통합 구축 (FeatureStoreAugmenter + API 서빙)
-- 환경별 철학 완전 구현
-
----
-
-### 작업 계획: Phase 2 - 환경별 기능 검증 (Blueprint 원칙 9 완전 구현)
-**일시**: 2025년 1월 14일 (Phase 1 완료 후)  
-**목표**: Blueprint 원칙 9 "환경별 차등적 기능 분리" 완전 구현
-
+### Day 2: 완전한 Feature Store 통합 테스트 환경 구축 계획 (수정됨)
 * **[PLAN]**
-    * **목표:** LOCAL/DEV 환경에서 실제 기능 완전 동작으로 "각 환경의 목적과 제약에 최적화된 경험" 제공
-    * **전략:** 환경별 특화된 가치 실현을 통한 점진적 복잡성 증가와 개발자 학습 곡선 완만화
+    * **목표:** 개발자 로컬에서 완전한 Feature Store 스택 통합 테스트 환경 구축
+    * **전략:**
+        1. mmp-local-dev에서 PostgreSQL + Redis + MLflow + Feast 완전 스택 구성
+        2. Feature Store 중심 샘플 데이터 및 피처 정의 구축
+        3. 환경변수 템플릿 정리 및 원스톱 설치 스크립트 완성
+        4. 전체 스택 통합 테스트 자동화 (5분 이내 완료)
     * **예상 변경 파일:**
-        * `APP_ENV=local` 환경 변수 설정 및 테스트
-        * `APP_ENV=dev` 환경 변수 설정 및 외부 인프라 연동
-        * `main.py serve-api` 명령어 환경별 동작 확인
-        * `mlruns/` 디렉토리 환경별 실행 결과 저장
-
-**Phase 2 세부 계획:**
-
-**Phase 2.1: LOCAL 환경 완전 검증 (Day 6-7)**
-- **철학:** "제약은 단순함을 낳고, 단순함은 집중을 낳는다"
-- **목표:** 빠른 실험을 위한 의도적 제약 완전 구현
-- **검증 항목:**
-  - A. LOCAL 환경 철학 구현 확인 (PassThroughAugmenter 동작)
-  - B. 의도적 제약 기능 검증 (API Serving 시스템적 차단)
-  - C. 완전 독립성 검증 (외부 의존성 없는 동작)
-  - D. 3분 이내 Setup 시간 달성 확인
-
-**Phase 2.2: DEV 환경 통합 구축 (Day 8-10)**
-- **철학:** "모든 기능이 완전히 작동하는 안전한 실험실"
-- **목표:** 완전한 Feature Store + API serving + 팀 공유 MLflow
-- **구축 항목:**
-  - A. 외부 인프라 구축 (../mmp-local-dev)
-  - B. DEV 환경 설정 및 연결 확인
-  - C. 완전한 기능 검증 (FeatureStoreAugmenter + API 서빙)
-  - D. 15분 이내 Setup 시간 달성 확인
-
-**Phase 2 성공 기준:**
-- ✅ LOCAL 환경: 3분 이내 uv sync → train 완료
-- ✅ LOCAL 환경: PassThroughAugmenter 정상 동작
-- ✅ LOCAL 환경: API Serving 시스템적 차단 동작
-- ✅ LOCAL 환경: 외부 의존성 없이 완전 독립 동작
-- ✅ DEV 환경: 15분 이내 완전한 개발 환경 구축
-- ✅ DEV 환경: FeatureStoreAugmenter 정상 동작
-- ✅ DEV 환경: API 서빙 완전 기능 동작
-- ✅ DEV 환경: 모든 Blueprint 기능 동작
-
-**Blueprint 원칙 9 준수 확인:**
-- 철학: "동일한 ML 파이프라인 코드가 환경에 따라 서로 다른 기능 수준으로 동작하여, 각 환경의 목적과 제약에 최적화된 경험을 제공해야 한다"
-- 구현: "Factory 분기 로직이 APP_ENV 환경 변수를 기반으로 환경별로 적절한 컴포넌트를 생성하여 동일한 Recipe가 환경별로 다르게 동작하도록 보장한다"
-
-**환경별 차등적 기능 분리 매트릭스:**
-- LOCAL: augmenter pass-through, API serving 차단, 파일 기반 데이터 로딩
-- DEV: 완전한 Feature Store, API serving, 팀 공유 MLflow
-- PROD: 클라우드 네이티브 서비스, 무제한 확장 (이 Phase 범위 외)
+        * `../mmp-local-dev/docker-compose.yml`:
+            - PostgreSQL 서비스 (features 스키마 자동 초기화)
+            - Redis 서비스 (Feature Store 온라인 스토어)
+            - MLflow 서비스 (실험 추적 서버)
+            - Feast 초기화 컨테이너 (feature store 설정)
+        * `../mmp-local-dev/scripts/init-database.sql`:
+            - PostgreSQL 기본 데이터베이스 초기화
+            - features 스키마 생성
+            - 기본 사용자 및 권한 설정
+        * `../mmp-local-dev/scripts/seed-features.sql`:
+            - user_demographics 테이블 (age, country_code 피처)
+            - user_purchase_summary 테이블 (ltv, total_purchase_count 피처)
+            - product_details 테이블 (price, category, brand 피처)
+            - session_summary 테이블 (time_on_page_seconds, click_count 피처)
+            - 각 테이블별 샘플 데이터 삽입
+        * `../mmp-local-dev/feast/feature_store.yaml`:
+            - PostgreSQL offline store 연결 설정
+            - Redis online store 연결 설정
+            - 프로젝트 메타데이터 정의
+        * `../mmp-local-dev/feast/features.py`:
+            - user_demographics_fv (사용자 기본 정보 피처뷰)
+            - user_purchase_summary_fv (구매 요약 피처뷰)
+            - product_details_fv (상품 정보 피처뷰)
+            - session_summary_fv (세션 요약 피처뷰)
+            - 각 피처뷰별 엔티티 및 TTL 설정
+        * `.env.example`:
+            - POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB, POSTGRES_USER 기본값
+            - POSTGRES_PASSWORD 필수 설정 안내
+            - REDIS_HOST, REDIS_PORT 기본값
+            - MLFLOW_TRACKING_URI 기본값
+            - FEAST_PROJECT_NAME 기본값
+        * `setup-dev-environment.sh`:
+            - mmp-local-dev 저장소 클론/업데이트
+            - Docker 환경 확인 (Docker Desktop vs OrbStack)
+            - 환경변수 설정 확인 및 .env 파일 생성
+            - docker-compose up -d 실행
+            - 서비스 health check (PostgreSQL, Redis, MLflow)
+            - Feast materialize 실행 (offline → online store)
+            - 통합 테스트 실행 (Feature Store 조회 테스트)
+            - 완료 메시지 및 접속 정보 안내
 
 ---
-
-**Phase 2 실행 내역:**
-
-* **[ACTION COMPLETED]** **Phase 2 - 환경별 기능 검증 완료**
-    * **목표 달성:** Blueprint 원칙 9 "환경별 차등적 기능 분리" 완전 구현 ✅
-    * **핵심 성과:** LOCAL/DEV 환경에서 각 환경의 목적과 제약에 최적화된 경험 제공 달성
-
-* **[CREATED]** **DEV 환경 전용 Recipe 및 Config**
-    * **생성1:** recipes/dev_classification_test.yaml
-      * **특징:** Feature Store augmenter 사용, 하이퍼파라미터 자동 최적화 활성화
-      * **결과:** 20 trials 자동 최적화 완료, 최고 점수 0.5875 달성
-    * **생성2:** config/dev.yaml 개선
-      * **특징:** 외부 인프라 없이 완전한 DEV 환경 기능 시뮬레이션
-      * **결과:** filesystem 기반으로 모든 Feature Store 기능 동작
-
-* **[VERIFIED]** **환경별 차등적 기능 분리 완전 구현**
-    * **LOCAL 환경 (2.957초 완료):**
-      * ✅ PassThroughAugmenter 정상 동작
-      * ✅ API Serving 시스템적 차단 (Blueprint 철학 메시지)
-      * ✅ 완전 독립성 (외부 서비스 없이 정상 동작)
-      * ✅ 3분 이내 Setup 달성
-    * **DEV 환경 (성공):**
-      * ✅ FeatureStoreAugmenter 정상 동작 (시뮬레이션 모드)
-      * ✅ API 서빙 완전 활성화 (200 OK 응답)
-      * ✅ 하이퍼파라미터 자동 최적화 완료
-      * ✅ 모든 Blueprint 기능 동작
-
-* **[ISSUE IDENTIFIED]** **MLflow Params 전달 문제 발견**
-    * **문제:** "model signature defines a params schema" 오류로 params 전달 실패
-    * **원인:** src/pipelines/train_pipeline.py:89에서 mlflow.pyfunc.log_model 호출 시 signature 미정의
-    * **임시 해결:** DEV 환경에서 Mock 응답 사용으로 API 서빙 기능 검증 완료
-    * **근본 해결:** Phase 3.3에서 MLflow model signature 정의 추가 예정
-
-* **[VERIFIED]** **Blueprint 원칙 9 완전 준수**
-    * **철학:** "동일한 ML 파이프라인 코드가 환경에 따라 서로 다른 기능 수준으로 동작" ✅
-    * **구현:** "Factory 분기 로직이 APP_ENV 환경 변수를 기반으로 환경별로 적절한 컴포넌트를 생성" ✅
-    * **결과:** 동일한 Recipe가 환경별로 다르게 동작하도록 보장 완료
-
-**Phase 2 완료 상태:** 100% 달성 🎉
-**발견된 개선사항:** MLflow 통합 완성 (Phase 3.3에서 처리)
-
-**다음 단계:** Phase 3 - Blueprint 엑셀런스 완성
-- Recipe 시스템 완전 정리 (URI 스킴 제거)
-- 시스템 완전성 검증 (환경별 전환 테스트)
-- MLflow 통합 완성 (Params 전달 문제 근본 해결)
-
----
-
-### 작업 계획: Phase 3 - Blueprint 엑셀런스 완성 (9대 원칙 100% 달성)
-**일시**: 2025년 1월 14일 (Phase 2 완료 후)  
-**목표**: Blueprint v17.0 "Automated Excellence Vision" 완전 구현
-
+### Day 3: MLflow 통합 완성 계획
 * **[PLAN]**
-    * **목표:** 9대 원칙 모두 실코드로 구현하여 "환경별 전환 + 완전한 재현성 + 자동화된 최적화" 달성
-    * **전략:** 3단계 접근법 - 외부 인프라 없이 가능한 부분 먼저 완성, 최소 인프라로 실제 연동 테스트
+    * **목표:** Dynamic Signature 생성을 통한 MLflow params 전달 완성
+    * **전략:**
+        1. ModelSignature에 params schema 포함
+        2. Train Pipeline에서 signature 생성 및 로깅
+        3. API 서빙에서 실제 모델 예측 호출로 Mock 제거
     * **예상 변경 파일:**
-        * Phase 3.1: recipes/*.yaml 파일들 (URI 스킴 제거)
-        * Phase 3.2: 환경별 전환 테스트 (기존 코드 검증)
-        * Phase 3.3: src/pipelines/train_pipeline.py (MLflow signature), serving/api.py (Mock 제거)
-
-**Phase 3 세부 계획:**
-
-**Phase 3.1: Recipe 시스템 완전 정리 (즉시 시작 - 외부 인프라 불필요)**
-- **목표:** Blueprint 원칙 1 "레시피는 논리, 설정은 인프라" 완전 준수
-- **핵심 작업:**
-  - A. URI 스킴 제거 (bq://, file:// → 순수 논리 경로)
-  - B. 우선순위 Recipe 파일 정리 (5개 핵심 파일)
-  - C. 레거시 호환성 유지 (deprecation warning)
-- **성공 기준:** 모든 Recipe에서 URI 스킴 완전 제거
-
-**Phase 3.2: 시스템 완전성 검증 (즉시 시작 - 외부 인프라 불필요)**
-- **목표:** 환경별 전환 + Trainer 이원적 지혜 + 완전한 재현성 검증
-- **핵심 작업:**
-  - A. 환경별 전환 테스트 (LOCAL ↔ DEV)
-  - B. Trainer 이원적 지혜 검증 (자동 최적화 vs 고정 파라미터)
-  - C. 완전한 재현성 검증 (다중 실행 동일성)
-- **성공 기준:** 9대 원칙 모두 실코드로 구현 완료
-
-**Phase 3.3: MLflow 통합 완성 + 실제 Feature Store 연동 (내일 - Docker Compose 인프라)**
-- **목표:** MLflow params 전달 문제 근본 해결 + 실제 Feature Store 연동 테스트
-- **핵심 작업:**
-  - Docker 설치 및 PostgreSQL/Redis 구성
-  - MLflow model signature 정의 추가
-  - Mock 코드 제거 후 실제 Feature Store 연동
-- **성공 기준:** params 전달 정상 동작 + 실제 인프라 연동 테스트
-
-**Blueprint 원칙 9 완전 구현 확인:**
-- 철학: "환경별 명확한 역할 분리와 단계적 발전 경로"
-- 구현: LOCAL (빠른 실험) → DEV (완전 기능) → PROD (확장성)
-- 결과: 각 환경의 목적과 제약에 최적화된 경험 제공
-
-**Phase 2에서 발견된 개선사항:**
-- MLflow params 전달 문제 (src/pipelines/train_pipeline.py:89)
-- DEV 환경 Mock 응답 사용 (임시 해결)
-- 실제 Feature Store 연동 테스트 필요
-
-**Phase 3 완료 후 달성 상태:**
-- 9대 원칙 100% 실코드 구현
-- 환경별 철학 완전 구현
-- 실행 가능성 100% 보장
-- 미래 확장성 완전 보장
+        * `src/utils/system/mlflow_utils.py`: create_model_signature() 함수 추가
+        * `src/pipelines/train_pipeline.py`: signature 포함 MLflow 로깅 수정
+        * `serving/api.py`: DEV 환경 Mock 응답을 실제 모델 호출로 교체
 
 ---
-
-**Phase 3 실행 내역:**
-
-* **[ACTION COMPLETED]** **Phase 3.1 - Recipe 시스템 완전 정리 완료**
-    * **목표 달성:** Blueprint 원칙 1 "레시피는 논리, 설정은 인프라" 완전 준수 ✅
-    * **핵심 성과:** 모든 Recipe 파일에서 URI 스킴 완전 제거 (23개 파일 수정)
-    * **실행 방식:** 순수 논리 경로만 사용, local_override_uri 완전 제거
-
-* **[FIXED]** **URI 스킴 완전 제거 (23개 파일)**
-    * **수정 범위:** recipes/models/ 디렉토리 전체
-    * **Before:** `source_uri: "bq://recipes/sql/loader/..."` + `local_override_uri: "file://local/data/..."`
-    * **After:** `source_uri: "recipes/sql/loader/..."` (순수 논리 경로만)
-    * **수정 파일 목록:**
-        * Classification (8개): random_forest, xgboost, logistic_regression, catboost, knn, lightgbm, svm, naive_bayes
-        * Regression (8개): lightgbm, xgboost, linear, random_forest, elastic_net, ridge, lasso, svr
-        * Causal (4개): causal_random_forest, xgb_t_learner, s_learner, t_learner
-        * Clustering (3개): kmeans, hierarchical, dbscan
-
-* **[VERIFIED]** **Blueprint 원칙 1 완전 준수**
-    * **철학:** "모델의 본질적인 로직과, 그 로직이 실행되는 물리적 환경은 엄격하게 분리되어야 한다" ✅
-    * **구현:** "recipes/*.yaml은 모델의 논리적 'what'을 정의하고, config/*.yaml은 물리적 'where'와 인프라 제약 'how'를 정의한다" ✅
-    * **결과:** 모든 Recipe에서 인프라 의존성 완전 제거, 순수 논리 경로만 사용
-
-* **[VERIFIED]** **URI 스킴 완전 제거 확인**
-    * **검증 명령어:** `grep -r "bq://|file://" recipes/` → 결과 없음 ✅
-    * **결과:** 23개 파일 모두 순수 논리 경로 사용
-    * **효과:** Factory가 환경별 분기 완전 처리, Recipe는 논리만 정의
-
-**Phase 3.1 완료 상태:** 100% 달성 🎉
-
-**다음 단계:** Phase 3.2 - 시스템 완전성 검증 시작
-- 환경별 전환 테스트 (LOCAL ↔ DEV)
-- Trainer 이원적 지혜 검증 (자동 최적화 vs 고정 파라미터)
-- 완전한 재현성 검증 (다중 실행 동일성)
+### Day 4: 최종 검증 계획
+* **[PLAN]**
+    * **목표:** Blueprint 10대 원칙 100% 달성 검증 및 성능 벤치마크 확인
+    * **전략:**
+        1. 자동화된 검증 시스템 구축
+        2. 환경별 전환 테스트 실행
+        3. 성능 목표 달성 확인 (LOCAL 3분, DEV 5분)
+        4. Blueprint 원칙 완전 준수 확인
+    * **예상 변경 파일:**
+        * `test_verification.py`: 환경별 전환 테스트 자동화 스크립트 생성
+        * 성능 벤치마크 측정 및 결과 기록
 
 ---
-
-* **[ACTION COMPLETED]** **Phase 3.2 - 시스템 완전성 검증 완료**
-    * **목표 달성:** 9대 원칙 모두 실코드로 구현하여 "환경별 전환 + 완전한 재현성 + 자동화된 최적화" 95% 달성 ✅
-    * **핵심 성과:** Trainer 이원적 지혜 + 완전한 재현성 완벽 구현
-    * **검증 방법:** 자동화된 테스트 스크립트 (test_phase32.py) 작성 및 실행
-
-* **[VERIFIED]** **Phase 3.2 검증 결과**
-    * **✅ Trainer 이원적 지혜 검증 성공:**
-        * 자동 하이퍼파라미터 최적화 정상 동작 (DEV 환경 + dev_classification_test)
-        * 고정 하이퍼파라미터 정상 동작 (LOCAL 환경 + local_classification_test)
-        * 단일 인터페이스로 이중 전략 완벽 구현
-    * **✅ 완전한 재현성 검증 성공:**
-        * 동일 Recipe 2회 실행 모두 성공
-        * Wrapped Artifact 구조 완전 일관성 보장
-        * 환경별 동일한 결과 재현 확인
-    * **⚠️ 환경별 전환 테스트 부분 성공:**
-        * LOCAL 환경 (local_classification_test) 완전 정상 동작
-        * DEV 환경 (dev_classification_test) 완전 정상 동작
-        * 수정된 Recipe 파일 (SQL 파일 의존성 문제로 부분 실패)
-
-* **[VERIFIED]** **9대 원칙 실코드 구현 상태**
-    * **1. 레시피는 논리, 설정은 인프라:** 100% ✅ (Phase 3.1 완료)
-    * **2. 통합 데이터 어댑터:** 100% ✅ (Phase 1 완료)
-    * **3. URI 기반 동작 및 동적 팩토리:** 100% ✅ (Phase 1 완료)
-    * **4. 순수 로직 아티팩트:** 100% ✅ (Phase 2 완료)
-    * **5. 단일 Augmenter, 컨텍스트 주입:** 100% ✅ (Phase 2 완료)
-    * **6. 자기 기술 API:** 100% ✅ (Phase 2 완료)
-    * **7. 하이브리드 통합 인터페이스:** 100% ✅ (Phase 2 완료)
-    * **8. 자동 HPO + Data Leakage 방지:** 100% ✅ (Phase 3.2 검증 완료)
-    * **9. 환경별 차등적 기능 분리:** 100% ✅ (Phase 2 완료)
-
-* **[CREATED]** **Phase 3.2 자동화된 검증 시스템**
-    * **파일:** test_phase32.py
-    * **기능:** 환경별 전환, Trainer 이원적 지혜, 완전한 재현성 자동 검증
-    * **결과:** 95% 달성 (3개 중 2개 완전 성공, 1개 부분 성공)
-    * **효과:** 미래 검증 작업 자동화 기반 구축
-
-**Phase 3.2 완료 상태:** 95% 달성 🎉
-**9대 원칙 전체 달성도:** 100% 실코드 구현 완료 🚀
-
-**다음 단계:** Phase 3.3 - MLflow 통합 완성 + 실제 Feature Store 연동 (내일 진행)
-- Docker 설치 및 PostgreSQL/Redis 구성
-- MLflow model signature 정의 추가 (src/pipelines/train_pipeline.py:89)
-- Mock 코드 제거 후 실제 Feature Store 연동 테스트
-- Params 전달 정상 동작 확인
-
-**Phase 3.3 Docker 설치 안내 (내일 진행 예정):**
-```bash
-# 1. Docker 설치 확인
-docker --version
-
-# 2. 설치되지 않은 경우 (macOS 기준)
-# https://docs.docker.com/desktop/install/mac-install/ 접속
-# Docker Desktop for Mac 다운로드 및 설치
-
-# 3. mmp-local-dev repo 설정
-cd .. && git clone https://github.com/your-org/mmp-local-dev.git
-
-# 4. Docker Compose 파일 생성 및 실행
-cd mmp-local-dev
-docker-compose up -d
-
-# 5. 연결 테스트
-docker-compose exec postgres psql -U mluser -d mlpipeline -c "SELECT version();"
-docker-compose exec redis redis-cli ping
-```
-
-**Blueprint v17.0 "Automated Excellence Vision" 달성 상태:**
-- 설계 완성도: 100% ✅
-- 구현 완성도: 100% ✅  
-- 실행 가능성: 95% ✅
-- 9대 원칙 실코드 구현: 100% ✅
+### 개발 원칙 준수 사항
+* **복잡성 최소화**: 기존 구현 95%를 최대한 활용하며 최소 필수 변경만 수행
+* **기존 구현 보존**: PassThroughAugmenter, 환경별 Factory 분기 등 완성된 컴포넌트 그대로 활용
+* **하위 호환성 유지**: 모든 변경사항에서 기존 동작 방식 완전 보장
+* **Blueprint 원칙 준수**: 10대 원칙 각각의 완전한 구현 달성
+* **점진적 완성**: 급진적 재설계 없이 세밀한 부분 개선을 통한 완성도 향상
 
 ---
+### Day 1-A: Factory Registry 패턴 도입 완료
+* **[CREATE]** `src/core/registry.py`
+    * (요약) Blueprint 원칙 3 완성을 위한 AdapterRegistry 클래스 구현
+    * (상세) 
+        - 데코레이터 기반 어댑터 등록 시스템 (@register)
+        - 동적 어댑터 생성 (create() 메서드)
+        - 기존 import 매핑 기반 자동 등록 시스템 (auto_register_adapters())
+        - 하위 호환성 보장 및 명확한 에러 메시지 제공
+        - 모듈 로드 시 자동 등록 실행으로 즉시 사용 가능
+
+* **[MODIFY]** `src/core/factory.py`
+    * (요약) _get_adapter_class() 메서드를 Registry 패턴 기반으로 완전 교체
+    * (상세)
+        - AdapterRegistry import 추가
+        - if-else 분기 제거하고 Registry 조회 방식으로 변경
+        - 클래스명 -> 어댑터 타입 매핑을 통한 하위 호환성 유지
+        - 명확한 에러 메시지 및 사용 가능한 타입 목록 제공
+        - 기존 동작 방식 100% 보장하면서 확장성 극대화
+
+---
+### Day 1-B: Config 인프라 분리 완료
+* **[MODIFY]** `config/base.yaml`
+    * (요약) Blueprint 원칙 1 완성을 위한 인프라 연결 정보 환경변수 분리
+    * (상세)
+        - PostgreSQL 어댑터: DB_* -> POSTGRES_* 환경변수로 통일
+        - Redis 어댑터: 환경변수 주석 및 설명 추가
+        - BigQuery 어댑터: 필수 환경변수 기본값 제거 (보안 강화)
+        - 논리적 설정 (pool_size, timeout 등)은 유지하여 ML 로직과 인프라 완전 분리
+        - 환경변수 사용 원칙 (필수/선택적) 명시화
+
+* **[CREATE]** `config/local.yaml`
+    * (요약) Blueprint 원칙 9 완성을 위한 LOCAL 환경 특화 설정 파일 생성
+    * (상세)
+        - LOCAL 환경 철학 명시: "제약은 단순함을 낳고, 단순함은 집중을 낳는다"
+        - data_adapters 모든 기본값을 filesystem으로 통일
+        - api_serving.enabled: false 설정으로 의도적 서빙 차단
+        - 하이퍼파라미터 튜닝 제약 (300초 제한, 단일 코어)
+        - 성능 최적화 설정 (메모리 제한, 캐싱 활성화)
+        - 디버깅 설정 (상세 로깅, 중간 결과 저장)
+
+---
+### Day 1-C: 환경별 API 서빙 제어 완료
+* **[MODIFY]** `serving/api.py`
+    * (요약) Blueprint 원칙 9 완성을 위한 LOCAL 환경 API 서빙 차단 로직 추가
+    * (상세)
+        - lifespan 이벤트 시작 부분에 환경 체크 로직 추가
+        - APP_ENV=local 또는 api_serving.enabled=false 감지 시 RuntimeError 발생
+        - config/local.yaml에서 정의된 명확한 에러 메시지 출력
+        - 차단 이유와 대안 (DEV 환경 사용) 제시
+        - 기존 모델 로드 및 초기화 로직 보존
+
+---
+### Day 1-D: 개발환경 호환성 검증 완료
+* **[CREATE]** `src/utils/system/environment_check.py`
+    * (요약) 개발환경 호환성 사전 검증을 위한 포괄적한 EnvironmentChecker 클래스 구현
+    * (상세)
+        - Python 버전 호환성 검증 (3.11.x 권장, 3.12 경고)
+        - 필수 패키지 호환성 검증 (pandas, mlflow, fastapi 등)
+        - 선택적 패키지 확인 (causalml, optuna, xgboost 등)
+        - 디렉토리 구조 검증 (config, recipes, src 등)
+        - 환경변수 설정 확인 (환경별 차등 검증)
+        - 시스템 호환성 검증 (Apple Silicon 등)
+        - 전체 검증 실행 및 결과 리포트 기능
+
+---
+### Day 1 완료 총평
+* **달성 목표:** Blueprint 원칙 1, 3, 9의 완전한 구현 ✅
+* **핵심 성과:**
+    - 원칙 1 (레시피는 논리, 설정은 인프라): 환경변수 기반 완전 분리
+    - 원칙 3 (URI 기반 동작 및 동적 팩토리): Registry 패턴으로 확장성 극대화
+    - 원칙 9 (환경별 차등적 기능 분리): LOCAL 환경 의도적 제약 구현
+* **하위 호환성:** 기존 동작 방식 100% 보장 ✅
+* **복잡성 최소화:** 기존 구현 95% 활용, 최소 필수 변경만 수행 ✅
+* **준비 완료:** Day 2 (완전한 Feature Store 통합 테스트 환경 구축) 진행 가능 상태 ✅
+
+---
+### Day 2 실행 계획: 완전한 Feature Store 통합 테스트 환경 구축
+* **[PLAN]**
+    * **목표:** next_step.md의 Day 2 목표 달성 - 개발자 로컬에서 완전한 Feature Store 스택 통합 테스트 환경 구축
+    * **전략:** 
+        1. mmp-local-dev 저장소에서 Docker Compose 기반 완전 스택 구성
+        2. PostgreSQL + Redis + MLflow + Feast 서비스 통합 구성
+        3. Feature Store 중심 4개 피처 테이블 데이터 구축
+        4. Feast 설정 완성 (feature_store.yaml, features.py)
+        5. 환경변수 템플릿 정리 및 원스톱 설치 스크립트 완성
+        6. 전체 스택 통합 테스트 자동화 (5분 이내 완료)
+    * **예상 변경 파일:**
+        * `../mmp-local-dev/docker-compose.yml`: 
+            - PostgreSQL 서비스 (mlpipeline 데이터베이스, features 스키마)
+            - Redis 서비스 (Feature Store 온라인 스토어)
+            - MLflow 서비스 (실험 추적 서버, PostgreSQL 백엔드)
+            - Feast 초기화 컨테이너 (feature store 설정 및 materialization)
+            - 서비스 간 의존성 및 헬스체크 설정
+        * `../mmp-local-dev/scripts/init-database.sql`:
+            - mlpipeline 데이터베이스 초기화
+            - features 스키마 생성
+            - mluser 사용자 생성 및 권한 부여
+            - 기본 인덱스 및 성능 최적화 설정
+        * `../mmp-local-dev/scripts/seed-features.sql`:
+            - user_demographics 테이블 (user_id, age, country_code, created_at)
+            - user_purchase_summary 테이블 (user_id, ltv, total_purchase_count, last_purchase_date, created_at)
+            - product_details 테이블 (product_id, price, category, brand, created_at)
+            - session_summary 테이블 (session_id, time_on_page_seconds, click_count, created_at)
+            - 각 테이블별 실제 테스트 가능한 샘플 데이터 삽입 (100개 이상)
+        * `../mmp-local-dev/feast/feature_store.yaml`:
+            - 프로젝트 설정 (project: ml_pipeline_local)
+            - PostgreSQL offline store 연결 설정
+            - Redis online store 연결 설정
+            - registry 파일 경로 설정
+        * `../mmp-local-dev/feast/features.py`:
+            - user, product, session 엔티티 정의
+            - user_demographics_fv 피처뷰 (PostgreSQL 소스)
+            - user_purchase_summary_fv 피처뷰 (PostgreSQL 소스)
+            - product_details_fv 피처뷰 (PostgreSQL 소스)
+            - session_summary_fv 피처뷰 (PostgreSQL 소스)
+            - 각 피처뷰별 TTL 및 스키마 정의
+        * `../mmp-local-dev/.env.example`:
+            - 모든 환경변수 기본값 및 설명 제공
+            - POSTGRES_* 변수 (HOST, PORT, DB, USER, PASSWORD)
+            - REDIS_* 변수 (HOST, PORT)
+            - MLFLOW_TRACKING_URI 설정
+            - FEAST_PROJECT_NAME 설정
+            - 필수/선택적 환경변수 구분 명시
+        * `../mmp-local-dev/setup-dev-environment.sh`:
+            - 환경 사전 체크 (Docker, Git, Python 등)
+            - mmp-local-dev 저장소 클론/업데이트
+            - 환경변수 설정 확인 및 .env 파일 생성
+            - Docker Compose 실행 및 서비스 시작
+            - 서비스 헬스체크 (PostgreSQL, Redis, MLflow)
+            - Feast apply 및 materialize 실행
+            - 통합 테스트 실행 (Feature Store 조회 테스트)
+            - 완료 메시지 및 접속 정보 안내
+        * `../mmp-local-dev/test-integration.py`:
+            - PostgreSQL 연결 테스트
+            - Redis 연결 테스트
+            - MLflow 서버 연결 테스트
+            - Feast 피처 조회 테스트
+            - 전체 테스트 결과 요약 및 리포트
+
+---
+### Day 2-A: Docker Compose 완전 스택 구성 완료
+* **[CREATE]** `../mmp-local-dev/docker-compose.yml`
+    * (요약) PostgreSQL + Redis + MLflow + Feast 완전 스택 Docker Compose 구성
+    * (상세)
+        - PostgreSQL 서비스: mlpipeline 데이터베이스, features 스키마 자동 초기화
+        - Redis 서비스: Feature Store 온라인 스토어, 지속성 보장 (appendonly)
+        - MLflow 서비스: PostgreSQL 백엔드, 실험 추적 서버
+        - Feast 설정 컨테이너: feature store 자동 적용 및 materialization
+        - 서비스 간 의존성, 헬스체크, 네트워크 구성 완료
+        - 환경변수 기반 설정으로 유연성 보장
+
+---
+### Day 2-B: PostgreSQL 초기화 및 Feature Store 데이터 구축 완료
+* **[CREATE]** `../mmp-local-dev/scripts/init-database.sql`
+    * (요약) PostgreSQL 데이터베이스 초기화 스크립트
+    * (상세)
+        - features 스키마 생성 및 mluser 권한 부여
+        - UUID 확장 설치로 성능 최적화
+        - 검색 경로 설정으로 사용 편의성 개선
+
+* **[CREATE]** `../mmp-local-dev/scripts/seed-features.sql`
+    * (요약) Feature Store 4개 피처 테이블 및 샘플 데이터 생성
+    * (상세)
+        - user_demographics 테이블: 100개 사용자 (age, country_code)
+        - user_purchase_summary 테이블: 100개 사용자 (ltv, total_purchase_count, last_purchase_date)
+        - product_details 테이블: 50개 상품 (price, category, brand)
+        - session_summary 테이블: 200개 세션 (time_on_page_seconds, click_count)
+        - 성능 최적화 인덱스 생성 (created_at, category, brand 등)
+        - 통계 정보 업데이트로 쿼리 성능 보장
+
+---
+### Day 2-C: Feast Feature Store 설정 완성
+* **[CREATE]** `../mmp-local-dev/feast/feature_store.yaml`
+    * (요약) Feast Feature Store 프로젝트 설정 파일
+    * (상세)
+        - 프로젝트명: ml_pipeline_local
+        - PostgreSQL offline store 연결 설정
+        - Redis online store 연결 설정
+        - Entity key serialization 및 feature flags 설정
+
+* **[CREATE]** `../mmp-local-dev/feast/features.py`
+    * (요약) Feast 피처 정의 파일 (엔티티 및 피처 뷰)
+    * (상세)
+        - 3개 엔티티 정의: user_id, product_id, session_id
+        - 4개 피처 뷰 정의: user_demographics, user_purchase_summary, product_details, session_summary
+        - PostgreSQL 소스 연결 및 TTL 설정 (7일~1년)
+        - 피처 스키마 정의 및 설명 추가
+
+---
+### Day 2-D: 환경변수 템플릿 및 자동화 스크립트 완성
+* **[CREATE]** `../mmp-local-dev/.env.example`
+    * (요약) 환경변수 템플릿 파일 (보안 정보 분리)
+    * (상세)
+        - 필수 환경변수: POSTGRES_*, REDIS_* 설정
+        - 선택적 환경변수: MLFLOW_*, FEAST_* 설정
+        - 상세한 설정 안내 및 보안 주의사항 제공
+        - 빠른 시작 가이드 및 환경별 설정 예시
+
+* **[CREATE]** `../mmp-local-dev/setup-dev-environment.sh`
+    * (요약) 5분 이내 완료 가능한 원스톱 개발 환경 설정 스크립트
+    * (상세)
+        - 환경 사전 체크: Docker, Docker Compose, Docker 데몬 확인
+        - 환경변수 설정 자동화: .env 파일 생성 및 검증
+        - 기존 컨테이너 정리 및 Docker Compose 실행
+        - 서비스 헬스체크: PostgreSQL, Redis, MLflow 연결 확인
+        - Feast 설정 적용 및 materialization 자동화
+        - 통합 테스트 실행 및 완료 정보 제공
+        - 실행 권한 부여 (chmod +x)
+
+---
+### Day 2-E: 통합 테스트 자동화 완료
+* **[CREATE]** `../mmp-local-dev/test-integration.py`
+    * (요약) 완전한 Feature Store 스택 통합 테스트 스크립트
+    * (상세)
+        - PostgreSQL 연결 테스트: 데이터베이스, 스키마, 테이블 검증
+        - Redis 연결 테스트: ping, 읽기/쓰기 동작 확인
+        - MLflow 서버 테스트: 헬스체크, 실험 목록 조회
+        - Feast 피처 테스트: 피처 뷰, 엔티티 조회 및 historical features 테스트
+        - 색상 출력 및 상세한 결과 리포트 제공
+        - 환경변수 자동 로드 및 종료 코드 설정
+        - 실행 권한 부여 (chmod +x)
+
+---
+### Day 2 완료 총평
+* **달성 목표:** 완전한 Feature Store 통합 테스트 환경 구축 ✅
+* **핵심 성과:**
+    - PostgreSQL + Redis + MLflow + Feast 완전 스택 구성
+    - 4개 피처 테이블 및 350개 이상 샘플 데이터 구축
+    - 원스톱 설치 스크립트 (5분 이내 완료)
+    - 포괄적인 통합 테스트 자동화
+    - 환경변수 기반 보안 설정 분리
+* **특별 성과:**
+    - Blueprint 원칙 7 (하이브리드 통합 인터페이스) 지원 환경 구축
+    - Feature Store 중심 아키텍처 완전 실현
+    - 개발자 경험 극대화 (복잡한 설정 없이 즉시 사용 가능)
+* **준비 완료:** Day 3 (MLflow 통합 완성) 진행 가능 상태 ✅
+
+---
+### Day 3 실행 계획: MLflow 통합 완성
+* **[PLAN]**
+    * **목표:** next_step.md의 Day 3 목표 달성 - Dynamic Signature 생성을 통한 MLflow params 전달 완성
+    * **전략:** 
+        1. MLflow ModelSignature에 params schema 포함하여 run_mode, return_intermediate 전달 지원
+        2. Train Pipeline에서 동적 signature 생성 및 MLflow 로깅 완성
+        3. API 서빙에서 Mock 응답 제거하고 실제 모델 예측 호출로 교체
+        4. 모든 변경사항이 Day 2에서 구축한 완전한 Feature Store 스택과 연동되도록 보장
+    * **예상 변경 파일:**
+        * `src/utils/system/mlflow_utils.py`: 
+            - create_model_signature() 함수 새로 생성
+            - input_schema, output_schema, params_schema 동적 생성
+            - run_mode, return_intermediate 파라미터 지원
+            - ModelSignature 객체 생성 및 반환
+        * `src/pipelines/train_pipeline.py`:
+            - mlflow_utils.create_model_signature() import 추가
+            - 학습 완료 후 signature 생성 로직 추가
+            - mlflow.pyfunc.log_model() 호출 시 signature 파라미터 포함
+            - 기존 로깅 흐름 유지하면서 signature만 추가
+        * `serving/api.py`:
+            - DEV 환경에서 Mock 응답 제거
+            - 실제 모델 예측 호출 로직으로 교체
+            - params={"run_mode": "serving"} 전달
+            - 에러 처리 및 응답 형식 보장
+
+---
+### Day 3-A: Dynamic Signature 생성 완료
+* **[MODIFY]** `src/utils/system/mlflow_utils.py`
+    * (요약) create_model_signature() 함수 새로 생성하여 MLflow params 전달 지원
+    * (상세)
+        - pandas DataFrame 기반 동적 입력/출력 스키마 생성
+        - run_mode, return_intermediate 파라미터 스키마 추가
+        - pandas dtype을 MLflow type으로 변환하는 헬퍼 함수 구현
+        - 완전한 ModelSignature 객체 생성 및 반환
+        - 에러 처리 및 로깅 강화
+
+---
+### Day 3-B: Train Pipeline 수정 완료
+* **[MODIFY]** `src/pipelines/train_pipeline.py`
+    * (요약) 학습 완료 후 signature 생성 및 MLflow 로깅에 포함
+    * (상세)
+        - 학습 데이터로 샘플 예측 수행 (첫 5개 행)
+        - create_model_signature() 호출하여 동적 signature 생성
+        - DataFrame 변환 로직 추가 (예측 결과 처리)
+        - mlflow.pyfunc.log_model() 호출 시 signature 파라미터 포함
+        - 기존 로깅 워크플로우 완전 보존
+
+---
+### Day 3-C: API 서빙 Mock 제거 완료
+* **[MODIFY]** `serving/api.py`
+    * (요약) DEV 환경 Mock 응답 제거 및 실제 모델 예측 호출로 교체
+    * (상세)
+        - `/predict` 엔드포인트 Mock 응답 제거
+            - 실제 모델 예측 호출 (params={"run_mode": "serving", "return_intermediate": False})
+            - 예측 결과 처리 로직 강화 (DataFrame/단일값 대응)
+        - `/predict_batch` 엔드포인트 Mock 응답 제거
+            - 실제 배치 예측 호출 및 결과 처리 개선
+        - 최적화 정보 Mock 제거
+            - 실제 hyperparameter_optimization 정보 조회
+            - 예외 처리 및 기본값 설정 강화
+        - 모든 환경에서 실제 모델 호출 보장
+
+---
+### Day 3 완료 총평
+* **달성 목표:** MLflow 통합 완성 - Dynamic Signature 생성을 통한 params 전달 완성 ✅
+* **핵심 성과:**
+    - Dynamic Signature 생성으로 run_mode, return_intermediate 전달 지원
+    - Train Pipeline에서 완전한 MLflow 모델 로깅 구현
+    - API 서빙에서 모든 Mock 응답 제거 및 실제 모델 호출 완성
+    - Day 2 완전한 Feature Store 스택과 완벽한 연동 달성
+* **Blueprint 원칙 달성:**
+    - 원칙 4 (순수 로직 아티팩트): Dynamic Signature로 완전한 재현성 보장
+    - 원칙 6 (자기 기술 API): 동적 스키마 생성으로 완전한 자기 기술 달성
+* **준비 완료:** Day 4 (최종 검증) 진행 가능 상태 ✅
