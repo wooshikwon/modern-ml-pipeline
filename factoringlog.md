@@ -210,3 +210,57 @@
 - 환경별 철학 완전 구현
 
 ---
+
+### 작업 계획: Phase 2 - 환경별 기능 검증 (Blueprint 원칙 9 완전 구현)
+**일시**: 2025년 1월 14일 (Phase 1 완료 후)  
+**목표**: Blueprint 원칙 9 "환경별 차등적 기능 분리" 완전 구현
+
+* **[PLAN]**
+    * **목표:** LOCAL/DEV 환경에서 실제 기능 완전 동작으로 "각 환경의 목적과 제약에 최적화된 경험" 제공
+    * **전략:** 환경별 특화된 가치 실현을 통한 점진적 복잡성 증가와 개발자 학습 곡선 완만화
+    * **예상 변경 파일:**
+        * `APP_ENV=local` 환경 변수 설정 및 테스트
+        * `APP_ENV=dev` 환경 변수 설정 및 외부 인프라 연동
+        * `main.py serve-api` 명령어 환경별 동작 확인
+        * `mlruns/` 디렉토리 환경별 실행 결과 저장
+
+**Phase 2 세부 계획:**
+
+**Phase 2.1: LOCAL 환경 완전 검증 (Day 6-7)**
+- **철학:** "제약은 단순함을 낳고, 단순함은 집중을 낳는다"
+- **목표:** 빠른 실험을 위한 의도적 제약 완전 구현
+- **검증 항목:**
+  - A. LOCAL 환경 철학 구현 확인 (PassThroughAugmenter 동작)
+  - B. 의도적 제약 기능 검증 (API Serving 시스템적 차단)
+  - C. 완전 독립성 검증 (외부 의존성 없는 동작)
+  - D. 3분 이내 Setup 시간 달성 확인
+
+**Phase 2.2: DEV 환경 통합 구축 (Day 8-10)**
+- **철학:** "모든 기능이 완전히 작동하는 안전한 실험실"
+- **목표:** 완전한 Feature Store + API serving + 팀 공유 MLflow
+- **구축 항목:**
+  - A. 외부 인프라 구축 (../mmp-local-dev)
+  - B. DEV 환경 설정 및 연결 확인
+  - C. 완전한 기능 검증 (FeatureStoreAugmenter + API 서빙)
+  - D. 15분 이내 Setup 시간 달성 확인
+
+**Phase 2 성공 기준:**
+- ✅ LOCAL 환경: 3분 이내 uv sync → train 완료
+- ✅ LOCAL 환경: PassThroughAugmenter 정상 동작
+- ✅ LOCAL 환경: API Serving 시스템적 차단 동작
+- ✅ LOCAL 환경: 외부 의존성 없이 완전 독립 동작
+- ✅ DEV 환경: 15분 이내 완전한 개발 환경 구축
+- ✅ DEV 환경: FeatureStoreAugmenter 정상 동작
+- ✅ DEV 환경: API 서빙 완전 기능 동작
+- ✅ DEV 환경: 모든 Blueprint 기능 동작
+
+**Blueprint 원칙 9 준수 확인:**
+- 철학: "동일한 ML 파이프라인 코드가 환경에 따라 서로 다른 기능 수준으로 동작하여, 각 환경의 목적과 제약에 최적화된 경험을 제공해야 한다"
+- 구현: "Factory 분기 로직이 APP_ENV 환경 변수를 기반으로 환경별로 적절한 컴포넌트를 생성하여 동일한 Recipe가 환경별로 다르게 동작하도록 보장한다"
+
+**환경별 차등적 기능 분리 매트릭스:**
+- LOCAL: augmenter pass-through, API serving 차단, 파일 기반 데이터 로딩
+- DEV: 완전한 Feature Store, API serving, 팀 공유 MLflow
+- PROD: 클라우드 네이티브 서비스, 무제한 확장 (이 Phase 범위 외)
+
+---

@@ -1,34 +1,29 @@
 # config/dev.yaml: 'dev' 환경 전용 설정
 # -----------------------------------------------------------------------------
 # 이 파일은 APP_ENV=dev 환경에서 base.yaml의 설정을 덮어쓰는 값만 정의합니다.
-# 주로 개발팀이 공유하는 통합 개발 서버 환경을 위한 설정입니다.
-# 🆕 외부 로컬 DB 환경 (ml-pipeline-local-db) 연결 설정 추가
+# Blueprint v17.0: DEV 환경의 완전한 기능을 외부 인프라 없이 테스트 가능하도록 설정
+# 철학: "모든 기능이 완전히 작동하는 안전한 실험실"
 # -----------------------------------------------------------------------------
 
-# 🆕 데이터베이스 연결 (외부 로컬 PostgreSQL)
-database:
-  type: "postgresql"
-  host: "localhost"
-  port: 5432
-  name: "mlpipeline"
-  user: "mluser"
-  password: "mlpassword"
-  schema: "public"
-  
-  # 개발용 최적화
-  pool_size: 5
-  max_overflow: 10
-  echo_sql: true  # 개발 중 SQL 로깅
-
-# 🆕 데이터 어댑터 설정 (Blueprint v17.0: Config-driven Dynamic Factory)
+# 🆕 데이터 어댑터 설정 (Blueprint v17.0: 외부 인프라 없이 DEV 환경 테스트)
 data_adapters:
-  # DEV 환경 어댑터 매핑 (PostgreSQL 중심)
-  default_loader: "postgresql"
-  default_storage: "postgresql"
-  default_feature_store: "postgresql"
+  # DEV 환경: filesystem 기반이지만 기능적으로는 완전한 구현
+  default_loader: "filesystem"
+  default_storage: "filesystem"
+  default_feature_store: "filesystem"
   
   # DEV 환경 특화 어댑터 설정
   adapters:
+    filesystem:
+      class_name: "FileSystemAdapter"
+      config:
+        base_path: "./data"
+        supported_formats: ["parquet", "csv", "json"]
+        auto_create_dirs: true
+        # DEV 환경: 더 상세한 로깅
+        enable_detailed_logging: true
+    
+    # 미래 확장을 위한 설정 (현재는 사용하지 않음)
     postgresql:
       class_name: "PostgreSQLAdapter"
       config:
@@ -40,7 +35,7 @@ data_adapters:
         schema: "public"
         pool_size: 10
         max_overflow: 20
-        echo_sql: true  # 개발 환경에서 SQL 로깅 활성화
+        echo_sql: true
     
     redis:
       class_name: "RedisAdapter"
@@ -52,45 +47,28 @@ data_adapters:
         decode_responses: true
         socket_timeout: 5
         connection_pool_max_connections: 20
-    
-    filesystem:
-      class_name: "FileSystemAdapter"
-      config:
-        base_path: "./data"
-        supported_formats: ["parquet", "csv", "json"]
-        auto_create_dirs: true
 
-#  Feature Store 설정 (Blueprint v17.0: config 통합)
+# 🆕 Feature Store 설정 (Blueprint v17.0: 완전한 기능을 filesystem으로 시뮬레이션)
 feature_store:
-  provider: "feast"
+  provider: "filesystem"  # 외부 인프라 없이 Feature Store 기능 테스트
   
-  # 🎯 Blueprint 원칙 1 준수: 모든 설정을 config에 통합
-  # feast 별도 파일 대신 여기서 완전히 정의
+  # DEV 환경 특화 설정
   feast_config:
     project: "ml_pipeline_dev"
     provider: "local"
     
-    # Registry (피처 메타데이터 저장소)
-    registry:
-      registry_type: "sql"
-      path: "postgresql://mluser:mlpassword@localhost:5432/mlpipeline"
+    # Registry (로컬 파일 기반)
+    registry: "data/feature_store/dev_registry.sqlite"
     
-    # Offline Store (대량 피처 조회 - 학습용)
+    # Offline Store (파일 시스템 기반)
     offline_store:
-      type: "postgres"
-      host: "localhost"
-      port: 5432
-      database: "mlpipeline"
-      db_schema: "feature_mart"
-      user: "mluser"
-      password: "mlpassword"
-      sslmode: "disable"
+      type: "file"
+      path: "data/feature_store/dev_offline"
     
-    # Online Store (실시간 피처 조회 - 서빙용)
+    # Online Store (로컬 SQLite)
     online_store:
-      type: "redis"
-      connection_string: "redis://localhost:6379"
-      database: 0
+      type: "sqlite"
+      path: "data/feature_store/dev_online.sqlite"
     
     # Entity 정의
     entities:
@@ -108,62 +86,70 @@ feature_store:
     entity_key_serialization_version: 2
     flags:
       alpha_features: true
-      beta_features: true
+      beta_features: true  # DEV 환경에서 베타 기능 활성화
     
     # 배치 엔진
     batch_engine:
       type: "local"
     
-    # Feature Server (개발 환경에서는 비활성화)
+    # Feature Server (DEV 환경에서는 비활성화)
     feature_server:
       enabled: false
+  
+  # 연결 정보
+  connection_timeout: 5000
+  retry_attempts: 3
+  connection_info:
+    redis_host: "localhost:6379"
+    offline_store_uri: "file://data/feature_store/dev_offline"
 
-# 🆕 하이퍼파라미터 튜닝 (개발 환경 제약)
+# 🆕 하이퍼파라미터 튜닝 (DEV 환경 최적화)
 hyperparameter_tuning:
   enabled: true
-  timeout: 600  # 10분 제한 (개발 환경)
+  timeout: 300  # 5분 제한 (빠른 테스트용)
   max_parallel_jobs: 2  # 로컬 리소스 보호
   
-  # Optuna 백엔드 (외부 PostgreSQL)
-  study_storage: "postgresql://mluser:mlpassword@localhost:5432/mlpipeline"
+  # 로컬 SQLite 백엔드 (외부 DB 불필요)
+  study_storage: "sqlite:///data/optuna_studies.db"
   
   pruning:
     enabled: true
     algorithm: "MedianPruner"
     n_startup_trials: 3  # 빠른 pruning
+    n_warmup_steps: 5
 
 environment:
-  # 개발용 GCP 프로젝트 ID
-  gcp_project_id: "your-dev-gcp-project-id"
+  # DEV 환경 식별자
+  gcp_project_id: "dev-local-project"
 
 mlflow:
-  # 🆕 로컬 개발 환경에서는 파일 기반 MLflow 사용
-  tracking_uri: "file://./mlruns"
+  # DEV 환경: 로컬 MLflow (팀 공유 시뮬레이션)
+  tracking_uri: "./mlruns"
   experiment_name: "Campaign-Uplift-Modeling-Dev"
   artifact_location: "./data/artifacts"
 
 serving:
-  # 🆕 외부 Redis를 실시간 피처 스토어로 사용
+  # DEV 환경: API 서빙 완전 활성화
+  model_stage: "Staging"
   realtime_feature_store:
-    store_type: "redis"
+    store_type: "filesystem"  # 외부 Redis 대신 filesystem
     connection:
-      host: "localhost"
-      port: 6379
-      db: 0
+      base_path: "./data/feature_store/dev_online"
 
 artifact_stores:
   augmented_dataset:
-    # 🆕 개발 환경에서는 외부 PostgreSQL 사용
-    base_uri: "postgresql://mluser:mlpassword@localhost:5432/mlpipeline"
-  preprocessed_dataset:
-    # 🆕 개발 환경에서는 로컬 파일 시스템 사용
     enabled: true
-    base_uri: "file://./data/processed"
+    base_uri: "file://./data/artifacts/dev_augmented"
+  
+  preprocessed_dataset:
+    enabled: true  # DEV 환경에서 중간 결과 저장
+    base_uri: "file://./data/artifacts/dev_preprocessed"
+  
   prediction_results:
-    # 🆕 개발 환경에서는 외부 PostgreSQL 사용
-    base_uri: "postgresql://mluser:mlpassword@localhost:5432/mlpipeline"
+    enabled: true
+    base_uri: "file://./data/artifacts/dev_predictions"
 
-# 🆕 로깅 설정 (개발 환경 상세 로깅)
+# 🆕 로깅 설정 (DEV 환경 상세 로깅)
 logging:
   level: "DEBUG"
   format: "detailed"
@@ -172,18 +158,18 @@ logging:
       level: "INFO"
     - type: "file"
       level: "DEBUG"
-      filename: "./logs/app.log"
+      filename: "./logs/dev_app.log"
       max_size: "10MB"
       backup_count: 5
 
-# 🆕 개발 환경 최적화
+# 🆕 DEV 환경 최적화
 development:
   auto_reload: true
   debug_mode: true
   
   # 빠른 테스트를 위한 설정
-  sample_data_size: 10000  # 작은 데이터셋 사용
+  sample_data_size: 10000
   cache_preprocessing: true
   
-  # 개발 중 안전장치
+  # DEV 환경 안전장치
   max_training_time: 1800  # 30분 제한
