@@ -88,3 +88,11 @@ pids
 *.pid
 *.seed
 *.pid.lock
+
+# MLflow
+/mlruns/
+
+# Local artifacts
+/local/
+/data/
+/test_project/

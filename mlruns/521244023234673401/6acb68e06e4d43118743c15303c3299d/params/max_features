@@ -1,1 +1,0 @@
-{'type': 'categorical', 'choices': ['sqrt', 'log2', 'auto']}
