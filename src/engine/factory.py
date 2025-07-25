@@ -12,20 +12,8 @@ from src.core.preprocessor import BasePreprocessor, Preprocessor
 from src.interface.base_adapter import BaseAdapter
 from src.settings import Settings
 from src.utils.system.logger import logger
-from src.utils.adapters.file_system_adapter import FileSystemAdapter
-from src.utils.adapters.bigquery_adapter import BigQueryAdapter
-from src.utils.adapters.gcs_adapter import GCSAdapter
-from src.utils.adapters.s3_adapter import S3Adapter
-# 🆕 Blueprint v17.0: Registry 패턴 import
+# 🆕 Blueprint v17.0: Registry 패턴으로 완전 전환 - 직접 import 제거
 from src.core.registry import AdapterRegistry
-
-# Redis는 선택적 의존성으로 처리
-try:
-    from src.utils.adapters.redis_adapter import RedisAdapter
-    HAS_REDIS = True
-except ImportError:
-    RedisAdapter = None
-    HAS_REDIS = False
 
 class PyfuncWrapper(mlflow.pyfunc.PythonModel):
     """
@@ -257,7 +245,7 @@ class Factory:
         
         return adapter_class
         
-    # 🔄 기존 메서드 유지 (하위 호환성)
+    # 🔄 기존 메서드 유지 (하위 호환성) - Registry 패턴 사용으로 변경
     def create_data_adapter_legacy(self, scheme: str) -> BaseAdapter:
         """
         🔄 기존 URI 스킴 기반 어댑터 생성 (하위 호환성 유지)
@@ -266,24 +254,28 @@ class Factory:
         """
         logger.warning(f"DEPRECATED: URI 스킴 기반 어댑터 생성 (scheme: {scheme}). 새로운 config 기반 방식 사용 권장")
         
-        if scheme == 'file':
-            return FileSystemAdapter(self.settings)
-        elif scheme == 'bq':
-            return BigQueryAdapter(self.settings)
-        elif scheme == 'gs':
-            return GCSAdapter(self.settings)
-        elif scheme == 's3':
-            return S3Adapter(self.settings)
-        else:
+        # 스킴 -> 어댑터 타입 매핑
+        scheme_to_adapter_mapping = {
+            'file': 'filesystem',
+            'bq': 'bigquery', 
+            'gs': 'gcs',
+            's3': 's3'
+        }
+        
+        if scheme not in scheme_to_adapter_mapping:
             raise ValueError(f"지원하지 않는 데이터 어댑터 스킴입니다: {scheme}")
+        
+        adapter_type = scheme_to_adapter_mapping[scheme]
+        return AdapterRegistry.create(adapter_type, self.settings)
 
     def create_redis_adapter(self):
-        if not HAS_REDIS:
-            logger.warning("Redis 라이브러리가 설치되지 않아 Redis 어댑터를 생성할 수 없습니다.")
+        """Registry 패턴을 사용한 Redis 어댑터 생성"""
+        if not AdapterRegistry.is_registered('redis'):
+            logger.warning("Redis 어댑터가 등록되지 않았습니다. Redis 라이브러리가 설치되지 않았을 수 있습니다.")
             raise ImportError("Redis 라이브러리가 필요합니다. `pip install redis`로 설치하세요.")
         
         logger.info("Redis 어댑터를 생성합니다.")
-        return RedisAdapter(self.settings.serving.realtime_feature_store)
+        return AdapterRegistry.create('redis', self.settings)
 
     def create_augmenter(self) -> "BaseAugmenter":
         """Augmenter 생성"""

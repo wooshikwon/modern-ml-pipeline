@@ -34,7 +34,6 @@ dependencies = [
     "lightgbm>=4.1.0",
     # 🆕 Feast Feature Store 완전 지원
     "feast>=0.35.0",
-    "google-cloud-bigquery",
     "google-cloud-storage",
     "pyarrow",
     "db-dtypes",
@@ -43,6 +42,9 @@ dependencies = [
     "s3fs",
     "boto3",
     "redis",
+    # 🆕 PostgreSQL 연결 지원
+    "psycopg2-binary",
+    "google-cloud-bigquery>=3.35.1",
 ]
 
 [project.optional-dependencies]
