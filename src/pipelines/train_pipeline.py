@@ -20,10 +20,12 @@ def run_training(settings: Settings, context_params: Optional[Dict[str, Any]] = 
     logger.info(f"'{settings.model.computed['run_name']}' 모델 학습 파이프라인을 시작합니다.")
     context_params = context_params or {}
 
-    factory = Factory(settings)
-
-    with mlflow_utils.start_run(settings) as run:
+    # MLflow 실행 컨텍스트 시작
+    with mlflow_utils.start_run(settings, run_name=settings.model.computed["run_name"]) as run:
         run_id = run.info.run_id
+        
+        # Factory 생성
+        factory = Factory(settings)
         
         # 자동 생성된 Run Name 설정
         run_name = settings.model.computed["run_name"]

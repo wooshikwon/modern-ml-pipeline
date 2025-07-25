@@ -1,6 +1,6 @@
-# Blueprint v17.0 Model Catalog 🎯
+# 🎯 Model Catalog (Blueprint v17.0)
 
-이 문서는 **Blueprint v17.0 "Automated Excellence Vision"**에서 제공하는 **23개 모델 패키지**의 완전한 카탈로그입니다. 모든 모델은 **자동화된 하이퍼파라미터 최적화**, **Data Leakage 방지**, **환경별 Feature Store 연결**을 지원합니다.
+이 문서는 **Blueprint v17.0 "Automated Excellence Vision"**에서 제공하는 **23개 모델 패키지**의 완전한 카탈로그입니다. 모든 모델은 **자동화된 하이퍼파라미터 최적화**, **Data Leakage 방지**, **환경별 Feature Store 연결** 등 Blueprint의 10대 핵심 원칙을 모두 지원합니다.
 
 ## 📊 분류 모델 (Classification) - 8개
 
@@ -209,12 +209,12 @@
 - ✅ **Data Leakage 완전 방지**: Train-only preprocessing fit
 - ✅ **환경별 Feature Store 연결**: 동적 피처 증강
 - ✅ **완전한 재현성**: 모든 최적화 과정 추적 및 저장
-- ✅ **100% 하위 호환성**: 기존 코드 변경 없이 점진적 활성화
+- ✅ **"코드로서의 계약" 준수**: `dev-contract.yml` 기반의 안정적인 인프라 위에서 동작
 
 ### 사용법 예시
 ```bash
-# 임의의 모델로 자동 최적화 학습
-python main.py train --recipe-file "models/classification/xgboost_classifier"
+# DEV 환경에서 임의의 모델로 자동 최적화 학습
+APP_ENV=dev uv run python main.py train --recipe-file recipes/models/classification/xgboost_classifier.yaml
 
 # 자동 최적화 비활성화 (기존 방식)
 # recipe 파일에서 hyperparameter_tuning.enabled: false로 설정
@@ -223,7 +223,7 @@ python main.py train --recipe-file "models/classification/xgboost_classifier"
 python main.py batch-inference --run-id "abc123"
 
 # API 서빙 (최적화된 모델로 실시간 서빙)
-python main.py serve-api --run-id "abc123"
+APP_ENV=dev uv run python main.py serve-api --run-id "latest"
 ```
 
 ---

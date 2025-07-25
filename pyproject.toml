@@ -48,8 +48,12 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest",
+    "pytest-cov",
+    "pre-commit",
     "ruff",
     "mypy",
+    "ipykernel",
+    "httpx",
 ]
 
 [project.scripts]

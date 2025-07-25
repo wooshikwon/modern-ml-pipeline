@@ -1,0 +1,33 @@
+# modern-ml-pipeline과 mmp-local-dev의 공식 연동 계약
+# 이 파일은 두 프로젝트 간의 호환성을 보장하는 단일 진실 공급원입니다.
+# 
+# 버전 관리:
+#   - 이 계약의 구조나 내용에 중요한 변경이 있을 시, 버전을 올려야 합니다.
+#   - modern-ml-pipeline은 자신이 호환되는 계약의 최소 버전을 명시할 수 있습니다.
+version: "1.0"
+
+# mmp-local-dev가 .env 파일을 통해 제공하고, 
+# modern-ml-pipeline이 자신의 동작에 사용해야 하는 환경변수 목록입니다.
+provides_env_variables:
+  - POSTGRES_HOST
+  - POSTGRES_PORT
+  - POSTGRES_USER
+  - POSTGRES_DB
+  - POSTGRES_PASSWORD
+  - REDIS_HOST
+  - REDIS_PORT
+  - MLFLOW_TRACKING_URI
+
+# mmp-local-dev가 docker-compose를 통해 제공해야 하는 핵심 서비스와 기본 포트입니다.
+# modern-ml-pipeline은 이 서비스들이 실행 중일 것을 기대합니다.
+provides_services:
+  - name: "postgresql"
+    port: 5432
+  - name: "redis"
+    port: 6379
+  - name: "mlflow"
+    port: 5000
+
+# mmp-local-dev의 전체 인프라가 계약을 준수하는지 검증하는 스크립트입니다.
+# modern-ml-pipeline의 CI/CD는 이 스크립트의 성공을 신뢰할 수 있습니다.
+verification_script: "test-integration.py" 

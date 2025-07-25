@@ -285,49 +285,20 @@ class Factory:
         logger.info("Redis 어댑터를 생성합니다.")
         return RedisAdapter(self.settings.serving.realtime_feature_store)
 
-    def create_augmenter(self) -> BaseAugmenter:
-        """
-        🆕 Blueprint v17.0: Feature Store 방식과 기존 SQL 방식 모두 지원하는 Augmenter 생성
-        + Blueprint 원칙 9: 환경별 차등적 기능 분리
-        """
-        augmenter_config = self.settings.model.augmenter
-        if not augmenter_config:
-            raise ValueError("Augmenter 설정이 레시피에 없습니다.")
-        
-        # Blueprint 원칙 9: LOCAL 환경의 의도적 제약
-        is_local = self.settings.environment.app_env == "local"
-        if is_local:
-            # LOCAL 환경에서는 PassThroughAugmenter 우선 사용 (Blueprint 철학)
+    def create_augmenter(self) -> "BaseAugmenter":
+        """Augmenter 생성"""
+        # Blueprint 원칙 9: 환경별 차등적 기능 분리
+        # LOCAL 환경에서는 PassThroughAugmenter를 강제 사용하여 빠른 실험 지원
+        if self.settings.environment.app_env == "local":
             logger.info("LOCAL 환경: PassThroughAugmenter 생성 (Blueprint 원칙 9 - 의도적 제약)")
-            return PassThroughAugmenter()
-        
-        # 로컬 환경에서 local_override_uri가 있는 경우 (하위 호환성)
-        if is_local and hasattr(augmenter_config, 'local_override_uri') and augmenter_config.local_override_uri:
-            logger.info("로컬 환경: LocalFileAugmenter 사용 (하위 호환성)")
-            return LocalFileAugmenter(uri=augmenter_config.local_override_uri)
-        
-        # 🆕 Feature Store 방식 체크
-        if hasattr(augmenter_config, 'type') and augmenter_config.type == "feature_store":
-            logger.info("🆕 Feature Store 방식 Augmenter 생성")
-            return Augmenter(
-                source_uri=None,
-                settings=self.settings,
-                augmenter_config=augmenter_config.dict()  # Pydantic 모델을 dict로 변환
-            )
+            from src.core.augmenter import PassThroughAugmenter
+            return PassThroughAugmenter(settings=self.settings)
         else:
-            # 🔄 기존 SQL 방식 (완전 호환성 유지)
-            logger.info("🔄 기존 SQL 방식 Augmenter 생성")
-            source_uri = augmenter_config.source_uri if hasattr(augmenter_config, 'source_uri') else None
-            if not source_uri:
-                raise ValueError("기존 SQL 방식 Augmenter에는 source_uri가 필요합니다.")
-            
-            return Augmenter(
-                source_uri=source_uri,
-                settings=self.settings,
-                augmenter_config={'type': 'sql'}  # 기존 방식 명시
-            )
+            logger.info("DEV/PROD 환경: FeatureStore 연동 Augmenter 생성")
+            from src.core.augmenter import Augmenter
+            return Augmenter(settings=self.settings, factory=self)
 
-    def create_preprocessor(self) -> Optional[BasePreprocessor]:
+    def create_preprocessor(self) -> "BasePreprocessor":
         preprocessor_config = self.settings.model.preprocessor
         if not preprocessor_config: return None
         return Preprocessor(config=preprocessor_config, settings=self.settings)

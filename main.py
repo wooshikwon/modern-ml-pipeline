@@ -13,11 +13,11 @@ app = typer.Typer(help="현대적인 ML 파이프라인 CLI 도구")
 
 @app.command()
 def train(
-    recipe_file: Annotated[str, typer.Option(help="Recipe 파일 경로 (확장자 제외)")],
+    recipe_file: Annotated[str, typer.Option(help="실행할 Recipe의 파일 경로. 절대/상대 경로 또는 recipes/ 내부 파일명을 지정할 수 있습니다.")],
     context_params: Annotated[Optional[str], typer.Option(help='실행 컨텍스트 파라미터 (JSON 문자열)')] = None,
 ):
     """
-    지정��� 모델 이름의 레시피를 사용하여 학습 파이프라인을 실행합니다.
+    지정된 모델 이름의 레시피를 사용하여 학습 파이프라인을 실행합니다.
     """
     try:
         settings = load_settings_by_file(recipe_file)
@@ -41,10 +41,16 @@ def batch_inference(
     예시: python main.py batch-inference --run-id "abc123def456"
     """
     try:
+        # 최상위 레벨에서 설정 로드
+        settings = load_settings()
+        setup_logging(settings)
         params = json.loads(context_params) if context_params else {}
+        
         logger.info(f"Run ID '{run_id}'로 배치 추론을 시작합니다.")
         
+        # 파이프라인에 settings 객체 주입
         run_batch_inference(
+            settings=settings,
             run_id=run_id,
             context_params=params,
         )
@@ -66,13 +72,14 @@ def serve_api(
     Blueprint 원칙 9: LOCAL 환경에서는 시스템적으로 차단됩니다.
     """
     try:
-        # Blueprint 원칙 9: LOCAL 환경 API 서빙 차단
-        import os
-        app_env = os.getenv("APP_ENV", "local")
+        # 최상위 레벨에서 설정 로드
+        settings = load_settings()
+        setup_logging(settings)
         
-        if app_env == "local":
+        # Blueprint 원칙 9: LOCAL 환경 API 서빙 차단
+        if settings.environment.app_env == "local":
             print("❌ API Serving이 현재 환경에서 비활성화되어 있습니다.")
-            print(f"현재 환경: {app_env}")
+            print(f"현재 환경: {settings.environment.app_env}")
             print("🎯 Blueprint 철학: LOCAL 환경은 '빠른 실험과 디버깅의 성지'입니다.")
             print("💡 해결방법: DEV 또는 PROD 환경을 사용하세요.")
             print("   APP_ENV=dev python main.py serve-api --run-id " + run_id)
@@ -82,8 +89,9 @@ def serve_api(
             print("   ./setup-dev-environment.sh  # 완전한 개발환경 자동 설치")
             raise typer.Exit(code=1)
         
-        logger.info(f"Run ID '{run_id}'로 API 서버를 시작합니다. (환경: {app_env})")
-        run_api_server(run_id=run_id, host=host, port=port)
+        logger.info(f"Run ID '{run_id}'로 API 서버를 시작합니다. (환경: {settings.environment.app_env})")
+        # API 서버에 settings 객체 주입
+        run_api_server(settings=settings, run_id=run_id, host=host, port=port)
     except Exception as e:
         logger.error(f"API 서버 실행 중 오류 발생: {e}", exc_info=True)
         raise typer.Exit(code=1)

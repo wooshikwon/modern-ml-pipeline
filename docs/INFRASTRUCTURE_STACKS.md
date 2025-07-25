@@ -2,123 +2,78 @@
 
 **우리 ML 파이프라인을 위한 확정된 인프라 스택 조합 정의서**
 
-이 문서는 `Blueprint v17.0 "Automated Excellence Vision"`을 실제 운영하기 위해 우리가 선택하고 검증한 **최적의 인프라 스택 조합**을 정의합니다. 로컬 개발부터 클라우드 운영까지, 모든 환경에서 일관된 아키텍처를 유지하면서도 각 환경에 최적화된 컴포넌트를 사용합니다.
+이 문서는 `Blueprint v17.0`을 실제 운영하기 위해 우리가 선택하고 검증한 **최적의 인프라 스택 조합**을 정의합니다. 로컬 개발부터 클라우드 운영까지, 모든 환경에서 일관된 아키텍처를 유지하면서도 각 환경에 최적화된 컴포넌트를 사용합니다.
 
 ---
 
-## 🎯 **핵심 설계 원칙**
+## 🎯 **핵심 설계 원칙: "코드로서의 계약"**
 
-### 1. **아키텍처 일관성**: 로컬과 클라우드에서 동일한 논리적 구조
-### 2. **컴포넌트 호환성**: 환경별로 물리적 구현만 다르고 인터페이스는 동일
-### 3. **개발 연속성**: 로컬에서 개발한 것이 클라우드에서 그대로 동작
-### 4. **비용 최적화**: 각 환경의 특성에 맞는 가장 경제적인 선택
+우리 아키텍처의 가장 중요한 원칙은 `modern-ml-pipeline`(소비자)과 `mmp-local-dev`(공급자) 간의 **"코드로서의 계약(Contract as Code)"** 입니다.
+
+1.  **단일 진실 공급원 (`dev-contract.yml`):**
+    `mmp-local-dev` 저장소의 `dev-contract.yml` 파일이 두 프로젝트 간의 기술적 인터페이스를 정의하는 유일한 진실의 원천입니다.
+
+2.  **아키텍처 일관성:**
+    로컬(Docker Compose)과 클라우드(GCP) 환경은 이 계약에 명시된 서비스(PostgreSQL, Redis, MLflow)를 동일한 논리적 구조로 제공합니다.
+
+3.  **양방향 자동 검증:**
+    *   `mmp-local-dev`는 `test-integration.py`를 통해 스스로 계약을 준수하는지 검증합니다.
+    *   `modern-ml-pipeline`은 `tests/integration/test_dev_contract.py`를 통해 인프라가 계약대로 동작하는지 검증합니다.
+
+4.  **개발 연속성:**
+    이 견고한 계약 덕분에, 로컬에서 개발한 코드는 클라우드 환경에서 수정 없이 그대로 동작합니다.
 
 ---
 
-## 🏠 **Local Development Stack**
+## 🏠 **Local Development Stack (`mmp-local-dev`)**
 
 **목표**: 빠른 개발, 완전한 독립성, 비용 제로
 
+`mmp-local-dev` 저장소는 `dev-contract.yml`에 명시된 모든 서비스를 Docker Compose 기반으로 제공하는 완전한 로컬 개발 환경입니다.
+
 ### **스택 조합**
 ```yaml
-OS Platform: Docker Compose
-Data Warehouse: PostgreSQL 15
-Feature Store Framework: Feast (Open Source)
-Feature Offline Store: PostgreSQL 15  
-Feature Online Store: Redis 7
-Object Storage: Local FileSystem
-ML Tracking: MLflow (File-based)
-API Framework: FastAPI
-Deployment: Local Process
-
-총 컨테이너: 3개 (PostgreSQL, Redis, ML-Pipeline)
-총 비용: $0 (완전 로컬)
+Provider: mmp-local-dev (GitHub Repository)
+Orchestration: Docker Compose
+Services:
+  - PostgreSQL 15 (Data Warehouse & Feast Offline Store)
+  - Redis 7 (Feast Online Store)
+  - MLflow Server (Custom Docker Image)
+  - Feast
 ```
 
 ### **데이터 흐름 및 역할**
 ```mermaid
 graph TD
-    subgraph "Local Development Environment"
-        A[Recipe YAML] --> B[Loader SQL]
-        B --> C[PostgreSQL: Entity Spine]
-        C --> D[Feast Historical Features]
-        D --> E[PostgreSQL: Offline Store] 
-        E --> F[Augmented Training Data]
-        
-        G[API Request] --> H[FastAPI Server]
-        H --> I[Feast Online Features]
-        I --> J[Redis: Online Store]
-        J --> K[Real-time Features]
-        K --> L[Prediction Response]
-        
-        M[Feast Materialization] --> N[PostgreSQL → Redis Sync]
-        
-        O[MLflow Artifacts] --> P[./mlruns/ Directory]
+    subgraph "mmp-local-dev Stack"
+        A[PostgreSQL] -- Backend --> B[MLflow Server]
+        A -- Offline Store --> C[Feast]
+        D[Redis] -- Online Store --> C
+    end
+
+    subgraph "modern-ml-pipeline (Consumer)"
+        E[Training Pipeline] -- Reads Features --> C
+        E -- Logs Experiments --> B
+        F[API Server] -- Reads Real-time Features --> C
     end
 ```
 
 ### **컴포넌트별 세부 역할**
 
-#### **🐘 PostgreSQL (Data Warehouse + Offline Store)**
-```yaml
-역할:
-  - Loader SQL 실행 → Entity Spine 생성
-  - Feast Offline Store → 학습용 대량 피처 조회
-  - Point-in-time Join 실행
-  - 테스트 데이터 저장
+#### **🐘 PostgreSQL**
+- **역할:** Data Warehouse, Feast 오프라인 스토어, MLflow 백엔드
+- **포트:** 5432
 
-데이터베이스 구조:
-  - raw_data: 원본 테스트 데이터
-  - feature_mart: Feast materialized features  
-  - spine_data: Entity 및 timestamp 정보
-  - feast_registry: Feast 메타데이터
+#### **⚡ Redis**
+- **역할:** Feast 온라인 스토어, 실시간 피처 캐싱
+- **포트:** 6379
 
-포트: 5432
-컨테이너: postgres:15-alpine
-볼륨: ./data/postgres/
-```
+#### **📊 MLflow**
+- **역할:** 실험 추적, 모델 아티팩트 관리
+- **포트:** 5000
 
-#### **⚡ Redis (Online Store)**
-```yaml
-역할:
-  - Feast Online Store → 실시간 API 서빙
-  - 피처 캐싱 → < 10ms 응답시간
-  - Key-Value 피처 저장
-
-데이터 구조:
-  - Key: "user_demographics:age:user123"
-  - Value: "34"
-  - TTL: 24시간 (개발환경)
-
-포트: 6379
-컨테이너: redis:7-alpine  
-볼륨: ./data/redis/
-```
-
-#### **🎪 Feast (Feature Store Orchestration)**
-```yaml
-역할:
-  - 피처 메타데이터 관리
-  - PostgreSQL → Redis materialization
-  - 학습-서빙 간 일관성 보장
-  - Point-in-time join 로직 제공
-
-설정 파일: config/environments/feast/local_feature_store.yaml
-Registry: PostgreSQL (feast_registry 스키마)
-```
-
-#### **📁 FileSystem (Artifact Storage)**
-```yaml
-역할:
-  - MLflow 아티팩트 저장
-  - 로그 및 중간 결과 저장
-  - 테스트 데이터 저장
-
-디렉토리 구조:
-  - ./mlruns/: MLflow 실험 및 모델
-  - ./data/: 원본 및 처리된 데이터
-  - ./logs/: 애플리케이션 로그
-```
+#### **🎪 Feast**
+- **역할:** 피처 오케스트레이션, 학습/서빙 일관성 보장
 
 ---
 
@@ -126,19 +81,17 @@ Registry: PostgreSQL (feast_registry 스키마)
 
 **목표**: 확장성, 안정성, 관리 편의성
 
+클라우드 환경은 `dev-contract.yml`에 명시된 논리적 서비스를 GCP의 관리형(Managed) 서비스로 대체하여 구현합니다.
+
 ### **스택 조합**
 ```yaml
 Cloud Platform: Google Cloud Platform
-Data Warehouse: BigQuery
-Feature Store Framework: Feast (Managed)
-Feature Offline Store: BigQuery
-Feature Online Store: Redis Labs (Managed)
-Object Storage: Google Cloud Storage
-ML Tracking: MLflow (Cloud Run)
-API Framework: FastAPI
-Deployment: Cloud Run (Serverless)
-
-월 예상 비용: $50-100 (소규모 운영 기준)
+Services:
+  - BigQuery (Data Warehouse & Feast Offline Store)
+  - Redis Labs (Feast Online Store)
+  - MLflow on Cloud Run (ML Tracking)
+  - Feast on Cloud Run
+  - API Server on Cloud Run
 ```
 
 ### **데이터 흐름 및 역할**
@@ -251,31 +204,31 @@ graph TD
 
 ---
 
-## 🔄 **Environment Switching Strategy**
+## 🔄 **환경 전환 전략**
 
 ### **완벽한 환경 전환**
-```bash
-# 로컬 개발 환경
-docker-compose -f docker-compose.local.yml up -d
-APP_ENV=local python main.py train --recipe-file "my_experiment"
+`modern-ml-pipeline`의 코드는 변경 없이, `APP_ENV` 환경변수와 `config/` 디렉토리의 설정 파일만으로 두 환경을 원활하게 전환합니다.
 
-# 클라우드 운영 환경  
-APP_ENV=cloud python main.py train --recipe-file "my_experiment"
+```bash
+# 로컬 개발 환경 (mmp-local-dev 사용)
+./setup-dev-environment.sh start
+APP_ENV=dev uv run python main.py train --recipe-file "my_experiment.yaml"
+
+# 클라우드 운영 환경 (GCP 서비스 사용)
+# (GCP 인증 설정 후)
+APP_ENV=prod uv run python main.py train --recipe-file "my_experiment.yaml"
 ```
 
 ### **동일한 코드, 다른 인프라**
 ```yaml
 변경되지 않는 것:
-  ✅ Recipe YAML 파일들
-  ✅ src/ 디렉토리 모든 코드
-  ✅ Feast 피처 정의
-  ✅ Docker 이미지
-  ✅ API 엔드포인트
+  ✅ Recipe YAML 파일
+  ✅ `src/` 디렉토리 모든 코드
+  ✅ `tests/` 디렉토리 모든 테스트 코드
 
 환경별로 다른 것:
-  ⚙️ config/environments/ 설정만
-  ⚙️ 인프라 연결 정보만
-  ⚙️ 스케일링 파라미터만
+  ⚙️ `config/{env}.yaml` 설정 파일
+  ⚙️ 인프라 연결 정보 (환경변수 또는 GCP 인증)
 ```
 
 ---
@@ -360,36 +313,6 @@ Cloud Run vs GKE:
 
 ---
 
-## 🚀 **Getting Started**
+## 🚀 **시작하기**
 
-### **로컬 환경 시작**
-```bash
-# 1. 로컬 스택 시작
-docker-compose -f docker-compose.local.yml up -d
-
-# 2. 테스트 데이터 준비
-bash scripts/setup_local_stack.sh
-
-# 3. 첫 번째 실험
-python main.py train --recipe-file "models/classification/random_forest_classifier"
-```
-
-### **클라우드 환경 시작**
-```bash
-# 1. GCP 프로젝트 설정
-gcloud projects create ml-pipeline-prod
-gcloud config set project ml-pipeline-prod
-
-# 2. 필요한 API 활성화
-gcloud services enable bigquery.googleapis.com run.googleapis.com
-
-# 3. 환경 변수 설정
-export APP_ENV=cloud
-
-# 4. 첫 번째 배포
-python main.py train --recipe-file "models/classification/random_forest_classifier"
-```
-
----
-
-**🏆 결론: 이 스택 조합은 개발 편의성, 운영 안정성, 비용 효율성을 모두 만족하는 우리만의 최적해입니다!** 
+자세한 시작 방법은 프로젝트 루트의 `README.md` 파일에 있는 **"빠른 시작"** 섹션을 참조하세요. 모든 설정 과정은 `README.md`와 `setup-dev-environment.sh`를 통해 안내됩니다. 

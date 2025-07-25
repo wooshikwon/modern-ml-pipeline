@@ -1,14 +1,15 @@
 # 🚀 Modern ML Pipeline (Blueprint v17.0)
 
-**"Automated Excellence Vision" - 9대 핵심 설계 원칙으로 구현한 차세대 MLOps 플랫폼**
+**"Automated Excellence Vision" - "코드로서의 계약"으로 구현된 차세대 MLOps 플랫폼**
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Blueprint v17.0](https://img.shields.io/badge/blueprint-v17.0-green.svg)](blueprint.md)
+[![Contract v1.0](https://img.shields.io/badge/contract-v1.0-purple.svg)](tests/integration/expected-dev-contract.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ## 📋 프로젝트 개요
 
-Modern ML Pipeline은 **무제한적인 실험 자유도**와 **완전히 일관된 재현성**을 동시에 보장하는 혁신적인 MLOps 플랫폼입니다. Blueprint v17.0의 9대 핵심 설계 원칙을 통해 **자동화된 하이퍼파라미터 최적화**, **환경별 차등적 기능 분리**, **완전한 Data Leakage 방지**를 구현했습니다.
+Modern ML Pipeline은 **무제한적인 실험 자유도**와 **완전히 일관된 재현성**을 동시에 보장하는 혁신적인 MLOps 플랫폼입니다. Blueprint v17.0의 10대 핵심 설계 원칙과 **"코드로서의 계약(Contract as Code)"** 아키텍처를 통해 **자동화된 하이퍼파라미터 최적화**, **환경별 차등적 기능 분리**, **완전한 Data Leakage 방지**를 구현했습니다.
 
 ### 🎯 Blueprint v17.0 핵심 철학
 
@@ -17,7 +18,7 @@ LOCAL 환경: "제약은 단순함을 낳고, 단순함은 집중을 낳는다"
   → 빠른 실험과 디버깅의 성지
 
 DEV 환경: "모든 기능이 완전히 작동하는 안전한 실험실"  
-  → 통합 개발과 협업의 허브
+  → `mmp-local-dev`와 연동되는 통합 개발 허브
 
 PROD 환경: "성능, 안정성, 관측 가능성의 완벽한 삼위일체"
   → 확장성과 안정성의 정점
@@ -25,59 +26,48 @@ PROD 환경: "성능, 안정성, 관측 가능성의 완벽한 삼위일체"
 
 ---
 
-## 🚀 빠른 시작 (5분 원스톱 설치)
+## 🚀 빠른 시작 (5분 개발 환경 설정)
 
-### Option 1: 완전 자동 설치 (권장) ⭐
+이 프로젝트는 ML 로직을 담당하는 `modern-ml-pipeline`과, 인프라를 담당하는 `mmp-local-dev` 두 개의 저장소로 구성됩니다.
+
+### 1단계: 저장소 클론
 
 ```bash
-# 1. 프로젝트 복제
-git clone https://github.com/your-org/modern-ml-pipeline.git
+# 이 저장소 (ML 파이프라인)
+git clone https://github.com/wooshikwon/modern-ml-pipeline.git
+# 인프라 저장소
+git clone https://github.com/wooshikwon/mmp-local-dev.git ../mmp-local-dev
+
 cd modern-ml-pipeline
+```
 
-# 2. 원스톱 개발환경 설정 (모든 것이 자동으로 설치됨)
-./setup-dev-environment.sh
+### 2단계: 개발 환경 시작
 
-# 3. 첫 번째 실험 실행
-source .venv/bin/activate  # 가상환경 활성화 (생성한 경우)
-APP_ENV=dev python main.py train --recipe-file models/classification/random_forest_classifier
+새로 만든 `setup-dev-environment.sh` 관리자 스크립트를 사용하여 `mmp-local-dev` 인프라(PostgreSQL, Redis, MLflow, Feast)를 시작합니다.
 
-# 4. 결과 확인
+```bash
+# DEV 환경 시작 (../mmp-local-dev/setup.sh를 자동으로 실행)
+./setup-dev-environment.sh start
+```
+
+### 3단계: 첫 번째 실험 실행
+
+```bash
+# 가상환경 활성화 및 의존성 설치
+uv venv && uv sync
+
+# DEV 환경에서 학습 실행
+APP_ENV=dev uv run python main.py train --recipe-file recipes/models/classification/local_test.yaml
+
+# 결과 확인
 open http://localhost:5000  # MLflow UI
 ```
-
-**자동으로 설치되는 것들:**
-- ✅ **DEV 환경**: PostgreSQL + Redis + MLflow + Feature Store (Docker)
-- ✅ **Python 패키지**: ML Pipeline 의존성 자동 설치
-- ✅ **통합 검증**: 전체 환경 연동 테스트 자동 실행
-
-### Option 2: 수동 설치
-
-<details>
-<summary>수동 설치 방법 (클릭하여 펼치기)</summary>
-
-```bash
-# 1. Python 환경 설정
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.lock
-
-# 2. 개발환경 별도 설치
-git clone https://github.com/your-org/mmp-local-dev.git ../mmp-local-dev
-cd ../mmp-local-dev
-./setup.sh
-cd ../modern-ml-pipeline
-
-# 3. 첫 번째 실험
-APP_ENV=dev python main.py train --recipe-file models/classification/random_forest_classifier
-```
-
-</details>
 
 ---
 
 ## 🏗️ 아키텍처 하이라이트
 
-### 9대 핵심 설계 원칙
+### 10대 핵심 설계 원칙
 
 | 원칙 | 내용 | 혜택 |
 |------|------|------|
@@ -90,6 +80,7 @@ APP_ENV=dev python main.py train --recipe-file models/classification/random_fore
 | **7. 하이브리드 통합 인터페이스** | SQL 자유도 + Feature Store | 최고의 유연성과 일관성 |
 | **8. 자동 HPO + Data Leakage 방지** | Optuna 통합 + Train-only Fit | 최고 성능 + 완전한 안전성 |
 | **9. 환경별 차등적 기능 분리** | LOCAL/DEV/PROD 맞춤 기능 | 점진적 복잡성 증가 |
+| **10. "코드로서의 계약"** | `dev-contract.yml` 기반 자동 검증 | 견고한 양방향 호환성 보장 |
 
 ### 혁신적인 기능들
 
@@ -168,32 +159,25 @@ APP_ENV=dev python main.py evaluate --run-id <run_id> --input-file data/test.par
 
 ---
 
-## 📊 개발환경 구성
+## 📊 개발환경 관리
 
-### DEV 환경 서비스 스택
-
-| 서비스 | 포트 | 역할 | 접속 정보 |
-|--------|------|------|-----------|
-| **PostgreSQL** | 5432 | Data Warehouse + Feast Offline Store | mluser/mlpassword/mlpipeline |
-| **Redis** | 6379 | Feast Online Store + 캐싱 | localhost:6379 |
-| **MLflow** | 5000 | 실험 추적 및 모델 관리 | http://localhost:5000 |
-| **pgAdmin** | 8082 | PostgreSQL 관리 UI | admin@mlpipeline.local/admin |
-| **Redis Commander** | 8081 | Redis 관리 UI | admin/admin |
-
-### 환경 관리 명령어
+`setup-dev-environment.sh` 스크립트를 통해 `modern-ml-pipeline` 디렉토리를 벗어나지 않고 DEV 환경을 편리하게 관리할 수 있습니다.
 
 ```bash
-# 개발환경 상태 확인
-cd ../mmp-local-dev && ./setup.sh --status
+# DEV 환경 상태 확인
+./setup-dev-environment.sh status
 
-# 서비스 로그 확인
-cd ../mmp-local-dev && ./setup.sh --logs
+# DEV 환경 중지
+./setup-dev-environment.sh stop
 
-# 환경 재시작
-cd ../mmp-local-dev && docker-compose restart
+# DEV 환경 완전 삭제 (볼륨 포함)
+./setup-dev-environment.sh clean
 
-# 완전 정리 및 재설치
-cd ../mmp-local-dev && ./setup.sh --clean && ./setup.sh
+# DEV 환경 재시작
+./setup-dev-environment.sh start
+
+# DEV 환경이 계약을 준수하는지 테스트
+./setup-dev-environment.sh test
 ```
 
 ---
@@ -220,8 +204,10 @@ modern-ml-pipeline/
 │   └── utils/                 # 어댑터 & 시스템 유틸리티
 ├── 🚀 serving/                # API 서빙
 ├── 🧪 tests/                  # 전체 테스트 스위트
+│   └── integration/
+│       └── expected-dev-contract.yml # 소비자 측 기대 계약서
 ├── 📋 main.py                 # 단일 CLI 진입점
-├── 🛠️ setup-dev-environment.sh # 원스톱 개발환경 설정
+├── 🛠️ setup-dev-environment.sh # DEV 환경 관리 스크립트
 └── 📖 blueprint.md            # 전체 아키텍처 설계 문서
 ```
 
@@ -282,20 +268,20 @@ python -m pytest tests/ -v
 # 특정 컴포넌트 테스트
 python -m pytest tests/core/test_factory.py -v
 
-# 통합 테스트
-python -m pytest tests/integration/ -v
+# 통합 테스트 (소비자 측 계약 검증 포함)
+pytest tests/integration/ -v
 
-# 개발환경 통합 테스트
-cd ../mmp-local-dev && ./test-environment.sh
+# 인프라 자체 테스트 (공급자 측 계약 검증)
+(cd ../mmp-local-dev && uv run python test-integration.py)
 ```
 
 ---
 
 ## 📚 문서
 
-- **[Blueprint v17.0 전체 문서](blueprint.md)** - 9대 설계 원칙과 철학
-- **[Feature Store 계약](feature_store_contract.md)** - Feature Store 아키텍처
-- **[개발자 가이드](developer_guide.md)** - 상세 개발 가이드
+- **[Blueprint v17.0 전체 문서](blueprint.md)** - 10대 설계 원칙과 철학
+- **[개발 환경 계약서 (원본)](../mmp-local-dev/dev-contract.yml)** - `mmp-local-dev`가 제공하는 서비스 명세
+- **[개발자 가이드](docs/DEVELOPER_GUIDE.md)** - 상세 개발 가이드
 - **[API 문서](http://localhost:8000/docs)** - FastAPI 자동 생성 문서 (서빙 시)
 
 ---
@@ -318,7 +304,7 @@ pip install -r requirements-dev.lock
 pre-commit install
 
 # 개발환경 실행
-./setup-dev-environment.sh
+./setup-dev-environment.sh start
 ```
 
 ---
@@ -339,5 +325,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - 🔄 **환경별 최적화**: LOCAL/DEV/PROD 각각의 목적에 맞춘 차별화
 - 🛡️ **완전한 안전성**: Data Leakage 원천 차단 및 투명한 검증
 - 🌐 **무제한 확장성**: 로컬부터 글로벌 엔터프라이즈까지
+- **"코드로서의 계약"**: `dev-contract.yml` 기반 자동 검증으로 견고한 호환성
 
 **Modern ML Pipeline으로 MLOps의 새로운 표준을 경험하세요!** ✨

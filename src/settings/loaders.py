@@ -76,21 +76,27 @@ def load_config_files() -> Dict[str, Any]:
 
 def load_recipe_file(recipe_file: str) -> Dict[str, Any]:
     """
-    Recipe 파일 로딩
-    recipes/ 디렉토리에서 YAML 파일을 로드합니다.
+    Recipe 파일 로딩.
+    절대 경로, 상대 경로, recipes/ 내부 경로 순으로 탐색합니다.
     """
-    recipes_dir = BASE_DIR / "recipes"
+    path = Path(recipe_file)
+    if not path.suffix:
+        path = path.with_suffix('.yaml')
+
+    # 우선순위 1: 절대 경로
+    if path.is_absolute():
+        final_path = path
+    # 우선순위 2: 현재 작업 디렉토리 기준 상대 경로
+    elif path.exists():
+        final_path = path
+    # 우선순위 3: (하위 호환성) 기존 recipes/ 디렉토리 기준 경로
+    else:
+        final_path = BASE_DIR / "recipes" / path
+
+    if not final_path.exists():
+        raise FileNotFoundError(f"Recipe 파일을 찾을 수 없습니다. 시도한 최종 경로: {final_path}")
     
-    # .yaml 확장자 자동 추가
-    if not recipe_file.endswith('.yaml'):
-        recipe_file += '.yaml'
-    
-    recipe_path = recipes_dir / recipe_file
-    
-    if not recipe_path.exists():
-        raise FileNotFoundError(f"Recipe 파일을 찾을 수 없습니다: {recipe_path}")
-    
-    return _load_yaml_with_env(recipe_path)
+    return _load_yaml_with_env(final_path)
 
 
 def load_settings(model_name: str) -> Settings:
