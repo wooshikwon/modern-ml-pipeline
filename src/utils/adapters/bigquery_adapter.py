@@ -4,6 +4,7 @@ from urllib.parse import urlparse
 from pathlib import Path
 
 from google.cloud import bigquery
+
 from google.oauth2 import service_account
 
 from src.interface.base_adapter import BaseAdapter

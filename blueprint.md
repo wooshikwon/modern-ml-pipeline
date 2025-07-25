@@ -1,4 +1,4 @@
-## Modern ML Pipeline Blueprint (v17.0 - The Automated Excellence Vision)
+## Modern ML Pipeline Blueprint (The Automated Excellence Vision)
 
 ## 제 1장: 프로젝트 헌장 (The Charter)
 
@@ -63,7 +63,7 @@ loader:
 
 # 2. Augmenter: '뼈대'에 붙일 피처(살)들을 환경별 Feature Store를 통해 선언적으로 정의
 augmenter:
-  type: "feature_store" # 환경별 Feature Store 사용 명시
+  type: "feature_store" # ✅ 환경별 Feature Store 사용 명시
   features:
     # user_id 엔티티에 결합할 피처 목록
     - feature_namespace: "user_demographics"
@@ -190,11 +190,18 @@ mlflow:
 
 #  환경별 Feature Store 관리
 feature_store:
-  provider: "dynamic"  # runtime에서 결정
-  connection_info:
-    # 환경별로 config/*.yaml에서 주입
-    redis_host: ${FEATURE_STORE_REDIS_HOST:localhost:6379}
-    offline_store_uri: ${FEATURE_STORE_OFFLINE_URI:file://local/features}
+  # ✅ Feast의 네이티브 기능을 활용하여 유연성 극대화
+  # config/{env}.yaml 파일에서 online_store의 type만 변경하면
+  # (redis, dynamodb, postgresql 등) 코드 수정 없이 인프라 교체 가능
+  feast_config:
+    project: modern_ml_pipeline
+    registry: data/feature_repo/registry.db
+    provider: local
+    online_store:
+      type: redis
+      connection_string: ${FEATURE_STORE_REDIS_HOST:localhost}:6379
+    offline_store:
+      type: file
 
 #  성능 모니터링 및 알림
 performance_monitoring:
@@ -424,18 +431,17 @@ DEV: ./setup-dev-environment.sh → 완전한 기능 (5분 이내)
   * **철학:** 데이터 소스와의 모든 상호작용은 표준화된 '어댑터'를 통해 이루어져야 한다. 이 원칙은 **Loader가 Spine을 생성하는 과정**과 **Augmenter가 Feature Store를 통해 피처를 조회하는 과정** 모두에 일관되게 적용된다.
   * **구현:**
       * **`BaseAdapter` (in `src/interface/`):** `read()`와 `write()`라는 표준 계약을 정의하는 통합된 추상 클래스. 모든 데이터 어댑터는 이 인터페이스를 따라야 한다.
-      * **구체적인 어댑터 (in `src/utils/adapters/`):** `BigQueryAdapter`, `S3Adapter` 등은 **Loader의 SQL 실행** 및 예측 결과 저장에 사용된다.
-      * **`FeatureStoreAdapter` (in `src/utils/adapters/`):** `BaseAdapter`를 상속받는 특별한 어댑터. 모든 피처 증강(Augmentation)을 담당하며, 환경별 config 설정 (base.yaml + {env}.yaml)을 읽어 동적으로 연결한다.
+      * **구체적인 어댑터 (in `src/utils/adapters/`):** `BigQueryAdapter`, `PostgreSQLAdapter` 등은 **Loader의 SQL 실행** 및 예측 결과 저장에 사용된다.
+      * **`FeastAdapter` (in `src/utils/adapters/`):** `BaseAdapter`를 상속받는 특별한 어댑터. **Feast의 네이티브 기능을 활용**하여 모든 피처 증강(Augmentation)을 담당한다. 환경별 config 설정 (`feast_config` 섹션)을 읽어 동적으로 다양한 온라인/오프라인 스토어(Redis, DynamoDB, BigQuery 등)에 연결된다.
 
-#### 3\. URI 기반 동작 및 동적 팩토리 (URI-Driven Operation & The Dynamic Factory)
+#### 3\. 단순성과 명시성의 원칙: 단순 팩토리 + 명시적 레지스트리 (Simplicity & Explicitness: Simple Factory + Explicit Registry)
 
-  * **철학:** 시스템의 동작은 선언적이어야 한다. "무엇을 할지"는 URI나 설정으로 선언하고, "어떻게 할지"는 팩토리가 알아서 결정해야 한다. **모든 시스템 컴포넌트는 이 단일한 패턴을 일관되게 따라야 하며, 부분적 구현이나 혼재된 접근을 허용하지 않는다.**
+  * **철학:** 복잡성은 시스템의 적이다. "마법같은" 자동화 대신, **명확하고 단순하며 예측 가능한 동작**을 지향한다. 시스템 확장성은 복잡한 메타프로그래밍이 아닌, **단순한 딕셔너리 기반의 명시적 등록**을 통해 달성되어야 한다.
   * **구현:**
-      * **논리적 경로:** `recipe`의 `loader.source_uri`는 `recipes/sql/loaders/...` 같은 순수한 논리적 경로로 기술되어, 실행할 SQL의 위치만을 명시한다.
-      * **`Factory` (in `src/core/`):** 현재 환경 설정(`APP_ENV`)과 파일 패턴을 조합하여, 해당 환경에 적합한 데이터 어댑터를 동적으로 생성하여 반환하는 유일한 창구이다. `augmenter`의 `type`이 `"feature_store"`로 선언되면 `FeatureStoreAdapter`를 생성한다.
-      * **동적 모델 생성:** `class_path`를 파싱하여 실제 모델 클래스를 runtime에 import하고 인스턴스를 생성한다.
-      * **아키텍처 완전성:** 모든 데이터 접근은 Factory를 통해서만 이루어지며, Pipeline에서 직접 URI 파싱이나 환경별 분기를 수행하는 것은 이 원칙의 위반이다.
-      * **Registry 패턴 확장성:** Factory는 if-else 분기 대신 Registry 패턴을 사용하여 완전한 확장성을 보장한다. 새로운 어댑터 추가 시 Factory 코드 수정 없이 데코레이터 기반 등록만으로 자동 인식되며, 이는 시스템의 유연성과 유지보수성을 극대화한다.
+      * **`AdapterRegistry` (in `src/engine/`):** 시스템의 모든 어댑터를 **`{adapter_type: adapter_class}` 형태의 단순한 딕셔너리**로 관리하는 중앙 등록소. 데코레이터나 동적 모듈 스캔 없이, **필요한 어댑터를 한 곳에서 명시적으로 등록**한다. 이는 선택적 의존성(optional dependency)을 우아하게 처리하고 순환 참조를 원천적으로 방지한다.
+      * **`Factory` (in `src/engine/`):** **오직 생성(instantiation)의 책임만 갖는 단순한 클래스.** 더 이상 어댑터 타입을 해석하거나 매핑하는 로직을 갖지 않는다. `config` 파일에 명시된 어댑터 타입(`bigquery`, `postgresql` 등)을 받아 `AdapterRegistry`에 해당 타입의 클래스를 요청하고, 전달받은 클래스를 설정과 함께 인스턴스화하여 반환하는 역할만 수행한다.
+      * **`config/*.yaml`의 역할 강화:** `config/data_adapters.yaml` 같은 설정 파일이 "어떤 환경에서 어떤 목적(loader, storage)에 어떤 어댑터 타입(`bigquery`)을 사용할지"를 명시적으로 정의한다.
+      - **아키텍처의 견고함:** 이 구조는 새로운 어댑터를 추가할 때 `Factory`를 전혀 수정할 필요 없이, 오직 `Registry`에 한 줄을 추가하고 `config` 파일을 수정하는 것만으로 확장이 가능하게 하여 시스템의 유지보수성과 안정성을 극대화한다.
 
 #### 4\. 실행 시점에 조립되는 순수 로직 아티팩트 (Runtime-Assembled, Pure-Logic Artifact)
 
@@ -449,8 +455,8 @@ DEV: ./setup-dev-environment.sh → 완전한 기능 (5분 이내)
 
   * **철학:** 동일한 피처링 로직이라도, 컨텍스트(배치/실시간)에 따라 최적의 방식으로 실행되어야 한다. 이를 위해 단일 `Augmenter` 클래스가 컨텍스트를 받아 자신의 동작(Feature Store 함수 호출)을 바꾸는 것이 일관성 있다.
   * **구현:**
-      * **`Augmenter`:** `Augmenter` 클래스는 단 하나만 존재하며, `FeatureStoreAdapter`를 사용하도록 설정된다.
-      * **`augment()` 메서드:** 이 메서드는 `run_mode`를 인자로 받아, 내부적으로 `FeatureStoreAdapter`의 적절한 메서드(배치/실시간)를 호출한다. 이때 어떤 피처를 가져올지는 `augmenter_config_snapshot`을 통해 결정된다.
+      * **`Augmenter`:** `Augmenter` 클래스는 단 하나만 존재하며, 내부적으로 `FeastAdapter`를 사용하도록 설정된다.
+      * **`augment()` 메서드:** 이 메서드는 `run_mode`를 인자로 받아, 내부적으로 `FeastAdapter`의 적절한 메서드(배치/실시간)를 호출한다. 이때 어떤 피처를 가져올지는 `augmenter_config_snapshot`을 통해 결정된다.
 
 #### 6\. 자기 기술 API (Self-Describing API)
 
@@ -464,9 +470,9 @@ DEV: ./setup-dev-environment.sh → 완전한 기능 (5분 이내)
 
   * **철학:** 예측의 **대상(Entity) 정의는 SQL의 완전한 표현력**을 통해 자유를 보장하고, **피처 증강(Feature Augmentation)은 환경별 Feature Store의 연결성**을 통해 일관성을 확보한다. 이 하이브리드 방식이 우리 시스템의 핵심이다.
   * **구현:**
-      * **엔티티 정의 (SQL):** `loader_sql_snapshot`이 엔티티 생성 로직의 단일 진실 공급원이다.
+      * **엔티티 정의 (SQL):** `loader_sql_snapshot`이 엔티티 생성 로직의 단일 진실 공급원이다. 이 SQL은 정적 파일일 수도 있고, 실행 시점에 CLI 등을 통해 동적 파라미터(e.g., 날짜 범위)를 주입받아 생성되는 **템플릿(Template)**일 수도 있다. 가장 중요한 것은, 어떤 과정을 거치든 **최종적으로 실행되는 완전한 SQL 문자열이 스냅샷으로 저장된다**는 점이다. 이를 통해 동적 쿼리의 유연성과 완전한 재현성을 동시에 달성한다.
       * **피처 증강 정의 (YAML + Feature Store):** `augmenter_config_snapshot`이 피처 증강 로직의 단일 진실 공급원이다.
-      * **동적 변환:** `Augmenter`는 `run_mode`에 따라 두 정의를 조합하여 `FeatureStoreAdapter`를 통해 최적의 방식으로 데이터를 조회한다.
+      * **동적 변환:** `Augmenter`는 `run_mode`에 따라 두 정의를 조합하여 `FeastAdapter`를 통해 최적의 방식으로 데이터를 조회한다.
 
 #### 8\. 자동화된 하이퍼파라미터 최적화 + Data Leakage 완전 방지 (Automated Hyperparameter Optimization + Complete Data Leakage Prevention)
 
@@ -500,12 +506,13 @@ DEV: ./setup-dev-environment.sh → 완전한 기능 (5분 이내)
 
 ## 제 4장: 아키텍처 심층 분석
 
-### 4.1. 디렉토리 구조와 역할
+### 4.1. 디렉토리 구조와 역할 (3계층 아키텍처)
 
 ```
 /
 ├── config/                 # [인프라] 환경별 DB, MLflow, Feature Store, 튜닝 제약 등.
-│   ├── base.yaml           #  - 모든 환경의 공통 기반. 로컬 개발의 기본값.
+│   ├── base.yaml           #  - 모든 환경의 공통 기반.
+│   ├── data_adapters.yaml  #  - ✅ [신규] 환경/목적별 사용할 데이터 어댑터 명시적 정의
 │   ├── local.yaml          #  - 로컬(local) 환경 전용 설정. 의도적 제약 구현.
 │   ├── dev.yaml            #  - 개발(dev) 환경에서 덮어쓸 설정.
 │   └── prod.yaml           #  - 운영(prod) 환경에서 덮어쓸 설정.
@@ -513,38 +520,25 @@ DEV: ./setup-dev-environment.sh → 완전한 기능 (5분 이내)
 │   ├── uplift_model_exp3.yaml #  - 완전히 자유로운 실험명의 레시피 파일.
 │   └── sql/                #  - 레시피가 참조하는 'Spine' 생성용 SQL.
 │       └── loaders/        #    - 주요 데이터(PK, Timestamp)를 가져오는 SQL.
-├── src/                    # [엔진] 파이프라인의 핵심 실행 코드.
-│   ├── core/               #  - Factory, Trainer, Augmenter, Preprocessor 구현체 등
-│   │   ├── factory.py      #    - 중앙 팩토리 (모든 컴포넌트 생성)
-│   │   ├── trainer.py      #    - 학습 오케스트레이션 (고정 HP + 자동 튜닝 모두 포함)
+├── src/                    # [핵심 로직] 파이프라인의 핵심 실행 코드.
+│   ├── components/         #  - ✅ [Layer 1: Components] 실제 ML 작업을 수행하는 '작업자'.
 │   │   ├── augmenter.py    #    - 피처 증강 로직
 │   │   ├── preprocessor.py #    - 데이터 전처리
+│   │   ├── trainer.py      #    - 학습 및 최적화 오케스트레이션
 │   │   └── evaluator.py    #    - 모델 평가
+│   ├── engine/             #  - ✅ [Layer 2: Engine] 시스템의 '뼈대'를 제공.
+│   │   ├── factory.py      #    - 중앙 팩토리 (모든 컴포넌트 생성)
+│   │   ├── registry.py     #    - 어댑터의 명시적 등록 및 관리
+│   │   └── artifact.py     #    - PyfuncWrapper 등 핵심 아티팩트 정의
 │   ├── interface/          #  - 모든 핵심 컴포넌트가 따라야 할 추상 기본 클래스(ABC).
-│   │   ├── base_adapter.py #    - 통합된 데이터 어댑터의 표준 계약
-│   │   ├── base_augmenter.py #  - 피처 증강기의 표준 계약
-│   │   ├── base_factory.py #    - 팩토리의 표준 계약
-│   │   ├── base_preprocessor.py # - 전처리기의 표준 계약
-│   │   └── base_trainer.py #    - 트레이너의 표준 계약
-│   ├── pipelines/          #  - `train`, `batch-inference` 등 엔드-투-엔드 흐름 제어.
+│   ├── pipelines/          #  - ✅ [Layer 3: Pipelines] 엔드-투-엔드 '흐름'을 제어.
+│   │   ├── train_pipeline.py
+│   │   └── inference_pipeline.py
 │   ├── settings/           #  - YAML 설정 파일들을 Pydantic 모델로 변환하는 로직.
 │   └── utils/              #  - 공통 유틸리티 모음.
-│       ├── adapters/       #    - 외부 시스템 연동 어댑터
-│       │   ├── bigquery_adapter.py  # - 데이터 레이크 SQL 실행
-│       │   ├── gcs_adapter.py       # - 클라우드 스토리지
-│       │   ├── s3_adapter.py        # - AWS 스토리지  
-│       │   ├── file_system_adapter.py # - 로컬 파일 시스템
-│       │   ├── feature_store_adapter.py # - 환경별 Feature Store 전용 어댑터
-│       │   └── optuna_adapter.py    # - Optuna SDK 래퍼 (Trainer가 사용)
-│       └── system/         #    - 시스템 유틸리티
-│           ├── logger.py   #      - 로깅 시스템
-│           ├── mlflow_utils.py #  - MLflow 상호작용 헬퍼
-│           ├── schema_utils.py #  - 스키마 검증 유틸리티
-│           ├── sql_utils.py #     - SQL 파싱 유틸리티 (Loader 파싱 전용)
-│           └── tuning_utils.py #  - 하이퍼파라미터 튜닝 유틸리티 (Trainer가 사용)
+│       ├── adapters/       #    - 외부 시스템 연동 어댑터 구현체
+│       └── system/         #    - 로깅, 스키마, SQL 파싱 등 시스템 유틸리티
 ├── serving/                # [서빙] 실시간 API 서빙 관련 코드.
-│   ├── api.py              #  - FastAPI 엔드포인트 정의.
-│   └── schemas.py          #  - 동적 API 요청/응답 Pydantic 스키마 생성.
 ├── tests/                  # [품질] 시스템의 안정성을 보장하는 테스트 코드.
 ├── main.py                 # 시스템의 모든 기능을 실행하는 단일 진입점(CLI).
 ├── Dockerfile              # 재현 가능한 실행 환경을 정의하는 Docker 빌드 스크립트.
@@ -561,12 +555,12 @@ DEV: ./setup-dev-environment.sh → 완전한 기능 (5분 이내)
 4.  **팩토리 생성:** `factory = Factory(settings)` 코드를 통해 중앙 팩토리를 초기화한다.
 5.  **주요 데이터 로딩 (Loader/Spine 생성):**
       * `train_pipeline`은 `settings.loader.source_uri` (e.g., `recipes/sql/loaders/user_session_spine.sql`)를 확인한다.
-      * `factory`가 `BigQueryAdapter` 인스턴스를 생성한다.
+      * `factory`가 **`config/data_adapters.yaml`**을 참조하여 현재 환경의 `loader` 목적에 맞는 어댑터 타입(e.g., `bigquery`)을 확인하고, `AdapterRegistry`에서 `BigQueryAdapter` 클래스를 가져와 인스턴스를 생성한다.
       * `adapter.read()`를 호출하여 BigQuery에 `user_session_spine.sql` 쿼리를 실행, **`user_id`, `product_id`, `session_id`, `event_timestamp` 컬럼을 포함하는 Spine 데이터프레임**을 가져온다.
 6.  **피처 증강 (Augmenter via Feature Store):**
       * `factory.create_augmenter()`로 생성된 `Augmenter`가 `augment(spine_df, run_mode="batch")`를 호출한다.
       * `Augmenter`는 `settings.augmenter` 설정을 읽고, 필요한 피처 목록을 구성한다.
-      * 내부적으로 `FeatureStoreAdapter`를 통해 현재 환경의 config 설정 (base.yaml + {env}.yaml)으로 오프라인 스토어에 접근하여 완전한 피처셋을 반환한다.
+      * 내부적으로 `FeastAdapter`를 통해 현재 환경의 `feast_config` 설정으로 오프라인 스토어에 접근하여 완전한 피처셋을 반환한다.
 7.  ** Trainer 통합 학습 (조건부 자동 최적화):**
       * `factory.create_trainer()`로 `Trainer` 생성
       * `trainer.train(augmented_data, recipe, config)` 호출
@@ -607,7 +601,7 @@ DEV: ./setup-dev-environment.sh → 완전한 기능 (5분 이내)
       * `wrapper.predict(model_input=spine_df, params={"run_mode": "batch", "return_intermediate": True})`를 호출한다.
       * **Wrapper 내부 동작:**
           * `run_mode="batch"`를 인지한다.
-          * 내장된 `trained_augmenter`가 **`augmenter_config_snapshot`**을 해석하고 현재 환경의 `FeatureStoreAdapter`를 통해 오프라인 스토어에서 피처를 증강한다.
+          * 내장된 `trained_augmenter`가 **`augmenter_config_snapshot`**을 해석하고 현재 환경의 `FeastAdapter`를 통해 오프라인 스토어에서 피처를 증강한다.
           * 내장된 `trained_preprocessor` (**Train 데이터에만 fit되어 Data Leakage 방지**)가 안전하게 데이터를 변환한다.
           * 내장된 `trained_model` (**최적 하이퍼파라미터 적용**)이 고성능 예측을 수행한다.
           * `return_intermediate=True`이므로, 최종 결과와 모든 중간 산출물을 담은 딕셔너리를 반환한다.
@@ -619,7 +613,7 @@ DEV: ./setup-dev-environment.sh → 완전한 기능 (5분 이내)
 2.  **서버 초기화 (Lifespan 이벤트):**
       * 현재 서빙 환경의 `config` 정보를 로드한다.
       * `mlflow.pyfunc.load_model("runs:/abc123def456/model")`로 지정된 `run_id`의 "완전한 Wrapped Artifact"를 로드하여 `app_context.model`에 저장한다.
-      * `config`에서 실시간 Feature Store 접속 정보를 읽어 `FeatureStoreAdapter`를 초기화하고 `app_context.adapter`에 저장한다.
+      * `config`에서 실시간 Feature Store 접속 정보를 읽어 `FeastAdapter`를 초기화하고 `app_context.adapter`에 저장한다.
 3.  **동적 API 스키마 생성:**
       * 로드된 Wrapper의 **`loader_sql_snapshot`**을 `sql_utils.parse_select_columns()`에 전달하여 API가 받아야 할 엔티티 키 목록을 동적으로 추출한다.
           * 예: `SELECT user_id, product_id, session_id, ...` → `['user_id', 'product_id', 'session_id']`
@@ -632,7 +626,7 @@ DEV: ./setup-dev-environment.sh → 완전한 기능 (5분 이내)
       * `wrapper.predict(model_input=request_dataframe, params={"run_mode": "serving"})`를 호출한다.
       * **Wrapper 내부 동작:**
           * `run_mode="serving"`을 인지한다.
-          * 내장된 `trained_augmenter`가 **`augmenter_config_snapshot`**을 해석하고, 주입된 `FeatureStoreAdapter`를 통해 온라인 스토어(Redis)에서 피처를 증강한다.
+          * 내장된 `trained_augmenter`가 **`augmenter_config_snapshot`**을 해석하고, 주입된 `FeastAdapter`를 통해 온라인 스토어(Redis)에서 피처를 증강한다.
           * 내장된 `trained_preprocessor` (**Train 데이터에만 fit되어 Data Leakage 방지**)가 안전하게 데이터를 변환한다.
           * 내장된 `trained_model` (**최적 하이퍼파라미터 적용**)이 고성능 실시간 예측을 수행한다.
           * `return_intermediate=False`이므로, 최종 예측 결과만 담긴 `DataFrame`을 반환한다.
@@ -943,7 +937,7 @@ local_development:
 
 개발자 경험:
   ✅ 단일 Recipe YAML로 모든 복잡성 추상화
-  ✅ URI 기반 자동 어댑터 선택으로 설정 최소화
+  ✅ Config 기반 명시적 어댑터 선택으로 예측 가능성 극대화
   ✅ 환경별 무중단 전환 및 A/B 테스트 지원
 
 운영 안정성:
