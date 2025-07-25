@@ -11,10 +11,11 @@ import pytest
 import pandas as pd
 from unittest.mock import Mock, patch, call
 
+from src.components.trainer import Trainer
+from src.engine.factory import Factory
 from src.settings import Settings
-from src.core.trainer import Trainer
-from src.core.augmenter import Augmenter, PassThroughAugmenter
-from src.core.preprocessor import Preprocessor
+from src.components.augmenter import Augmenter, PassThroughAugmenter
+from src.components.preprocessor import Preprocessor
 
 class TestTrainerModernized:
     """Trainer 컴포넌트 단위 테스트 (Blueprint v17.0, 완전 현대화)"""

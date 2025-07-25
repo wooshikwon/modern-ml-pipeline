@@ -9,7 +9,7 @@ Blueprint 원칙 검증:
 import pandas as pd
 import pytest
 import numpy as np
-from src.core.preprocessor import Preprocessor
+from src.components.preprocessor import Preprocessor
 from src.settings import Settings
 
 class TestPreprocessorModernized:

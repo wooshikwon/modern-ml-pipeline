@@ -10,10 +10,11 @@ import re
 import yaml
 from pathlib import Path
 from dotenv import load_dotenv
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from collections.abc import Mapping
 
 from .models import Settings
+from src.utils.system.logger import logger
 
 # --- 기본 경로 및 환경 변수 로더 ---
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -56,20 +57,24 @@ def _recursive_merge(dict1: Dict, dict2: Dict) -> Dict:
 def load_config_files() -> Dict[str, Any]:
     """
     Blueprint v17.0 환경별 config 파일 로딩
-    base.yaml + {app_env}.yaml 순서로 병합
+    data_adapters.yaml -> base.yaml -> {app_env}.yaml 순서로 병합
     """
     config_dir = BASE_DIR / "config"
     
-    # 1. base.yaml 로드 (모든 환경의 기본값)
+    # 1. 어댑터 설정 로드
+    adapter_config = _load_yaml_with_env(config_dir / "data_adapters.yaml")
+    
+    # 2. 기본 인프라 설정 로드
     base_config = _load_yaml_with_env(config_dir / "base.yaml")
     
-    # 2. 현재 환경별 설정 로드
+    # 3. 환경별 설정 로드
     app_env = os.getenv("APP_ENV", "local")
     env_config_file = config_dir / f"{app_env}.yaml"
     env_config = _load_yaml_with_env(env_config_file)
     
-    # 3. 병합: base + env_specific
-    merged_config = _recursive_merge(base_config.copy(), env_config)
+    # 4. 순차적 병합 (오른쪽이 왼쪽을 덮어씀)
+    merged_config = _recursive_merge(adapter_config, base_config)
+    merged_config = _recursive_merge(merged_config, env_config)
     
     return merged_config
 
@@ -112,43 +117,52 @@ def load_settings(model_name: str) -> Settings:
     return load_settings_by_file(f"models/{model_name}")
 
 
-def load_settings_by_file(recipe_file: str) -> Settings:
+def load_settings_by_file(recipe_file: str, context_params: Optional[Dict[str, Any]] = None) -> Settings:
     """
-    Blueprint v17.0 통합 설정 로딩
+    Blueprint v17.0 통합 설정 로딩 + Jinja 템플릿 렌더링
     
-    Args:
-        recipe_file: Recipe 파일 경로 (recipes/ 기준 상대 경로)
-        
-    Returns:
-        config/*.yaml + recipes/*.yaml이 병합된 Settings 객체
-        
-    Example:
-        settings = load_settings_by_file("models/classification/xgboost_classifier")
-        settings = load_settings_by_file("uplift_model_exp3")
+    [YAML 로드 → Jinja 렌더링 → Pydantic 검증]의 3단계 파이프라인을 구현합니다.
     """
-    # 1. 환경별 config 로딩
+    # 1. (기존 로직) 환경별 config 로딩
     config_data = load_config_files()
     
-    # 2. Recipe 파일 로딩
+    # 2. (기존 로직) Recipe 파일 로딩
     recipe_data = load_recipe_file(recipe_file)
     
-    # 3. Recipe 데이터를 model 키 아래로 감싸기 (Settings 모델 구조 준수)
+    # 3. (기존 로직) Recipe 데이터를 model 키 아래로 감싸기
     if recipe_data and "model" not in recipe_data:
-        # recipe 데이터가 있고 model 키가 없는 경우 자동으로 감싸기
         recipe_data = {"model": recipe_data}
     
-    # 4. 최종 병합: config + recipe
-    # Recipe의 내용을 직접 병합 (Blueprint 원칙: 레시피는 논리)
+    # 4. (기존 로직) 최종 병합: config + recipe
     final_data = _recursive_merge(config_data.copy(), recipe_data)
+
+    # 5. (Jinja 렌더링 단계 추가)
+    if context_params:
+        try:
+            from src.utils.system.templating_utils import render_sql_template
+            
+            # Loader SQL 템플릿 렌더링
+            loader_config = final_data.get("model", {}).get("loader", {})
+            loader_uri = loader_config.get("source_uri")
+            if loader_uri and loader_uri.endswith(".sql.j2"):
+                rendered_sql = render_sql_template(loader_uri, context_params)
+                final_data["model"]["loader"]["source_uri"] = rendered_sql
+                logger.info(f"Loader SQL template '{loader_uri}' rendered.")
+
+            # Augmenter SQL 템플릿 렌더링 (필요 시)
+            # 이 부분은 현재 아키텍처에서는 사용되지 않지만, 확장성을 위해 구조를 남겨둘 수 있습니다.
+
+        except Exception as e:
+            raise ValueError(f"Failed to render Jinja2 template: {e}") from e
     
-    # 5. Settings 객체 생성
+    # 6. Settings 객체 생성 (Pydantic 검증)
     try:
         settings = Settings(**final_data)
         
-        # 6. computed 필드 생성
+        # 7. computed 필드 생성
         settings.model.computed = _create_computed_fields(settings, recipe_file)
         
-        # 7. 유효성 검증
+        # 8. 유효성 검증
         if settings.model.augmenter:
             settings.model.augmenter.validate_augmenter_config()
         settings.model.data_interface.validate_required_fields()

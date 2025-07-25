@@ -9,8 +9,8 @@ import pandas as pd
 import tempfile
 import os
 from unittest.mock import Mock, patch, MagicMock
-from src.core.factory import Factory
-from src.core.trainer import Trainer
+from src.engine.factory import Factory
+from src.components.trainer import Trainer
 from src.pipelines.train_pipeline import run_training
 from src.pipelines.inference_pipeline import run_batch_inference
 from src.settings import Settings, load_settings

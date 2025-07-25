@@ -1,12 +1,15 @@
 # src/interface/base_factory.py
 
+from __future__ import annotations
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
 import mlflow
 
 # 필요한 타입 힌트를 위해 import
 from src.settings import Settings
-# BaseModel import 제거: 외부 라이브러리 직접 사용으로 전환
-from src.core.preprocessor import Preprocessor
+
+if TYPE_CHECKING:
+    from src.components.preprocessor import Preprocessor
 
 """
 아래와 같은 PyfuncWrapper 클래스를 같은 파일 안에 병렬로 만들어 사용하는 것을 권장.

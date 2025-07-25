@@ -8,8 +8,7 @@ from typing import Dict, Any, List, Type
 from pydantic import BaseModel, create_model
 
 from src.settings import Settings, load_settings
-from src.utils.system.logger import logger
-from src.utils.system import mlflow_utils
+from src.utils.integrations import mlflow_integration as mlflow_utils
 from serving.schemas import (
     get_pk_from_loader_sql,
     create_dynamic_prediction_request,

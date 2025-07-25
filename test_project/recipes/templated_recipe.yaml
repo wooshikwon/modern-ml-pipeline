@@ -1,0 +1,19 @@
+# test_project/recipes/templated_recipe.yaml
+model:
+  class_path: "sklearn.ensemble.RandomForestClassifier"
+  hyperparameters:
+    n_estimators: 10
+    max_depth: 3
+
+  loader:
+    name: "templated_loader"
+    source_uri: "test_project/recipes/sql/loader.sql.j2" # Jinja2 템플릿 파일 지정
+  
+  preprocessor:
+    name: "default_preprocessor"
+    params:
+      exclude_cols: ["user_id", "item_id", "timestamp", "target_date"]
+  
+  data_interface:
+    task_type: "classification"
+    target_col: "target" 

@@ -10,9 +10,9 @@ import pytest
 import pandas as pd
 from unittest.mock import Mock, patch
 
+from src.components.augmenter import Augmenter, PassThroughAugmenter
 from src.settings import Settings
-from src.core.augmenter import Augmenter, PassThroughAugmenter
-from src.core.factory import Factory
+from src.engine.factory import Factory
 
 class TestAugmenterModernized:
     """Augmenter 컴포넌트 단위 테스트 (Blueprint v17.0, 완전 현대화)"""

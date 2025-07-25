@@ -13,8 +13,8 @@ import pytest
 import pandas as pd
 from unittest.mock import Mock, patch, MagicMock
 from src.settings import Settings
-from src.core.trainer import Trainer
-from src.core.factory import Factory
+from src.components.trainer import Trainer
+from src.engine.factory import Factory
 
 
 class TestBlueprintV17CompatibilityModernized:

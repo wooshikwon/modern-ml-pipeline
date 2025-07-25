@@ -1,0 +1,25 @@
+
+# recipes/example_recipe.yaml
+# 모델의 논리를 정의합니다.
+model:
+  class_path: "sklearn.ensemble.RandomForestClassifier"
+  hyperparameters:
+    n_estimators: 100
+    max_depth: 10
+
+  loader:
+    name: "default_loader" # 필수 필드 추가
+    # 로컬 파일 시스템을 사용하는 예제
+    source_uri: "data/raw/your_data.parquet"
+  
+  # 피처 증강은 필요 시 여기에 추가합니다.
+  # augmenter: ...
+  
+  preprocessor:
+    name: "default_preprocessor" # 필수 필드 추가
+    params: # 필수 필드 추가
+      exclude_cols: ["user_id"]
+  
+  data_interface:
+    task_type: "classification"
+    target_col: "target"

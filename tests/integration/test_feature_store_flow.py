@@ -12,12 +12,12 @@ from fastapi.testclient import TestClient
 import mlflow
 import shutil
 
+from src.engine.factory import Factory
+from src.components.augmenter import Augmenter
 from src.settings import load_settings_by_file
 from src.pipelines.train_pipeline import run_training
 from src.pipelines.inference_pipeline import run_batch_inference
 from serving.api import app, setup_api_context
-from src.core.factory import Factory
-from src.core.augmenter import Augmenter
 from src.utils.system.logger import setup_logging
 
 # DEV 환경 통합 테스트임을 명시

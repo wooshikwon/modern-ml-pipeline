@@ -21,9 +21,9 @@ import numpy as np
 from unittest.mock import patch
 import json
 
+from src.engine.factory import Factory
 from src.settings import Settings
-from src.core.factory import Factory
-from src.core.augmenter import Augmenter
+from src.components.augmenter import Augmenter
 from src.utils.adapters.feature_store_adapter import FeatureStoreAdapter
 
 # DEV 환경 Feature Store 심층 테스트

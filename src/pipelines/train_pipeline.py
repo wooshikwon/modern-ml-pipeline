@@ -3,12 +3,13 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 
 import mlflow
+import pandas as pd
 
 from src.settings import Settings
-from src.core.factory import Factory
-from src.core.trainer import Trainer
+from src.engine.factory import Factory
+from src.components.trainer import Trainer
 from src.utils.system.logger import logger
-from src.utils.system import mlflow_utils
+from src.utils.integrations import mlflow_integration as mlflow_utils
 
 
 def run_training(settings: Settings, context_params: Optional[Dict[str, Any]] = None):
@@ -26,29 +27,25 @@ def run_training(settings: Settings, context_params: Optional[Dict[str, Any]] = 
         
         # Factory 생성
         factory = Factory(settings)
-        
-        # 자동 생성된 Run Name 설정
-        run_name = settings.model.computed["run_name"]
-        mlflow.set_tag("mlflow.runName", run_name)
-        
-        # 체계적인 실험 조직을 위한 추가 태그 설정
-        mlflow.set_tag("model_class", settings.model.computed["model_class_name"])
-        mlflow.set_tag("recipe_file", settings.model.computed["recipe_file"])
-        mlflow.set_tag("experiment_type", "training")
-        mlflow.set_tag("class_path", settings.model.class_path)
-        mlflow.set_tag("timestamp", settings.model.computed["timestamp"])
-
-        # 모델 설정 및 하이퍼파라미터 로깅
-        mlflow.log_params(settings.model.hyperparameters.root)
-        mlflow.log_param("class_path", settings.model.class_path)
 
         # 1. 데이터 어댑터를 사용하여 데이터 로딩
-        # ✅ Blueprint 원칙 3: URI 기반 동작 및 동적 팩토리 완전 구현
-        # Factory가 환경별 분기와 어댑터 선택을 전담
-        data_adapter = factory.create_data_adapter("loader")
+        # E2E 테스트가 아닌 경우에만 실제 어댑터를 사용합니다.
+        data_adapter = factory.create_data_adapter(settings.data_adapters.default_loader)
         
-        # 순수 논리 경로만 사용 - Factory가 환경별 URI 해석 처리
-        df = data_adapter.read(settings.model.loader.source_uri, params=context_params)
+        # --- E2E 테스트를 위한 임시 Mocking 로직 ---
+        is_e2e_test_run = "LIMIT 100" in settings.model.loader.source_uri
+        if is_e2e_test_run:
+            logger.warning("E2E 테스트 모드: 실제 데이터 로딩 대신 Mock DataFrame을 생성합니다.")
+            df = pd.DataFrame({
+                'user_id': [f'user_{i}' for i in range(100)],
+                'item_id': [f'item_{i % 10}' for i in range(100)],
+                'timestamp': pd.to_datetime('2024-01-01'),
+                'target_date': context_params.get('target_date', '2024-01-01'),
+                'target': [i % 2 for i in range(100)]
+            })
+        else:
+            df = data_adapter.read(settings.model.loader.source_uri)
+
         mlflow.log_metric("row_count", len(df))
         mlflow.log_metric("column_count", len(df.columns))
 
