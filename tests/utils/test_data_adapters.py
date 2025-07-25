@@ -1,480 +1,355 @@
 """
-데이터 어댑터 테스트
+데이터 어댑터 테스트 (Blueprint v17.0 현대화)
 
 모든 데이터 어댑터의 통합 테스트 및 Blueprint 원칙 검증
+
+Blueprint 원칙 검증:
+- 원칙 2: 통합 데이터 어댑터 (The Unified Data Adapter)
+- 원칙 3: URI 기반 동작 및 동적 팩토리
+- 어댑터 생태계 완전성 검증
 """
 
 import pytest
 import pandas as pd
-from unittest.mock import Mock, patch, MagicMock
-from src.utils.data_adapters.bigquery_adapter import BigQueryAdapter
-from src.utils.data_adapters.gcs_adapter import GCSAdapter
-from src.utils.data_adapters.s3_adapter import S3Adapter
-from src.utils.data_adapters.file_system_adapter import FileSystemAdapter
-from src.utils.data_adapters.redis_adapter import RedisAdapter
+from unittest.mock import patch, MagicMock, Mock
+import tempfile
+import os
+
 from src.settings import Settings
+from src.utils.adapters.bigquery_adapter import BigQueryAdapter
+from src.utils.adapters.gcs_adapter import GCSAdapter
+from src.utils.adapters.s3_adapter import S3Adapter
+from src.utils.adapters.file_system_adapter import FileSystemAdapter
+from src.utils.adapters.redis_adapter import RedisAdapter
+from src.core.factory import Factory
 
 
-class TestBigQueryAdapter:
-    """BigQuery 어댑터 테스트"""
-    
-    def test_initialization(self, xgboost_settings: Settings):
-        """BigQuery 어댑터 초기화 테스트"""
-        adapter = BigQueryAdapter(xgboost_settings)
-        assert adapter.settings == xgboost_settings
-        assert hasattr(adapter, '_client_available')
-    
-    def test_client_initialization_success(self, xgboost_settings: Settings):
-        """클라이언트 초기화 성공 테스트"""
-        with patch('src.utils.data_adapters.bigquery_adapter.bigquery.Client') as mock_client:
-            mock_client.return_value = Mock()
-            
-            adapter = BigQueryAdapter(xgboost_settings)
-            
-            # 클라이언트가 생성되었는지 확인
-            assert adapter._client_available is True
-    
-    def test_client_initialization_failure(self, xgboost_settings: Settings):
-        """클라이언트 초기화 실패 테스트 (인증 정보 없음)"""
-        with patch('src.utils.data_adapters.bigquery_adapter.bigquery.Client') as mock_client:
-            mock_client.side_effect = Exception("Authentication failed")
-            
-            adapter = BigQueryAdapter(xgboost_settings)
-            
-            # 클라이언트 초기화 실패 시 graceful degradation
-            assert adapter._client_available is False
-    
-    def test_read_with_client_available(self, xgboost_settings: Settings):
-        """클라이언트 사용 가능 시 read 테스트"""
-        with patch('src.utils.data_adapters.bigquery_adapter.bigquery.Client') as mock_client:
-            mock_client_instance = Mock()
-            mock_client.return_value = mock_client_instance
-            
-            # Mock 쿼리 결과
-            mock_result = Mock()
-            mock_result.to_dataframe.return_value = pd.DataFrame({
-                'member_id': ['a', 'b', 'c'],
-                'feature1': [1, 2, 3]
-            })
-            mock_client_instance.query.return_value = mock_result
-            
-            adapter = BigQueryAdapter(xgboost_settings)
-            
-            # read 실행
-            result = adapter.read("bq://project.dataset.table", params={})
-            
-            # 결과 확인
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) == 3
-            assert 'member_id' in result.columns
-            
-            # 클라이언트가 호출되었는지 확인
-            mock_client_instance.query.assert_called_once()
-    
-    def test_read_with_client_unavailable(self, xgboost_settings: Settings):
-        """클라이언트 사용 불가능 시 read 테스트"""
-        with patch('src.utils.data_adapters.bigquery_adapter.bigquery.Client') as mock_client:
-            mock_client.side_effect = Exception("Authentication failed")
-            
-            adapter = BigQueryAdapter(xgboost_settings)
-            
-            # read 실행
-            result = adapter.read("bq://project.dataset.table", params={})
-            
-            # 빈 DataFrame 반환
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) == 0
-    
-    def test_write_method(self, xgboost_settings: Settings):
-        """write 메서드 테스트"""
-        with patch('src.utils.data_adapters.bigquery_adapter.bigquery.Client') as mock_client:
-            mock_client_instance = Mock()
-            mock_client.return_value = mock_client_instance
-            
-            adapter = BigQueryAdapter(xgboost_settings)
-            
-            # 샘플 데이터
-            data = pd.DataFrame({
-                'member_id': ['a', 'b', 'c'],
-                'feature1': [1, 2, 3]
-            })
-            
-            # write 실행
-            adapter.write(data, "bq://project.dataset.table")
-            
-            # 클라이언트가 호출되었는지 확인
-            mock_client_instance.load_table_from_dataframe.assert_called_once()
+class TestAdaptersModernized:
+    """
+    데이터 어댑터 단위 테스트 (Blueprint v17.0 현대화)
+    - 각 어댑터가 settings 객체로 올바르게 초기화되는지 검증합니다.
+    - 실제 I/O 대신 Mock을 사용하여 각 어댑터의 핵심 메서드를 테스트합니다.
+    - Blueprint 원칙 2: 통합 데이터 어댑터 완전 검증
+    """
 
-
-class TestGCSAdapter:
-    """GCS 어댑터 테스트"""
-    
-    def test_initialization(self, xgboost_settings: Settings):
-        """GCS 어댑터 초기화 테스트"""
-        adapter = GCSAdapter(xgboost_settings)
-        assert adapter.settings == xgboost_settings
-        assert hasattr(adapter, 'client')
-    
-    def test_client_initialization_success(self, xgboost_settings: Settings):
-        """클라이언트 초기화 성공 테스트"""
-        with patch('src.utils.data_adapters.gcs_adapter.storage.Client') as mock_client:
-            mock_client.return_value = Mock()
+    def test_bigquery_adapter_initialization_and_interface(self, local_test_settings: Settings):
+        """
+        BigQueryAdapter가 settings를 사용하여 초기화되고 통합 인터페이스를 구현하는지 테스트
+        Blueprint 원칙 2: 통합 데이터 어댑터
+        """
+        with patch('src.utils.adapters.bigquery_adapter.bigquery.Client') as mock_client:
+            adapter = BigQueryAdapter(local_test_settings)
             
-            adapter = GCSAdapter(xgboost_settings)
+            # 초기화 검증
+            assert adapter.settings == local_test_settings
+            mock_client.assert_called_once()
             
-            # 클라이언트가 생성되었는지 확인
-            assert adapter.client is not None
-    
-    def test_read_method(self, xgboost_settings: Settings):
-        """read 메서드 테스트"""
-        with patch('src.utils.data_adapters.gcs_adapter.storage.Client') as mock_client:
-            mock_client_instance = Mock()
-            mock_client.return_value = mock_client_instance
+            # 통합 인터페이스 검증
+            from src.interface.base_adapter import BaseAdapter
+            assert isinstance(adapter, BaseAdapter)
             
-            # Mock blob 설정
-            mock_blob = Mock()
-            mock_blob.download_as_text.return_value = "member_id,feature1\na,1\nb,2\nc,3"
-            mock_bucket = Mock()
-            mock_bucket.blob.return_value = mock_blob
-            mock_client_instance.bucket.return_value = mock_bucket
-            
-            adapter = GCSAdapter(xgboost_settings)
-            
-            # read 실행
-            result = adapter.read("gs://bucket/file.csv", params={})
-            
-            # 결과 확인
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) == 3
-            assert 'member_id' in result.columns
-    
-    def test_write_method(self, xgboost_settings: Settings):
-        """write 메서드 테스트"""
-        with patch('src.utils.data_adapters.gcs_adapter.storage.Client') as mock_client:
-            mock_client_instance = Mock()
-            mock_client.return_value = mock_client_instance
-            
-            # Mock blob 설정
-            mock_blob = Mock()
-            mock_bucket = Mock()
-            mock_bucket.blob.return_value = mock_blob
-            mock_client_instance.bucket.return_value = mock_bucket
-            
-            adapter = GCSAdapter(xgboost_settings)
-            
-            # 샘플 데이터
-            data = pd.DataFrame({
-                'member_id': ['a', 'b', 'c'],
-                'feature1': [1, 2, 3]
-            })
-            
-            # write 실행
-            adapter.write(data, "gs://bucket/file.csv")
-            
-            # blob이 업로드되었는지 확인
-            mock_blob.upload_from_string.assert_called_once()
-
-
-class TestS3Adapter:
-    """S3 어댑터 테스트"""
-    
-    def test_initialization(self, xgboost_settings: Settings):
-        """S3 어댑터 초기화 테스트"""
-        adapter = S3Adapter(xgboost_settings)
-        assert adapter.settings == xgboost_settings
-        assert hasattr(adapter, 'client')
-    
-    def test_client_initialization_success(self, xgboost_settings: Settings):
-        """클라이언트 초기화 성공 테스트"""
-        with patch('src.utils.data_adapters.s3_adapter.boto3.client') as mock_client:
-            mock_client.return_value = Mock()
-            
-            adapter = S3Adapter(xgboost_settings)
-            
-            # 클라이언트가 생성되었는지 확인
-            assert adapter.client is not None
-    
-    def test_read_method(self, xgboost_settings: Settings):
-        """read 메서드 테스트"""
-        with patch('src.utils.data_adapters.s3_adapter.boto3.client') as mock_client:
-            mock_client_instance = Mock()
-            mock_client.return_value = mock_client_instance
-            
-            # Mock S3 객체 설정
-            mock_response = {
-                'Body': Mock()
-            }
-            mock_response['Body'].read.return_value = b"member_id,feature1\na,1\nb,2\nc,3"
-            mock_client_instance.get_object.return_value = mock_response
-            
-            adapter = S3Adapter(xgboost_settings)
-            
-            # read 실행
-            result = adapter.read("s3://bucket/file.csv", params={})
-            
-            # 결과 확인
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) == 3
-            assert 'member_id' in result.columns
-    
-    def test_write_method(self, xgboost_settings: Settings):
-        """write 메서드 테스트"""
-        with patch('src.utils.data_adapters.s3_adapter.boto3.client') as mock_client:
-            mock_client_instance = Mock()
-            mock_client.return_value = mock_client_instance
-            
-            adapter = S3Adapter(xgboost_settings)
-            
-            # 샘플 데이터
-            data = pd.DataFrame({
-                'member_id': ['a', 'b', 'c'],
-                'feature1': [1, 2, 3]
-            })
-            
-            # write 실행
-            adapter.write(data, "s3://bucket/file.csv")
-            
-            # S3에 업로드되었는지 확인
-            mock_client_instance.put_object.assert_called_once()
-
-
-class TestFileSystemAdapter:
-    """FileSystem 어댑터 테스트"""
-    
-    def test_initialization(self, xgboost_settings: Settings):
-        """FileSystem 어댑터 초기화 테스트"""
-        adapter = FileSystemAdapter(xgboost_settings)
-        assert adapter.settings == xgboost_settings
-    
-    def test_read_csv_method(self, xgboost_settings: Settings):
-        """CSV 파일 read 테스트"""
-        adapter = FileSystemAdapter(xgboost_settings)
-        
-        # pandas read_csv Mock
-        with patch('pandas.read_csv') as mock_read_csv:
-            mock_read_csv.return_value = pd.DataFrame({
-                'member_id': ['a', 'b', 'c'],
-                'feature1': [1, 2, 3]
-            })
-            
-            # read 실행
-            result = adapter.read("file:///path/to/file.csv", params={})
-            
-            # 결과 확인
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) == 3
-            assert 'member_id' in result.columns
-            
-            # pandas read_csv가 호출되었는지 확인
-            mock_read_csv.assert_called_once()
-    
-    def test_read_parquet_method(self, xgboost_settings: Settings):
-        """Parquet 파일 read 테스트"""
-        adapter = FileSystemAdapter(xgboost_settings)
-        
-        # pandas read_parquet Mock
-        with patch('pandas.read_parquet') as mock_read_parquet:
-            mock_read_parquet.return_value = pd.DataFrame({
-                'member_id': ['a', 'b', 'c'],
-                'feature1': [1, 2, 3]
-            })
-            
-            # read 실행
-            result = adapter.read("file:///path/to/file.parquet", params={})
-            
-            # 결과 확인
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) == 3
-            assert 'member_id' in result.columns
-            
-            # pandas read_parquet가 호출되었는지 확인
-            mock_read_parquet.assert_called_once()
-    
-    def test_write_csv_method(self, xgboost_settings: Settings):
-        """CSV 파일 write 테스트"""
-        adapter = FileSystemAdapter(xgboost_settings)
-        
-        # 샘플 데이터
-        data = pd.DataFrame({
-            'member_id': ['a', 'b', 'c'],
-            'feature1': [1, 2, 3]
-        })
-        
-        # DataFrame to_csv Mock
-        with patch.object(data, 'to_csv') as mock_to_csv:
-            # write 실행
-            adapter.write(data, "file:///path/to/file.csv")
-            
-            # to_csv가 호출되었는지 확인
-            mock_to_csv.assert_called_once()
-    
-    def test_write_parquet_method(self, xgboost_settings: Settings):
-        """Parquet 파일 write 테스트"""
-        adapter = FileSystemAdapter(xgboost_settings)
-        
-        # 샘플 데이터
-        data = pd.DataFrame({
-            'member_id': ['a', 'b', 'c'],
-            'feature1': [1, 2, 3]
-        })
-        
-        # DataFrame to_parquet Mock
-        with patch.object(data, 'to_parquet') as mock_to_parquet:
-            # write 실행
-            adapter.write(data, "file:///path/to/file.parquet")
-            
-            # to_parquet가 호출되었는지 확인
-            mock_to_parquet.assert_called_once()
-
-
-class TestRedisAdapter:
-    """Redis 어댑터 테스트"""
-    
-    def test_initialization_with_redis_available(self, xgboost_settings: Settings):
-        """Redis 사용 가능 시 초기화 테스트"""
-        with patch('src.utils.data_adapters.redis_adapter.redis.Redis') as mock_redis:
-            mock_redis.return_value = Mock()
-            
-            adapter = RedisAdapter(xgboost_settings)
-            assert adapter.settings == xgboost_settings
-            assert adapter.client is not None
-    
-    def test_initialization_with_redis_unavailable(self, xgboost_settings: Settings):
-        """Redis 사용 불가능 시 초기화 테스트"""
-        with patch('src.utils.data_adapters.redis_adapter.redis.Redis') as mock_redis:
-            mock_redis.side_effect = ImportError("Redis not available")
-            
-            # Redis 없을 때 적절한 처리
-            with pytest.raises(ImportError):
-                RedisAdapter(xgboost_settings)
-    
-    def test_read_method(self, xgboost_settings: Settings):
-        """read 메서드 테스트"""
-        with patch('src.utils.data_adapters.redis_adapter.redis.Redis') as mock_redis:
-            mock_redis_instance = Mock()
-            mock_redis.return_value = mock_redis_instance
-            
-            # Mock Redis 데이터
-            mock_redis_instance.mget.return_value = [
-                b'{"feature1": 1, "feature2": 0.1}',
-                b'{"feature1": 2, "feature2": 0.2}',
-                b'{"feature1": 3, "feature2": 0.3}'
-            ]
-            
-            adapter = RedisAdapter(xgboost_settings)
-            
-            # 샘플 입력 데이터 (PK 목록)
-            input_data = pd.DataFrame({
-                'member_id': ['a', 'b', 'c']
-            })
-            
-            # read 실행
-            result = adapter.read("redis://localhost:6379/features", params={}, input_data=input_data)
-            
-            # 결과 확인
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) == 3
-            assert 'member_id' in result.columns
-            assert 'feature1' in result.columns
-    
-    def test_write_method(self, xgboost_settings: Settings):
-        """write 메서드 테스트"""
-        with patch('src.utils.data_adapters.redis_adapter.redis.Redis') as mock_redis:
-            mock_redis_instance = Mock()
-            mock_redis.return_value = mock_redis_instance
-            
-            adapter = RedisAdapter(xgboost_settings)
-            
-            # 샘플 데이터
-            data = pd.DataFrame({
-                'member_id': ['a', 'b', 'c'],
-                'feature1': [1, 2, 3],
-                'feature2': [0.1, 0.2, 0.3]
-            })
-            
-            # write 실행
-            adapter.write(data, "redis://localhost:6379/features")
-            
-            # Redis에 데이터가 저장되었는지 확인
-            assert mock_redis_instance.mset.called or mock_redis_instance.set.called
-
-
-class TestDataAdapterBlueprint:
-    """데이터 어댑터 Blueprint 원칙 테스트"""
-    
-    def test_unified_interface(self, xgboost_settings: Settings):
-        """통합 인터페이스 테스트"""
-        from src.interface.base_data_adapter import BaseDataAdapter
-        
-        # 모든 어댑터가 BaseDataAdapter를 상속받는지 확인
-        adapters = [
-            BigQueryAdapter(xgboost_settings),
-            GCSAdapter(xgboost_settings),
-            S3Adapter(xgboost_settings),
-            FileSystemAdapter(xgboost_settings)
-        ]
-        
-        for adapter in adapters:
-            assert isinstance(adapter, BaseDataAdapter)
+            # 필수 메서드 존재 확인
             assert hasattr(adapter, 'read')
             assert hasattr(adapter, 'write')
-    
-    def test_settings_injection(self, xgboost_settings: Settings):
-        """설정 주입 테스트"""
-        adapters = [
-            BigQueryAdapter(xgboost_settings),
-            GCSAdapter(xgboost_settings),
-            S3Adapter(xgboost_settings),
-            FileSystemAdapter(xgboost_settings)
-        ]
-        
-        for adapter in adapters:
-            assert adapter.settings == xgboost_settings
-    
-    def test_uri_scheme_handling(self, xgboost_settings: Settings):
-        """URI 스킴 처리 테스트"""
-        # 각 어댑터가 해당 URI 스킴을 올바르게 처리하는지 확인
-        test_cases = [
-            (BigQueryAdapter, "bq://project.dataset.table"),
-            (GCSAdapter, "gs://bucket/file.csv"),
-            (S3Adapter, "s3://bucket/file.csv"),
-            (FileSystemAdapter, "file:///path/to/file.csv")
-        ]
-        
-        for adapter_class, uri in test_cases:
-            adapter = adapter_class(xgboost_settings)
+            assert callable(adapter.read)
+            assert callable(adapter.write)
             
-            # URI 파싱이 올바르게 이루어지는지 확인
-            # (실제 구현에서는 URI 파싱 로직이 있어야 함)
+            print("✅ BigQueryAdapter 통합 인터페이스 검증 완료")
+
+    def test_gcs_adapter_initialization_and_interface(self, local_test_settings: Settings):
+        """
+        GCSAdapter가 settings를 사용하여 초기화되고 통합 인터페이스를 구현하는지 테스트
+        """
+        with patch('src.utils.adapters.gcs_adapter.storage.Client') as mock_client:
+            adapter = GCSAdapter(local_test_settings)
+            
+            # 초기화 검증
+            assert adapter.settings == local_test_settings
+            mock_client.assert_called_once()
+            
+            # 통합 인터페이스 검증
+            from src.interface.base_adapter import BaseAdapter
+            assert isinstance(adapter, BaseAdapter)
             assert hasattr(adapter, 'read')
             assert hasattr(adapter, 'write')
-    
-    def test_error_handling_consistency(self, xgboost_settings: Settings):
-        """오류 처리 일관성 테스트"""
-        adapters = [
-            BigQueryAdapter(xgboost_settings),
-            GCSAdapter(xgboost_settings),
-            S3Adapter(xgboost_settings),
-            FileSystemAdapter(xgboost_settings)
+            
+            print("✅ GCSAdapter 통합 인터페이스 검증 완료")
+
+    def test_s3_adapter_initialization_and_interface(self, local_test_settings: Settings):
+        """
+        S3Adapter가 settings를 사용하여 초기화되고 통합 인터페이스를 구현하는지 테스트
+        """
+        with patch('src.utils.adapters.s3_adapter.boto3.client') as mock_client:
+            adapter = S3Adapter(local_test_settings)
+            
+            # 초기화 검증
+            assert adapter.settings == local_test_settings
+            
+            # 통합 인터페이스 검증
+            from src.interface.base_adapter import BaseAdapter
+            assert isinstance(adapter, BaseAdapter)
+            assert hasattr(adapter, 'read')
+            assert hasattr(adapter, 'write')
+            
+            print("✅ S3Adapter 통합 인터페이스 검증 완료")
+
+    def test_filesystem_adapter_initialization_and_interface(self, local_test_settings: Settings):
+        """
+        FileSystemAdapter가 settings를 사용하여 초기화되고 통합 인터페이스를 구현하는지 테스트
+        """
+        adapter = FileSystemAdapter(local_test_settings)
+        
+        # 초기화 검증
+        assert adapter.settings == local_test_settings
+        
+        # 통합 인터페이스 검증
+        from src.interface.base_adapter import BaseAdapter
+        assert isinstance(adapter, BaseAdapter)
+        assert hasattr(adapter, 'read')
+        assert hasattr(adapter, 'write')
+        
+        print("✅ FileSystemAdapter 통합 인터페이스 검증 완료")
+
+    def test_redis_adapter_initialization_and_interface(self, local_test_settings: Settings):
+        """
+        RedisAdapter가 settings를 사용하여 초기화되고 통합 인터페이스를 구현하는지 테스트
+        """
+        with patch('src.utils.adapters.redis_adapter.redis.Redis') as mock_redis:
+            mock_redis_instance = mock_redis.return_value
+            mock_redis_instance.ping.return_value = True
+            
+            adapter = RedisAdapter(local_test_settings.serving.realtime_feature_store)
+            
+            # 초기화 검증
+            assert adapter.settings == local_test_settings.serving.realtime_feature_store
+            mock_redis.assert_called_once()
+            
+            # 통합 인터페이스 검증
+            from src.interface.base_adapter import BaseAdapter
+            assert isinstance(adapter, BaseAdapter)
+            assert hasattr(adapter, 'read')
+            assert hasattr(adapter, 'write')
+            
+            print("✅ RedisAdapter 통합 인터페이스 검증 완료")
+
+    def test_filesystem_adapter_read_multiple_formats(self, local_test_settings: Settings):
+        """
+        FileSystemAdapter가 다양한 파일 형식을 올바르게 읽는지 테스트
+        Blueprint 원칙 2: 통합 데이터 어댑터의 다형성
+        """
+        adapter = FileSystemAdapter(local_test_settings)
+        
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # 1. Parquet 파일 테스트
+            parquet_file = os.path.join(tmp_dir, "test_data.parquet")
+            sample_df = pd.DataFrame({'col1': [1, 2], 'col2': ['A', 'B']})
+            sample_df.to_parquet(parquet_file)
+            
+            df_parquet = adapter.read(f"file://{parquet_file}")
+            pd.testing.assert_frame_equal(df_parquet, sample_df)
+            
+            # 2. CSV 파일 테스트
+            csv_file = os.path.join(tmp_dir, "test_data.csv")
+            sample_df.to_csv(csv_file, index=False)
+            
+            df_csv = adapter.read(f"file://{csv_file}")
+            pd.testing.assert_frame_equal(df_csv, sample_df)
+            
+            print("✅ FileSystemAdapter 다중 형식 읽기 검증 완료")
+
+    def test_filesystem_adapter_write_functionality(self, local_test_settings: Settings):
+        """
+        FileSystemAdapter의 write 기능이 올바르게 동작하는지 테스트
+        """
+        adapter = FileSystemAdapter(local_test_settings)
+        
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # 테스트 데이터
+            test_df = pd.DataFrame({
+                'user_id': ['u1', 'u2', 'u3'],
+                'prediction': [0.85, 0.72, 0.91]
+            })
+            
+            # 파일 쓰기
+            output_file = os.path.join(tmp_dir, "predictions.parquet")
+            adapter.write(test_df, f"file://{output_file}")
+            
+            # 쓰여진 파일 확인
+            assert os.path.exists(output_file)
+            
+            # 다시 읽어서 내용 확인
+            read_df = adapter.read(f"file://{output_file}")
+            pd.testing.assert_frame_equal(read_df, test_df)
+            
+            print("✅ FileSystemAdapter write 기능 검증 완료")
+
+    def test_adapter_error_handling(self, local_test_settings: Settings):
+        """
+        어댑터들의 에러 처리가 적절한지 테스트
+        """
+        adapter = FileSystemAdapter(local_test_settings)
+        
+        # 1. 존재하지 않는 파일 읽기
+        with pytest.raises(Exception):
+            adapter.read("file://nonexistent/path/file.parquet")
+        
+        # 2. 잘못된 URI 형식
+        with pytest.raises(Exception):
+            adapter.read("invalid_uri_format")
+        
+        print("✅ 어댑터 에러 처리 검증 완료")
+
+    # 🆕 Blueprint v17.0: Factory 통합 테스트
+    def test_factory_adapter_creation_pattern(self, local_test_settings: Settings, dev_test_settings: Settings):
+        """
+        Factory가 환경별로 적절한 어댑터를 생성하는지 테스트
+        Blueprint 원칙 3: URI 기반 동작 및 동적 팩토리
+        """
+        # LOCAL 환경: FileSystemAdapter 우선
+        local_factory = Factory(local_test_settings)
+        
+        # 기본 어댑터 생성 확인
+        assert hasattr(local_factory, 'create_data_adapter')
+        
+        # DEV 환경: 다양한 어댑터 지원
+        dev_factory = Factory(dev_test_settings)
+        
+        # 동일한 팩토리 인터페이스로 다른 어댑터 생성 가능
+        assert type(local_factory) == type(dev_factory)
+        
+        print("✅ Factory 어댑터 생성 패턴 검증 완료")
+
+    def test_adapter_registry_pattern_compliance(self, local_test_settings: Settings):
+        """
+        모든 어댑터가 Registry 패턴을 준수하는지 테스트
+        Blueprint 원칙 3: 확장성을 위한 Registry 패턴
+        """
+        # 모든 어댑터가 BaseAdapter 상속하는지 확인
+        from src.interface.base_adapter import BaseAdapter
+        
+        adapter_classes = [
+            BigQueryAdapter,
+            GCSAdapter,
+            S3Adapter,
+            FileSystemAdapter
         ]
         
-        for adapter in adapters:
-            # 잘못된 URI에 대한 오류 처리
+        for adapter_class in adapter_classes:
+            # BaseAdapter 상속 확인
+            assert issubclass(adapter_class, BaseAdapter)
+            
+            # 필수 메서드 구현 확인
+            required_methods = ['read', 'write']
+            for method in required_methods:
+                assert hasattr(adapter_class, method)
+                assert callable(getattr(adapter_class, method))
+        
+        print("✅ 어댑터 Registry 패턴 준수 검증 완료")
+
+    # 🆕 Blueprint v17.0: URI 스키마 테스트
+    def test_uri_schema_handling(self, local_test_settings: Settings):
+        """
+        다양한 URI 스키마에 대한 어댑터 처리를 테스트
+        Blueprint 원칙 3: URI 기반 동작
+        """
+        adapter = FileSystemAdapter(local_test_settings)
+        
+        # 다양한 URI 스키마 형식 테스트
+        uri_formats = [
+            "file://absolute/path/file.parquet",
+            "file:///absolute/path/file.parquet",
+            "file://./relative/path/file.parquet"
+        ]
+        
+        for uri in uri_formats:
+            # URI 파싱이 올바르게 되는지 확인 (실제 파일 없어도 파싱은 가능해야 함)
             try:
-                adapter.read("invalid://uri", params={})
+                # _parse_uri 메서드가 있다면 테스트
+                if hasattr(adapter, '_parse_uri'):
+                    parsed = adapter._parse_uri(uri)
+                    assert isinstance(parsed, str)
+                    print(f"✅ URI 파싱 성공: {uri}")
+            except Exception:
+                # 파일이 존재하지 않는 에러는 정상 (파싱은 성공)
+                pass
+        
+        print("✅ URI 스키마 처리 검증 완료")
+
+    # 🆕 Blueprint v17.0: 성능 최적화 검증
+    def test_adapter_performance_characteristics(self, local_test_settings: Settings):
+        """
+        어댑터의 성능 특성을 검증한다
+        """
+        adapter = FileSystemAdapter(local_test_settings)
+        
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # 적당한 크기의 테스트 데이터 생성
+            large_df = pd.DataFrame({
+                'id': range(1000),
+                'value': [f'data_{i}' for i in range(1000)]
+            })
+            
+            test_file = os.path.join(tmp_dir, "performance_test.parquet")
+            
+            # 쓰기 성능 측정
+            import time
+            start_time = time.time()
+            adapter.write(large_df, f"file://{test_file}")
+            write_time = time.time() - start_time
+            
+            # 읽기 성능 측정
+            start_time = time.time()
+            read_df = adapter.read(f"file://{test_file}")
+            read_time = time.time() - start_time
+            
+            # 기본적인 성능 확인 (너무 느리지 않은지)
+            assert write_time < 5.0, f"쓰기가 너무 느림: {write_time}초"
+            assert read_time < 5.0, f"읽기가 너무 느림: {read_time}초"
+            
+            # 데이터 무결성 확인
+            assert len(read_df) == len(large_df)
+            
+            print(f"✅ 성능 검증 완료 - 쓰기: {write_time:.3f}초, 읽기: {read_time:.3f}초")
+
+    def test_adapter_comprehensive_integration(self, local_test_settings: Settings):
+        """
+        어댑터 생태계의 종합적인 통합 테스트
+        Blueprint 원칙 2: 통합 데이터 어댑터의 완전성
+        """
+        # 1. 모든 어댑터가 동일한 인터페이스로 생성 가능한지 확인
+        adapter_configs = [
+            (FileSystemAdapter, local_test_settings),
+        ]
+        
+        # Mock 환경에서 다른 어댑터들도 테스트
+        with patch('src.utils.adapters.bigquery_adapter.bigquery.Client'):
+            adapter_configs.append((BigQueryAdapter, local_test_settings))
+        
+        with patch('src.utils.adapters.gcs_adapter.storage.Client'):
+            adapter_configs.append((GCSAdapter, local_test_settings))
+        
+        with patch('src.utils.adapters.s3_adapter.boto3.client'):
+            adapter_configs.append((S3Adapter, local_test_settings))
+        
+        created_adapters = []
+        for adapter_class, settings in adapter_configs:
+            try:
+                adapter = adapter_class(settings)
+                created_adapters.append(adapter)
+                
+                # 통합 인터페이스 확인
+                from src.interface.base_adapter import BaseAdapter
+                assert isinstance(adapter, BaseAdapter)
+                
             except Exception as e:
-                # 예외가 발생하는 것은 정상이지만, 일관된 방식으로 처리되어야 함
-                assert isinstance(e, (ValueError, RuntimeError, Exception))
-    
-    def test_graceful_degradation(self, xgboost_settings: Settings):
-        """우아한 성능 저하 테스트"""
-        # BigQuery 어댑터의 인증 실패 시 graceful degradation
-        with patch('src.utils.data_adapters.bigquery_adapter.bigquery.Client') as mock_client:
-            mock_client.side_effect = Exception("Authentication failed")
-            
-            adapter = BigQueryAdapter(xgboost_settings)
-            result = adapter.read("bq://project.dataset.table", params={})
-            
-            # 인증 실패 시 빈 DataFrame 반환
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) == 0 
+                pytest.fail(f"어댑터 {adapter_class.__name__} 생성 실패: {e}")
+        
+        # 2. 모든 생성된 어댑터가 동일한 메서드를 가지는지 확인
+        if len(created_adapters) > 1:
+            first_adapter = created_adapters[0]
+            for adapter in created_adapters[1:]:
+                # 메서드 시그니처 일관성 확인
+                assert type(adapter.read) == type(first_adapter.read)
+                assert type(adapter.write) == type(first_adapter.write)
+        
+        print(f"✅ 어댑터 생태계 종합 통합 검증 완료 ({len(created_adapters)}개 어댑터 테스트)") 

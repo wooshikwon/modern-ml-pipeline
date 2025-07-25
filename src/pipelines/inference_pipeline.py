@@ -6,71 +6,42 @@ import mlflow
 from src.utils.system.logger import logger
 from src.utils.system import mlflow_utils
 from src.core.factory import Factory
-from src.settings import Settings, load_settings
+from src.settings import Settings
 
 
-def run_batch_inference(
-    run_id: str,
-    context_params: Optional[Dict[str, Any]] = None,
-):
+def run_batch_inference(settings: Settings, run_id: str, context_params: dict = None):
     """
-    "완전 독립형 PyfuncWrapper"와 "통합 데이터 어댑터"를 사용하여
-    투명한 배치 추론을 실행합니다.
+    지정된 Run ID의 모델을 사용하여 배치 추론을 실행합니다.
     """
-    logger.info(f"배치 추론 파이프라인 시작 (Run ID: {run_id})")
     context_params = context_params or {}
 
-    try:
-        # 1. MLflow에서 "완전 독립형" PyfuncWrapper 로드
-        model_uri = f"runs:/{run_id}/model"
-        wrapper = mlflow.pyfunc.load_model(model_uri)
-        logger.info(f"PyfuncWrapper 로드 완료: {model_uri}")
-
-        # 2. (검증) 로드된 Wrapper의 recipe 정보 확인
-        recipe_snapshot = wrapper.recipe_snapshot
-        logger.info(f"로드된 모델 정보: {recipe_snapshot.get('class_path', 'Unknown')}")
-
-        # 3. 데이터 로드를 위한 임시 Settings 및 Factory 생성
-        #    (Adapter가 GCP Project ID 같은 환경 정보에 접근해야 하므로 필요)
-        #    이 Settings는 데이터 로딩에만 사용되며, Wrapper의 로직에는 영향을 주지 않음.
-        # 임시로 기존 recipe를 사용 (실제로는 환경 설정만 필요함)
-        temp_settings = load_settings("xgboost_x_learner")  # 환경 설정만 사용
-        factory = Factory(temp_settings)
-
-        # 4. Wrapper의 내장 loader_uri를 사용하여 데이터 로드
-        # ✅ Blueprint 원칙 3: URI 기반 동작 및 동적 팩토리 완전 구현
-        # Factory가 환경별 분기와 어댑터 선택을 전담
+    # 1. MLflow 실행 컨텍스트 시작
+    with mlflow_utils.start_run(settings, run_name=f"batch_inference_{run_id}") as run:
+        # 2. 모델 로드
+        model_uri = mlflow_utils.get_model_uri(run_id)
+        model = mlflow_utils.load_pyfunc_model(settings, model_uri)
+        
+        # 3. 데이터 로딩
+        # Wrapper에 내장된 loader_sql_snapshot을 사용
+        wrapped_model = model.unwrap_python_model()
+        loader_sql = wrapped_model.loader_sql_snapshot
+        
+        # Factory를 통해 현재 환경에 맞는 데이터 어댑터 생성
+        factory = Factory(settings)
         data_adapter = factory.create_data_adapter("loader")
         
-        input_df = data_adapter.read(wrapper.loader_uri, params=context_params)
-        if input_df.empty:
-            logger.warning("입력 데이터가 비어있어 추론을 중단합니다.")
-            return
-
-        # 5. Wrapper를 통해 예측 실행 및 중간 산출물 얻기
-        predict_params = {
-            "run_mode": "batch",
-            "context_params": context_params,
-            "return_intermediate": True,
-        }
-        results = wrapper.predict(input_df, params=predict_params)
-
-        # 6. 중간 산출물 및 최종 결과 저장
-        logger.info("중간 산출물 및 최종 결과 저장을 시작합니다.")
-        factory = Factory(temp_settings)
+        df = data_adapter.read(loader_sql, params=context_params)
         
-        if "augmented_data" in results:
-            _save_dataset(factory, results["augmented_data"], "augmented_dataset", temp_settings)
-        if "preprocessed_data" in results:
-            _save_dataset(factory, results["preprocessed_data"], "preprocessed_dataset", temp_settings)
-        if "final_results" in results:
-            _save_dataset(factory, results["final_results"], "prediction_results", temp_settings)
+        # 4. 예측 실행
+        predictions_df = model.predict(df)
+        
+        # 5. 결과 저장
+        storage_adapter = factory.create_data_adapter("storage")
+        target_path = f"{settings.artifact_stores.prediction_results.base_uri}/{run.info.run_name}.parquet"
+        storage_adapter.write(predictions_df, target_path)
 
-        logger.info("배치 추론 파이프라인이 성공적으로 완료되었습니다.")
-
-    except Exception as e:
-        logger.error(f"배치 추론 파이프라인 중 오류 발생: {e}", exc_info=True)
-        raise
+        mlflow.log_artifact(target_path.replace("file://", ""))
+        mlflow.log_metric("inference_row_count", len(predictions_df))
 
 
 def _save_dataset(

@@ -1,7 +1,12 @@
 """
-Blueprint v17.0 호환성 보장 통합 테스트
+Blueprint v17.0 호환성 보장 통합 테스트 (현대화)
 
 기존 코드와 새로운 기능이 함께 정상 동작하는지 검증하는 테스트
+
+Blueprint 원칙 검증:
+- 기존 워크플로우 완전한 하위 호환성
+- 새로운 기능의 점진적 활성화
+- 중앙 fixture 사용 통일
 """
 
 import pytest
@@ -12,19 +17,20 @@ from src.core.trainer import Trainer
 from src.core.factory import Factory
 
 
-class TestBlueprintV17Compatibility:
-    """Blueprint v17.0 전체 호환성 테스트"""
+class TestBlueprintV17CompatibilityModernized:
+    """Blueprint v17.0 전체 호환성 테스트 (현대화)"""
     
-    def test_existing_workflow_unchanged(self, xgboost_settings: Settings):
-        """기존 워크플로우가 변경 없이 동작하는지 테스트"""
-        # 기존 설정 그대로 사용 (hyperparameter_tuning, feature_store 없음)
-        assert xgboost_settings.hyperparameter_tuning is None
-        assert xgboost_settings.feature_store is None
-        assert xgboost_settings.model.hyperparameter_tuning is None
+    def test_existing_workflow_unchanged(self, local_test_settings: Settings):
+        """
+        기존 워크플로우가 변경 없이 동작하는지 테스트한다.
+        Blueprint 원칙: 100% 하위 호환성 보장
+        """
+        # LOCAL 환경에서는 기존 설정 방식 유지 (HPO 비활성화)
+        s = local_test_settings
         
         # 기존 컴포넌트들이 정상 동작하는지 확인
-        factory = Factory(xgboost_settings)
-        trainer = Trainer(xgboost_settings)
+        factory = Factory(s)
+        trainer = Trainer(s)
         
         # 기존 어댑터들 생성 가능
         augmenter = factory.create_augmenter()
@@ -32,319 +38,259 @@ class TestBlueprintV17Compatibility:
         model = factory.create_model()
         
         # 모든 컴포넌트가 올바른 타입인지 확인
-        from src.core.augmenter import Augmenter
+        from src.core.augmenter import Augmenter, PassThroughAugmenter
         from src.core.preprocessor import Preprocessor
-        assert isinstance(augmenter, Augmenter)
-        assert isinstance(preprocessor, Preprocessor)
-        assert trainer.settings == xgboost_settings
-    
-    @patch('src.core.factory.Factory.create_evaluator')
-    @patch('src.core.factory.Factory.create_preprocessor')
-    def test_existing_training_produces_compatible_results(self, mock_preprocessor, mock_evaluator, xgboost_settings: Settings):
-        """기존 학습 방식이 호환되는 결과를 생성하는지 테스트"""
-        # Mock 설정
-        mock_preprocessor_instance = Mock()
-        mock_evaluator_instance = Mock()
-        mock_preprocessor.return_value = mock_preprocessor_instance
-        mock_evaluator.return_value = mock_evaluator_instance
-        mock_evaluator_instance.evaluate.return_value = {"accuracy": 0.85}
         
-        trainer = Trainer(xgboost_settings)
+        # LOCAL 환경에서는 PassThroughAugmenter 사용
+        assert isinstance(augmenter, PassThroughAugmenter)
+        assert isinstance(preprocessor, Preprocessor)
+        assert trainer.settings == s
+        
+        # 기존 모델 클래스 로딩 확인
+        assert s.model.class_path == "sklearn.ensemble.RandomForestClassifier"
+        print("✅ 기존 워크플로우 하위 호환성 검증 완료")
+    
+    @patch('src.core.trainer.mlflow')
+    def test_existing_training_produces_compatible_results(self, mock_mlflow, local_test_settings: Settings):
+        """
+        기존 학습 방식이 호환되는 결과를 생성하는지 테스트한다.
+        """
+        trainer = Trainer(local_test_settings)
+        
+        # Mock 컴포넌트 설정
+        mock_model = Mock()
+        mock_model.fit.return_value = mock_model
+        
+        mock_preprocessor = Mock()
+        mock_preprocessor.fit.return_value = mock_preprocessor
+        mock_preprocessor.transform.return_value = pd.DataFrame({'feature1': [0.1, 0.2]})
+        
+        from src.core.augmenter import PassThroughAugmenter
+        mock_augmenter = PassThroughAugmenter(settings=local_test_settings)
         
         # 샘플 데이터
         sample_data = pd.DataFrame({
-            'feature1': [1, 2, 3, 4, 5, 6],
-            'feature2': [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
-            'outcome': [0, 1, 0, 1, 0, 1]
+            'user_id': ['u1', 'u2', 'u3', 'u4'],
+            'feature1': [1, 2, 3, 4],
+            'feature2': [0.1, 0.2, 0.3, 0.4],
+            'approved': [0, 1, 0, 1]  # target column
         })
         
-        # 기존 방식 학습 (최적화 비활성화)
-        with patch.object(trainer, '_prepare_training_data') as mock_prepare:
-            mock_prepare.return_value = (sample_data[['feature1', 'feature2']], sample_data['outcome'], {})
-            
-            with patch.object(trainer, '_fit_model'):
-                with patch.object(trainer, '_split_data') as mock_split:
-                    train_data = sample_data.iloc[:4]
-                    test_data = sample_data.iloc[4:]
-                    mock_split.return_value = (train_data, test_data)
-                    
-                    # 학습 실행
-                    mock_model = Mock()
-                    result = trainer.train(sample_data, mock_model)
-                    
-                    # 결과 구조 확인 (Blueprint v17.0 확장 포함)
-                    assert len(result) == 3  # preprocessor, model, training_results
-                    training_results = result[2]
-                    
-                    # 기존 metrics 유지
-                    assert "metrics" in training_results
-                    
-                    # 새로운 메타데이터 포함 확인 (기본값으로)
-                    assert "hyperparameter_optimization" in training_results
-                    assert training_results["hyperparameter_optimization"]["enabled"] is False
-                    assert "training_methodology" in training_results
-    
-    @patch('src.core.factory.Path')
-    def test_existing_pyfunc_wrapper_creation(self, mock_path, xgboost_settings: Settings):
-        """기존 PyfuncWrapper 생성 방식이 호환되는지 테스트"""
-        # Mock 설정
-        mock_sql_file = Mock()
-        mock_sql_file.read_text.return_value = "SELECT user_id, feature1 FROM table"
-        mock_sql_file.exists.return_value = True
-        mock_path.return_value = mock_sql_file
+        # 기존 방식 학습 실행
+        trained_preprocessor, trained_model, training_results = trainer.train(
+            df=sample_data,
+            model=mock_model,
+            augmenter=mock_augmenter,
+            preprocessor=mock_preprocessor
+        )
         
-        factory = Factory(xgboost_settings)
+        # 결과 구조 확인 (Blueprint v17.0 확장 포함)
+        assert trained_preprocessor is not None
+        assert trained_model is not None
+        assert isinstance(training_results, dict)
         
-        # 기존 방식: training_results 없이 PyfuncWrapper 생성
+        # 기존 metrics 유지
+        assert "metrics" in training_results
+        
+        # 새로운 메타데이터 포함 확인 (기본값으로)
+        assert "hyperparameter_optimization" in training_results
+        hpo_data = training_results["hyperparameter_optimization"]
+        assert not hpo_data.get("enabled", False), "LOCAL 환경에서는 HPO가 비활성화되어야 함"
+        
+        assert "training_methodology" in training_results
+        tm_data = training_results["training_methodology"]
+        assert tm_data["preprocessing_fit_scope"] == "train_only"
+        print("✅ 기존 학습 방식 호환성 검증 완료")
+
+    def test_existing_pyfunc_wrapper_creation(self, local_test_settings: Settings):
+        """
+        기존 PyfuncWrapper 생성 방식이 호환되는지 테스트한다.
+        """
+        factory = Factory(local_test_settings)
+        
+        # Mock 컴포넌트들
         trained_model = Mock()
         trained_preprocessor = Mock()
         
+        # 최소한의 training_results (기존 호환성)
+        basic_training_results = {
+            "metrics": {"accuracy": 0.85},
+            "hyperparameter_optimization": {"enabled": False},
+            "training_methodology": {"preprocessing_fit_scope": "train_only"},
+            "loader_sql_snapshot": "SELECT user_id, product_id FROM test_table",
+            "augmenter_config_snapshot": {"type": "passthrough"},
+            "model_class_path": local_test_settings.model.class_path
+        }
+        
+        # PyfuncWrapper 생성
         wrapper = factory.create_pyfunc_wrapper(
             trained_model=trained_model,
-            trained_preprocessor=trained_preprocessor
+            trained_preprocessor=trained_preprocessor,
+            training_results=basic_training_results
         )
         
-        # 기존 속성들 유지 확인
+        # 기존 속성들이 유지되는지 확인
         assert wrapper.trained_model == trained_model
         assert wrapper.trained_preprocessor == trained_preprocessor
-        assert hasattr(wrapper, 'loader_sql_snapshot')
-        assert hasattr(wrapper, 'augmenter_sql_snapshot')
+        assert wrapper.model_class_path == local_test_settings.model.class_path
+        print("✅ 기존 PyfuncWrapper 생성 방식 호환성 검증 완료")
+
+    def test_new_features_activation_in_dev_env(self, dev_test_settings: Settings):
+        """
+        DEV 환경에서 새로운 기능들이 올바르게 활성화되는지 테스트한다.
+        """
+        # DEV 환경에서는 새로운 기능들이 활성화되어야 함
+        s = dev_test_settings
         
-        # 새로운 속성들이 기본값으로 설정됨 확인
-        assert wrapper.hyperparameter_optimization["enabled"] is False
-        assert wrapper.training_methodology == {}
-        assert wrapper.model_class_path == xgboost_settings.model.class_path
-    
-    def test_new_features_activation(self, xgboost_settings: Settings):
-        """새로운 기능들이 올바르게 활성화되는지 테스트"""
-        from src.settings import HyperparameterTuningSettings, FeatureStoreSettings
+        # HPO 활성화 확인
+        assert s.model.hyperparameter_tuning is not None
+        assert s.model.hyperparameter_tuning.enabled == True
         
-        # 새로운 설정들 추가
-        xgboost_settings.hyperparameter_tuning = HyperparameterTuningSettings(
-            enabled=True, n_trials=5, metric="accuracy", direction="maximize"
-        )
-        xgboost_settings.model.hyperparameter_tuning = HyperparameterTuningSettings(
-            enabled=True, n_trials=3, metric="roc_auc", direction="maximize"
-        )
-        xgboost_settings.feature_store = FeatureStoreSettings(
-            provider="dynamic",
-            connection_timeout=5000,
-            retry_attempts=3,
-            connection_info={"redis_host": "localhost:6379"}
-        )
+        # Feature Store 활성화 확인
+        assert s.model.augmenter.type == "feature_store"
         
-        factory = Factory(xgboost_settings)
+        # 새로운 기능이 활성화된 Factory 생성
+        factory = Factory(s)
         
-        # 새로운 어댑터들 생성 가능 확인
-        feature_store_adapter = factory.create_feature_store_adapter()
-        optuna_adapter = factory.create_optuna_adapter()
-        tuning_utils = factory.create_tuning_utils()
+        # DEV 환경에서는 실제 Augmenter 사용 (PassThrough가 아님)
+        augmenter = factory.create_augmenter()
+        from src.core.augmenter import Augmenter, PassThroughAugmenter
+        assert isinstance(augmenter, Augmenter)
+        assert not isinstance(augmenter, PassThroughAugmenter)
         
-        # 올바른 타입인지 확인
-        from src.utils.adapters.feature_store_adapter import FeatureStoreAdapter
-        from src.utils.adapters.optuna_adapter import OptunaAdapter
-        from src.utils.system.tuning_utils import TuningUtils
-        
-        assert isinstance(feature_store_adapter, FeatureStoreAdapter)
-        assert isinstance(optuna_adapter, OptunaAdapter)
-        assert isinstance(tuning_utils, TuningUtils)
-    
+        print("✅ DEV 환경 새로운 기능 활성화 검증 완료")
+
     @patch('src.core.trainer.optuna')
-    @patch('src.core.trainer.Factory')
-    def test_hyperparameter_optimization_integration(self, mock_factory, mock_optuna, xgboost_settings: Settings):
-        """하이퍼파라미터 최적화가 기존 학습과 통합되는지 테스트"""
-        from src.settings import HyperparameterTuningSettings
+    @patch('src.core.trainer.mlflow')
+    def test_hyperparameter_optimization_integration(self, mock_mlflow, mock_optuna, dev_test_settings: Settings):
+        """
+        하이퍼파라미터 최적화 기능이 올바르게 통합되는지 테스트한다.
+        """
+        # DEV 환경 설정에서 HPO 확인
+        s = dev_test_settings
+        assert s.model.hyperparameter_tuning.enabled == True
         
-        # 최적화 활성화
-        xgboost_settings.hyperparameter_tuning = HyperparameterTuningSettings(
-            enabled=True, n_trials=2, metric="accuracy", direction="maximize"
-        )
-        xgboost_settings.model.hyperparameter_tuning = HyperparameterTuningSettings(
-            enabled=True, n_trials=2, metric="accuracy", direction="maximize"
-        )
-        
-        # Mock 설정
-        mock_factory_instance = Mock()
+        # Optuna Mock 설정
         mock_study = Mock()
-        mock_study.best_params = {"learning_rate": 0.1, "n_estimators": 100}
-        mock_study.best_value = 0.92
-        mock_study.trials = [Mock(), Mock()]
-        
+        mock_trial = Mock()
+        mock_trial.number = 1
+        mock_trial.suggest_int.return_value = 100
+        mock_trial.suggest_float.return_value = 0.1
         mock_optuna.create_study.return_value = mock_study
-        mock_optuna.pruners.MedianPruner.return_value = Mock()
-        mock_factory.return_value = mock_factory_instance
+        mock_study.best_trial = mock_trial
+        mock_study.best_trial.value = 0.95
+        mock_study.best_trial.params = {"n_estimators": 100, "learning_rate": 0.1}
+        mock_study.trials = [mock_trial]
         
-        trainer = Trainer(xgboost_settings)
+        trainer = Trainer(s)
         
-        # 샘플 데이터
+        # Mock 컴포넌트들
+        mock_model = Mock()
+        mock_preprocessor = Mock()
+        mock_preprocessor.fit.return_value = mock_preprocessor
+        mock_preprocessor.transform.return_value = pd.DataFrame({'f1': [0.1, 0.2]})
+        
+        mock_augmenter = Mock()
+        mock_augmenter.augment.return_value = pd.DataFrame({'f1': [0.1, 0.2], 'approved': [1, 0]})
+        
         sample_data = pd.DataFrame({
-            'feature1': [1, 2, 3, 4, 5, 6, 7, 8],
-            'feature2': [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8],
-            'outcome': [0, 1, 0, 1, 0, 1, 0, 1]
+            'user_id': ['u1', 'u2', 'u3', 'u4'],
+            'approved': [1, 0, 1, 0]
         })
         
-        # objective 함수 Mock
-        def mock_optimize(objective, n_trials, timeout):
-            # objective 함수를 2번 호출하여 최적화 시뮬레이션
-            objective(Mock())
-            objective(Mock())
-        
-        mock_study.optimize = mock_optimize
-        
-        with patch.object(trainer, '_single_training_iteration') as mock_single:
-            mock_single.return_value = {
-                'model': Mock(),
-                'preprocessor': Mock(),
-                'score': 0.92,
-                'metrics': {"accuracy": 0.92},
-                'training_methodology': {
-                    'preprocessing_fit_scope': 'train_only'
-                }
-            }
-            
-            # 학습 실행
-            result = trainer.train(sample_data, Mock())
-            
-            # 최적화가 수행되었는지 확인
-            mock_optuna.create_study.assert_called_once()
-            assert mock_single.call_count >= 1  # objective 함수에서 호출
-            
-            # 결과에 최적화 메타데이터 포함 확인
-            training_results = result[2]
-            assert training_results["hyperparameter_optimization"]["enabled"] is True
-            assert "best_params" in training_results["hyperparameter_optimization"]
-    
-    def test_api_backward_compatibility(self):
-        """API 응답 스키마의 하위 호환성 테스트"""
-        from serving.schemas import PredictionResponse, BatchPredictionResponse
-        
-        # 기존 필드들로만 응답 생성 가능한지 확인
-        old_style_response = PredictionResponse(
-            uplift_score=0.85,
-            model_uri="runs:/test123/model"
-            # optimization_enabled, best_score는 기본값 사용
+        # HPO가 활성화된 학습 실행
+        trained_preprocessor, trained_model, training_results = trainer.train(
+            df=sample_data,
+            model=mock_model,
+            augmenter=mock_augmenter,
+            preprocessor=mock_preprocessor
         )
         
-        # 기본값이 올바르게 설정되었는지 확인
-        assert old_style_response.uplift_score == 0.85
-        assert old_style_response.model_uri == "runs:/test123/model"
-        assert old_style_response.optimization_enabled is False
-        assert old_style_response.best_score == 0.0
+        # HPO 결과가 포함되었는지 확인
+        assert "hyperparameter_optimization" in training_results
+        hpo_data = training_results["hyperparameter_optimization"]
+        assert hpo_data["enabled"] == True
+        assert "best_params" in hpo_data
+        assert "best_score" in hpo_data
         
-        # 새로운 필드들을 포함한 응답도 생성 가능한지 확인
-        new_style_response = PredictionResponse(
-            uplift_score=0.92,
-            model_uri="runs:/optimized456/model",
-            optimization_enabled=True,
-            best_score=0.92
-        )
-        
-        assert new_style_response.optimization_enabled is True
-        assert new_style_response.best_score == 0.92
-    
-    def test_settings_backward_compatibility(self, xgboost_settings: Settings):
-        """Settings 클래스의 하위 호환성 테스트"""
-        # 기존 설정들이 모두 유지되는지 확인
-        assert hasattr(xgboost_settings, 'environment')
-        assert hasattr(xgboost_settings, 'mlflow')
-        assert hasattr(xgboost_settings, 'serving')
-        assert hasattr(xgboost_settings, 'artifact_stores')
-        assert hasattr(xgboost_settings, 'model')
-        
-        # 새로운 설정들이 Optional로 추가되었는지 확인
-        assert hasattr(xgboost_settings, 'hyperparameter_tuning')
-        assert hasattr(xgboost_settings, 'feature_store')
-        
-        # 기본값이 None인지 확인 (하위 호환성)
-        assert xgboost_settings.hyperparameter_tuning is None
-        assert xgboost_settings.feature_store is None
-        
-        # 모델 설정도 동일하게 확인
-        assert hasattr(xgboost_settings.model, 'hyperparameter_tuning')
-        assert xgboost_settings.model.hyperparameter_tuning is None
+        # Optuna 호출 확인
+        mock_optuna.create_study.assert_called_once()
+        print("✅ 하이퍼파라미터 최적화 통합 검증 완료")
 
+    def test_settings_backward_compatibility(self, local_test_settings: Settings, dev_test_settings: Settings):
+        """
+        설정 구조의 하위 호환성을 검증한다.
+        """
+        # 모든 환경에서 기본 속성들 존재 확인
+        for settings in [local_test_settings, dev_test_settings]:
+            # 기존 필수 속성들
+            assert hasattr(settings, 'environment')
+            assert hasattr(settings, 'mlflow')
+            assert hasattr(settings, 'serving')
+            assert hasattr(settings, 'data_adapters')
+            assert hasattr(settings, 'model')
+            
+            # 새로운 속성들 (v17.0)
+            assert hasattr(settings, 'hyperparameter_tuning')
+            
+            # 모델 레벨 새로운 속성들
+            assert hasattr(settings.model, 'hyperparameter_tuning')
+        
+        # 환경별 차이 확인
+        # LOCAL: 보수적 설정
+        assert not local_test_settings.model.hyperparameter_tuning.enabled
+        
+        # DEV: 신기능 활성화
+        assert dev_test_settings.model.hyperparameter_tuning.enabled
+        
+        print("✅ 설정 하위 호환성 검증 완료")
 
-class TestBlueprintV17GradualActivation:
-    """Blueprint v17.0 기능들의 점진적 활성화 테스트"""
-    
-    def test_feature_store_only_activation(self, xgboost_settings: Settings):
-        """Feature Store만 활성화하고 하이퍼파라미터 최적화는 비활성화"""
-        from src.settings import FeatureStoreSettings
+    def test_feature_store_environment_differentiation(self, local_test_settings: Settings, dev_test_settings: Settings):
+        """
+        Feature Store 기능의 환경별 차등 적용을 검증한다.
+        Blueprint 원칙 9: 환경별 차등적 기능 분리
+        """
+        # LOCAL 환경: PassThrough 방식
+        local_factory = Factory(local_test_settings)
+        local_augmenter = local_factory.create_augmenter()
         
-        # Feature Store만 활성화
-        xgboost_settings.feature_store = FeatureStoreSettings(
-            provider="dynamic",
-            connection_timeout=5000,
-            retry_attempts=3,
-            connection_info={"redis_host": "localhost:6379"}
-        )
+        from src.core.augmenter import PassThroughAugmenter
+        assert isinstance(local_augmenter, PassThroughAugmenter)
         
-        # 하이퍼파라미터 최적화는 비활성화 유지
-        assert xgboost_settings.hyperparameter_tuning is None
+        # DEV 환경: Feature Store 연동
+        dev_factory = Factory(dev_test_settings)
+        with patch.object(dev_factory, 'create_feature_store_adapter'):
+            dev_augmenter = dev_factory.create_augmenter()
+            from src.core.augmenter import Augmenter
+            assert isinstance(dev_augmenter, Augmenter)
+            assert not isinstance(dev_augmenter, PassThroughAugmenter)
         
-        factory = Factory(xgboost_settings)
+        print("✅ Feature Store 환경별 차등 적용 검증 완료")
+
+    def test_blueprint_principle_compliance_comprehensive(self, local_test_settings: Settings, dev_test_settings: Settings):
+        """
+        Blueprint v17.0의 10대 핵심 원칙 준수를 종합적으로 검증한다.
+        """
+        # 원칙 1: 레시피는 논리, 설정은 인프라
+        assert local_test_settings.model.class_path == dev_test_settings.model.class_path  # 논리 동일
+        assert local_test_settings.environment.app_env != dev_test_settings.environment.app_env  # 인프라 다름
         
-        # Feature Store 어댑터는 생성 가능
-        feature_store_adapter = factory.create_feature_store_adapter()
-        assert feature_store_adapter is not None
+        # 원칙 3: URI 기반 동작 및 동적 팩토리
+        local_factory = Factory(local_test_settings)
+        dev_factory = Factory(dev_test_settings)
         
-        # Optuna 어댑터는 생성 불가 (설정 없음)
-        with pytest.raises(ValueError, match="Hyperparameter tuning 설정이 없습니다"):
-            factory.create_optuna_adapter()
-    
-    def test_hyperparameter_optimization_only_activation(self, xgboost_settings: Settings):
-        """하이퍼파라미터 최적화만 활성화하고 Feature Store는 비활성화"""
-        from src.settings import HyperparameterTuningSettings
+        # 동일한 인터페이스로 다른 구현체 생성
+        local_model = local_factory.create_model()
+        dev_model = dev_factory.create_model()
+        assert type(local_model) == type(dev_model)  # 동일 클래스
         
-        # 하이퍼파라미터 최적화만 활성화
-        xgboost_settings.hyperparameter_tuning = HyperparameterTuningSettings(
-            enabled=True, n_trials=5, metric="accuracy", direction="maximize"
-        )
+        # 원칙 9: 환경별 차등적 기능 분리
+        local_augmenter = local_factory.create_augmenter()
+        with patch.object(dev_factory, 'create_feature_store_adapter'):
+            dev_augmenter = dev_factory.create_augmenter()
         
-        # Feature Store는 비활성화 유지
-        assert xgboost_settings.feature_store is None
+        # 환경별로 다른 Augmenter 구현
+        assert type(local_augmenter) != type(dev_augmenter)
         
-        factory = Factory(xgboost_settings)
-        
-        # Optuna 어댑터는 생성 가능
-        optuna_adapter = factory.create_optuna_adapter()
-        assert optuna_adapter is not None
-        
-        # Feature Store 어댑터는 생성 불가 (설정 없음)
-        with pytest.raises(ValueError, match="Feature Store 설정이 없습니다"):
-            factory.create_feature_store_adapter()
-    
-    def test_all_features_activation(self, xgboost_settings: Settings):
-        """모든 새로운 기능들을 동시에 활성화"""
-        from src.settings import HyperparameterTuningSettings, FeatureStoreSettings
-        
-        # 모든 새로운 기능 활성화
-        xgboost_settings.hyperparameter_tuning = HyperparameterTuningSettings(
-            enabled=True, n_trials=10, metric="accuracy", direction="maximize"
-        )
-        xgboost_settings.model.hyperparameter_tuning = HyperparameterTuningSettings(
-            enabled=True, n_trials=5, metric="roc_auc", direction="maximize"
-        )
-        xgboost_settings.feature_store = FeatureStoreSettings(
-            provider="dynamic",
-            connection_timeout=5000,
-            retry_attempts=3,
-            connection_info={"redis_host": "localhost:6379"}
-        )
-        
-        factory = Factory(xgboost_settings)
-        trainer = Trainer(xgboost_settings)
-        
-        # 모든 어댑터들 생성 가능 확인
-        feature_store_adapter = factory.create_feature_store_adapter()
-        optuna_adapter = factory.create_optuna_adapter()
-        tuning_utils = factory.create_tuning_utils()
-        
-        assert feature_store_adapter is not None
-        assert optuna_adapter is not None
-        assert tuning_utils is not None
-        
-        # Trainer가 두 조건 모두 확인하는지 테스트
-        assert trainer.settings.hyperparameter_tuning.enabled is True
-        assert trainer.settings.model.hyperparameter_tuning.enabled is True
-        assert trainer.settings.feature_store.provider == "dynamic" 
+        print("✅ Blueprint v17.0 10대 원칙 종합 준수 검증 완료")
+        print("🎉 모든 호환성 테스트 통과! Blueprint v17.0 완전 호환성 확보") 

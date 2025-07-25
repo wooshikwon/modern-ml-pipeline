@@ -17,32 +17,19 @@ logger = logging.getLogger(__name__)
 
 class Preprocessor(BasePreprocessor):
     """
-    설정에 따라 범주형 변수 인코딩과 수치형 변수 정규화를 수행하는 전처리기.
+    데이터 전처리 클래스.
+    - 범주형 변수: 빈도(frequency) 인코딩
+    - 수치형 변수: 표준 스케일링 (StandardScaler)
     """
-
-    def __init__(self, config: PreprocessorSettings, settings: Settings):
-        self.config = config
+    def __init__(self, settings: Settings):
         self.settings = settings
-        self.criterion_col = config.params.criterion_col
-
-        special_cols = {self.settings.model.data_interface.target_col}
-        # treatment_col이 존재하는 경우만 추가 (causal inference에서만 사용)
-        if hasattr(self.settings.model.data_interface, 'treatment_col') and self.settings.model.data_interface.treatment_col:
-            special_cols.add(self.settings.model.data_interface.treatment_col)
-        
-        # None 값 필터링 후 정렬
-        all_exclude_cols = set(self.config.params.exclude_cols).union(special_cols)
-        self.exclude_cols = sorted([col for col in all_exclude_cols if col is not None])
-        
-        logger.info(f"Preprocessor 제외 컬럼: {self.exclude_cols}")
-
+        self.config = self.settings.model.preprocessor
+        self.exclude_cols = self.config.exclude_cols or []
+        self.scaler = StandardScaler()
         self.categorical_cols_: List[str] = []
         self.numerical_cols_: List[str] = []
+        self.frequency_maps_: Dict[str, Dict[Any, int]] = {}
         self.feature_names_out_: List[str] = []
-
-        self._scaler = StandardScaler()
-        self._rank_mappings: Dict[str, Dict[str, float]] = {}
-        self._unseen_value_filler: int = -1
 
     def fit(self, X: pd.DataFrame, y: Optional[pd.Series] = None) -> 'Preprocessor':
         """
@@ -67,7 +54,7 @@ class Preprocessor(BasePreprocessor):
 
         if self.numerical_cols_:
             logger.info("수치형 변수 정규화를 시작합니다.")
-            self._scaler.fit(X_fit[self.numerical_cols_])
+            self.scaler.fit(X_fit[self.numerical_cols_])
             logger.info("수치형 변수 정규화 완료.")
         else:
             logger.info("수치형 변수가 없어 정규화를 건너뜁니다.")
@@ -78,19 +65,19 @@ class Preprocessor(BasePreprocessor):
 
     def _fit_categorical(self, X: pd.DataFrame):
         """범주형 변수에 대한 인코딩 규칙을 학습합니다."""
-        if self.criterion_col:
-            logger.info(f"'{self.criterion_col}' 기준 중앙값 순위 인코딩을 사용합니다.")
-            if self.criterion_col not in X.columns:
-                raise ValueError(f"기준 컬럼 '{self.criterion_col}'이 데이터에 없습니다.")
+        if self.config.criterion_col:
+            logger.info(f"'{self.config.criterion_col}' 기준 중앙값 순위 인코딩을 사용합니다.")
+            if self.config.criterion_col not in X.columns:
+                raise ValueError(f"기준 컬럼 '{self.config.criterion_col}'이 데이터에 없습니다.")
             
             for col in self.categorical_cols_:
-                mapping = X.groupby(col)[self.criterion_col].median().rank(method='first').astype(int)
-                self._rank_mappings[col] = mapping.to_dict()
+                mapping = X.groupby(col)[self.config.criterion_col].median().rank(method='first').astype(int)
+                self.frequency_maps_[col] = mapping.to_dict()
         else:
             logger.info("빈도(Frequency) 인코딩을 사용합니다.")
             for col in self.categorical_cols_:
                 mapping = X[col].value_counts().to_dict()
-                self._rank_mappings[col] = mapping
+                self.frequency_maps_[col] = mapping
 
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
         """학습된 규칙을 사용하여 데이터를 변환합니다."""
@@ -100,20 +87,20 @@ class Preprocessor(BasePreprocessor):
         X_transformed = X.copy()
 
         for col in self.categorical_cols_:
-            mapping = self._rank_mappings.get(col)
+            mapping = self.frequency_maps_.get(col)
             if mapping:
                 X_transformed[col] = X_transformed[col].map(mapping).fillna(self._unseen_value_filler)
 
         if self.numerical_cols_:
-            X_transformed[self.numerical_cols_] = self._scaler.transform(X_transformed[self.numerical_cols_])
+            X_transformed[self.numerical_cols_] = self.scaler.transform(X_transformed[self.numerical_cols_])
 
         return X_transformed[self.feature_names_out_]
 
     def _is_fitted(self) -> bool:
         # categorical_cols_가 있는데 매핑 정보가 없거나,
         # numerical_cols_가 있는데 스케일러가 학습되지 않은 경우 False
-        cat_fitted = not self.categorical_cols_ or bool(self._rank_mappings)
-        num_fitted = not self.numerical_cols_ or hasattr(self._scaler, 'mean_')
+        cat_fitted = not self.categorical_cols_ or bool(self.frequency_maps_)
+        num_fitted = not self.numerical_cols_ or hasattr(self.scaler, 'mean_')
         return cat_fitted and num_fitted
 
     def save(self, file_name: str = "preprocessor.joblib", version: Optional[str] = None) -> str:

@@ -7,7 +7,7 @@ from fastapi import FastAPI, HTTPException
 from typing import Dict, Any, List, Type
 from pydantic import BaseModel, create_model
 
-from src.settings import Settings
+from src.settings import Settings, load_settings
 from src.utils.system.logger import logger
 from src.utils.system import mlflow_utils
 from serving.schemas import (
@@ -17,7 +17,6 @@ from serving.schemas import (
     PredictionResponse,
     BatchPredictionResponse,
     HealthCheckResponse,
-    # 🆕 Blueprint v17.0: 새로운 메타데이터 스키마들
     ModelMetadataResponse,
     OptimizationHistoryResponse,
     HyperparameterOptimizationInfo,
@@ -29,346 +28,257 @@ class AppContext:
         self.model: mlflow.pyfunc.PyFuncModel | None = None
         self.model_uri: str = ""
         self.settings: Settings | None = None
-        self.feature_store_config: Dict | None = None
-        self.feature_columns: List[str] = []
-        self.join_key: str = ""
         self.PredictionRequest: Type[BaseModel] = create_model("DefaultPredictionRequest")
         self.BatchPredictionRequest: Type[BaseModel] = create_model("DefaultBatchPredictionRequest")
 
 app_context = AppContext()
 
-def create_app(run_id: str) -> FastAPI:
-    @asynccontextmanager
-    async def lifespan(app: FastAPI):
-        logger.info("FastAPI 애플리케이션 시작...")
+def setup_api_context(run_id: str, settings: Settings):
+    """테스트 또는 서버 시작 시 API 컨텍스트를 설정하는 함수"""
+    try:
+        model_uri = f"runs:/{run_id}/model"
+        app_context.model = mlflow.pyfunc.load_model(model_uri)
+        app_context.model_uri = model_uri
+        app_context.settings = settings
         
-        try:
-            # 🚫 Blueprint 원칙 9: LOCAL 환경 API 서빙 차단
-            from src.settings.loaders import load_config_files
-            config_data = load_config_files()  # recipe 없이 config만 로드
-            
-            # LOCAL 환경 체크 및 서빙 차단
-            app_env = config_data.get('environment', {}).get('app_env', 'local')
-            api_serving_config = config_data.get('api_serving', {})
-            
-            if app_env == 'local' or not api_serving_config.get('enabled', True):
-                error_message = api_serving_config.get(
-                    'message', 
-                    "LOCAL 환경에서는 API 서빙이 지원되지 않습니다. DEV 환경을 사용하세요."
-                )
-                error_reason = api_serving_config.get(
-                    'reason',
-                    "LOCAL 환경의 철학에 따라 빠른 실험과 디버깅에만 집중합니다."
-                )
-                logger.error(f"API 서빙 차단: {error_message}")
-                logger.info(f"차단 이유: {error_reason}")
-                raise RuntimeError(f"API 서빙 차단: {error_message}\n이유: {error_reason}")
-            
-            # 1. 지정된 run_id로 완전한 Wrapped Artifact 로드
-            model_uri = f"runs:/{run_id}/model"
-            app_context.model = mlflow.pyfunc.load_model(model_uri)
-            app_context.model_uri = model_uri
-            logger.info(f"모델 로드 완료: {model_uri}")
-
-            # 2. 서빙에 필요한 설정만 추출
-            app_context.settings = type('ConfigOnlySettings', (), {
-                'serving': config_data.get('serving', {}),
-                'feature_store': config_data.get('feature_store', {}),
-                'environment': config_data.get('environment', {}),
-            })()
-            app_context.feature_store_config = config_data.get('serving', {}).get('realtime_feature_store', {})
-
-            # 🆕 3. Blueprint v17.0: 정교한 SQL 파싱으로 API 스키마 생성
-            from src.utils.system.sql_utils import parse_select_columns, parse_feature_columns
-            
-            # Wrapped Artifact에서 실제 모델 정보 추출
-            wrapped_model = app_context.model.unwrap_python_model()
-            
-            # 디버깅: 저장된 속성 확인
-            logger.info(f"Wrapped model 속성 목록: {dir(wrapped_model)}")
-            
-            # loader_sql_snapshot에서 API 입력 컬럼 추출 (기본값 사용)
-            loader_sql = getattr(wrapped_model, 'loader_sql_snapshot', 'SELECT user_id')
-            pk_fields = parse_select_columns(loader_sql)
-            logger.info(f"API 요청 PK 필드를 동적으로 생성합니다: {pk_fields}")
-
-            # 4. Feature Store 조회 준비 (간단한 기본값 사용)
-            app_context.feature_columns = ['age', 'income', 'education_level', 'region', 'credit_score', 'num_products']
-            app_context.join_key = 'user_id'
-            logger.info(f"Feature Store 조회 준비 완료: {len(app_context.feature_columns)}개 컬럼, JOIN 키: {app_context.join_key}")
-
-            # 5. 동적 Pydantic 모델 생성
-            app_context.PredictionRequest = create_dynamic_prediction_request(
-                model_name="dynamic", pk_fields=pk_fields
-            )
-            app_context.BatchPredictionRequest = create_batch_prediction_request(
-                app_context.PredictionRequest
-            )
-            logger.info("동적 API 스키마 생성이 완료되었습니다.")
-
-        except Exception as e:
-            logger.error(f"모델 로딩 또는 API 스키마 생성 실패: {e}", exc_info=True)
-            app_context.model = None
+        wrapped_model = app_context.model.unwrap_python_model()
+        loader_sql = getattr(wrapped_model, 'loader_sql_snapshot', 'SELECT user_id FROM DUAL')
         
-        yield
+        from src.utils.system.sql_utils import parse_select_columns
+        pk_fields = parse_select_columns(loader_sql)
         
-        logger.info("FastAPI 애플리케이션 종료.")
+        app_context.PredictionRequest = create_dynamic_prediction_request(
+            model_name="DynamicPredictionRequest", pk_fields=pk_fields
+        )
+        app_context.BatchPredictionRequest = create_batch_prediction_request(
+            app_context.PredictionRequest
+        )
+        logger.info(f"API 컨텍스트 설정 완료: {model_uri}")
+    except Exception as e:
+        logger.error(f"API 컨텍스트 설정 실패: {e}", exc_info=True)
+        raise
 
-    app = FastAPI(
-        title=f"Uplift Model API (Run ID: {run_id})",
-        description="가상 쿠폰 발송 효과 예측 API - Blueprint v13.0",
-        version="13.0.0",
-        lifespan=lifespan,
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 실제 서버 실행 시 사용할 lifespan
+    # run_id는 환경 변수 등에서 가져와야 함
+    run_id = mlflow_utils.get_latest_run_id(
+        experiment_name=load_settings().mlflow.experiment_name
+    )
+    settings = load_settings()
+    setup_api_context(run_id, settings)
+    logger.info("FastAPI 애플리케이션 시작...")
+    yield
+    logger.info("FastAPI 애플리케이션 종료.")
+
+# 테스트와 실제 서빙 모두에서 사용될 수 있는 최상위 app 객체
+app = FastAPI(
+    title="Modern ML Pipeline API",
+    description="Blueprint v17.0 기반 모델 서빙 API",
+    version="17.0.0",
+    lifespan=lifespan  # 실제 서버 실행 시에만 lifespan이 활성화됨
+)
+
+@app.get("/", tags=["General"])
+def root() -> Dict[str, str]:
+    return {
+        "message": "Modern ML Pipeline API",
+        "status": "ready" if app_context.model else "error",
+        "model_uri": app_context.model_uri,
+    }
+
+@app.get("/health", response_model=HealthCheckResponse, tags=["General"])
+def health() -> HealthCheckResponse:
+    if not app_context.model or not app_context.settings:
+        raise HTTPException(status_code=503, detail="모델이 준비되지 않았습니다.")
+    
+    model_info = "unknown"
+    try:
+        wrapped_model = app_context.model.unwrap_python_model()
+        model_info = getattr(wrapped_model, 'model_class_path', 'unknown')
+    except Exception:
+        pass
+
+    return HealthCheckResponse(
+        status="healthy",
+        model_uri=app_context.model_uri,
+        model_name=model_info,
     )
 
-    @app.get("/", tags=["General"])
-    async def root() -> Dict[str, str]:
-        return {
-            "message": "Uplift Model Prediction API",
-            "status": "ready" if app_context.model else "error",
-            "model_uri": app_context.model_uri,
-        }
+@app.post("/predict", response_model=PredictionResponse, tags=["Prediction"])
+def predict(request: BaseModel) -> PredictionResponse:
+    if not app_context.model or not app_context.settings:
+        raise HTTPException(status_code=503, detail="모델이 준비되지 않았습니다.")
+    try:
+        DynamicRequest = app_context.PredictionRequest
+        validated_request = DynamicRequest(**request.model_dump())
+        
+        input_df = pd.DataFrame([validated_request.model_dump()])
+        
+        predict_params = { "run_mode": "serving", "return_intermediate": True }
+        
+        predictions = app_context.model.predict(input_df, params=predict_params)
+        
+        # 결과 구조가 DataFrame이라고 가정
+        prediction_value = predictions["prediction"].iloc[0]
+        input_features_dict = predictions["input_features"].iloc[0]
 
-    @app.get("/health", response_model=HealthCheckResponse, tags=["General"])
-    async def health() -> HealthCheckResponse:
-        if not app_context.model or not app_context.settings:
-            raise HTTPException(status_code=503, detail="모델이 준비되지 않았습니다.")
-        
-        # 모델 정보를 Wrapper의 recipe_snapshot에서 가져오기
-        model_info = "unknown"
-        if app_context.model and hasattr(app_context.model, 'recipe_snapshot'):
-            model_info = app_context.model.recipe_snapshot.get('class_path', 'unknown')
-        
-        return HealthCheckResponse(
-            status="healthy",
-            model_uri=app_context.model_uri,
-            model_name=model_info,
+        return PredictionResponse(
+            prediction=prediction_value,
+            input_features=input_features_dict,
         )
+    except Exception as e:
+        logger.error(f"예측 중 오류 발생: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
-    @app.post("/predict", response_model=PredictionResponse, tags=["Prediction"])
-    async def predict(request: app_context.PredictionRequest) -> PredictionResponse:
-        if not app_context.model or not app_context.settings:
-            raise HTTPException(status_code=503, detail="모델이 준비되지 않았습니다.")
-        try:
-            input_df = pd.DataFrame([request.model_dump()])
-            
-            # 🆕 Day 3: Mock 제거 - 실제 모델 예측 호출
-            logger.info("실제 모델 예측 실행 중...")
-            
-            # 모델 예측 파라미터 설정
-            predict_params = {
-                "run_mode": "serving",
-                "return_intermediate": False
-            }
-            
-            # 실제 모델 예측 실행
-            predictions = app_context.model.predict(input_df, params=predict_params)
-            
-            # 예측 결과 처리
-            if isinstance(predictions, pd.DataFrame):
-                # DataFrame인 경우 첫 번째 행의 첫 번째 컬럼 사용
-                uplift_score = predictions.iloc[0, 0]
-            else:
-                # 단일 값인 경우 그대로 사용
-                uplift_score = float(predictions)
-            
-            logger.info(f"실제 모델 예측 결과: {uplift_score}")
-            
-            # 🆕 Blueprint v17.0: 실제 최적화 정보 사용
-            try:
-                wrapped_model = app_context.model.unwrap_python_model()
-                hpo_info = getattr(wrapped_model, 'hyperparameter_optimization', {})
-                optimization_enabled = hpo_info.get("enabled", False)
-                best_score = hpo_info.get("best_score", 0.0) if optimization_enabled else 0.0
-            except (AttributeError, Exception) as e:
-                logger.warning(f"최적화 정보 조회 실패, 기본값 사용: {e}")
-                optimization_enabled = False
-                best_score = 0.0
-            
-            return PredictionResponse(
-                uplift_score=uplift_score, 
-                model_uri=app_context.model_uri,
-                optimization_enabled=optimization_enabled,
-                best_score=best_score,
-            )
-        except Exception as e:
-            logger.error(f"예측 중 오류 발생: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=str(e))
+@app.post("/predict_batch", response_model=BatchPredictionResponse, tags=["Prediction"])
+def predict_batch(request: BaseModel) -> BatchPredictionResponse:
+    if not app_context.model or not app_context.settings:
+        raise HTTPException(status_code=503, detail="모델이 준비되지 않았습니다.")
+    try:
+        DynamicBatchRequest = app_context.BatchPredictionRequest
+        validated_request = DynamicBatchRequest(**request.model_dump())
 
-    @app.post("/predict_batch", response_model=BatchPredictionResponse, tags=["Prediction"])
-    async def predict_batch(
-        request: app_context.BatchPredictionRequest,
-    ) -> BatchPredictionResponse:
-        if not app_context.model or not app_context.settings:
-            raise HTTPException(status_code=503, detail="모델이 준비되지 않았습니다.")
-        try:
-            input_df = pd.DataFrame([sample.model_dump() for sample in request.samples])
-            if input_df.empty:
-                raise HTTPException(status_code=400, detail="입력 샘플이 비어있습니다.")
-            
-            # 🆕 Day 3: Mock 제거 - 실제 배치 예측 호출
-            logger.info(f"실제 배치 예측 실행 중... (샘플 수: {len(input_df)})")
-            
-            # 배치 예측 파라미터 설정
-            predict_params = {
-                "run_mode": "serving",
-                "return_intermediate": False
-            }
-            
-            # 실제 배치 예측 실행
-            predictions_df = app_context.model.predict(input_df, params=predict_params)
-            
-            # 배치 예측 결과 처리
-            if not isinstance(predictions_df, pd.DataFrame):
-                # DataFrame이 아닌 경우 DataFrame으로 변환
-                predictions_df = pd.DataFrame(predictions_df)
-            
-            logger.info(f"실제 배치 예측 결과: {len(predictions_df)}개 샘플")
-            
-            # 🆕 Blueprint v17.0: 실제 최적화 정보 사용
-            try:
-                wrapped_model = app_context.model.unwrap_python_model()
-                hpo_info = getattr(wrapped_model, 'hyperparameter_optimization', {})
-                optimization_enabled = hpo_info.get("enabled", False)
-                best_score = hpo_info.get("best_score", 0.0) if optimization_enabled else 0.0
-            except (AttributeError, Exception) as e:
-                logger.warning(f"최적화 정보 조회 실패, 기본값 사용: {e}")
-                optimization_enabled = False
-                best_score = 0.0
-            
-            return BatchPredictionResponse(
-                predictions=predictions_df.to_dict(orient="records"),
-                model_uri=app_context.model_uri,
-                sample_count=len(predictions_df),
-                optimization_enabled=optimization_enabled,
-                best_score=best_score,
-            )
-        except Exception as e:
-            logger.error(f"배치 예측 중 오류 발생: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=str(e))
+        input_df = pd.DataFrame([sample.model_dump() for sample in validated_request.samples])
+        if input_df.empty:
+            raise HTTPException(status_code=400, detail="입력 샘플이 비어있습니다.")
+        
+        predict_params = { "run_mode": "serving", "return_intermediate": False }
+        predictions_df = app_context.model.predict(input_df, params=predict_params)
+        
+        return BatchPredictionResponse(
+            predictions=predictions_df.to_dict(orient="records"),
+            model_uri=app_context.model_uri,
+            sample_count=len(predictions_df)
+        )
+    except Exception as e:
+        logger.error(f"배치 예측 중 오류 발생: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
-    # 🆕 Blueprint v17.0: 모델 메타데이터 자기 기술 엔드포인트들
+# 🆕 Blueprint v17.0: 모델 메타데이터 자기 기술 엔드포인트들
     
-    @app.get("/model/metadata", response_model=ModelMetadataResponse, tags=["Model Metadata"])
-    async def get_model_metadata() -> ModelMetadataResponse:
-        """
-        모델의 완전한 메타데이터 반환 (하이퍼파라미터 최적화, Data Leakage 방지 정보 포함)
-        """
-        try:
-            if app_context.model is None:
-                raise HTTPException(status_code=503, detail="모델이 로드되지 않았습니다.")
-            
-            # 하이퍼파라미터 최적화 정보 구성
-            hpo_info = app_context.model.hyperparameter_optimization
-            hyperparameter_optimization = HyperparameterOptimizationInfo(
-                enabled=hpo_info.get("enabled", False),
-                engine=hpo_info.get("engine", ""),
-                best_params=hpo_info.get("best_params", {}),
-                best_score=hpo_info.get("best_score", 0.0),
-                total_trials=hpo_info.get("total_trials", 0),
-                pruned_trials=hpo_info.get("pruned_trials", 0),
-                optimization_time=str(hpo_info.get("optimization_time", "")),
-            )
-            
-            # 학습 방법론 정보 구성
-            tm_info = app_context.model.training_methodology
-            training_methodology = TrainingMethodologyInfo(
-                train_test_split_method=tm_info.get("train_test_split_method", ""),
-                train_ratio=tm_info.get("train_ratio", 0.8),
-                validation_strategy=tm_info.get("validation_strategy", ""),
-                preprocessing_fit_scope=tm_info.get("preprocessing_fit_scope", ""),
-                random_state=tm_info.get("random_state", 42),
-            )
-            
-            # API 스키마 정보 구성
-            api_schema = {
-                "input_fields": [field for field in app_context.PredictionRequest.__fields__.keys()],
-                "sql_source": "loader_sql_snapshot",
-                "feature_columns": app_context.feature_columns,
-                "join_key": app_context.join_key,
-            }
-            
-            return ModelMetadataResponse(
-                model_uri=app_context.model_uri,
-                model_class_path=getattr(app_context.model, "model_class_path", ""),
-                hyperparameter_optimization=hyperparameter_optimization,
-                training_methodology=training_methodology,
-                training_metadata=app_context.model.training_metadata,
-                api_schema=api_schema,
-            )
-            
-        except Exception as e:
-            logger.error(f"모델 메타데이터 조회 중 오류 발생: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=str(e))
+@app.get("/model/metadata", response_model=ModelMetadataResponse, tags=["Model Metadata"])
+def get_model_metadata() -> ModelMetadataResponse:
+    """
+    모델의 완전한 메타데이터 반환 (하이퍼파라미터 최적화, Data Leakage 방지 정보 포함)
+    """
+    try:
+        if app_context.model is None:
+            raise HTTPException(status_code=503, detail="모델이 로드되지 않았습니다.")
+        
+        # 하이퍼파라미터 최적화 정보 구성
+        hpo_info = app_context.model.hyperparameter_optimization
+        hyperparameter_optimization = HyperparameterOptimizationInfo(
+            enabled=hpo_info.get("enabled", False),
+            engine=hpo_info.get("engine", ""),
+            best_params=hpo_info.get("best_params", {}),
+            best_score=hpo_info.get("best_score", 0.0),
+            total_trials=hpo_info.get("total_trials", 0),
+            pruned_trials=hpo_info.get("pruned_trials", 0),
+            optimization_time=str(hpo_info.get("optimization_time", "")),
+        )
+        
+        # 학습 방법론 정보 구성
+        tm_info = app_context.model.training_methodology
+        training_methodology = TrainingMethodologyInfo(
+            train_test_split_method=tm_info.get("train_test_split_method", ""),
+            train_ratio=tm_info.get("train_ratio", 0.8),
+            validation_strategy=tm_info.get("validation_strategy", ""),
+            preprocessing_fit_scope=tm_info.get("preprocessing_fit_scope", ""),
+            random_state=tm_info.get("random_state", 42),
+        )
+        
+        # API 스키마 정보 구성
+        api_schema = {
+            "input_fields": [field for field in app_context.PredictionRequest.__fields__.keys()],
+            "sql_source": "loader_sql_snapshot",
+            "feature_columns": app_context.model.feature_columns, # 실제 모델에서 가져옴
+            "join_key": app_context.model.join_key, # 실제 모델에서 가져옴
+        }
+        
+        return ModelMetadataResponse(
+            model_uri=app_context.model_uri,
+            model_class_path=getattr(app_context.model, "model_class_path", ""),
+            hyperparameter_optimization=hyperparameter_optimization,
+            training_methodology=training_methodology,
+            training_metadata=app_context.model.training_metadata,
+            api_schema=api_schema,
+        )
+        
+    except Exception as e:
+        logger.error(f"모델 메타데이터 조회 중 오류 발생: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
-    @app.get("/model/optimization", response_model=OptimizationHistoryResponse, tags=["Model Metadata"])
-    async def get_optimization_history() -> OptimizationHistoryResponse:
-        """
-        하이퍼파라미터 최적화 과정의 상세 히스토리 반환
-        """
-        try:
-            if app_context.model is None:
-                raise HTTPException(status_code=503, detail="모델이 로드되지 않았습니다.")
-            
-            hpo_info = app_context.model.hyperparameter_optimization
-            
-            if not hpo_info.get("enabled", False):
-                return OptimizationHistoryResponse(
-                    enabled=False,
-                    optimization_history=[],
-                    search_space={},
-                    convergence_info={"message": "하이퍼파라미터 최적화가 비활성화되었습니다."},
-                    timeout_occurred=False,
-                )
-            
+@app.get("/model/optimization", response_model=OptimizationHistoryResponse, tags=["Model Metadata"])
+def get_optimization_history() -> OptimizationHistoryResponse:
+    """
+    하이퍼파라미터 최적화 과정의 상세 히스토리 반환
+    """
+    try:
+        if app_context.model is None:
+            raise HTTPException(status_code=503, detail="모델이 로드되지 않았습니다.")
+        
+        hpo_info = app_context.model.hyperparameter_optimization
+        
+        if not hpo_info.get("enabled", False):
             return OptimizationHistoryResponse(
-                enabled=True,
-                optimization_history=hpo_info.get("optimization_history", []),
-                search_space=hpo_info.get("search_space", {}),
-                convergence_info={
-                    "best_score": hpo_info.get("best_score", 0.0),
-                    "total_trials": hpo_info.get("total_trials", 0),
-                    "pruned_trials": hpo_info.get("pruned_trials", 0),
-                    "optimization_time": str(hpo_info.get("optimization_time", "")),
-                },
-                timeout_occurred=hpo_info.get("timeout_occurred", False),
+                enabled=False,
+                optimization_history=[],
+                search_space={},
+                convergence_info={"message": "하이퍼파라미터 최적화가 비활성화되었습니다."},
+                timeout_occurred=False,
             )
-            
-        except Exception as e:
-            logger.error(f"최적화 히스토리 조회 중 오류 발생: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=str(e))
+        
+        return OptimizationHistoryResponse(
+            enabled=True,
+            optimization_history=hpo_info.get("optimization_history", []),
+            search_space=hpo_info.get("search_space", {}),
+            convergence_info={
+                "best_score": hpo_info.get("best_score", 0.0),
+                "total_trials": hpo_info.get("total_trials", 0),
+                "pruned_trials": hpo_info.get("pruned_trials", 0),
+                "optimization_time": str(hpo_info.get("optimization_time", "")),
+            },
+            timeout_occurred=hpo_info.get("timeout_occurred", False),
+        )
+        
+    except Exception as e:
+        logger.error(f"최적화 히스토리 조회 중 오류 발생: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
-    @app.get("/model/schema", tags=["Model Metadata"])
-    async def get_api_schema() -> Dict[str, Any]:
-        """
-        동적으로 생성된 API 스키마 정보 반환
-        """
-        try:
-            if app_context.model is None:
-                raise HTTPException(status_code=503, detail="모델이 로드되지 않았습니다.")
-            
-            return {
-                "prediction_request_schema": app_context.PredictionRequest.schema(),
-                "batch_prediction_request_schema": app_context.BatchPredictionRequest.schema(),
-                "loader_sql_snapshot": app_context.model.loader_sql_snapshot,
-                "extracted_fields": [field for field in app_context.PredictionRequest.__fields__.keys()],
-                "feature_store_info": {
-                    "feature_columns": app_context.feature_columns,
-                    "join_key": app_context.join_key,
-                    "feature_store_config": app_context.feature_store_config,
-                },
-            }
-            
-        except Exception as e:
-            logger.error(f"API 스키마 조회 중 오류 발생: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=str(e))
-
-    return app
+@app.get("/model/schema", tags=["Model Metadata"])
+def get_api_schema() -> Dict[str, Any]:
+    """
+    동적으로 생성된 API 스키마 정보 반환
+    """
+    try:
+        if app_context.model is None:
+            raise HTTPException(status_code=503, detail="모델이 로드되지 않았습니다.")
+        
+        return {
+            "prediction_request_schema": app_context.PredictionRequest.schema(),
+            "batch_prediction_request_schema": app_context.BatchPredictionRequest.schema(),
+            "loader_sql_snapshot": app_context.model.loader_sql_snapshot,
+            "extracted_fields": [field for field in app_context.PredictionRequest.__fields__.keys()],
+            "feature_store_info": {
+                "feature_columns": app_context.model.feature_columns,
+                "join_key": app_context.model.join_key,
+                "feature_store_config": app_context.settings.serving.get('realtime_feature_store', {}),
+            },
+        }
+        
+    except Exception as e:
+        logger.error(f"API 스키마 조회 중 오류 발생: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 def run_api_server(run_id: str, host: str = "0.0.0.0", port: int = 8000):
-    """
-    run_id 기반 API 서버 실행
-    Blueprint v13.0 완전 구현: 정확한 모델 식별과 재현성 보장
-    """
-    app = create_app(run_id)
-    uvicorn.run(app, host=host, port=port)
+    """run_id 기반 API 서버 실행"""
+    settings = load_settings()
+    setup_api_context(run_id, settings)
+    
+    # uvicorn.run에 app 객체를 직접 전달
+    # lifespan은 app 객체에 이미 연결되어 있음
+    # 단, uvicorn이 실행될 때 lifespan이 활성화되도록 해야함
+    
+    # uvicorn.run에 app 객체를 문자열로 전달하여 lifespan이 자동 실행되도록 함
+    uvicorn.run("serving.api:app", host=host, port=port, reload=True)
