@@ -42,9 +42,14 @@ dependencies = [
     "s3fs",
     "boto3",
     "redis",
-    # 🆕 PostgreSQL 연결 지원
+    # 🆕 통합 어댑터 의존성 (Phase 2)
+    "sqlalchemy",
     "psycopg2-binary",
-    "google-cloud-bigquery>=3.35.1",
+    "fsspec",
+    "gcsfs",
+    "s3fs",
+    # BigQuery는 storage extra를 함께 설치
+    "google-cloud-bigquery[storage]>=3.35.1",
 ]
 
 [project.optional-dependencies]

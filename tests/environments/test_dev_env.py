@@ -15,8 +15,8 @@ DEV 환경의 철학:
 import pytest
 from fastapi.testclient import TestClient
 
-from src.core.factory import Factory
-from src.core.augmenter import Augmenter
+from src.engine.factory import Factory
+from src.components.augmenter import Augmenter
 from src.settings import Settings
 from serving.api import app, setup_api_context
 from src.pipelines.train_pipeline import run_training

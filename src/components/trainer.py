@@ -1,16 +1,18 @@
+from __future__ import annotations
 import pandas as pd
-from typing import Dict, Any, Tuple, Optional
+from typing import Dict, Any, Tuple, Optional, TYPE_CHECKING
 from datetime import datetime
 
 from sklearn.model_selection import train_test_split
 
 from src.settings import Settings
 from src.utils.system.logger import logger
-from src.core.augmenter import BaseAugmenter
-from src.core.preprocessor import BasePreprocessor
-# BaseModel import 제거: 외부 라이브러리 직접 사용으로 전환
 from src.interface.base_trainer import BaseTrainer
 from src.utils.system.schema_utils import validate_schema
+
+if TYPE_CHECKING:
+    from src.components.augmenter import BaseAugmenter
+    from src.components.preprocessor import BasePreprocessor
 
 
 class Trainer(BaseTrainer):
@@ -70,18 +72,18 @@ class Trainer(BaseTrainer):
             test_df = augmenter.augment(test_df, run_mode="batch", context_params=context_params)
         
         # Optuna 관련 컴포넌트 생성
-        from src.core.factory import Factory
+        from src.engine.factory import Factory
         factory = Factory(self.settings)
         
         try:
-            optuna_adapter = factory.create_optuna_adapter()
+            optuna_integration = factory.create_optuna_integration()
             tuning_utils = factory.create_tuning_utils()
         except (ValueError, ImportError) as e:
             logger.warning(f"Optuna 컴포넌트 생성 실패, 고정 하이퍼파라미터로 진행: {e}")
             return self._train_with_fixed_hyperparameters(df, model, augmenter, preprocessor, context_params)
         
         # Optuna Study 생성
-        study = optuna_adapter.create_study(
+        study = optuna_integration.create_study(
             direction=self.settings.model.hyperparameter_tuning.direction,
             study_name=f"study_{self.settings.model.computed['run_name']}"
         )
@@ -90,7 +92,7 @@ class Trainer(BaseTrainer):
         
         def objective(trial):
             # 하이퍼파라미터 샘플링
-            params = optuna_adapter.suggest_hyperparameters(
+            params = optuna_integration.suggest_hyperparameters(
                 trial, self.settings.model.hyperparameters.root
             )
             
@@ -199,7 +201,7 @@ class Trainer(BaseTrainer):
         logger.info("모델 학습 완료.")
 
         # 동적 평가
-        from src.core.factory import Factory
+        from src.engine.factory import Factory
         factory = Factory(self.settings)
         evaluator = factory.create_evaluator()
         metrics = evaluator.evaluate(model, X_test_processed, y_test, test_df)
@@ -230,7 +232,7 @@ class Trainer(BaseTrainer):
         X_val, y_val, _ = self._prepare_training_data(val_data)
         
         # 3. Preprocessor fit (Train only) ← ✅ Data Leakage 방지
-        from src.core.factory import Factory
+        from src.engine.factory import Factory
         factory = Factory(self.settings)
         preprocessor = factory.create_preprocessor()
         

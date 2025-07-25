@@ -1,22 +1,20 @@
 """
-시스템 유틸리티 모듈
+시스템 운영에 필요한 핵심 유틸리티 모듈
 
-이 모듈은 ML 파이프라인의 내부 시스템 기능들을 담당하는 
-유틸리티들을 포함합니다.
+이 패키지는 로깅, 스키마 처리, 환경 변수 로딩 등
+시스템의 근간을 이루는 유틸리티들을 포함합니다.
 """
-
-from .logger import logger, setup_logging
-from .mlflow_utils import setup_mlflow, start_run
-from .schema_utils import validate_schema, convert_schema
-from .sql_utils import render_sql, get_selected_columns
+from .environment_check import check_environment
+from .logger import setup_logging, logger
+from .schema_utils import (
+    validate_schema,
+)
+from .sql_utils import get_selected_columns
 
 __all__ = [
-    'logger',
-    'setup_logging',
-    'setup_mlflow',
-    'start_run',
-    'validate_schema',
-    'convert_schema',
-    'render_sql',
-    'get_selected_columns'
+    "check_environment",
+    "setup_logging",
+    "logger",
+    "validate_schema",
+    "get_selected_columns"
 ] 

@@ -1,10 +1,11 @@
+from __future__ import annotations
 from abc import ABC, abstractmethod
 import pandas as pd
-from typing import Tuple, Dict, Any
+from typing import Tuple, Dict, Any, TYPE_CHECKING
 
-# 순환 참조를 피하기 위해 타입 힌트는 문자열로 처리하거나, 별도의 파일로 분리할 수 있습니다.
-# 여기서는 간단하게 필요한 클래스만 임포트합니다.
-from src.core.preprocessor import Preprocessor
+
+if TYPE_CHECKING:
+    from src.components.preprocessor import Preprocessor
 # BaseModel import 제거: 외부 라이브러리 직접 사용으로 전환
 
 

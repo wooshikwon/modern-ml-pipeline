@@ -4,8 +4,8 @@ from datetime import datetime
 import mlflow
 
 from src.utils.system.logger import logger
-from src.utils.system import mlflow_utils
-from src.core.factory import Factory
+from src.utils.integrations import mlflow_integration as mlflow_utils
+from src.engine.factory import Factory
 from src.settings import Settings
 
 

@@ -18,11 +18,13 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, List, Tuple
 import json
 from decimal import Decimal
+from unittest.mock import patch, MagicMock
 
+from src.engine.factory import Factory
+from src.components.augmenter import Augmenter
 from src.settings import Settings
-from src.core.factory import Factory
 from src.utils.adapters.feature_store_adapter import FeatureStoreAdapter
-from src.core.augmenter import Augmenter
+from src.pipelines.train_pipeline import run_training
 
 # DEV 환경 Feature Store 패리티 테스트
 pytestmark = [

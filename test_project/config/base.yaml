@@ -1,0 +1,9 @@
+
+# config/base.yaml
+# 어디에 연결할지 등 인프라 정보를 정의합니다.
+environment:
+  app_env: ${APP_ENV:local}
+
+mlflow:
+  tracking_uri: ${MLFLOW_TRACKING_URI:./mlruns}
+  experiment_name: "Default-Experiment"

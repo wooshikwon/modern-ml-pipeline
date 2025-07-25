@@ -10,7 +10,7 @@ Blueprint 원칙 검증:
 
 import pytest
 from unittest.mock import Mock, patch
-from src.core.factory import Factory
+from src.engine.factory import Factory
 from src.settings import Settings
 from src.utils.adapters.file_system_adapter import FileSystemAdapter
 from src.core.augmenter import Augmenter, PassThroughAugmenter

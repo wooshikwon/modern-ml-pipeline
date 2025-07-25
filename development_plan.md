@@ -346,9 +346,11 @@
 
 - **목표:** 리팩토링된 전체 시스템이 실제 사용자 시나리오 하에서 의도한 대로 완벽하게 동작하는지 종합적으로 검증한다.
 - **개발 순서 (테스트 시나리오):**
-    1. **프로젝트 초기화:** `uv run python main.py init --dir ./test_project`를 실행하여 새로운 프로젝트 구조가 생성되는지 확인한다.
-    2. **설정 검증:** `uv run python main.py validate --recipe-file ./test_project/recipes/example_recipe.yaml`를 실행하여 성공 메시지를 확인한다.
-    3. **템플릿 기반 학습:** 테스트용 Jinja 템플릿(`.sql.j2`)과 이를 사용하는 레시피를 준비하고, `uv run python main.py train --recipe-file ... --context-params '{"key": "value"}'`를 실행한다.
+    1. **프로젝트 초기화:** `uv run python main.py init --dir ./test_project`를 실행하여 새로운 프로젝트 구조가 생성되는지 확인한다. **(완료)**
+    2. **설정 검증:** `uv run python main.py validate --recipe-file ./test_project/recipes/example_recipe.yaml`를 실행하여 성공 메시지를 확인한다. **(완료)**
+    3. **템플릿 기반 학습:** `uv run python main.py train --recipe-file ... --context-params '{"key": "value"}'`를 실행한다. **[PAUSED]**
+        - **중단 지점:** `train` 커맨드 실행 시 `config/data_adapters.yaml`의 내용과 `AdapterConfigSettings` Pydantic 모델 간의 불일치로 `ValidationError` 발생.
+        - **다음 작업:** 개발 환경 안정화 후, `config/data_adapters.yaml` 파일에 `class_name` 필드를 올바르게 추가하여 오류 해결 후 테스트 재개.
     4. **아티팩트 검증:** MLflow UI에서 생성된 `run`을 확인하고, `loader_sql_snapshot` 아티팩트를 다운로드하여 SQL이 `context-params`에 맞게 올바르게 렌더링되었는지 직접 확인한다.
     5. **추론/서빙 검증:** `train`에서 얻은 `run-id`를 사용하여 `batch-inference`와 `serve-api` 커맨드가 모두 오류 없이 실행되는지 확인한다.
     6. **인프라 계약 검증:** `uv run python main.py test-contract`를 실행하여 테스트가 통과하는지 확인한다.
