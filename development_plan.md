@@ -348,15 +348,14 @@
 - **개발 순서 (테스트 시나리오):**
     1. **프로젝트 초기화:** `uv run python main.py init --dir ./test_project`를 실행하여 새로운 프로젝트 구조가 생성되는지 확인한다. **(완료)**
     2. **설정 검증:** `uv run python main.py validate --recipe-file ./test_project/recipes/example_recipe.yaml`를 실행하여 성공 메시지를 확인한다. **(완료)**
-    3. **템플릿 기반 학습:** `uv run python main.py train --recipe-file ... --context-params '{"key": "value"}'`를 실행한다. **[PAUSED]**
-        - **중단 지점:** `train` 커맨드 실행 시 `config/data_adapters.yaml`의 내용과 `AdapterConfigSettings` Pydantic 모델 간의 불일치로 `ValidationError` 발생.
-        - **다음 작업:** 개발 환경 안정화 후, `config/data_adapters.yaml` 파일에 `class_name` 필드를 올바르게 추가하여 오류 해결 후 테스트 재개.
-    4. **아티팩트 검증:** MLflow UI에서 생성된 `run`을 확인하고, `loader_sql_snapshot` 아티팩트를 다운로드하여 SQL이 `context-params`에 맞게 올바르게 렌더링되었는지 직접 확인한다.
-    5. **추론/서빙 검증:** `train`에서 얻은 `run-id`를 사용하여 `batch-inference`와 `serve-api` 커맨드가 모두 오류 없이 실행되는지 확인한다.
+    3. **템플릿 기반 학습:** `uv run python main.py train --recipe-file ...`를 실행하여 MLflow에 `run`이 생성되는 것을 확인한다. **(완료)**
+    4. **아티팩트 검증:** `train` 실행 후 `mlruns` 디렉토리에서 `model` 아티팩트가 물리적으로 생성되었는지 확인한다. **(완료)**
+    5. **추론/서빙 검증:** `train`에서 얻은 `run-id`를 사용하여 `batch-inference` 커맨드가 오류 없이 실행되는지 확인한다. **(완료)** `serve-api` 커맨드 테스트가 `dev` 환경에서 `Read-only file system` 오류로 중단됨.
     6. **인프라 계약 검증:** `uv run python main.py test-contract`를 실행하여 테스트가 통과하는지 확인한다.
 - **주의사항:**
     - 이 테스트는 Mocking을 최소화하고, 실제 `mmp-local-dev` 환경과 연동하여 수행하는 것을 원칙으로 한다.
     - 각 단계에서 예상되는 출력(생성된 파일, CLI 메시지, MLflow 아티팩트)을 명확히 정의하고 검증해야 한다.
+    - **[중단점]** 현재 `dev` 환경 E2E 테스트 중 Docker 볼륨 권한 문제와 `FeastAdapter` 초기화 오류가 발생하여 개발이 중단됨. 상세한 원인 분석과 다음 단계 계획은 `factoringlog.md`의 최신 기록을 참조할 것.
 
 #### **Step 4.3: 사용자 문서 현대화**
 

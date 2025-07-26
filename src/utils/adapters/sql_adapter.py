@@ -20,14 +20,16 @@ class SqlAdapter(BaseAdapter):
 
     def _create_engine(self):
         """설정(Settings) 객체로부터 DB 연결 URI를 생성하고 SQLAlchemy 엔진을 반환합니다."""
-        # 이 부분은 Phase 3에서 config 구조가 개편되면 더 동적으로 변경될 수 있습니다.
-        # 현재는 dev 환경의 postgresql 설정을 우선적으로 사용한다고 가정합니다.
         try:
-            # TODO: config 구조 변경 후 동적으로 connection_uri를 가져오도록 수정
-            # 예시: postgresql_config = self.settings.data_sources.postgresql
-            connection_uri = "postgresql://user:password@localhost:5432/mlpipeline" # 임시 하드코딩
+            # DataAdapterSettings 모델의 올바른 접근 방법: 딕셔너리 키로 접근
+            sql_adapter_config = self.settings.data_adapters.adapters['sql']
+            connection_uri = sql_adapter_config.config['connection_uri']
+            
             logger.info(f"SQLAlchemy 엔진 생성. URI: {connection_uri}")
             return sqlalchemy.create_engine(connection_uri)
+        except KeyError as e:
+            logger.error(f"SQL 어댑터 설정을 찾을 수 없습니다: {e}")
+            raise ValueError(f"SQL 어댑터 설정이 누락되었습니다: {e}")
         except Exception as e:
             logger.error(f"SQLAlchemy 엔진 생성 실패: {e}", exc_info=True)
             raise

@@ -5,7 +5,7 @@ from typing_extensions import Annotated
 from typing import Optional
 import subprocess
 
-from src.settings import Settings, load_settings_by_file
+from src.settings import Settings, load_settings_by_file, load_config_files
 from src.pipelines.train_pipeline import run_training
 from src.pipelines.inference_pipeline import run_batch_inference
 from serving.api import run_api_server
@@ -106,9 +106,19 @@ def batch_inference(
     """
     try:
         params = json.loads(context_params) if context_params else None
-        # 배치 추론 시에는 레시피가 없으므로 기본 설정만 로드합니다.
-        # 추론에 필요한 정보는 모두 아티팩트에 담겨 있습니다.
-        settings = Settings() # 임시. 추후 개선 필요
+        # 추론 시점에는 config 파일만 로드하여 Settings 생성
+        config_data = load_config_files()
+        
+        # 추론 시점에는 모델 설정이 없으므로, 유효성 검사를 통과하기 위한 최소한의 더미 값을 추가
+        if "model" not in config_data:
+            config_data["model"] = {
+                "class_path": "dummy.path",
+                "loader": {"name": "dummy", "source_uri": "dummy"},
+                "data_interface": {"task_type": "dummy"},
+                "hyperparameters": {}
+            }
+            
+        settings = Settings(**config_data)
         setup_logging(settings)
         
         logger.info(f"Run ID '{run_id}'로 배치 추론을 시작합니다.")
@@ -132,7 +142,19 @@ def serve_api(
     지정된 `run_id`의 모델로 FastAPI 서버를 실행합니다.
     """
     try:
-        settings = Settings() # 임시. 추후 개선 필요
+        # 추론 시점에는 config 파일만 로드하여 Settings 생성
+        config_data = load_config_files()
+
+        # 추론 시점에는 모델 설정이 없으므로, 유효성 검사를 통과하기 위한 최소한의 더미 값을 추가
+        if "model" not in config_data:
+            config_data["model"] = {
+                "class_path": "dummy.path",
+                "loader": {"name": "dummy", "source_uri": "dummy"},
+                "data_interface": {"task_type": "dummy"},
+                "hyperparameters": {}
+            }
+
+        settings = Settings(**config_data)
         setup_logging(settings)
         
         logger.info(f"Run ID '{run_id}'로 API 서버를 시작합니다.")

@@ -3,9 +3,11 @@ import pandas as pd
 from typing import TYPE_CHECKING, Dict, Any, List
 from src.interface.base_adapter import BaseAdapter
 from src.utils.system.logger import logger
+from pydantic import BaseModel
 
 try:
     from feast import FeatureStore
+    from feast.repo_config import RepoConfig
     FEAST_AVAILABLE = True
 except ImportError:
     FEAST_AVAILABLE = False
@@ -27,16 +29,25 @@ class FeastAdapter(BaseAdapter):
         self.store = self._init_feature_store()
 
     def _init_feature_store(self) -> FeatureStore:
-        """설정(Settings) 객체로부터 Feast FeatureStore를 초기화합니다."""
+        """Initializes the Feast FeatureStore object."""
         try:
-            feast_config_dict = self.settings.feature_store.feast_config.dict()
-            logger.info(f"Initializing Feast FeatureStore with config: {feast_config_dict}")
-            # repo_path는 Feast가 feature_store.yaml을 찾기 위해 필요할 수 있습니다.
-            # 일반적으로는 config만으로 충분합니다.
-            return FeatureStore(config=feast_config_dict)
+            config_data = self.settings.feature_store.feast_config
+
+            if isinstance(config_data, dict):
+                # Convert dict to RepoConfig object before passing to FeatureStore
+                repo_config = RepoConfig(**config_data)
+                fs = FeatureStore(config=repo_config)
+            elif isinstance(config_data, BaseModel): # Should be RepoConfig, but check BaseModel for safety
+                # If it's already a Pydantic model, use it directly
+                fs = FeatureStore(config=config_data)
+            else:
+                raise TypeError(f"Unsupported config type for Feast: {type(config_data)}")
+            
+            logger.info("Feature Store adapter initialized successfully.")
+            return fs
         except Exception as e:
             logger.error(f"Failed to initialize Feast FeatureStore: {e}", exc_info=True)
-            raise
+            return None
 
     def get_historical_features(self, entity_df: pd.DataFrame, features: List[str], **kwargs) -> pd.DataFrame:
         """오프라인 스토어에서 과거 시점의 피처를 가져옵니다."""

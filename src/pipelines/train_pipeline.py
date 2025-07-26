@@ -4,6 +4,8 @@ from typing import Optional, Dict, Any
 
 import mlflow
 import pandas as pd
+import tempfile
+from contextlib import contextmanager
 
 from src.settings import Settings
 from src.engine.factory import Factory
@@ -18,7 +20,8 @@ def run_training(settings: Settings, context_params: Optional[Dict[str, Any]] = 
     Factory를 통해 데이터 어댑터와 모든 컴포넌트를 생성하고, 최종적으로
     순수 로직 PyfuncWrapper를 생성하여 MLflow에 저장합니다.
     """
-    logger.info(f"'{settings.model.computed['run_name']}' 모델 학습 파이프라인을 시작합니다.")
+    logger.info(f"['{settings.model.computed['run_name']}'] 모델 학습 파이프라인 시작")
+    logger.info(f"MLflow Tracking URI (from settings): {settings.mlflow.tracking_uri}") # 경로 검증 로그 추가
     context_params = context_params or {}
 
     # MLflow 실행 컨텍스트 시작
@@ -95,9 +98,8 @@ def run_training(settings: Settings, context_params: Optional[Dict[str, Any]] = 
             params={"run_mode": "batch", "return_intermediate": False}
         )
         
-        # DataFrame이 아닌 경우 DataFrame으로 변환
-        if not hasattr(sample_output, 'columns'):
-            import pandas as pd
+        # DataFrame이 아닌 경우 DataFrame으로 변환 (안정성 확보)
+        if not isinstance(sample_output, pd.DataFrame):
             sample_output = pd.DataFrame(sample_output)
         
         # ModelSignature 생성
@@ -109,11 +111,16 @@ def run_training(settings: Settings, context_params: Optional[Dict[str, Any]] = 
         # model.name이 정의되지 않은 경우 run_name을 사용
         model_name = getattr(settings.model, 'name', None) or settings.model.computed['run_name']
         
-        mlflow.pyfunc.log_model(
-            artifact_path="model",
-            python_model=pyfunc_wrapper,
-            signature=signature,  # 🆕 signature 추가
-        )
+        # 안정적인 2단계 아티팩트 저장 로직
+        with tempfile.TemporaryDirectory() as tmpdir:
+            model_path = Path(tmpdir) / "model"
+            mlflow.pyfunc.save_model(
+                path=str(model_path),
+                python_model=pyfunc_wrapper,
+                signature=signature,
+            )
+            mlflow.log_artifacts(str(model_path), artifact_path="model")
+
         logger.info(f"순수 로직 모델 '{model_name}'을 MLflow에 성공적으로 저장했습니다.")
 
         # 6. (선택적) 메타데이터 저장

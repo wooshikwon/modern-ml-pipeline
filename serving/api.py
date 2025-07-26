@@ -21,6 +21,7 @@ from serving.schemas import (
     HyperparameterOptimizationInfo,
     TrainingMethodologyInfo,
 )
+from src.utils.system.logger import logger
 
 class AppContext:
     def __init__(self):
@@ -77,6 +78,12 @@ app = FastAPI(
     version="17.0.0",
     lifespan=lifespan  # 실제 서버 실행 시에만 lifespan이 활성화됨
 )
+
+@app.on_event("startup")
+async def startup_event():
+    # 실제 run_id는 run_api_server 함수에서 주입받아 설정됩니다.
+    # 여기서는 FastAPI의 라이프사이클 이벤트를 보여주기 위한 예시입니다.
+    pass
 
 @app.get("/", tags=["General"])
 def root() -> Dict[str, str]:
@@ -270,14 +277,30 @@ def get_api_schema() -> Dict[str, Any]:
         logger.error(f"API 스키마 조회 중 오류 발생: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-def run_api_server(run_id: str, host: str = "0.0.0.0", port: int = 8000):
-    """run_id 기반 API 서버 실행"""
-    settings = load_settings()
-    setup_api_context(run_id, settings)
+def run_api_server(settings: Settings, run_id: str, host: str = "0.0.0.0", port: int = 8000):
+    """
+    FastAPI 서버를 실행하고, Lifespan 이벤트를 통해 모델을 로드합니다.
+    """
+    # Blueprint 원칙 9: 환경별 기능 분리 - API 서빙 시스템적 차단
+    serving_settings = getattr(settings, 'serving', None)
+    if not serving_settings or not getattr(serving_settings, 'enabled', True):
+        logger.error(f"'{settings.environment.app_env}' 환경에서는 API 서빙이 비활성화되어 있습니다.")
+        return
+
+    # 모델 로드 (서버 시작 시 한 번만 실행)
+    model_uri = mlflow_utils.get_model_uri(run_id)
+    app_context.model = mlflow_utils.load_pyfunc_model(settings, model_uri)
     
-    # uvicorn.run에 app 객체를 직접 전달
-    # lifespan은 app 객체에 이미 연결되어 있음
-    # 단, uvicorn이 실행될 때 lifespan이 활성화되도록 해야함
+    # 동적 라우트 생성
+    PredictionRequest = create_dynamic_prediction_request(app_context.model)
     
-    # uvicorn.run에 app 객체를 문자열로 전달하여 lifespan이 자동 실행되도록 함
-    uvicorn.run("serving.api:app", host=host, port=port, reload=True)
+    @app.post("/predict", tags=["Predictions"])
+    def predict(request: PredictionRequest):
+        # Pydantic 모델을 dict으로 변환 후, DataFrame으로 변환
+        request_df = pd.DataFrame([request.dict()])
+        
+        # 모델 예측
+        predictions = app_context.model.predict(request_df)
+        return {"predictions": predictions.to_dict(orient="records")}
+
+    uvicorn.run(app, host=host, port=port)
