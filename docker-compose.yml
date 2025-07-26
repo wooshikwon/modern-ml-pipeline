@@ -2,19 +2,49 @@ version: '3.8'
 
 services:
   mlflow-server:
-    image: ghcr.io/mlflow/mlflow:v2.14.1
-    container_name: mlflow-mmp-dev
+    build:
+      context: .
+      dockerfile: ./docker/mlflow/Dockerfile
+    image: modern-ml-pipeline-mlflow
+    container_name: mlflow-server
     restart: always
     ports:
-      - "5000:5000"
+      - "5001:5000" # Host:Container
     volumes:
-      # 로컬의 ./local/artifacts 디렉토리를 컨테이너의 /mlruns와 마운트하여
-      # MLflow 실험 데이터와 아티팩트를 영속적으로 관리합니다.
-      - ./local/artifacts:/mlruns
+      # Use a named volume to avoid host-container permission issues
+      - mlflow_data:/home/mlflow/mlruns
+    environment:
+      - MLFLOW_S3_ENDPOINT_URL=${MLFLOW_S3_ENDPOINT_URL}
     command: >
       mlflow server
-      --host 0.0.0.0
-      --port 5000
-      --backend-store-uri /mlruns
+        --host 0.0.0.0
+        --port 5000
+        --backend-store-uri postgresql://postgres:postgres@postgres-mmp-dev:5432/mlflow
+        # Use a path inside the container that is guaranteed to be writable
+        --default-artifact-root /home/mlflow/mlruns
+    depends_on:
+      - postgres-mmp-dev
+
+  postgres-mmp-dev:
+    image: postgres:13
+    container_name: postgres-mmp-dev
+    restart: always
+    ports:
+      - "5433:5432" # 포트 충돌 방지를 위해 5433으로 변경
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
     environment:
-      - MLFLOW_TRACKING_URI=http://localhost:5000
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: mlflow
+
+  redis-mmp-dev:
+    image: redis:6
+    container_name: redis-mmp-dev
+    restart: always
+    ports:
+      - "6380:6379" # 포트 충돌 방지를 위해 6380으로 변경
+
+volumes:
+  postgres_data:
+  mlflow_data: {} # Define the named volume for MLflow

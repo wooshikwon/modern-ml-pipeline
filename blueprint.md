@@ -541,7 +541,7 @@ DEV: ./setup-dev-environment.sh → 완전한 기능 (5분 이내)
 ├── serving/                # [서빙] 실시간 API 서빙 관련 코드.
 ├── tests/                  # [품질] 시스템의 안정성을 보장하는 테스트 코드.
 ├── main.py                 # 시스템의 모든 기능을 실행하는 단일 진입점(CLI).
-├── Dockerfile              # 재현 가능한 실행 환경을 정의하는 Docker 빌드 스크립트.
+├── Dockerfile              # (참고) 애플리케이션 실행 환경을 정의하는 Docker 빌드 스크립트.
 └── pyproject.toml          # 프로젝트의 메타데이터와 파이썬 의존성 정의.
 ```
 

@@ -5,26 +5,16 @@
 # -----------------------------------------------------------------------------
 
 data_adapters:
-  # 기본 어댑터 매핑
-  default_loader: "storage"
-  default_storage: "storage"
-  default_feature_store: "feature_store"
-  
-  # 어댑터별 구체적 설정
+  default_loader: storage
+  default_storage: storage
   adapters:
     storage:
-      class_name: "StorageAdapter"
+      class_name: StorageAdapter
       config: {}
-    
     sql:
-      class_name: "SqlAdapter"
+      class_name: SqlAdapter
       config:
-        # 연결 URI는 base.yaml 또는 env.yaml의 인프라 설정에서 주입됩니다.
-        # 여기서는 논리적 설정만 정의합니다.
-        pool_size: 5
-        max_overflow: 10
-        echo_sql: false
-
+        connection_uri: "postgresql://user:pass@localhost:5433/db"
     feature_store:
-      class_name: "FeastAdapter"
+      class_name: FeastAdapter
       config: {} 

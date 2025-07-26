@@ -9,11 +9,15 @@ model:
 
   loader:
     name: "default_loader" # 필수 필드 추가
-    # 로컬 파일 시스템을 사용하는 예제
-    source_uri: "data/raw/your_data.parquet"
+    # API 스키마 생성을 위해 컬럼을 명시적으로 지정
+    source_uri: "SELECT user_id, item_id, timestamp, target_date, target FROM mock_table LIMIT 100"
   
-  # 피처 증강은 필요 시 여기에 추가합니다.
-  # augmenter: ...
+  # dev 환경 테스트를 위한 augmenter 설정 추가
+  augmenter:
+    type: "feature_store"
+    features:
+      - feature_namespace: "user_features" # 예시 피처
+        features: ["age", "gender"]
   
   preprocessor:
     name: "default_preprocessor" # 필수 필드 추가

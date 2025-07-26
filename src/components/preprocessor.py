@@ -24,11 +24,12 @@ class Preprocessor(BasePreprocessor):
     def __init__(self, settings: Settings):
         self.settings = settings
         self.config = self.settings.model.preprocessor
-        self.exclude_cols = self.config.exclude_cols or []
+        self.exclude_cols = self.config.params.exclude_cols or []
         self.scaler = StandardScaler()
         self.categorical_cols_: List[str] = []
         self.numerical_cols_: List[str] = []
         self.frequency_maps_: Dict[str, Dict[Any, int]] = {}
+        self._unseen_value_filler = 0  # unseen 값을 채울 기본값
         self.feature_names_out_: List[str] = []
 
     def fit(self, X: pd.DataFrame, y: Optional[pd.Series] = None) -> 'Preprocessor':
@@ -65,13 +66,13 @@ class Preprocessor(BasePreprocessor):
 
     def _fit_categorical(self, X: pd.DataFrame):
         """범주형 변수에 대한 인코딩 규칙을 학습합니다."""
-        if self.config.criterion_col:
-            logger.info(f"'{self.config.criterion_col}' 기준 중앙값 순위 인코딩을 사용합니다.")
-            if self.config.criterion_col not in X.columns:
-                raise ValueError(f"기준 컬럼 '{self.config.criterion_col}'이 데이터에 없습니다.")
+        if self.config.params.criterion_col:
+            logger.info(f"'{self.config.params.criterion_col}' 기준 중앙값 순위 인코딩을 사용합니다.")
+            if self.config.params.criterion_col not in X.columns:
+                raise ValueError(f"기준 컬럼 '{self.config.params.criterion_col}'이 데이터에 없습니다.")
             
             for col in self.categorical_cols_:
-                mapping = X.groupby(col)[self.config.criterion_col].median().rank(method='first').astype(int)
+                mapping = X.groupby(col)[self.config.params.criterion_col].median().rank(method='first').astype(int)
                 self.frequency_maps_[col] = mapping.to_dict()
         else:
             logger.info("빈도(Frequency) 인코딩을 사용합니다.")

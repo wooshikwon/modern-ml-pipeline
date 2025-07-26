@@ -20,7 +20,7 @@ dependencies = [
     "PyYAML",
     "pandas",
     "scikit-learn",
-    "mlflow",
+    "mlflow==3.1.4",
     "causalml",
     "xgboost",
     # 🔧 Python 3.11 호환성을 위한 명시적 버전 지정

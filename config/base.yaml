@@ -17,9 +17,9 @@ environment:
 # 2. 모델 아티팩트 스토어 (MLflow Model Registry)
 mlflow:
   # LOCAL 환경에서는 파일 시스템 기반 MLflow 사용
-  tracking_uri: ${MLFLOW_TRACKING_URI:./mlruns}
+  tracking_uri: ${MLFLOW_TRACKING_URI:http://127.0.0.1:5002} # 포트 변경: 5001 -> 5002 (추가 포트 충돌 해결)
   # 모든 실험의 통합 목적을 명확히 정의
-  experiment_name: "Campaign-Uplift-Modeling"
+  experiment_name: "Default-Experiment"
 
 # 3. API 서버 운영 환경
 serving:
@@ -72,11 +72,11 @@ feature_store:
   # 🎯 Blueprint 원칙 1 준수: 로컬 환경 기본 설정
   # LOCAL 환경의 기본값 (data/ 디렉토리 기반)
   feast_config:
-    project: "ml_pipeline_local"
+    project: "modern_ml_pipeline"
     provider: "local"
     
     # Registry (로컬 파일 기반)
-    registry: "data/feature_store/registry.sqlite"
+    registry: "data/feature_repo/registry.db"
     
     # Offline Store (로컬 파일 시스템)
     offline_store:
@@ -85,8 +85,8 @@ feature_store:
     
     # Online Store (로컬 SQLite)
     online_store:
-      type: "sqlite"
-      path: "data/feature_store/online.sqlite"
+      type: "redis"
+      connection_string: ${FEATURE_STORE_REDIS_HOST:localhost}:6380 # 포트 변경
     
     # 기본 엔티티 정의
     entities:

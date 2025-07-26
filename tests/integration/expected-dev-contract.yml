@@ -21,12 +21,14 @@ provides_env_variables:
 # mmp-local-dev가 docker-compose를 통해 제공해야 하는 핵심 서비스와 기본 포트입니다.
 # modern-ml-pipeline은 이 서비스들이 실행 중일 것을 기대합니다.
 provides_services:
+  - name: "mlflow"
+    port: 5001 # 포트 충돌 해결을 위해 5001로 변경
+    health_check: "/health"
+
   - name: "postgresql"
     port: 5432
   - name: "redis"
     port: 6379
-  - name: "mlflow"
-    port: 5000
 
 # mmp-local-dev의 전체 인프라가 계약을 준수하는지 검증하는 스크립트입니다.
 # modern-ml-pipeline의 CI/CD는 이 스크립트의 성공을 신뢰할 수 있습니다.

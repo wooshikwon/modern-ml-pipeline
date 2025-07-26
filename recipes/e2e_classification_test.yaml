@@ -1,0 +1,69 @@
+# E2E 테스트용 분류 모델 레시피
+# 실제 PostgreSQL + Redis 데이터를 사용한 완전한 E2E 테스트
+
+name: "e2e_classification_test"
+
+model:
+  # 간단하고 빠른 모델로 E2E 테스트 수행
+  class_path: "sklearn.ensemble.RandomForestClassifier"
+  
+  # 빠른 테스트를 위해 간단한 하이퍼파라미터만 사용
+  hyperparameters:
+    n_estimators: 10  # 빠른 테스트를 위해 적은 수
+    max_depth: 3
+    random_state: 42
+
+  # 하이퍼파라미터 튜닝 비활성화 (빠른 테스트를 위해)
+  hyperparameter_tuning:
+    enabled: false
+
+  # 데이터 로더 정의 (Spine 생성)
+  loader:
+    name: "e2e_loader"
+    # PostgreSQL에서 세션 Spine 데이터 로딩
+    source_uri: "recipes/sql/loaders/e2e_sessions_spine.sql"
+
+  # 피처 증강 정의 (Feature Store 연동)
+  augmenter:
+    type: "feature_store"
+    features:
+      # user_id 엔티티에 결합할 피처들
+      - feature_namespace: "user_demographics"
+        features: ["age", "country_code"]
+      - feature_namespace: "user_purchase_summary"  
+        features: ["ltv", "total_purchase_count"]
+      
+      # product_id 엔티티에 결합할 피처들
+      - feature_namespace: "product_details"
+        features: ["price", "category", "brand"]
+      
+      # session_id 엔티티에 결합할 피처들 (Redis에서 조회)
+      - feature_namespace: "session_summary"
+        features: ["time_on_page_seconds", "click_count"]
+
+  # 전처리 정의
+  preprocessor:
+    name: "simple_scaler"
+    params:
+      criterion_col: null
+      # 엔티티 키와 타임스탬프는 전처리에서 제외
+      exclude_cols: ["session_id", "user_id", "product_id", "event_timestamp"]
+
+  # 데이터 인터페이스 정의
+  data_interface:
+    task_type: "classification"  # 분류 문제
+    target_col: "outcome"        # 타겟 변수 (0: 구매안함, 1: 구매함)
+
+# 평가 설정
+evaluation:
+  metrics:
+    - "accuracy"
+    - "precision"
+    - "recall"
+    - "f1"
+  
+  validation:
+    method: "train_test_split"
+    test_size: 0.2
+    stratify: true
+    random_state: 42 

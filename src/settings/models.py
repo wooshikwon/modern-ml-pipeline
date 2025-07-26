@@ -252,7 +252,7 @@ class Settings(BaseModel):
     data_adapters: Optional[DataAdapterSettings] = None
     
     # recipes/*.yaml에서 오는 필드 (모델 논리)
-    model: ModelSettings
+    model: Optional[ModelSettings] = None
     
     # 🆕 Blueprint v17.0 새로 추가 (Optional로 하위 호환성 보장)
     hyperparameter_tuning: Optional[HyperparameterTuningSettings] = None

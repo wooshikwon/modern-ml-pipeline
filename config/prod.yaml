@@ -1,344 +1,46 @@
 # config/prod.yaml: 'prod' 환경 전용 설정
-# -----------------------------------------------------------------------------
-# 이 파일은 APP_ENV=prod 환경에서 base.yaml과 dev.yaml의 설정을 덮어쓰는
-# 실제 운영 환경을 위한 값만 정의합니다.
-# 이 파일은 매우 신중하게 관리되어야 합니다.
-# 🆕 GCP + BigQuery + Redis Labs + Cloud Run 스택 설정
-# -----------------------------------------------------------------------------
+# 실제 운영 환경을 위한 설정입니다.
 
-# 🆕 데이터베이스 연결 (BigQuery)
-database:
-  type: "bigquery"
-  project_id: "${GCP_PROJECT_ID}"
-  dataset_id: "ml_pipeline_prod"
-  location: "us-central1"
-  
-  # BigQuery 최적화
-  query_job_config:
-    use_legacy_sql: false
-    maximum_bytes_billed: 10737418240  # 10GB 제한
-    use_query_cache: true
-  
-  # 인증
-  credentials_path: "${GOOGLE_APPLICATION_CREDENTIALS}"
-  service_account_key: "${GCP_SERVICE_ACCOUNT_KEY}"
-
-# 🆕 데이터 어댑터 설정 (Blueprint v17.0: Config-driven Dynamic Factory)
+# 데이터 어댑터를 통합 어댑터 기준으로 수정
 data_adapters:
-  # PROD 환경 어댑터 매핑 (BigQuery + GCS 중심)
-  default_loader: "bigquery"
-  default_storage: "gcs"
-  default_feature_store: "bigquery"
+  default_loader: "sql"
+  default_storage: "storage"
+  default_feature_store: "feature_store"
   
-  # PROD 환경 특화 어댑터 설정
-  adapters:
-    bigquery:
-      class_name: "BigQueryAdapter"
-      config:
-        project_id: "${GCP_PROJECT_ID}"
-        dataset_id: "ml_pipeline_prod"
-        location: "us-central1"
-        credentials_path: "${GOOGLE_APPLICATION_CREDENTIALS}"
-        use_legacy_sql: false
-        use_query_cache: true
-        maximum_bytes_billed: 10737418240  # 10GB limit for production
-        query_timeout: 300  # 5분 타임아웃
-        
-        # 운영 환경 최적화
-        labels:
-          environment: "production"
-          team: "ml-platform"
-          service: "ml-pipeline"
-    
-    gcs:
-      class_name: "GCSAdapter"
-      config:
-        bucket: "${GCS_DATA_BUCKET:ml-pipeline-prod-data}"
-        prefix: "ml-pipeline-data/"
-        credentials_path: "${GOOGLE_APPLICATION_CREDENTIALS}"
-        chunk_size: 16777216  # 16MB for production
-        max_retry_delay: 120
-        
-        # 운영 환경 최적화
-        predefined_acl: "projectPrivate"
-        storage_class: "STANDARD"
-    
-    redis:
-      class_name: "RedisAdapter"
-      config:
-        host: "${REDIS_LABS_HOST}"
-        port: "${REDIS_LABS_PORT:6379}"
-        db: 0
-        password: "${REDIS_LABS_PASSWORD}"
-        ssl: true
-        decode_responses: true
-        socket_timeout: 10
-        connection_pool_max_connections: 100
-        
-        # 운영 환경 최적화
-        retry_on_timeout: true
-        health_check_interval: 30
+  # prod 환경에서는 adapters 설정을 data_adapters.yaml의 기본값으로 사용
+  # 실제 DB 연결 정보 등은 base.yaml 이나 환경 변수(${...})를 통해 주입됩니다.
 
-#  Feature Store 설정 (Blueprint v17.0: config 통합)
+# prod 환경 Feature Store 설정 (Feast on GCP)
 feature_store:
   provider: "feast"
-  
-  # 🎯 Blueprint 원칙 1 준수: 모든 설정을 config에 통합
-  # feast 별도 파일 대신 여기서 완전히 정의
   feast_config:
-    project: "ml_pipeline_prod"
+    project: "mmp-prod"
     provider: "gcp"
-    registry: "gs://${GCS_FEAST_BUCKET}/feast-registry/registry.db"
-    
-    # Offline Store (BigQuery)
+    registry: "gs://mmp-prod-registry/registry.db"
     offline_store:
       type: "bigquery"
-      project_id: "${GCP_PROJECT_ID}"
-      dataset: "feature_mart"
-      location: "us-central1"
-      
-      # BigQuery 최적화 설정
-      billing_project_id: "${GCP_PROJECT_ID}"
-      table_expiration_days: 365
-      
-      # 쿼리 최적화
-      job_config:
-        query:
-          use_legacy_sql: false
-          use_query_cache: true
-          maximum_bytes_billed: 1073741824  # 1GB limit per query
-        labels:
-          team: "ml-platform"
-          environment: "production"
-          service: "feast"
-    
-    # Online Store (Redis Labs)
+      project_id: ${GCP_PROJECT_ID}
     online_store:
       type: "redis"
-      connection_string: "${REDIS_LABS_CONNECTION_STRING}"
-      database: 0
-      key_ttl: 259200  # 3일 (운영환경)
-      
-      # Redis Labs 최적화
-      ssl: true
-      ssl_cert_reqs: "required"
-      ssl_keyfile: null
-      ssl_certfile: null
-      ssl_ca_certs: null
-    
-    # 클라우드 배치 엔진
-    batch_engine:
-      type: "gcp.dataflow"
-      
-      # Dataflow 설정 (선택적 - 대규모 materialization용)
-      dataflow_config:
-        project_id: "${GCP_PROJECT_ID}"
-        region: "us-central1"
-        staging_location: "gs://ml-pipeline-dataflow-staging"
-        temp_location: "gs://ml-pipeline-dataflow-temp"
-        
-        # 리소스 설정
-        runner: "DataflowRunner"
-        machine_type: "n1-standard-2"
-        max_num_workers: 10
-    
-    # Feature Server (운영환경에서 활성화)
-    feature_server:
-      enabled: true
-      host: "0.0.0.0"
-      port: 6566
-      
-      # 보안 설정
-      auth:
-        enabled: true
-        type: "oidc"
-    
-    # 운영용 엔티티 정의
-    entities:
-      - name: "user"
-        value_type: "STRING"
-        description: "사용자 식별자"
-      - name: "product"
-        value_type: "STRING"
-        description: "상품 식별자"
-      - name: "session"
-        value_type: "STRING"
-        description: "세션 식별자"
-    
-    # Entity Key Serialization
-    entity_key_serialization_version: 2
-    
-    # Flags
-    flags:
-      alpha_features: true
-      beta_features: true
+      connection_string: ${REDIS_CONNECTION_STRING}
 
-# 🆕 하이퍼파라미터 튜닝 (운영 환경)
+# prod 환경 하이퍼파라미터 튜닝
 hyperparameter_tuning:
   enabled: true
-  timeout: 3600  # 1시간 허용 (운영 환경)
-  max_parallel_jobs: 8  # 클라우드 리소스 활용
-  
-  # Optuna 백엔드 (Cloud SQL PostgreSQL)
-  study_storage: "postgresql://${OPTUNA_DB_USER}:${OPTUNA_DB_PASSWORD}@${OPTUNA_DB_HOST}:5432/${OPTUNA_DB_NAME}"
-  
-  pruning:
-    enabled: true
-    algorithm: "MedianPruner"
-    n_startup_trials: 5
-    
-  # 운영 환경 안전장치
-  resource_limits:
-    max_memory_gb: 32
-    max_cpu_cores: 16
+  timeout: 7200 # 2시간
 
 environment:
-  # 운영용 GCP 프로젝트 ID
-  gcp_project_id: "${GCP_PROJECT_ID}"
+  gcp_project_id: ${GCP_PROJECT_ID}
 
 mlflow:
-  # 🆕 Cloud Run에서 실행되는 MLflow Tracking Server
-  tracking_uri: "https://${MLFLOW_TRACKING_SERVER_URL}"
-  experiment_name: "Campaign-Uplift-Modeling-Prod"
-  artifact_location: "gs://${GCS_MLFLOW_BUCKET}/artifacts"
-  
-  # GCS 백엔드 설정
-  storage:
-    backend: "gcs"
-    bucket: "${GCS_MLFLOW_BUCKET}"
-    prefix: "mlflow-artifacts"
+  experiment_name: "MMP-Prod-Experiment"
 
+# prod 환경 API 서빙 활성화
 serving:
-  # API 서버는 반드시 "Production" 스테이지의 모델을 사용해야 합니다.
+  enabled: true
   model_stage: "Production"
-  # 🆕 Redis Labs를 실시간 피처 스토어로 사용
-  realtime_feature_store:
-    store_type: "redis"
-    connection:
-      host: "${REDIS_LABS_HOST}"
-      port: "${REDIS_LABS_PORT}"
-      password: "${REDIS_LABS_PASSWORD}"
-      ssl: true
-      db: 0
 
 artifact_stores:
-  augmented_dataset:
-    # 🆕 운영 환경에서는 BigQuery에 저장
-    enabled: true
-    base_uri: "bq://${GCP_PROJECT_ID}.feature_mart_prod"
-  preprocessed_dataset:
-    # 🆕 운영 환경에서는 GCS에 저장 (성능 추적용)
-    enabled: true
-    base_uri: "gs://${GCS_DATA_BUCKET}/processed"
   prediction_results:
-    # 운영 예측 결과는 지정된 BigQuery 테이블에 저장됩니다.
-    base_uri: "bq://${GCP_PROJECT_ID}.prediction_results_prod"
-
-# 🆕 스토리지 설정 (Google Cloud Storage)
-storage:
-  type: "gcs"
-  bucket: "${GCS_DATA_BUCKET}"
-  prefix: "ml-pipeline-data"
-  
-  # GCS 최적화
-  transfer_config:
-    chunk_size: 8388608  # 8MB chunks
-    max_retry_delay: 60
-
-# 🆕 로깅 설정 (Cloud Logging)
-logging:
-  level: "INFO"  # 운영 환경에서 적절한 로깅
-  format: "json"  # 구조화된 로깅
-  
-  handlers:
-    - type: "cloud_logging"
-      project_id: "${GCP_PROJECT_ID}"
-      resource_type: "cloud_run_revision"
-      
-    - type: "file"
-      level: "WARNING"
-      filename: "/tmp/app-errors.log"
-      max_size: "100MB"
-      backup_count: 3
-
-# 🆕 운영 환경 최적화
-production:
-  auto_scaling:
-    min_instances: 1
-    max_instances: 10
-    target_cpu_utilization: 70
-    
-  performance:
-    enable_caching: true
-    cache_ttl: 3600
-    connection_pooling: true
-    
-  # 안전장치
-  max_training_time: 7200  # 2시간 제한
-  max_concurrent_jobs: 5
-
-# 🆕 모니터링 및 알림 (Cloud Monitoring)
-monitoring:
-  enabled: true
-  
-  # Cloud Monitoring 통합
-  metrics:
-    project_id: "${GCP_PROJECT_ID}"
-    
-    # 핵심 메트릭
-    custom_metrics:
-      - name: "ml_pipeline/training_duration"
-        description: "Model training duration in seconds"
-      - name: "ml_pipeline/prediction_latency"
-        description: "Prediction API latency in milliseconds"
-      - name: "ml_pipeline/feature_store_hits"
-        description: "Feature store cache hits"
-        
-  # 알림 설정
-  alerting:
-    notification_channels: ["${SLACK_WEBHOOK_URL}"]
-    
-    policies:
-      - name: "High Error Rate"
-        condition: "error_rate > 0.05"
-        duration: "5m"
-        
-      - name: "High Latency"
-        condition: "prediction_latency > 1000ms"
-        duration: "2m"
-
-# 🆕 보안 설정 (운영 환경)
-security:
-  authentication_required: true
-  api_key_required: true
-  ssl_enabled: true
-  
-  # IAM 설정
-  service_accounts:
-    ml_pipeline: "${ML_PIPELINE_SERVICE_ACCOUNT}"
-    mlflow: "${MLFLOW_SERVICE_ACCOUNT}"
-    feast: "${FEAST_SERVICE_ACCOUNT}"
-    
-  # 암호화
-  encryption:
-    in_transit: true
-    at_rest: true
-    kms_key_id: "${GCP_KMS_KEY_ID}"
-
-# 🆕 환경 변수 템플릿
-environment_variables:
-  # GCP 관련
-  GCP_PROJECT_ID: "${GCP_PROJECT_ID}"
-  GOOGLE_APPLICATION_CREDENTIALS: "${GOOGLE_APPLICATION_CREDENTIALS}"
-  
-  # Feature Store 관련
-  REDIS_LABS_CONNECTION_STRING: "${REDIS_LABS_CONNECTION_STRING}"
-  GCS_FEAST_BUCKET: "${GCS_FEAST_BUCKET}"
-  
-  # MLflow 관련
-  GCS_MLFLOW_BUCKET: "${GCS_MLFLOW_BUCKET}"
-  MLFLOW_TRACKING_SERVER_URL: "${MLFLOW_TRACKING_SERVER_URL}"
-  
-  # 보안 관련
-  API_SECRET_KEY: "${API_SECRET_KEY}"
-  ML_PIPELINE_SERVICE_ACCOUNT: "${ML_PIPELINE_SERVICE_ACCOUNT}"
+    enabled: true
+    base_uri: "gs://mmp-prod-predictions"

@@ -1,175 +1,57 @@
 # config/dev.yaml: 'dev' 환경 전용 설정
-# -----------------------------------------------------------------------------
-# 이 파일은 APP_ENV=dev 환경에서 base.yaml의 설정을 덮어쓰는 값만 정의합니다.
-# Blueprint v17.0: DEV 환경의 완전한 기능을 외부 인프라 없이 테스트 가능하도록 설정
-# 철학: "모든 기능이 완전히 작동하는 안전한 실험실"
-# -----------------------------------------------------------------------------
+# 'mmp-local-dev' 환경을 위한 설정으로, 운영과 유사한 환경을 시뮬레이션합니다.
 
-# 🆕 데이터 어댑터 설정 (Blueprint v17.0: 외부 인프라 없이 DEV 환경 테스트)
+# 데이터 어댑터를 통합 어댑터 기준으로 수정
 data_adapters:
-  # DEV 환경: filesystem 기반이지만 기능적으로는 완전한 구현
-  default_loader: "filesystem"
-  default_storage: "filesystem"
-  default_feature_store: "filesystem"
+  default_loader: "sql"  # dev 환경에서는 SQL 실행 필요
+  default_storage: "storage"
+  default_feature_store: "feature_store"
   
-  # DEV 환경 특화 어댑터 설정
+  # dev 환경 전용 어댑터 설정
   adapters:
-    filesystem:
-      class_name: "FileSystemAdapter"
+    sql:
+      class_name: SqlAdapter
       config:
-        base_path: "./data"
-        supported_formats: ["parquet", "csv", "json"]
-        auto_create_dirs: true
-        # DEV 환경: 더 상세한 로깅
-        enable_detailed_logging: true
-    
-    # 미래 확장을 위한 설정 (현재는 사용하지 않음)
-    postgresql:
-      class_name: "PostgreSQLAdapter"
-      config:
-        host: "localhost"
-        port: 5432
-        database: "mlpipeline"
-        user: "mluser"
-        password: "mlpassword"
-        schema: "public"
-        pool_size: 10
-        max_overflow: 20
-        echo_sql: true
-    
-    redis:
-      class_name: "RedisAdapter"
-      config:
-        host: "localhost"
-        port: 6379
-        db: 0
-        password: ""
-        decode_responses: true
-        socket_timeout: 5
-        connection_pool_max_connections: 20
+        connection_uri: "postgresql://mluser@127.0.0.1:5432/mlpipeline"
+    storage:
+      class_name: StorageAdapter
+      config: {}
+    feature_store:
+      class_name: FeastAdapter
+      config: {}
 
-# 🆕 Feature Store 설정 (Blueprint v17.0: 완전한 기능을 filesystem으로 시뮬레이션)
+# dev 환경 Feature Store 설정 (Feast)
 feature_store:
-  provider: "filesystem"  # 외부 인프라 없이 Feature Store 기능 테스트
-  
-  # DEV 환경 특화 설정
+  provider: "feast"
   feast_config:
     project: "ml_pipeline_dev"
     provider: "local"
-    
-    # Registry (로컬 파일 기반)
     registry: "data/feature_store/dev_registry.sqlite"
-    
-    # Offline Store (파일 시스템 기반)
     offline_store:
       type: "file"
-      path: "data/feature_store/dev_offline"
-    
-    # Online Store (로컬 SQLite)
     online_store:
       type: "sqlite"
       path: "data/feature_store/dev_online.sqlite"
-    
-    # Entity 정의
-    entities:
-      - name: "user"
-        value_type: "STRING"
-        description: "사용자 식별자"
-      - name: "product"
-        value_type: "STRING"
-        description: "상품 식별자"
-      - name: "session"
-        value_type: "STRING"
-        description: "세션 식별자"
-    
-    # 설정 플래그
-    entity_key_serialization_version: 2
-    flags:
-      alpha_features: true
-      beta_features: true  # DEV 환경에서 베타 기능 활성화
-    
-    # 배치 엔진
-    batch_engine:
-      type: "local"
-    
-    # Feature Server (DEV 환경에서는 비활성화)
-    feature_server:
-      enabled: false
-  
-  # 연결 정보
-  connection_timeout: 5000
-  retry_attempts: 3
-  connection_info:
-    redis_host: "localhost:6379"
-    offline_store_uri: "file://data/feature_store/dev_offline"
 
-# 🆕 하이퍼파라미터 튜닝 (DEV 환경 최적화)
+# dev 환경 하이퍼파라미터 튜닝
 hyperparameter_tuning:
   enabled: true
-  timeout: 300  # 5분 제한 (빠른 테스트용)
-  max_parallel_jobs: 2  # 로컬 리소스 보호
-  
-  # 로컬 SQLite 백엔드 (외부 DB 불필요)
-  study_storage: "sqlite:///data/optuna_studies.db"
-  
-  pruning:
-    enabled: true
-    algorithm: "MedianPruner"
-    n_startup_trials: 3  # 빠른 pruning
-    n_warmup_steps: 5
+  timeout: 600  # 10분
 
 environment:
-  # DEV 환경 식별자
-  gcp_project_id: "dev-local-project"
+  gcp_project_id: "dev-project" # 예시
 
 mlflow:
-  # DEV 환경: 로컬 MLflow (팀 공유 시뮬레이션)
-  tracking_uri: "./mlruns"
-  experiment_name: "Campaign-Uplift-Modeling-Dev"
-  artifact_location: "./data/artifacts"
+  tracking_uri: http://localhost:5002 # 포트 변경: 5001 -> 5002 (추가 포트 충돌 해결)
+  experiment_name: "E2E-Test-Experiment-2025" # E2E 테스트 전용 실험명
 
+# dev 환경 API 서빙 활성화
 serving:
-  # DEV 환경: API 서빙 완전 활성화
+  enabled: true
   model_stage: "Staging"
-  realtime_feature_store:
-    store_type: "filesystem"  # 외부 Redis 대신 filesystem
-    connection:
-      base_path: "./data/feature_store/dev_online"
+  # dev 환경에서는 feature_store 설정을 따름
 
 artifact_stores:
-  augmented_dataset:
-    enabled: true
-    base_uri: "file://./data/artifacts/dev_augmented"
-  
-  preprocessed_dataset:
-    enabled: true  # DEV 환경에서 중간 결과 저장
-    base_uri: "file://./data/artifacts/dev_preprocessed"
-  
   prediction_results:
     enabled: true
-    base_uri: "file://./data/artifacts/dev_predictions"
-
-# 🆕 로깅 설정 (DEV 환경 상세 로깅)
-logging:
-  level: "DEBUG"
-  format: "detailed"
-  handlers:
-    - type: "console"
-      level: "INFO"
-    - type: "file"
-      level: "DEBUG"
-      filename: "./logs/dev_app.log"
-      max_size: "10MB"
-      backup_count: 5
-
-# 🆕 DEV 환경 최적화
-development:
-  auto_reload: true
-  debug_mode: true
-  
-  # 빠른 테스트를 위한 설정
-  sample_data_size: 10000
-  cache_preprocessing: true
-  
-  # DEV 환경 안전장치
-  max_training_time: 1800  # 30분 제한
+    base_uri: "file://./local/artifacts/dev_predictions"
