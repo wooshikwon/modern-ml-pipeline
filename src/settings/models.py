@@ -7,7 +7,7 @@ Blueprint v17.0 설정 모델 정의 모듈
 """
 
 from pydantic import BaseModel, Field, RootModel
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Union
 from collections.abc import Mapping
 
 
@@ -89,10 +89,18 @@ class ServingSettings(BaseModel):
     realtime_feature_store: RealtimeFeatureStoreSettings
 
 
+class PostgresStorageSettings(BaseModel):
+    """PostgreSQL 저장 설정"""
+    enabled: bool = False
+    table_name: str = "batch_predictions"
+    connection_uri: str
+
+
 class ArtifactStoreSettings(BaseModel):
     """아티팩트 저장소 설정"""
     enabled: bool
     base_uri: str
+    postgres_storage: Optional[PostgresStorageSettings] = None
 
 
 # =============================================================================

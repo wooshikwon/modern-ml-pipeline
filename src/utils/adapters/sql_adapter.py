@@ -4,6 +4,7 @@ import sqlalchemy
 from typing import TYPE_CHECKING
 from src.interface.base_adapter import BaseAdapter
 from src.utils.system.logger import logger
+from pathlib import Path
 
 if TYPE_CHECKING:
     from src.settings import Settings
@@ -35,7 +36,27 @@ class SqlAdapter(BaseAdapter):
             raise
 
     def read(self, sql_query: str, **kwargs) -> pd.DataFrame:
-        """SQL 쿼리를 실행하여 결과를 DataFrame으로 반환합니다."""
+        """SQL 쿼리를 실행하여 결과를 DataFrame으로 반환합니다.
+        
+        Args:
+            sql_query: SQL 쿼리 문자열 또는 .sql 파일 경로
+        """
+        # 파일 경로인지 확인 (.sql 확장자로 끝나는 경우)
+        if sql_query.endswith('.sql'):
+            sql_file_path = Path(sql_query)
+            if not sql_file_path.is_absolute():
+                # 상대 경로인 경우 프로젝트 루트 기준으로 해석
+                # src/utils/adapters/sql_adapter.py에서 3단계 상위 = modern-ml-pipeline/
+                base_dir = Path(__file__).resolve().parent.parent.parent.parent
+                sql_file_path = base_dir / sql_query
+            
+            if sql_file_path.exists():
+                sql_query = sql_file_path.read_text(encoding='utf-8')
+                logger.info(f"SQL 파일 로딩: {sql_file_path}")
+            else:
+                logger.error(f"SQL 파일을 찾을 수 없습니다: {sql_file_path}")
+                raise FileNotFoundError(f"SQL 파일을 찾을 수 없습니다: {sql_file_path}")
+        
         logger.info(f"Executing SQL query:\n{sql_query[:200]}...")
         try:
             with self.engine.connect() as connection:

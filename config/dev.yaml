@@ -1,7 +1,7 @@
 # config/dev.yaml: 'dev' 환경 전용 설정
 # 'mmp-local-dev' 환경을 위한 설정으로, 운영과 유사한 환경을 시뮬레이션합니다.
 
-# 데이터 어댑터를 통합 어댑터 기준으로 수정
+# 데이터 어댑터 설정 (data_adapters.yaml 통합)
 data_adapters:
   default_loader: "sql"  # dev 환경에서는 SQL 실행 필요
   default_storage: "storage"
@@ -12,7 +12,7 @@ data_adapters:
     sql:
       class_name: SqlAdapter
       config:
-        connection_uri: "postgresql://mluser@127.0.0.1:5432/mlpipeline"
+        connection_uri: "postgresql://mluser:mysecretpassword@127.0.0.1:5432/mlpipeline"
     storage:
       class_name: StorageAdapter
       config: {}
@@ -20,7 +20,7 @@ data_adapters:
       class_name: FeastAdapter
       config: {}
 
-# dev 환경 Feature Store 설정 (Feast)
+# dev 환경 Feature Store 설정 (Feast - mmp-local-dev 연동)
 feature_store:
   provider: "feast"
   feast_config:
@@ -28,10 +28,16 @@ feature_store:
     provider: "local"
     registry: "data/feature_store/dev_registry.sqlite"
     offline_store:
-      type: "file"
+      type: "postgres"
+      host: "localhost"
+      port: 5432
+      database: "mlpipeline"
+      db_schema: "public"
+      user: "mluser"
+      password: "mysecretpassword"
     online_store:
-      type: "sqlite"
-      path: "data/feature_store/dev_online.sqlite"
+      type: "redis"
+      connection_string: "localhost:6379"
 
 # dev 환경 하이퍼파라미터 튜닝
 hyperparameter_tuning:
@@ -55,3 +61,8 @@ artifact_stores:
   prediction_results:
     enabled: true
     base_uri: "file://./local/artifacts/dev_predictions"
+    # PostgreSQL 저장 옵션 추가 (mmp-local-dev 연동)
+    postgres_storage:
+      enabled: true
+      table_name: "batch_predictions"
+      connection_uri: "postgresql://mluser:mysecretpassword@127.0.0.1:5432/mlpipeline"

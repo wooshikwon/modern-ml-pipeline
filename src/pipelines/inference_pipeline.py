@@ -1,12 +1,15 @@
+"""
+Inference Pipeline - Batch and Realtime Inference
+"""
 import pandas as pd
-from typing import Dict, Any, Optional
-from datetime import datetime
 import mlflow
+from datetime import datetime
+from typing import Dict, Any, Optional
 
-from src.utils.system.logger import logger
-from src.utils.integrations import mlflow_integration as mlflow_utils
 from src.engine.factory import Factory
-from src.settings import Settings
+from src.utils.integrations.mlflow_integration import start_run
+from src.utils.system.logger import logger
+from src.settings.models import Settings
 
 
 def run_batch_inference(settings: Settings, run_id: str, context_params: dict = None):
@@ -16,10 +19,11 @@ def run_batch_inference(settings: Settings, run_id: str, context_params: dict = 
     context_params = context_params or {}
 
     # 1. MLflow 실행 컨텍스트 시작
-    with mlflow_utils.start_run(settings, run_name=f"batch_inference_{run_id}") as run:
+    with start_run(settings, run_name=f"batch_inference_{run_id}") as run:
         # 2. 모델 로드
-        model_uri = mlflow_utils.get_model_uri(run_id)
-        model = mlflow_utils.load_pyfunc_model(settings, model_uri)
+        model_uri = f"runs:/{run_id}/model"
+        logger.info(f"MLflow 모델 로딩 시작: {model_uri}")
+        model = mlflow.pyfunc.load_model(model_uri)
         
         # 3. 데이터 로딩
         # Wrapper에 내장된 loader_sql_snapshot을 사용
@@ -41,17 +45,43 @@ def run_batch_inference(settings: Settings, run_id: str, context_params: dict = 
                 'target': [0] * 100, # 스키마 검증을 위한 target 컬럼 추가
             })
         else:
-            data_adapter = factory.create_data_adapter("loader")
+            data_adapter = factory.create_data_adapter(settings.data_adapters.default_loader)
             df = data_adapter.read(loader_sql, params=context_params)
         
         # 4. 예측 실행
         predictions_df = model.predict(df)
         
-        # 5. 결과 저장
+        # 5. 핵심 메타데이터 추가 (추적성 보장)
+        predictions_df['model_run_id'] = run_id  # 사용된 모델의 MLflow Run ID
+        predictions_df['inference_run_id'] = run.info.run_id  # 현재 배치 추론 실행 ID
+        predictions_df['inference_timestamp'] = datetime.now()  # 예측 수행 시각
+        
+        # 6. 결과 저장
         storage_adapter = factory.create_data_adapter("storage")
         # 올바른 접근 방식 적용: dict['키'].속성
         target_path = f"{settings.artifact_stores['prediction_results'].base_uri}/{run.info.run_name}.parquet"
         storage_adapter.write(predictions_df, target_path)
+
+        # 7. PostgreSQL 저장 (설정이 활성화된 경우)
+        prediction_config = settings.artifact_stores['prediction_results']
+        
+        if hasattr(prediction_config, 'postgres_storage') and prediction_config.postgres_storage:
+            postgres_config = prediction_config.postgres_storage
+            
+            if postgres_config.enabled:
+                try:
+                    # SQL 어댑터로 PostgreSQL에 저장
+                    sql_adapter = factory.create_data_adapter("sql") 
+                    table_name = postgres_config.table_name
+                    
+                    # DataFrame을 PostgreSQL 테이블에 저장 (append 모드)
+                    sql_adapter.write(predictions_df, table_name, if_exists='append', index=False)
+                    logger.info(f"배치 추론 결과를 PostgreSQL 테이블 '{table_name}'에 저장 완료 ({len(predictions_df)}행)")
+                    
+                    mlflow.log_metric("postgres_rows_saved", len(predictions_df))
+                except Exception as e:
+                    logger.error(f"PostgreSQL 저장 실패: {e}")
+                    # PostgreSQL 저장 실패해도 파일 저장은 성공했으므로 계속 진행
 
         mlflow.log_artifact(target_path.replace("file://", ""))
         mlflow.log_metric("inference_row_count", len(predictions_df))

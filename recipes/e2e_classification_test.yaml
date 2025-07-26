@@ -23,36 +23,26 @@ model:
     # PostgreSQL에서 세션 Spine 데이터 로딩
     source_uri: "recipes/sql/loaders/e2e_sessions_spine.sql"
 
-  # 피처 증강 정의 (Feature Store 연동)
+  # 피처 증강 정의 (단순 패스스루로 변경)
   augmenter:
-    type: "feature_store"
-    features:
-      # user_id 엔티티에 결합할 피처들
-      - feature_namespace: "user_demographics"
-        features: ["age", "country_code"]
-      - feature_namespace: "user_purchase_summary"  
-        features: ["ltv", "total_purchase_count"]
-      
-      # product_id 엔티티에 결합할 피처들
-      - feature_namespace: "product_details"
-        features: ["price", "category", "brand"]
-      
-      # session_id 엔티티에 결합할 피처들 (Redis에서 조회)
-      - feature_namespace: "session_summary"
-        features: ["time_on_page_seconds", "click_count"]
+    type: "pass_through"  # Feature Store 대신 간단한 패스스루 사용
 
-  # 전처리 정의
+  # 전처리 설정 (기본 전처리만)
   preprocessor:
     name: "simple_scaler"
     params:
       criterion_col: null
-      # 엔티티 키와 타임스탬프는 전처리에서 제외
+      # 엔티티 키와 타임스탬프만 제외, 실제 피처들은 포함
       exclude_cols: ["session_id", "user_id", "product_id", "event_timestamp"]
 
   # 데이터 인터페이스 정의
   data_interface:
-    task_type: "classification"  # 분류 문제
-    target_col: "outcome"        # 타겟 변수 (0: 구매안함, 1: 구매함)
+    task_type: "classification"
+    target_col: "outcome"
+
+  # 평가자 설정
+  evaluator:
+    name: "classification_evaluator"
 
 # 평가 설정
 evaluation:
