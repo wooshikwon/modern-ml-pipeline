@@ -57,24 +57,20 @@ def _recursive_merge(dict1: Dict, dict2: Dict) -> Dict:
 def load_config_files() -> Dict[str, Any]:
     """
     Blueprint v17.0 환경별 config 파일 로딩
-    data_adapters.yaml -> base.yaml -> {app_env}.yaml 순서로 병합
+    base.yaml -> {app_env}.yaml 순서로 병합 (data_adapters.yaml 제거)
     """
     config_dir = BASE_DIR / "config"
     
-    # 1. 어댑터 설정 로드
-    adapter_config = _load_yaml_with_env(config_dir / "data_adapters.yaml")
-    
-    # 2. 기본 인프라 설정 로드
+    # 1. 기본 인프라 설정 로드
     base_config = _load_yaml_with_env(config_dir / "base.yaml")
     
-    # 3. 환경별 설정 로드
+    # 2. 환경별 설정 로드
     app_env = os.getenv("APP_ENV", "local")
     env_config_file = config_dir / f"{app_env}.yaml"
     env_config = _load_yaml_with_env(env_config_file)
     
-    # 4. 순차적 병합 (오른쪽이 왼쪽을 덮어씀)
-    merged_config = _recursive_merge(adapter_config, base_config)
-    merged_config = _recursive_merge(merged_config, env_config)
+    # 3. 순차적 병합 (오른쪽이 왼쪽을 덮어씀)
+    merged_config = _recursive_merge(base_config, env_config)
     
     return merged_config
 
