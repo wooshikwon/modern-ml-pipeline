@@ -14,6 +14,15 @@ from .models import (
     # 통합 설정 모델
     Settings,
     
+    # 🆕 현대화된 Recipe 모델들
+    RecipeSettings,
+    ModelConfigurationSettings,
+    EvaluationSettings,
+    ValidationMethodSettings,
+    OptunaParameterConfig,
+    ModernHyperparametersSettings,
+    EvaluatorSettings,
+    
     # 운영 환경 설정 모델들
     EnvironmentSettings,
     MlflowSettings,
@@ -22,7 +31,12 @@ from .models import (
     ServingSettings,
     ArtifactStoreSettings,
     
-    # 모델 논리 설정 모델들
+    # 🆕 Config 기반 Dynamic Factory (Blueprint v17.0)
+    DataAdapterSettings,
+    AdapterConfigSettings,
+    PostgresStorageSettings,
+    
+    # 모델 논리 설정 모델들 (현대화된 Recipe 컴포넌트)
     LoaderSettings,
     AugmenterSettings,
     PreprocessorParamsSettings,
@@ -30,8 +44,6 @@ from .models import (
     HyperparameterTuningSettings,
     FeatureStoreSettings,
     DataInterfaceSettings,
-    ModelHyperparametersSettings,
-    ModelSettings,
 )
 
 from .loaders import (

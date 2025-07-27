@@ -1,318 +1,512 @@
-# 🏗️ Infrastructure Stacks: Our Definitive Architecture
+# 🏗️ Infrastructure Stacks Guide
 
-**우리 ML 파이프라인을 위한 확정된 인프라 스택 조합 정의서**
+**Modern ML Pipeline 인프라 구성 가이드 - 당신의 환경에 맞는 최적 조합 찾기**
 
-이 문서는 `Blueprint v17.0`을 실제 운영하기 위해 우리가 선택하고 검증한 **최적의 인프라 스택 조합**을 정의합니다. 로컬 개발부터 클라우드 운영까지, 모든 환경에서 일관된 아키텍처를 유지하면서도 각 환경에 최적화된 컴포넌트를 사용합니다.
-
----
-
-## 🎯 **핵심 설계 원칙: "코드로서의 계약"**
-
-우리 아키텍처의 가장 중요한 원칙은 `modern-ml-pipeline`(소비자)과 `mmp-local-dev`(공급자) 간의 **"코드로서의 계약(Contract as Code)"** 입니다.
-
-1.  **단일 진실 공급원 (`dev-contract.yml`):**
-    `mmp-local-dev` 저장소의 `dev-contract.yml` 파일이 두 프로젝트 간의 기술적 인터페이스를 정의하는 유일한 진실의 원천입니다.
-
-2.  **아키텍처 일관성:**
-    로컬(Docker Compose)과 클라우드(GCP) 환경은 이 계약에 명시된 서비스(PostgreSQL, Redis, MLflow)를 동일한 논리적 구조로 제공합니다.
-
-3.  **양방향 자동 검증:**
-    *   `mmp-local-dev`는 `test-integration.py`를 통해 스스로 계약을 준수하는지 검증합니다.
-    *   `modern-ml-pipeline`은 `tests/integration/test_dev_contract.py`를 통해 인프라가 계약대로 동작하는지 검증합니다.
-
-4.  **개발 연속성:**
-    이 견고한 계약 덕분에, 로컬에서 개발한 코드는 클라우드 환경에서 수정 없이 그대로 동작합니다.
+이 문서는 Modern ML Pipeline을 다양한 인프라 환경에서 구성하는 방법을 안내합니다. 로컬 개발부터 엔터프라이즈 클라우드까지, 당신이 현재 사용 중인 기술 스택에 맞춰 파이프라인을 구성할 수 있습니다.
 
 ---
 
-## 🏠 **Local Development Stack (`mmp-local-dev`)**
+## 🎯 **지원하는 인프라 구성요소**
 
-**목표**: 빠른 개발, 완전한 독립성, 비용 제로
+Modern ML Pipeline은 3가지 핵심 구성요소로 나뉩니다:
 
-`mmp-local-dev` 저장소는 `dev-contract.yml`에 명시된 모든 서비스를 Docker Compose 기반으로 제공하는 완전한 로컬 개발 환경입니다.
+### **1. 데이터 레이어**
+- **SQL 데이터베이스**: PostgreSQL, BigQuery, Snowflake, MySQL, SQLite
+- **파일 스토리지**: 로컬 파일, Google Cloud Storage, Amazon S3, Azure Blob Storage
+- **Feature Store**: Feast 기반 (Redis, DynamoDB, PostgreSQL, Bigtable 등)
 
-### **스택 조합**
-```yaml
-Provider: mmp-local-dev (GitHub Repository)
-Orchestration: Docker Compose
-Services:
-  - PostgreSQL 15 (Data Warehouse & Feast Offline Store)
-  - Redis 7 (Feast Online Store)
-  - MLflow Server (Custom Docker Image)
-  - Feast
-```
+### **2. ML 플랫폼**
+- **실험 추적**: MLflow (로컬/서버/클라우드)
+- **모델 저장소**: 파일 시스템, GCS, S3, Azure Blob
 
-### **데이터 흐름 및 역할**
-```mermaid
-graph TD
-    subgraph "mmp-local-dev Stack"
-        A[PostgreSQL] -- Backend --> B[MLflow Server]
-        A -- Offline Store --> C[Feast]
-        D[Redis] -- Online Store --> C
-    end
-
-    subgraph "modern-ml-pipeline (Consumer)"
-        E[Training Pipeline] -- Reads Features --> C
-        E -- Logs Experiments --> B
-        F[API Server] -- Reads Real-time Features --> C
-    end
-```
-
-### **컴포넌트별 세부 역할**
-
-#### **🐘 PostgreSQL**
-- **역할:** Data Warehouse, Feast 오프라인 스토어, MLflow 백엔드
-- **포트:** 5432
-
-#### **⚡ Redis**
-- **역할:** Feast 온라인 스토어, 실시간 피처 캐싱
-- **포트:** 6379
-
-#### **📊 MLflow**
-- **역할:** 실험 추적, 모델 아티팩트 관리
-- **포트:** 5002 (Apple AirPlay 5000 포트 충돌 방지)
-
-#### **🎪 Feast**
-- **역할:** 피처 오케스트레이션, 학습/서빙 일관성 보장
+### **3. 서빙 플랫폼**
+- **API 서버**: FastAPI (로컬/Docker/Kubernetes/서버리스)
+- **배치 처리**: 로컬 Python, 클라우드 작업, 컨테이너
 
 ---
 
-## ☁️ **Cloud Production Stack (GCP)**
+## 🏠 **환경별 구성 가이드**
 
-**목표**: 확장성, 안정성, 관리 편의성
+### **LOCAL 환경: 즉시 시작**
 
-클라우드 환경은 `dev-contract.yml`에 명시된 논리적 서비스를 GCP의 관리형(Managed) 서비스로 대체하여 구현합니다.
+**추천 대상**: 개인 개발자, 프로토타이핑, 학습 목적
 
-### **스택 조합**
 ```yaml
-Cloud Platform: Google Cloud Platform
-Services:
-  - BigQuery (Data Warehouse & Feast Offline Store)
-  - Redis Labs (Feast Online Store)
-  - MLflow on Cloud Run (ML Tracking)
-  - Feast on Cloud Run
-  - API Server on Cloud Run
+# 필요한 것: 아무것도 없음 (git clone만)
+
+데이터 레이어:
+  데이터 소스: 로컬 파일 (Parquet, CSV)
+  Feature Store: 비활성화 (자동)
+  
+ML 플랫폼:
+  MLflow: 로컬 디렉토리 (./mlruns)
+  모델 저장: 로컬 파일 시스템
+  
+서빙:
+  배치 추론: ✅ 지원
+  API 서빙: ❌ 의도적 비활성화 (단순성 유지)
 ```
 
-### **데이터 흐름 및 역할**
-```mermaid
-graph TD
-    subgraph "Google Cloud Platform"
-        A[Recipe YAML] --> B[Loader SQL]
-        B --> C[BigQuery: Entity Spine]
-        C --> D[Feast Historical Features]
-        D --> E[BigQuery: Offline Store]
-        E --> F[Augmented Training Data]
-        
-        G[API Request] --> H[Cloud Run: FastAPI]
-        H --> I[Feast Online Features]  
-        I --> J[Redis Labs: Online Store]
-        J --> K[Real-time Features]
-        K --> L[Prediction Response]
-        
-        M[Feast Materialization] --> N[BigQuery → Redis Labs Sync]
-        M --> O[Cloud Scheduler: 자동 실행]
-        
-        P[MLflow Artifacts] --> Q[GCS Bucket]
-        R[Cloud Run: MLflow Server] --> Q
-    end
+**설정 방법:**
+```bash
+# 1. 클론 후 즉시 실행
+git clone https://github.com/wooshikwon/modern-ml-pipeline.git
+cd modern-ml-pipeline
+uv venv && uv sync
+
+# 2. 데이터 파일 준비
+# data/ 디렉토리에 .parquet 또는 .csv 파일 배치
+
+# 3. 바로 학습 시작
+uv run python main.py train --recipe-file recipes/local_classification_test.yaml
 ```
 
-### **컴포넌트별 세부 역할**
+### **DEV 환경: 완전한 기능**
 
-#### **🏪 BigQuery (Data Warehouse + Offline Store)**
+**추천 대상**: 팀 개발, 모든 기능 테스트, Feature Store 활용
+
 ```yaml
-역할:
-  - 대규모 Loader SQL 실행 → 페타바이트급 Spine 생성
-  - Feast Offline Store → 병렬 대량 피처 조회
-  - Serverless Point-in-time Join
-  - 실시간 데이터 스트리밍 지원
+# 필요한 것: Docker, Docker Compose
 
-데이터셋 구조:
-  - raw_events: 실시간 이벤트 데이터
-  - feature_mart: Feast materialized features
-  - spine_data: Entity 및 timestamp 정보
-  - feast_registry: Feast 메타데이터
-
-위치: us-central1
-비용: 쿼리량 기반 (월 ~$20-30)
+데이터 레이어:
+  SQL DB: PostgreSQL (Docker)
+  Feature Store: PostgreSQL + Redis (Docker)
+  
+ML 플랫폼:
+  MLflow: HTTP 서버 (Docker)
+  모델 저장: PostgreSQL 백엔드
+  
+서빙:
+  배치 추론: ✅ 완전 지원
+  API 서빙: ✅ 완전 지원
 ```
 
-#### **⚡ Redis Labs (Managed Online Store)**
-```yaml
-역할:
-  - 글로벌 Feast Online Store
-  - 초저지연 실시간 조회 (< 5ms)
-  - 고가용성 클러스터링
-  - 자동 백업 및 모니터링
+**설정 방법:**
+```bash
+# 1. mmp-local-dev 인프라 설정
+git clone https://github.com/wooshikwon/mmp-local-dev.git ../mmp-local-dev
+cd ../mmp-local-dev
+docker-compose up -d
 
-설정:
-  - 메모리: 100MB (무료 티어 시작)
-  - 확장: 필요시 자동 스케일링
-  - 보안: TLS 암호화, VPC 피어링
+# 2. 연결 확인
+curl http://localhost:5002/health  # MLflow
+redis-cli ping                     # Redis
+psql -h localhost -p 5432 -U mlpipeline_user -d mlpipeline_db -c "SELECT 1;"
 
-위치: us-central1 (BigQuery와 동일)
-비용: 메모리 기반 (월 ~$15-25)
+# 3. DEV 환경에서 실행
+cd modern-ml-pipeline
+APP_ENV=dev uv run python main.py train --recipe-file recipes/dev_classification_test.yaml
 ```
 
-#### **🎪 Feast (Managed Feature Store)**
-```yaml
-역할:
-  - 엔터프라이즈 피처 메타데이터 관리
-  - BigQuery ↔ Redis Labs 자동 materialization
-  - 피처 lineage 및 governance
-  - 성능 모니터링 및 알림
+### **PROD 환경: 클라우드 확장**
 
-배포: Cloud Run (컨테이너)
-스케줄링: Cloud Scheduler
-모니터링: Cloud Monitoring 통합
+**추천 대상**: 운영 서비스, 대용량 데이터, 고가용성 필요
+
+#### **Google Cloud Platform 구성**
+
+```yaml
+데이터 레이어:
+  SQL DB: BigQuery
+  Feature Store: BigQuery + Redis Labs
+  파일 저장: Google Cloud Storage
+  
+ML 플랫폼:
+  MLflow: Cloud Run + GCS
+  모델 저장: GCS
+  
+서빙:
+  API 서버: Cloud Run
+  배치 처리: Cloud Run Jobs
 ```
 
-#### **☁️ Google Cloud Storage (Artifact Storage)**
+**설정 파일 예시:**
 ```yaml
-역할:
-  - MLflow 아티팩트 글로벌 저장
-  - 대용량 모델 및 데이터 저장
-  - 자동 라이프사이클 관리
-  - 다중 지역 복제
+# config/prod.yaml
+data_adapters:
+  adapters:
+    sql:
+      class_name: SqlAdapter
+      config:
+        connection_uri: "bigquery://your-project-id/your-dataset"
+    storage:
+      class_name: StorageAdapter
+      config: {}
 
-버킷 구조:
-  - ml-artifacts-prod: MLflow 아티팩트
-  - ml-data-processed: 처리된 데이터
-  - ml-logs-archive: 로그 아카이브
+mlflow:
+  tracking_uri: "https://your-mlflow-server.run.app"
 
-위치: Multi-region (us)
-비용: 저장량 기반 (월 ~$5-10)
+feature_store:
+  feast_config:
+    offline_store:
+      type: "bigquery"
+      project_id: "your-project-id"
+      dataset: "feast_offline"
+    online_store:
+      type: "redis"
+      connection_string: "redis://your-redis-endpoint:6379"
 ```
 
-#### **🚀 Cloud Run (Serverless Deployment)**
+#### **Amazon Web Services 구성**
+
 ```yaml
-역할:
-  - FastAPI 서버리스 배포
-  - 자동 스케일링 (0→n instances)
-  - MLflow Tracking Server 호스팅
-  - 무중단 배포 지원
+데이터 레이어:
+  SQL DB: Snowflake 또는 Redshift
+  Feature Store: Snowflake + DynamoDB
+  파일 저장: Amazon S3
+  
+ML 플랫폼:
+  MLflow: ECS + S3
+  모델 저장: S3
+  
+서빙:
+  API 서버: Lambda 또는 ECS
+  배치 처리: ECS Tasks
+```
 
-설정:
-  - CPU: 1 vCPU (API), 2 vCPU (MLflow)  
-  - Memory: 2GB (API), 4GB (MLflow)
-  - Concurrency: 100 requests/instance
-  - Min instances: 0 (비용 최적화)
+**설정 파일 예시:**
+```yaml
+# config/prod_aws.yaml
+data_adapters:
+  adapters:
+    sql:
+      class_name: SqlAdapter
+      config:
+        connection_uri: "snowflake://user:pass@account/database/schema"
+    storage:
+      class_name: StorageAdapter
+      config: {}
 
-비용: 요청량 기반 (월 ~$10-20)
+feature_store:
+  feast_config:
+    offline_store:
+      type: "snowflake"
+      account: "your-account"
+      database: "feast_db"
+    online_store:
+      type: "dynamodb"
+      region: "us-east-1"
+```
+
+#### **Microsoft Azure 구성**
+
+```yaml
+데이터 레이어:
+  SQL DB: Synapse Analytics
+  Feature Store: Synapse + Cosmos DB
+  파일 저장: Azure Blob Storage
+  
+ML 플랫폼:
+  MLflow: Container Instances + Blob
+  모델 저장: Blob Storage
+  
+서빙:
+  API 서버: Container Instances
+  배치 처리: Container Instances
 ```
 
 ---
 
-## 🔄 **환경 전환 전략**
+## 🔧 **인프라별 설정 가이드**
 
-### **완벽한 환경 전환**
-`modern-ml-pipeline`의 코드는 변경 없이, `APP_ENV` 환경변수와 `config/` 디렉토리의 설정 파일만으로 두 환경을 원활하게 전환합니다.
+### **데이터베이스 설정**
+
+#### **PostgreSQL**
+```yaml
+# config/your_env.yaml
+data_adapters:
+  adapters:
+    sql:
+      class_name: SqlAdapter
+      config:
+        connection_uri: "postgresql://user:password@host:5432/database"
+```
+
+#### **BigQuery**
+```yaml
+data_adapters:
+  adapters:
+    sql:
+      class_name: SqlAdapter
+      config:
+        connection_uri: "bigquery://project-id/dataset-id"
+```
+
+#### **Snowflake**
+```yaml
+data_adapters:
+  adapters:
+    sql:
+      class_name: SqlAdapter
+      config:
+        connection_uri: "snowflake://user:password@account/database/schema"
+```
+
+### **파일 스토리지 설정**
+
+#### **로컬 파일 시스템**
+```yaml
+# Recipe에서 직접 경로 지정
+model:
+  loader:
+    source_uri: "data/my_dataset.parquet"
+```
+
+#### **Google Cloud Storage**
+```yaml
+model:
+  loader:
+    source_uri: "gs://your-bucket/path/to/data.parquet"
+```
+
+#### **Amazon S3**
+```yaml
+model:
+  loader:
+    source_uri: "s3://your-bucket/path/to/data.parquet"
+```
+
+#### **Azure Blob Storage**
+```yaml
+model:
+  loader:
+    source_uri: "abfs://container@account.dfs.core.windows.net/path/to/data.parquet"
+```
+
+### **Feature Store 설정**
+
+#### **Redis (단일 인스턴스)**
+```yaml
+feature_store:
+  feast_config:
+    online_store:
+      type: "redis"
+      connection_string: "redis://localhost:6379"
+```
+
+#### **Redis (클러스터)**
+```yaml
+feature_store:
+  feast_config:
+    online_store:
+      type: "redis"
+      redis_type: "redis_cluster"
+      connection_string: "redis://redis-cluster-endpoint:6379"
+```
+
+#### **DynamoDB**
+```yaml
+feature_store:
+  feast_config:
+    online_store:
+      type: "dynamodb"
+      region: "us-west-2"
+      table_name: "feast_online_store"
+```
+
+#### **Bigtable**
+```yaml
+feature_store:
+  feast_config:
+    online_store:
+      type: "bigtable"
+      project_id: "your-gcp-project"
+      instance_id: "feast-instance"
+```
+
+---
+
+## 🎯 **상황별 추천 구성**
+
+### **스타트업 / 개인 프로젝트**
+
+**시나리오**: 비용 최소화, 빠른 프로토타이핑
+
+```yaml
+추천 스택:
+  개발: LOCAL 환경
+  테스트: DEV 환경 (mmp-local-dev)
+  운영: GCP Cloud Run + PostgreSQL
+
+월 예상 비용: $0 (개발) + $50-100 (운영)
+```
+
+### **중소기업**
+
+**시나리오**: 안정성과 비용 균형, 팀 협업
+
+```yaml
+추천 스택:
+  개발: DEV 환경 (공유)
+  스테이징: DEV 환경 (별도 인스턴스)
+  운영: GCP 관리형 서비스
+
+월 예상 비용: $100-500
+```
+
+### **대기업 / 엔터프라이즈**
+
+**시나리오**: 거버넌스, 보안, 확장성
+
+```yaml
+추천 스택:
+  개발: DEV 환경 (개인별)
+  스테이징: 클라우드 (운영과 동일)
+  운영: 멀티클라우드 또는 하이브리드
+
+월 예상 비용: $1,000+
+```
+
+### **데이터 집약적 서비스**
+
+**시나리오**: 페타바이트급 데이터, 실시간 처리
+
+```yaml
+추천 스택:
+  SQL: BigQuery 또는 Snowflake
+  Feature Store: Redis Labs (클러스터)
+  API: 글로벌 엣지 배포
+
+월 예상 비용: 사용량 기반
+```
+
+---
+
+## 🔄 **환경 전환 가이드**
+
+### **로컬 → 클라우드 전환**
 
 ```bash
-# 로컬 개발 환경 (mmp-local-dev 사용)
-./setup-dev-environment.sh start
-APP_ENV=dev uv run python main.py train --recipe-file "my_experiment.yaml"
+# 1. 클라우드 인증 설정
+gcloud auth application-default login  # GCP
+aws configure                          # AWS
+az login                              # Azure
 
-# 클라우드 운영 환경 (GCP 서비스 사용)
-# (GCP 인증 설정 후)
-APP_ENV=prod uv run python main.py train --recipe-file "my_experiment.yaml"
+# 2. 설정 파일 변경
+# config/prod.yaml에서 연결 정보 수정
+
+# 3. 동일한 Recipe로 실행
+APP_ENV=prod uv run python main.py train --recipe-file recipes/my_model.yaml
 ```
 
-### **동일한 코드, 다른 인프라**
-```yaml
-변경되지 않는 것:
-  ✅ Recipe YAML 파일
-  ✅ `src/` 디렉토리 모든 코드
-  ✅ `tests/` 디렉토리 모든 테스트 코드
+### **클라우드 간 전환**
 
-환경별로 다른 것:
-  ⚙️ `config/{env}.yaml` 설정 파일
-  ⚙️ 인프라 연결 정보 (환경변수 또는 GCP 인증)
-```
-
----
-
-## 💰 **비용 분석**
-
-### **로컬 개발 환경**
-```yaml
-하드웨어 요구사항:
-  - CPU: 4 cores 이상
-  - RAM: 8GB 이상  
-  - Storage: 50GB 이상
-
-월 비용: $0 (완전 로컬)
-```
-
-### **클라우드 운영 환경**
-```yaml
-소규모 운영 (월 1000 예측 기준):
-  - BigQuery: $25 (5TB 쿼리)
-  - Redis Labs: $20 (100MB)
-  - Cloud Run: $15 (API + MLflow)
-  - GCS: $5 (50GB)
-  - 네트워킹: $5
-  
-총 월 비용: ~$70
-
-중규모 운영 (월 10000 예측 기준):
-  - BigQuery: $45 (20TB 쿼리)
-  - Redis Labs: $45 (500MB)
-  - Cloud Run: $35 (스케일링)
-  - GCS: $15 (200GB)
-  - 네트워킹: $10
-  
-총 월 비용: ~$150
+```bash
+# GCP → AWS 전환 예시
+# 1. Snowflake 설정 (멀티클라우드 DB)
+# 2. config/prod_aws.yaml 생성
+# 3. 환경 변수만 변경
+APP_ENV=prod_aws uv run python main.py train --recipe-file recipes/my_model.yaml
 ```
 
 ---
 
-## 🎯 **Why This Stack?**
+## 🛠️ **설정 검증 가이드**
 
-### **로컬 스택 선택 이유**
-```yaml
-PostgreSQL vs SQLite:
-  ✅ 완전한 SQL 호환성 (BigQuery 유사)
-  ✅ 동시 연결 지원 (멀티 프로세스)
-  ✅ Feast 공식 지원
+### **연결 테스트**
 
-Redis vs Memory:
-  ✅ 실제 운영환경과 동일한 인터페이스
-  ✅ 데이터 지속성 (재시작 후에도 유지)
-  ✅ 성능 테스트 가능
+```bash
+# 데이터베이스 연결 확인
+uv run python -c "
+from src.settings import load_config_files
+from src.engine.factory import Factory
+settings = load_config_files()
+factory = Factory(settings)
+adapter = factory.create_data_adapter('sql')
+print('DB 연결 성공!')
+"
 
-Docker Compose vs K8s:
-  ✅ 설정 단순성
-  ✅ 로컬 자원 효율성
-  ✅ 디버깅 편의성
+# Feature Store 연결 확인  
+uv run python -c "
+from src.settings import load_config_files
+from src.engine.factory import Factory
+settings = load_config_files()
+factory = Factory(settings)
+adapter = factory.create_feature_store_adapter()
+print('Feature Store 연결 성공!')
+"
 ```
 
-### **클라우드 스택 선택 이유**
-```yaml
-GCP vs AWS/Azure:
-  ✅ BigQuery 성능 우수성
-  ✅ 서버리스 옵션 풍부
-  ✅ ML 도구 통합 우수
+### **설정 파일 검증**
 
-BigQuery vs Snowflake:
-  ✅ 완전한 서버리스
-  ✅ 뛰어난 가격 성능비
-  ✅ 실시간 스트리밍 지원
+```bash
+# Recipe 파일 검증
+uv run python main.py validate --recipe-file recipes/my_model.yaml
 
-Redis Labs vs DynamoDB:
-  ✅ 로컬 Redis와 완전 호환
-  ✅ Feast 최적 지원
-  ✅ 뛰어난 지연시간
-
-Cloud Run vs GKE:
-  ✅ 완전한 서버리스 (관리 부담 없음)
-  ✅ 자동 스케일링
-  ✅ 비용 효율성 (0→n)
+# 전체 인프라 계약 테스트
+uv run python main.py test-contract
 ```
 
 ---
 
-## 🚀 **시작하기**
+## 📊 **성능 가이드라인**
 
-자세한 시작 방법은 프로젝트 루트의 `README.md` 파일에 있는 **"빠른 시작"** 섹션을 참조하세요. 모든 설정 과정은 `README.md`와 `setup-dev-environment.sh`를 통해 안내됩니다. 
+### **데이터 크기별 권장 구성**
+
+| 데이터 크기 | 추천 SQL DB | 추천 Feature Store | 예상 성능 |
+|------------|-------------|------------------|-----------|
+| < 1GB | PostgreSQL | Redis (단일) | 1K rows/sec |
+| 1GB - 100GB | PostgreSQL/BigQuery | Redis (단일) | 10K rows/sec |
+| 100GB - 10TB | BigQuery/Snowflake | Redis (클러스터) | 100K rows/sec |
+| 10TB+ | BigQuery/Snowflake | Redis Labs/Bigtable | 1M+ rows/sec |
+
+### **동시 사용자별 권장 구성**
+
+| 동시 사용자 | 추천 서빙 방식 | 추천 인프라 |
+|------------|---------------|-------------|
+| 1-10 | 로컬 API 서버 | 단일 인스턴스 |
+| 10-100 | Docker 컨테이너 | 로드 밸런서 |
+| 100-1K | Kubernetes | 오토스케일링 |
+| 1K+ | 서버리스 (Cloud Run/Lambda) | 글로벌 배포 |
+
+---
+
+## 🔧 **트러블슈팅**
+
+### **연결 문제 해결**
+
+**데이터베이스 연결 실패**
+```bash
+# 1. 연결 문자열 확인
+echo $DATABASE_URL
+
+# 2. 네트워크 접근 확인  
+telnet your-db-host 5432
+
+# 3. 인증 정보 확인
+psql "your-connection-string" -c "SELECT 1;"
+```
+
+**Feature Store 연결 실패**
+```bash
+# Redis 연결 확인
+redis-cli -h your-redis-host ping
+
+# DynamoDB 권한 확인
+aws dynamodb list-tables --region your-region
+```
+
+### **성능 최적화**
+
+**느린 쿼리 개선**
+```yaml
+# BigQuery 최적화
+model:
+  loader:
+    source_uri: |
+      SELECT *
+      FROM your_table
+      WHERE _PARTITIONTIME >= '2024-01-01'  # 파티션 활용
+      LIMIT 1000000  # 적절한 제한
+```
+
+**메모리 부족 해결**
+```yaml
+# 배치 크기 조정
+model:
+  loader:
+    source_uri: "SELECT * FROM large_table LIMIT 100000"  # 샘플링
+```
+
+---
+
+**이 가이드를 따라 당신의 현재 인프라에 맞는 최적의 Modern ML Pipeline 구성을 만들어보세요!** 

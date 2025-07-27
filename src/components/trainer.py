@@ -18,51 +18,29 @@ if TYPE_CHECKING:
 class Trainer(BaseTrainer):
     """
     모델 학습 및 평가 전체 과정을 관장하는 클래스.
-    모든 의존성은 외부(주로 Factory)로부터 주입받는다.
+    현대화된 Recipe 구조 전용 (settings.recipe.model)
     """
 
     def __init__(self, settings: Settings):
         self.settings = settings
         logger.info("Trainer가 초기화되었습니다.")
 
-    def train(
-        self,
-        df: pd.DataFrame,
-        model,
-        augmenter: Optional[BaseAugmenter] = None,
-        preprocessor: Optional[BasePreprocessor] = None,
-        context_params: Optional[Dict[str, Any]] = None,
-    ) -> Tuple[Optional[BasePreprocessor], Any, Dict[str, Any]]:
+    def train(self, df, model, augmenter, preprocessor, context_params=None):
         """
-        기존 인터페이스 유지하면서 내부에서 하이퍼파라미터 최적화 처리
+        학습 진입점. 하이퍼파라미터 튜닝 활성화 여부에 따라 경로 분기.
         """
-        logger.info("모델 학습 프로세스 시작...")
-        context_params = context_params or {}
-
-        # 🆕 하이퍼파라미터 튜닝 여부 확인
-        hyperparameter_tuning_config = self.settings.model.hyperparameter_tuning
-        is_tuning_enabled = (
-            hyperparameter_tuning_config and 
-            hyperparameter_tuning_config.enabled and
-            self.settings.hyperparameter_tuning and
-            self.settings.hyperparameter_tuning.enabled
-        )
-
-        if is_tuning_enabled:
-            return self._train_with_hyperparameter_optimization(
-                df, model, augmenter, preprocessor, context_params
-            )
+        tuning_config = self.settings.recipe.model.hyperparameter_tuning
+        if tuning_config and tuning_config.enabled:
+            return self._train_with_hyperparameter_optimization(df, model, augmenter, preprocessor, context_params)
         else:
-            return self._train_with_fixed_hyperparameters(
-                df, model, augmenter, preprocessor, context_params
-            )
-    
+            return self._train_with_fixed_hyperparameters(df, model, augmenter, preprocessor, context_params)
+
     def _train_with_hyperparameter_optimization(self, df, model, augmenter, preprocessor, context_params):
         """Optuna 기반 자동 최적화 (내부 메서드)"""
         logger.info("🚀 하이퍼파라미터 자동 최적화 모드 시작")
         
         # 기본 설정 검증 및 데이터 분할
-        self.settings.model.data_interface.validate_required_fields()
+        self.settings.recipe.model.data_interface.validate_required_fields()
         train_df, test_df = self._split_data(df)
         
         # 피처 증강
@@ -84,85 +62,93 @@ class Trainer(BaseTrainer):
         
         # Optuna Study 생성
         study = optuna_integration.create_study(
-            direction=self.settings.model.hyperparameter_tuning.direction,
-            study_name=f"study_{self.settings.model.computed['run_name']}"
+            direction=self.settings.recipe.model.hyperparameter_tuning.direction,
+            study_name=f"study_{self.settings.recipe.model.computed['run_name']}"
         )
         
         start_time = datetime.now()
         
-        def objective(trial):
-            # 하이퍼파라미터 샘플링
-            params = optuna_integration.suggest_hyperparameters(
-                trial, self.settings.model.hyperparameters.root
-            )
-            
-            # 단일 학습 실행 (Data Leakage 방지)
-            result = self._single_training_iteration(
-                train_df, params, seed=trial.number
-            )
-            
-            # Pruning 지원
-            trial.report(result['score'], step=trial.number)
-            if trial.should_prune():
-                import optuna
-                raise optuna.TrialPruned()
+        # Optuna 최적화 실행
+        try:
+            def objective(trial):
+                # 하이퍼파라미터 샘플링
+                params = tuning_utils.suggest_hyperparameters_from_recipe(
+                    trial, self.settings.recipe.model.hyperparameters
+                )
                 
-            return result['score']
-        
-        # 최적화 실행 (실험 논리 + 인프라 제약)
-        study.optimize(
-            objective,
-            n_trials=self.settings.model.hyperparameter_tuning.n_trials,
-            timeout=self.settings.hyperparameter_tuning.timeout
-        )
-        
-        end_time = datetime.now()
-        
-        # 최적 파라미터로 최종 학습
-        best_params = study.best_params
-        final_result = self._single_training_iteration(
-            train_df, best_params, seed=42
-        )
-        
-        # 최종 테스트 평가
-        final_model = final_result['model']
-        final_preprocessor = final_result['preprocessor']
-        
-        # 테스트 데이터 평가
-        X_test, y_test, _ = self._prepare_training_data(test_df)
-        if final_preprocessor:
-            X_test_processed = final_preprocessor.transform(X_test)
-        else:
-            X_test_processed = X_test
-        
-        evaluator = factory.create_evaluator()
-        final_metrics = evaluator.evaluate(final_model, X_test_processed, y_test, test_df)
-        
-        # 🆕 최적화 메타데이터 포함
-        results = {
-            'metrics': final_metrics,
-            'hyperparameter_optimization': tuning_utils.create_optimization_metadata(
-                study, start_time, end_time, best_params
-            ),
-            'training_methodology': {
-                'train_test_split_method': 'stratified',
-                'preprocessing_fit_scope': 'train_only',  # Data Leakage 방지 증명
-                'optimization_trials': len(study.trials)
+                # 단일 학습 iteration 실행
+                result = self._single_training_iteration(train_df, params, trial.number)
+                return result['score']
+            
+            # Study 실행
+            study.optimize(
+                objective, 
+                n_trials=self.settings.recipe.model.hyperparameter_tuning.n_trials,
+                timeout=getattr(self.settings.hyperparameter_tuning, 'timeout', None)
+            )
+            
+            # 최적 결과로 최종 모델 학습
+            best_params = study.best_params
+            logger.info(f"✅ 최적 하이퍼파라미터: {best_params}")
+            
+            # 최종 모델 생성 및 학습
+            final_result = self._single_training_iteration(train_df, best_params, seed=42)
+            
+            # 최종 테스트 평가
+            trained_model = final_result['model']
+            trained_preprocessor = final_result['preprocessor']
+            
+            # Test 데이터로 최종 평가
+            evaluator = factory.create_evaluator()
+            X_test, y_test, _ = self._prepare_training_data(test_df)
+            
+            if trained_preprocessor:
+                X_test_processed = trained_preprocessor.transform(X_test)
+            else:
+                X_test_processed = X_test
+            
+            final_metrics = evaluator.evaluate(trained_model, X_test_processed, y_test, test_df)
+            
+            # 결과 준비
+            end_time = datetime.now()
+            optimization_time = (end_time - start_time).total_seconds()
+            
+            training_results = {
+                'hyperparameter_optimization': {
+                    'enabled': True,
+                    'engine': 'optuna',
+                    'best_params': best_params,
+                    'best_score': study.best_value,
+                    'optimization_history': [trial.value for trial in study.trials if trial.value is not None],
+                    'total_trials': len(study.trials),
+                    'pruned_trials': len([t for t in study.trials if t.state.name == 'PRUNED']),
+                    'optimization_time': optimization_time,
+                    'search_space': tuning_utils.extract_search_space_from_recipe(self.settings.recipe.model.hyperparameters)
+                },
+                'training_methodology': {
+                    'train_test_split_method': 'stratified',
+                    'train_ratio': 0.8,
+                    'validation_strategy': 'train_validation_split_per_trial',
+                    'random_state': 42,
+                    'preprocessing_fit_scope': 'train_only'
+                }
             }
-        }
-        
-        logger.info(f"🎯 하이퍼파라미터 최적화 완료! 최고 점수: {study.best_value}, 총 {len(study.trials)}회 시도")
-        
-        # 기존 인터페이스와 호환되는 반환값
-        return final_preprocessor, final_model, results
-    
+            
+            logger.info(f"🎉 하이퍼파라미터 최적화 완료! 최고 점수: {study.best_value:.4f} ({optimization_time:.1f}초)")
+            return trained_model, trained_preprocessor, final_metrics, training_results
+            
+        except Exception as e:
+            logger.error(f"하이퍼파라미터 최적화 실행 중 오류: {e}")
+            # Fallback: 고정 하이퍼파라미터로 진행
+            return self._train_with_fixed_hyperparameters(df, model, augmenter, preprocessor, context_params)
+
     def _train_with_fixed_hyperparameters(self, df, model, augmenter, preprocessor, context_params):
         """기존 고정 하이퍼파라미터 방식 (기존 로직 재사용)"""
         logger.info("고정 하이퍼파라미터 모드 (기존 방식)")
         
         # 기존 train 메서드의 로직을 그대로 사용
-        self.settings.model.data_interface.validate_required_fields()
-        task_type = self.settings.model.data_interface.task_type
+        self.settings.recipe.model.data_interface.validate_required_fields()
+        task_type = self.settings.recipe.model.data_interface.task_type
         
         # 데이터 분할
         train_df, test_df = self._split_data(df)
@@ -196,28 +182,31 @@ class Trainer(BaseTrainer):
         validate_schema(X_train_processed, self.settings)
 
         # 동적 모델 학습
-        logger.info(f"'{self.settings.model.class_path}' 모델 학습을 시작합니다.")
+        logger.info(f"'{self.settings.recipe.model.class_path}' 모델 학습을 시작합니다.")
         self._fit_model(model, X_train_processed, y_train, additional_data)
         logger.info("모델 학습 완료.")
 
-        # 동적 평가
+        # 평가자로 평가 수행
         from src.engine.factory import Factory
         factory = Factory(self.settings)
         evaluator = factory.create_evaluator()
+        
         metrics = evaluator.evaluate(model, X_test_processed, y_test, test_df)
-
-        results = {
-            "metrics": metrics, 
-            "hyperparameter_optimization": {"enabled": False},  # 🆕 일관성 유지
-            "training_methodology": {
-                "train_test_split_method": "stratified",
-                "preprocessing_fit_scope": "train_only"  # Data Leakage 방지 보장
+        
+        # 기본 training_results (HPO 없음)
+        training_results = {
+            'hyperparameter_optimization': None,
+            'training_methodology': {
+                'train_test_split_method': 'stratified',
+                'train_ratio': 0.8,
+                'validation_strategy': 'train_test_split',
+                'random_state': 42,
+                'preprocessing_fit_scope': 'train_only'
             }
         }
-        logger.info("모델 학습 프로세스가 성공적으로 완료되었습니다.")
+        
+        return model, preprocessor, metrics, training_results
 
-        return preprocessor, model, results
-    
     def _single_training_iteration(self, train_df, params, seed):
         """핵심: Data Leakage 방지 + 단일 학습 로직"""
         
@@ -246,7 +235,7 @@ class Trainer(BaseTrainer):
         
         # 4. Model 생성 및 학습 (동적 하이퍼파라미터 적용)
         tuning_utils = factory.create_tuning_utils()
-        model_instance = tuning_utils.create_model_with_params(self.settings.model.class_path, params)
+        model_instance = tuning_utils.create_model_with_params(self.settings.recipe.model.class_path, params)
         self._fit_model(model_instance, X_train_processed, y_train, additional_data)
         
         # 5. 평가
@@ -255,7 +244,7 @@ class Trainer(BaseTrainer):
         
         # 주요 메트릭 추출 (tuning에 사용)
         score = tuning_utils.extract_optimization_score(
-            metrics, self.settings.model.hyperparameter_tuning.metric
+            metrics, self.settings.recipe.model.hyperparameter_tuning.metric
         )
         
         return {
@@ -265,91 +254,79 @@ class Trainer(BaseTrainer):
             'metrics': metrics,
             'params': params
         }
-    
-    def _get_stratify_column_data(self, df):
-        """Data Leakage 방지용 stratify 컬럼 데이터 반환"""
-        from src.utils.system.tuning_utils import TuningUtils
-        stratify_col = TuningUtils.get_stratify_column(
-            df, 
-            self.settings.model.data_interface.task_type,
-            self.settings.model.data_interface
-        )
-        
-        if stratify_col:
-            return df[stratify_col]
-        else:
-            return None
 
-    # 기존 메서드들 유지 (변경 없음)
-    def _prepare_training_data(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[pd.Series], Dict[str, Any]]:
-        """task_type에 따른 동적 데이터 준비"""
-        task_type = self.settings.model.data_interface.task_type
-        data_interface = self.settings.model.data_interface
+    def _prepare_training_data(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series, Dict[str, Any]]:
+        """동적 데이터 준비 (task_type에 따라 다름)"""
+        data_interface = self.settings.recipe.model.data_interface
+        task_type = data_interface.task_type
         
-        # 제외할 컬럼들 동적 결정
-        exclude_cols = []
-        if data_interface.target_col:
-            exclude_cols.append(data_interface.target_col)
-        if data_interface.treatment_col:
-            exclude_cols.append(data_interface.treatment_col)
-        
-        X = df.drop(columns=exclude_cols, errors="ignore")
-        
-        if task_type == "clustering":
-            logger.info("클러스터링 모델: target 데이터 없이 진행")
-            return X, None, {}
-        
-        y = df[data_interface.target_col]
-        
-        additional_data = {}
-        if task_type == "causal":
-            additional_data["treatment"] = df[data_interface.treatment_col]
-            logger.info("인과추론 모델: treatment 데이터 추가")
-        elif task_type == "regression" and data_interface.sample_weight_col:
-            additional_data["sample_weight"] = df[data_interface.sample_weight_col]
-            logger.info(f"회귀 모델: sample_weight 컬럼 사용 ({data_interface.sample_weight_col})")
+        # 공통: Feature와 Target 분리
+        if task_type in ["classification", "regression"]:
+            target_col = data_interface.target_col
+            X = df.drop(columns=[target_col])
+            y = df[target_col]
+            additional_data = {}
+            
+        elif task_type == "clustering":
+            # Clustering: target 없음
+            X = df.copy()
+            y = None
+            additional_data = {}
+            
+        elif task_type == "causal":
+            # Causal: treatment와 target 모두 필요
+            target_col = data_interface.target_col
+            treatment_col = data_interface.treatment_col
+            X = df.drop(columns=[target_col, treatment_col])
+            y = df[target_col]
+            additional_data = {
+                'treatment': df[treatment_col],
+                'treatment_value': data_interface.treatment_value
+            }
+        else:
+            raise ValueError(f"지원하지 않는 task_type: {task_type}")
         
         return X, y, additional_data
 
-    def _fit_model(self, model, X: pd.DataFrame, y: Optional[pd.Series], additional_data: Dict[str, Any]):
-        """task_type에 따른 동적 모델 학습"""
-        task_type = self.settings.model.data_interface.task_type
+    def _fit_model(self, model, X, y, additional_data):
+        """동적 모델 학습 (task_type별 처리)"""
+        data_interface = self.settings.recipe.model.data_interface
+        task_type = data_interface.task_type
         
-        if task_type == "clustering":
-            model.fit(X)
-        elif task_type == "causal":
-            model.fit(X, y, additional_data["treatment"])
-        elif task_type == "regression" and "sample_weight" in additional_data:
-            model.fit(X, y, sample_weight=additional_data["sample_weight"])
-        else:
-            # classification, regression (without sample_weight)
+        if task_type in ["classification", "regression"]:
             model.fit(X, y)
+        elif task_type == "clustering":
+            model.fit(X)  # y 없음
+        elif task_type == "causal":
+            # CausalML 모델들: X, y, treatment 모두 필요
+            treatment = additional_data['treatment']
+            model.fit(X, treatment, y)
+        else:
+            raise ValueError(f"지원하지 않는 task_type: {task_type}")
 
     def _split_data(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        """데이터를 학습/테스트 세트로 분할합니다. task_type에 따라 적절한 stratify 컬럼을 선택합니다."""
-        task_type = self.settings.model.data_interface.task_type
-        data_interface = self.settings.model.data_interface
-        test_size = 0.2
+        """Train/Test 분할 (stratify 지원)"""
+        data_interface = self.settings.recipe.model.data_interface
+        stratify_data = self._get_stratify_column_data(df)
         
-        # task_type에 따라 stratify 컬럼 결정
-        stratify_col = None
-        if task_type == "causal" and data_interface.treatment_col:
-            stratify_col = data_interface.treatment_col
-        elif task_type == "classification" and data_interface.target_col:
-            stratify_col = data_interface.target_col
-        
-        logger.info(f"데이터 분할 (테스트 사이즈: {test_size}, 기준: {stratify_col})")
-        
-        # stratify가 가능한지 확인
-        if stratify_col and stratify_col in df.columns and df[stratify_col].nunique() > 1:
-            train_df, test_df = train_test_split(
-                df, test_size=test_size, random_state=42, stratify=df[stratify_col]
-            )
-            logger.info(f"'{stratify_col}' 컬럼 기준 계층화 분할 수행")
-        else:
-            if stratify_col:
-                logger.warning(f"'{stratify_col}' 컬럼으로 계층화 분할을 할 수 없어 랜덤 분할합니다.")
-            train_df, test_df = train_test_split(df, test_size=test_size, random_state=42)
-
-        logger.info(f"분할 완료: 학습셋 {len(train_df)} 행, 테스트셋 {len(test_df)} 행")
+        train_df, test_df = train_test_split(
+            df, test_size=0.2, random_state=42, stratify=stratify_data
+        )
         return train_df, test_df
+
+    def _get_stratify_column_data(self, df: pd.DataFrame):
+        """Stratify용 컬럼 데이터 추출"""
+        data_interface = self.settings.recipe.model.data_interface
+        task_type = data_interface.task_type
+        
+        if task_type == "classification":
+            # 분류: target 컬럼으로 stratify
+            target_col = data_interface.target_col
+            return df[target_col] if target_col in df.columns else None
+        elif task_type == "causal":
+            # 인과추론: treatment 컬럼으로 stratify
+            treatment_col = data_interface.treatment_col
+            return df[treatment_col] if treatment_col in df.columns else None
+        else:
+            # 회귀, 클러스터링: stratify 없음
+            return None

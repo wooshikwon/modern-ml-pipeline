@@ -117,76 +117,113 @@ def load_settings_by_file(recipe_file: str, context_params: Optional[Dict[str, A
     """
     Blueprint v17.0 통합 설정 로딩 + Jinja 템플릿 렌더링
     
-    [YAML 로드 → Jinja 렌더링 → Pydantic 검증]의 3단계 파이프라인을 구현합니다.
+    현대화된 Recipe 구조 전용 (레거시 지원 제거)
+    [YAML 로드 → Jinja 렌더링 → Pydantic 검증]의 3단계 파이프라인
     """
-    # 1. (기존 로직) 환경별 config 로딩
+    from .models import RecipeSettings, Settings
+    
+    # 1. 환경별 config 로딩
     config_data = load_config_files()
     
-    # 2. (기존 로직) Recipe 파일 로딩
+    # 2. Recipe 파일 로딩
     recipe_data = load_recipe_file(recipe_file)
     
-    # 3. (기존 로직) Recipe 데이터를 model 키 아래로 감싸기
-    if recipe_data and "model" not in recipe_data:
-        recipe_data = {"model": recipe_data}
+    if not recipe_data:
+        raise ValueError(f"Recipe 파일이 비어있습니다: {recipe_file}")
     
-    # 4. (기존 로직) 최종 병합: config + recipe
-    final_data = _recursive_merge(config_data.copy(), recipe_data)
-
-    # 5. (Jinja 렌더링 단계 추가)
+    # 3. 현대화된 Recipe 구조 검증
+    if not _is_modern_recipe_structure(recipe_data):
+        raise ValueError(f"현대화된 Recipe 구조가 필요합니다: {recipe_file}. name, model, evaluation 필드가 있어야 합니다.")
+    
+    # 4. Jinja 템플릿 렌더링
     if context_params:
-        try:
-            from src.utils.system.templating_utils import render_sql_template
-            
-            # Loader SQL 템플릿 렌더링
-            loader_config = final_data.get("model", {}).get("loader", {})
-            loader_uri = loader_config.get("source_uri")
-            if loader_uri and loader_uri.endswith(".sql.j2"):
-                rendered_sql = render_sql_template(loader_uri, context_params)
-                final_data["model"]["loader"]["source_uri"] = rendered_sql
-                logger.info(f"Loader SQL template '{loader_uri}' rendered.")
-
-            # Augmenter SQL 템플릿 렌더링 (필요 시)
-            # 이 부분은 현재 아키텍처에서는 사용되지 않지만, 확장성을 위해 구조를 남겨둘 수 있습니다.
-
-        except Exception as e:
-            raise ValueError(f"Failed to render Jinja2 template: {e}") from e
+        recipe_data = _render_recipe_templates(recipe_data, context_params)
     
-    # 6. Settings 객체 생성 (Pydantic 검증)
+    # 5. RecipeSettings 생성 및 검증
+    try:
+        recipe_settings = RecipeSettings(**recipe_data)
+        recipe_settings.validate_recipe_consistency()
+    except Exception as e:
+        raise ValueError(f"Recipe 검증 실패: {e}\n데이터: {recipe_data}")
+    
+    # 6. Settings 객체 생성
+    final_data = {**config_data, "recipe": recipe_settings.model_dump()}
+    
     try:
         settings = Settings(**final_data)
         
         # 7. computed 필드 생성
-        settings.model.computed = _create_computed_fields(settings, recipe_file)
-        
-        # 8. 유효성 검증
-        if settings.model.augmenter:
-            settings.model.augmenter.validate_augmenter_config()
-        settings.model.data_interface.validate_required_fields()
+        settings.recipe.model.computed = _create_computed_fields(settings.recipe, recipe_file)
         
         return settings
         
     except Exception as e:
-        raise ValueError(f"Settings 객체 생성 실패: {e}\n설정 데이터: {final_data}")
+        raise ValueError(f"Settings 객체 생성 실패: {e}")
 
 
-def _create_computed_fields(settings: Settings, recipe_file: str) -> Dict[str, Any]:
-    """computed 필드 생성"""
+def _is_modern_recipe_structure(recipe_data: Dict[str, Any]) -> bool:
+    """현대화된 Recipe 구조인지 검증"""
+    required_fields = {"name", "model", "evaluation"}
+    return required_fields.issubset(set(recipe_data.keys()))
+
+
+def _render_recipe_templates(recipe_data: Dict[str, Any], context_params: Dict[str, Any]) -> Dict[str, Any]:
+    """Recipe 구조의 Jinja 템플릿 렌더링"""
+    try:
+        from src.utils.system.templating_utils import render_sql_template
+        
+        # model.loader.source_uri 템플릿 렌더링
+        model_config = recipe_data.get("model", {})
+        loader_config = model_config.get("loader", {})
+        loader_uri = loader_config.get("source_uri")
+        
+        if loader_uri and loader_uri.endswith(".sql.j2"):
+            rendered_sql = render_sql_template(loader_uri, context_params)
+            recipe_data["model"]["loader"]["source_uri"] = rendered_sql
+            logger.info(f"Loader SQL template '{loader_uri}' rendered.")
+        
+        return recipe_data
+        
+    except Exception as e:
+        raise ValueError(f"Jinja 템플릿 렌더링 실패: {e}") from e
+
+
+def _create_computed_fields(recipe_settings: 'RecipeSettings', recipe_file: str) -> Dict[str, Any]:
+    """현대화된 Recipe를 위한 computed 필드 생성"""
     from datetime import datetime
     
     # 모델 클래스에서 간단한 이름 추출
-    class_name = settings.model.class_path.split('.')[-1]
+    class_name = recipe_settings.model.class_path.split('.')[-1]
+    
+    # Recipe name 사용
+    recipe_name = recipe_settings.name
     
     # 타임스탬프 생성
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     
     # run_name 생성
-    run_name = f"{class_name}_{recipe_file}_{timestamp}"
+    run_name = f"{class_name}_{recipe_name}_{timestamp}"
+    
+    # 하이퍼파라미터 튜닝 정보 추가
+    hpo_info = {}
+    if recipe_settings.model.hyperparameter_tuning and recipe_settings.model.hyperparameter_tuning.enabled:
+        hpo_info = {
+            "hpo_enabled": True,
+            "hpo_trials": recipe_settings.model.hyperparameter_tuning.n_trials,
+            "hpo_metric": recipe_settings.model.hyperparameter_tuning.metric,
+            "hpo_direction": recipe_settings.model.hyperparameter_tuning.direction
+        }
+    else:
+        hpo_info = {"hpo_enabled": False}
     
     return {
         "run_name": run_name,
         "timestamp": timestamp,
         "model_class_name": class_name,
-        "recipe_file": recipe_file
+        "recipe_file": recipe_file,
+        "recipe_name": recipe_name,
+        "task_type": recipe_settings.model.data_interface.task_type,
+        **hpo_info
     }
 
 

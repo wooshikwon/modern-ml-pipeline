@@ -26,12 +26,18 @@ class FeastAdapter(BaseAdapter):
             raise ImportError("Feast SDK is not installed. Please install with `pip install feast`.")
         
         self.settings = settings
+        
+        # FeastAdapter는 복잡한 설정 구조로 인해 별도의 feature_store 섹션을 사용
+        logger.info("FeastAdapter 초기화 중. feature_store 설정 섹션 사용.")
         self.store = self._init_feature_store()
 
     def _init_feature_store(self) -> FeatureStore:
         """Initializes the Feast FeatureStore object."""
         try:
+            # FeastAdapter는 settings.feature_store.feast_config에서 설정을 읽음
+            # (다른 어댑터와 달리 복잡한 Feast 설정 구조로 인해 별도 섹션 사용)
             config_data = self.settings.feature_store.feast_config
+            logger.info(f"Feast 설정 로드됨. project: {config_data.get('project', 'unknown')}")
 
             if isinstance(config_data, dict):
                 # Convert dict to RepoConfig object before passing to FeatureStore

@@ -25,16 +25,27 @@ def create_dynamic_prediction_request(
     """
     추출된 PK 필드 목록을 기반으로 Pydantic 모델을 동적으로 생성합니다.
     """
-    fields_to_create = {
-        field: (Any, Field(..., description=f"Primary Key: {field}"))
-        for field in pk_fields
+    # 필드 딕셔너리 생성
+    field_annotations = {}
+    field_defaults = {}
+    
+    for field in pk_fields:
+        field_annotations[field] = Any
+        field_defaults[field] = Field(..., description=f"Primary Key: {field}")
+    
+    # type()을 사용하여 동적 클래스 생성
+    class_name = f"{model_name}PredictionRequest"
+    
+    # 클래스 속성 딕셔너리
+    class_dict = {
+        '__annotations__': field_annotations,
+        **field_defaults
     }
-
-    # 동적으로 생성할 필드가 없으면 빈 모델을 반환
-    if not fields_to_create:
-        return create_model(f"{model_name}PredictionRequest")
-
-    return create_model(f"{model_name}PredictionRequest", **fields_to_create)
+    
+    # BaseModel을 상속받는 동적 클래스 생성
+    DynamicModel = type(class_name, (BaseModel,), class_dict)
+    
+    return DynamicModel
 
 
 class PredictionResponse(BaseModel):

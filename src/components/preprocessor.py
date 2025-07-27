@@ -23,7 +23,9 @@ class Preprocessor(BasePreprocessor):
     """
     def __init__(self, settings: Settings):
         self.settings = settings
-        self.config = self.settings.model.preprocessor
+        
+        # 현대화된 Recipe 구조 전용
+        self.config = settings.recipe.model.preprocessor
         self.exclude_cols = self.config.params.exclude_cols or []
         self.scaler = StandardScaler()
         self.categorical_cols_: List[str] = []

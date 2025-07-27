@@ -118,6 +118,7 @@ def run_training(settings: Settings, context_params: Optional[Dict[str, Any]] = 
                 path=str(model_path),
                 python_model=pyfunc_wrapper,
                 signature=signature,
+                input_example=sample_input,  # 🆕 입력 예제 추가
             )
             mlflow.log_artifacts(str(model_path), artifact_path="model")
 

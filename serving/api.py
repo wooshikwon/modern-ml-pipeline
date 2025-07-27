@@ -8,7 +8,7 @@ from typing import Dict, Any, List, Type
 from pydantic import BaseModel, create_model
 
 from src.settings import Settings, load_settings
-from src.utils.integrations import mlflow_integration as mlflow_utils
+from src.utils.system.logger import logger
 from serving.schemas import (
     get_pk_from_loader_sql,
     create_dynamic_prediction_request,
@@ -21,7 +21,6 @@ from serving.schemas import (
     HyperparameterOptimizationInfo,
     TrainingMethodologyInfo,
 )
-from src.utils.system.logger import logger
 
 class AppContext:
     def __init__(self):
@@ -60,30 +59,19 @@ def setup_api_context(run_id: str, settings: Settings):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 실제 서버 실행 시 사용할 lifespan
-    # run_id는 환경 변수 등에서 가져와야 함
-    run_id = mlflow_utils.get_latest_run_id(
-        experiment_name=load_settings().mlflow.experiment_name
-    )
-    settings = load_settings()
-    setup_api_context(run_id, settings)
-    logger.info("FastAPI 애플리케이션 시작...")
+    # API 서버 시작
+    logger.info("🚀 Modern ML Pipeline API 서버 시작...")
     yield
-    logger.info("FastAPI 애플리케이션 종료.")
+    # API 서버 종료
+    logger.info("✅ Modern ML Pipeline API 서버 종료.")
 
 # 테스트와 실제 서빙 모두에서 사용될 수 있는 최상위 app 객체
 app = FastAPI(
     title="Modern ML Pipeline API",
     description="Blueprint v17.0 기반 모델 서빙 API",
     version="17.0.0",
-    lifespan=lifespan  # 실제 서버 실행 시에만 lifespan이 활성화됨
+    lifespan=lifespan,
 )
-
-@app.on_event("startup")
-async def startup_event():
-    # 실제 run_id는 run_api_server 함수에서 주입받아 설정됩니다.
-    # 여기서는 FastAPI의 라이프사이클 이벤트를 보여주기 위한 예시입니다.
-    pass
 
 @app.get("/", tags=["General"])
 def root() -> Dict[str, str]:
@@ -111,31 +99,7 @@ def health() -> HealthCheckResponse:
         model_name=model_info,
     )
 
-@app.post("/predict", response_model=PredictionResponse, tags=["Prediction"])
-def predict(request: BaseModel) -> PredictionResponse:
-    if not app_context.model or not app_context.settings:
-        raise HTTPException(status_code=503, detail="모델이 준비되지 않았습니다.")
-    try:
-        DynamicRequest = app_context.PredictionRequest
-        validated_request = DynamicRequest(**request.model_dump())
-        
-        input_df = pd.DataFrame([validated_request.model_dump()])
-        
-        predict_params = { "run_mode": "serving", "return_intermediate": True }
-        
-        predictions = app_context.model.predict(input_df, params=predict_params)
-        
-        # 결과 구조가 DataFrame이라고 가정
-        prediction_value = predictions["prediction"].iloc[0]
-        input_features_dict = predictions["input_features"].iloc[0]
 
-        return PredictionResponse(
-            prediction=prediction_value,
-            input_features=input_features_dict,
-        )
-    except Exception as e:
-        logger.error(f"예측 중 오류 발생: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/predict_batch", response_model=BatchPredictionResponse, tags=["Prediction"])
 def predict_batch(request: BaseModel) -> BatchPredictionResponse:
@@ -288,19 +252,87 @@ def run_api_server(settings: Settings, run_id: str, host: str = "0.0.0.0", port:
         return
 
     # 모델 로드 (서버 시작 시 한 번만 실행)
-    model_uri = mlflow_utils.get_model_uri(run_id)
-    app_context.model = mlflow_utils.load_pyfunc_model(settings, model_uri)
+    model_uri = f"runs:/{run_id}/model"
+    logger.info(f"MLflow 모델 로딩 시작: {model_uri}")
+    app_context.model = mlflow.pyfunc.load_model(model_uri)
+    
+    # 모델에서 loader_sql_snapshot 추출
+    try:
+        # 다양한 경로로 loader_sql_snapshot 찾기
+        loader_sql = None
+        
+        # 방법 1: 직접 속성 접근
+        if hasattr(app_context.model, 'loader_sql_snapshot'):
+            loader_sql = app_context.model.loader_sql_snapshot
+            logger.info("Method 1: 직접 loader_sql_snapshot 속성 발견")
+        
+        # 방법 2: _model_impl을 통한 접근
+        elif hasattr(app_context.model, '_model_impl'):
+            model_impl = app_context.model._model_impl
+            if hasattr(model_impl, 'loader_sql_snapshot'):
+                loader_sql = model_impl.loader_sql_snapshot
+                logger.info("Method 2: _model_impl을 통해 loader_sql_snapshot 발견")
+        
+        # 방법 3: unwrap_python_model을 통한 접근
+        elif hasattr(app_context.model, 'unwrap_python_model'):
+            python_model = app_context.model.unwrap_python_model()
+            if hasattr(python_model, 'loader_sql_snapshot'):
+                loader_sql = python_model.loader_sql_snapshot
+                logger.info("Method 3: unwrap_python_model을 통해 loader_sql_snapshot 발견")
+        
+        # 방법 4: 모델 객체의 모든 속성 탐색 (디버깅)
+        else:
+            logger.info("모델 객체 속성 탐색:")
+            for attr in dir(app_context.model):
+                if not attr.startswith('_'):
+                    logger.info(f"  - {attr}: {type(getattr(app_context.model, attr, None))}")
+            
+            # 최후 수단: 기본값 사용
+            logger.warning("모든 방법으로 loader_sql_snapshot을 찾을 수 없습니다. 기본 PK 필드를 사용합니다.")
+            pk_fields = ['session_id', 'user_id', 'product_id']
+            
+        if loader_sql:
+            # SQL에서 PK 필드 추출
+            from serving.schemas import get_pk_from_loader_sql
+            pk_fields = get_pk_from_loader_sql(loader_sql)
+            logger.info(f"SQL에서 추출된 PK 필드: {pk_fields}")
+        else:
+            # 기본값 사용
+            pk_fields = ['session_id', 'user_id', 'product_id']
+            logger.info(f"기본 PK 필드 사용: {pk_fields}")
+            
+    except Exception as e:
+        logger.error(f"PK 필드 추출 실패: {e}")
+        # 기본값 사용
+        pk_fields = ['session_id', 'user_id', 'product_id']
     
     # 동적 라우트 생성
-    PredictionRequest = create_dynamic_prediction_request(app_context.model)
+    model_name = f"model_{run_id[:8]}"
+    PredictionRequest = create_dynamic_prediction_request(model_name, pk_fields)
+    
+    # app_context에 필요한 모든 값 설정
+    app_context.settings = settings
+    app_context.model_uri = model_uri
+    app_context.PredictionRequest = PredictionRequest
+    
+    logger.info(f"API 컨텍스트 설정 완료: 모델={model_uri}, PK필드={pk_fields}")
     
     @app.post("/predict", tags=["Predictions"])
-    def predict(request: PredictionRequest):
-        # Pydantic 모델을 dict으로 변환 후, DataFrame으로 변환
-        request_df = pd.DataFrame([request.dict()])
+    def predict(request: Dict[str, Any]):
+        # Dict 형태로 받아서 DataFrame으로 변환
+        request_df = pd.DataFrame([request])
         
         # 모델 예측
         predictions = app_context.model.predict(request_df)
-        return {"predictions": predictions.to_dict(orient="records")}
+        
+        # 예측 결과를 적절한 형태로 반환
+        if hasattr(predictions, 'iloc'):
+            # DataFrame인 경우
+            prediction_result = predictions.to_dict(orient="records")[0]
+        else:
+            # array인 경우
+            prediction_result = {"prediction": predictions[0]}
+            
+        return {"predictions": [prediction_result], "model_uri": app_context.model_uri}
 
     uvicorn.run(app, host=host, port=port)
