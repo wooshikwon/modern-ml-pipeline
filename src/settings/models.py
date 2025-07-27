@@ -1,16 +1,12 @@
 """
 Settings Pydantic Models
-Blueprint v17.0 설정 모델 정의 모듈
+Blueprint v17.0 - 27개 Recipe 완전 대응
 
-이 모듈은 모든 Pydantic 모델들을 관리합니다.
-최종적으로 settings/__init__.py에서 Settings 클래스로 통합됩니다.
-
-🎯 Phase 1 완료: 27개 Recipe와 완전 대응
+Pydantic 모델 정의 모듈
 """
 
 from pydantic import BaseModel, Field, RootModel, validator
 from typing import Dict, Any, List, Optional, Union, Literal
-from collections.abc import Mapping
 
 
 # =============================================================================
@@ -31,25 +27,20 @@ class MlflowSettings(BaseModel):
 
 
 class AdapterConfigSettings(BaseModel):
-    """개별 어댑터 설정 (Blueprint v17.0: Config-driven Dynamic Factory)"""
+    """개별 어댑터 설정"""
     class_name: str  # e.g., "FileSystemAdapter", "BigQueryAdapter"
-    config: Dict[str, Any] = {}  # 어댑터별 구체적 설정
+    config: Dict[str, Any] = {}
 
 
 class DataAdapterSettings(BaseModel):
-    """
-    데이터 어댑터 설정 (Blueprint v17.0: Config-driven Dynamic Factory)
-    
-    환경별 어댑터 매핑과 동적 어댑터 생성을 위한 설정 모델.
-    Blueprint 원칙 1 "레시피는 논리, 설정은 인프라"를 완전히 구현합니다.
-    """
+    """데이터 어댑터 설정 - Config-driven Dynamic Factory"""
     
     # 환경별 기본 어댑터 매핑
     default_loader: str = "filesystem"
     default_storage: str = "filesystem"
     default_feature_store: str = "filesystem"
     
-    # 어댑터별 구체적 설정
+    # 어댑터별 세부 설정
     adapters: Dict[str, AdapterConfigSettings] = {}
     
     def get_adapter_config(self, adapter_name: str) -> AdapterConfigSettings:
@@ -106,12 +97,11 @@ class ArtifactStoreSettings(BaseModel):
 
 
 # =============================================================================
-# 2. 모델 논리 설정 (recipes/*.yaml) - 27개 Recipe 완전 대응
+# 2. 모델 논리 설정 (recipes/*.yaml) - 27개 Recipe 대응
 # =============================================================================
 
-# 🆕 2.1 Dictionary 형태 하이퍼파라미터 완벽 지원
 class OptunaParameterConfig(BaseModel):
-    """Optuna 하이퍼파라미터 설정 (27개 Recipe 전용)"""
+    """Optuna 하이퍼파라미터 설정"""
     type: Literal["int", "float", "categorical"]
     low: Optional[Union[int, float]] = None
     high: Optional[Union[int, float]] = None
@@ -130,15 +120,8 @@ class OptunaParameterConfig(BaseModel):
                 raise ValueError("categorical 타입 파라미터에는 choices가 필요합니다.")
 
 
-class HyperparametersSettings(BaseModel):
-    """
-    Dictionary 형태 하이퍼파라미터 (27개 Recipe 표준)
-    
-    Examples:
-        C: {type: "float", low: 0.001, high: 100.0, log: true}
-        penalty: {type: "categorical", choices: ["l1", "l2"]}
-        random_state: 42
-    """
+class HyperparametersSettings(RootModel):
+    """Dictionary 형태 하이퍼파라미터 (27개 Recipe 표준)"""
     root: Dict[str, Union[OptunaParameterConfig, Any]]
     
     @classmethod
@@ -169,27 +152,21 @@ class HyperparametersSettings(BaseModel):
         }
 
 
-# 🆕 2.2 Point-in-Time EntitySchema (완전 Recipe 대응)
 class EntitySchema(BaseModel):
-    """
-    Entity + Timestamp 기반 Point-in-Time 정합성 스키마
-    
-    27개 Recipe의 loader.entity_schema와 완전 대응
-    """
-    # 필수 필드 (27개 Recipe 표준)
+    """Entity + Timestamp 기반 Point-in-Time 정합성 스키마"""
     entity_columns: List[str]    # ["user_id", "product_id"] - PK 정의
     timestamp_column: str        # "event_timestamp" - Point-in-Time 기준
     
     @validator('entity_columns')
     def validate_entity_columns(cls, v):
         if not v or len(v) == 0:
-            raise ValueError("Entity 컬럼은 Point-in-Time JOIN의 핵심입니다. 최소 1개 필요.")
+            raise ValueError("Entity 컬럼은 최소 1개 필요합니다.")
         return v
     
     @validator('timestamp_column')
     def validate_timestamp_column(cls, v):
         if not v or v.strip() == "":
-            raise ValueError("Timestamp 컬럼은 Point-in-Time Correctness의 핵심입니다.")
+            raise ValueError("Timestamp 컬럼이 필요합니다.")
         return v
     
     def get_key_columns(self) -> List[str]:
@@ -197,36 +174,29 @@ class EntitySchema(BaseModel):
         return self.entity_columns + [self.timestamp_column]
 
 
-# 🆕 2.3 ML Task Settings (27개 Recipe 완전 대응)
 class MLTaskSettings(BaseModel):
-    """
-    ML 작업별 세부 설정 - 27개 Recipe의 data_interface와 완전 대응
+    """ML 작업별 세부 설정 - 27개 Recipe data_interface 대응"""
     
-    필드명이 Recipe YAML과 정확히 일치:
-    - target_column (기존 target_col에서 변경)
-    - treatment_column (기존 treatment_col에서 변경)
-    """
-    
-    # 🎯 필수 필드 (모든 Recipe 공통)
+    # 필수 필드
     task_type: str  # "classification", "regression", "clustering", "causal"
     
-    # 🎯 조건부 필수 필드들 (Recipe YAML과 완전 일치)
-    target_column: Optional[str] = None           # 🔄 변경: target_col → target_column
+    # 조건부 필수 필드들
+    target_column: Optional[str] = None
     
-    # 🎯 Causal 전용 필드들 (Recipe YAML과 완전 일치)
-    treatment_column: Optional[str] = None        # 🔄 변경: treatment_col → treatment_column
+    # Causal 전용 필드들
+    treatment_column: Optional[str] = None
     treatment_value: Optional[Any] = None
     
-    # 🎯 Classification 전용 필드들
-    class_weight: Optional[str] = None            # "balanced" 등
-    pos_label: Optional[Any] = None               # 이진 분류용
-    average: Optional[str] = "weighted"           # f1 계산 방식
+    # Classification 전용 필드들
+    class_weight: Optional[str] = None
+    pos_label: Optional[Any] = None
+    average: Optional[str] = "weighted"
     
-    # 🎯 Regression 전용 필드들
-    sample_weight_column: Optional[str] = None    # 가중치 컬럼
+    # Regression 전용 필드들
+    sample_weight_column: Optional[str] = None
     
-    # 🎯 Clustering 전용 필드들
-    n_clusters: Optional[int] = None              # K-Means, Hierarchical용
+    # Clustering 전용 필드들
+    n_clusters: Optional[int] = None
     
     def validate_required_fields(self):
         """task_type에 따른 필수 필드 검증"""
@@ -281,12 +251,12 @@ class AugmenterSettings(BaseModel):
 
 # 🆕 2.5 전처리기 설정 (27개 Recipe 대응)
 class PreprocessorParamsSettings(BaseModel):
-    """전처리기 파라미터 설정 (27개 Recipe 완전 대응)"""
+    """전처리기 파라미터 설정"""
     criterion_col: Optional[str] = None
     exclude_cols: List[str] = []
-    handle_missing: Optional[str] = "median"      # 결측치 처리 방식
-    scale_features: Optional[bool] = False        # 피처 스케일링 여부
-    encode_categorical: Optional[str] = "onehot"  # 범주형 인코딩 방식
+    handle_missing: Optional[str] = "median"
+    scale_features: Optional[bool] = False
+    encode_categorical: Optional[str] = "onehot"
 
 
 class PreprocessorSettings(BaseModel):
@@ -297,12 +267,12 @@ class PreprocessorSettings(BaseModel):
 
 # 🆕 2.6 평가 설정 (27개 Recipe 대응)
 class ValidationMethodSettings(BaseModel):
-    """검증 방법 설정 (27개 Recipe 표준)"""
-    method: str = "train_test_split"              # 기본값
+    """검증 방법 설정"""
+    method: str = "train_test_split"
     test_size: Optional[float] = 0.2
     stratify: Optional[bool] = None
     random_state: Optional[int] = 42
-    cv_folds: Optional[int] = 5                   # cross_validation용
+    cv_folds: Optional[int] = 5
     
     def validate_method_config(self):
         """검증 방법별 설정 유효성 검증"""
@@ -315,12 +285,12 @@ class ValidationMethodSettings(BaseModel):
 
 
 class EvaluationSettings(BaseModel):
-    """평가 설정 (27개 Recipe 완전 대응)"""
+    """평가 설정"""
     metrics: List[str]
     validation: ValidationMethodSettings
     
     def validate_task_metrics(self, task_type: str):
-        """작업 타입별 메트릭 유효성 검증 (27개 Recipe 지원)"""
+        """작업 타입별 메트릭 유효성 검증"""
         valid_metrics = {
             "classification": {
                 "accuracy", "precision", "recall", "f1_score", "roc_auc",
@@ -336,8 +306,7 @@ class EvaluationSettings(BaseModel):
                 "uplift_auc", "uplift_at_k", "qini_coefficient", "treatment_effect"
             },
             "clustering": {
-                "silhouette_score", "calinski_harabasz_score", "davies_bouldin_score", 
-                "inertia", "adjusted_rand_score"
+                "silhouette_score", "calinski_harabasz_score", "davies_bouldin_score", "inertia"
             }
         }
         
@@ -400,6 +369,9 @@ class ModelConfigurationSettings(BaseModel):
     
     # 🎯 튜닝 설정
     hyperparameter_tuning: Optional[HyperparameterTuningSettings] = None
+    
+    # 🆕 동적 계산 필드 (loaders.py에서 설정)
+    computed: Optional[Dict[str, Any]] = None             # 런타임 계산 필드들
     
     def get_all_exclude_columns(self) -> List[str]:
         """모든 제외 컬럼들 반환"""
@@ -496,8 +468,6 @@ class Settings(BaseModel):
     hyperparameter_tuning: Optional[HyperparameterTuningSettings] = None
     feature_store: Optional[FeatureStoreSettings] = None
     
-    @classmethod
-    def load(cls) -> "Settings":
-        """편의 메서드: 기본 설정 로딩"""
-        from .loaders import load_settings_by_file
-        return load_settings_by_file("default") 
+    # 🗑️ 순환 의존성 제거: Settings.load() 편의 메서드 삭제
+    # 이유: 어디서도 사용되지 않으며, loaders.py와 순환 의존성을 만듦
+    # 대신 직접 load_settings_by_file() 사용 

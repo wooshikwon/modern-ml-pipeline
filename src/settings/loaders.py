@@ -1,8 +1,6 @@
 """
 Settings Loaders & Utils
-Blueprint v17.0 설정 로딩 및 환경 변수 처리 모듈
-
-이 모듈은 설정 파일 로딩, 환경 변수 치환, 설정 병합 로직을 관리합니다.
+Blueprint v17.0 - 설정 로딩 및 환경 변수 처리
 """
 
 import os
@@ -16,36 +14,30 @@ from collections.abc import Mapping
 from .models import Settings
 from src.utils.system.logger import logger
 
-# --- 기본 경로 및 환경 변수 로더 ---
+# 기본 경로 및 환경 변수 로더
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 load_dotenv(BASE_DIR / ".env")
 
-# 환경 변수 패턴: ${VAR_NAME:default_value}
 _env_var_pattern = re.compile(r"\$\{([^}:\s]+)(?::([^}]*))?\}")
 
 
 def _env_var_replacer(m: re.Match) -> str:
-    """환경 변수 치환 함수"""
     env_var = m.group(1)
     default_value = m.group(2)
     return os.getenv(env_var, default_value or "")
 
 
 def _load_yaml_with_env(file_path: Path) -> Dict[str, Any]:
-    """환경 변수가 치환된 YAML 파일 로딩"""
+    """YAML 파일 로드 + 환경변수 치환"""
     if not file_path.exists():
         return {}
-    
     text = file_path.read_text(encoding="utf-8")
     substituted_text = re.sub(_env_var_pattern, _env_var_replacer, text)
     return yaml.safe_load(substituted_text) or {}
 
 
 def _recursive_merge(dict1: Dict, dict2: Dict) -> Dict:
-    """
-    두 딕셔너리를 재귀적으로 병합합니다. 
-    dict2의 값이 dict1의 값을 덮어씁니다.
-    """
+    """딕셔너리 재귀적 병합 (dict2가 dict1을 덮어씀)"""
     for k, v in dict2.items():
         if k in dict1 and isinstance(dict1[k], Mapping) and isinstance(v, Mapping):
             dict1[k] = _recursive_merge(dict1[k], v)
@@ -55,47 +47,39 @@ def _recursive_merge(dict1: Dict, dict2: Dict) -> Dict:
 
 
 def load_config_files() -> Dict[str, Any]:
-    """
-    Blueprint v17.0 환경별 config 파일 로딩
-    base.yaml -> {app_env}.yaml 순서로 병합 (data_adapters.yaml 제거)
-    """
+    """환경별 config 파일 로딩 - base.yaml → {app_env}.yaml 순서로 병합"""
     config_dir = BASE_DIR / "config"
     
-    # 1. 기본 인프라 설정 로드
+    # 기본 인프라 설정 로드
     base_config = _load_yaml_with_env(config_dir / "base.yaml")
     
-    # 2. 환경별 설정 로드
+    # 환경별 설정 로드
     app_env = os.getenv("APP_ENV", "local")
     env_config_file = config_dir / f"{app_env}.yaml"
     env_config = _load_yaml_with_env(env_config_file)
     
-    # 3. 순차적 병합 (오른쪽이 왼쪽을 덮어씀)
+    # 순차적 병합
     merged_config = _recursive_merge(base_config, env_config)
     
     return merged_config
 
 
 def load_recipe_file(recipe_file: str) -> Dict[str, Any]:
-    """
-    Recipe 파일 로딩.
-    절대 경로, 상대 경로, recipes/ 내부 경로 순으로 탐색합니다.
-    """
+    """Recipe 파일 로딩 - 절대/상대/recipes 경로 순으로 탐색"""
     path = Path(recipe_file)
     if not path.suffix:
         path = path.with_suffix('.yaml')
 
-    # 우선순위 1: 절대 경로
+    # 우선순위: 절대 경로 → 상대 경로 → recipes/ 경로
     if path.is_absolute():
         final_path = path
-    # 우선순위 2: 현재 작업 디렉토리 기준 상대 경로
     elif path.exists():
         final_path = path
-    # 우선순위 3: (하위 호환성) 기존 recipes/ 디렉토리 기준 경로
     else:
         final_path = BASE_DIR / "recipes" / path
 
     if not final_path.exists():
-        raise FileNotFoundError(f"Recipe 파일을 찾을 수 없습니다. 시도한 최종 경로: {final_path}")
+        raise FileNotFoundError(f"Recipe 파일을 찾을 수 없습니다: {final_path}")
     
     return _load_yaml_with_env(final_path)
 
@@ -155,6 +139,14 @@ def load_settings_by_file(recipe_file: str, context_params: Optional[Dict[str, A
         # 7. computed 필드 생성
         settings.recipe.model.computed = _create_computed_fields(settings.recipe, recipe_file)
         
+        # 🎯 MLflow 상대 경로를 절대 경로로 변환 (LOCAL 환경 안정성)
+        if settings.environment.app_env == 'local' and settings.mlflow.tracking_uri.startswith("./"):
+            from pathlib import Path
+            uri_path = settings.mlflow.tracking_uri.replace("file://", "")
+            absolute_path = Path(uri_path).resolve()
+            settings.mlflow.tracking_uri = f"file://{absolute_path}"
+            logger.info(f"MLflow relative tracking_uri resolved to absolute path: {settings.mlflow.tracking_uri}")
+
         return settings
         
     except Exception as e:
@@ -189,42 +181,36 @@ def _render_recipe_templates(recipe_data: Dict[str, Any], context_params: Dict[s
 
 
 def _create_computed_fields(recipe_settings: 'RecipeSettings', recipe_file: str) -> Dict[str, Any]:
-    """현대화된 Recipe를 위한 computed 필드 생성 (27개 Recipe 완전 대응)"""
+    """Recipe 런타임 필드 생성"""
     from datetime import datetime
     
-    # 모델 클래스에서 간단한 이름 추출
     class_name = recipe_settings.model.class_path.split('.')[-1]
-    
-    # Recipe name 사용
-    recipe_name = recipe_settings.name
-    
-    # 타임스탬프 생성
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    run_name = f"{class_name}_{recipe_settings.name}_{timestamp}"
     
-    # run_name 생성
-    run_name = f"{class_name}_{recipe_name}_{timestamp}"
+    # HPO 정보 추출
+    hpo = recipe_settings.model.hyperparameter_tuning
+    hpo_enabled = bool(hpo and hpo.enabled)
     
-    # 하이퍼파라미터 튜닝 정보 추가
-    hpo_info = {}
-    if recipe_settings.model.hyperparameter_tuning and recipe_settings.model.hyperparameter_tuning.enabled:
-        hpo_info = {
-            "hpo_enabled": True,
-            "hpo_trials": recipe_settings.model.hyperparameter_tuning.n_trials,
-            "hpo_metric": recipe_settings.model.hyperparameter_tuning.metric,
-            "hpo_direction": recipe_settings.model.hyperparameter_tuning.direction
-        }
-    else:
-        hpo_info = {"hpo_enabled": False}
-    
-    return {
+    computed = {
         "run_name": run_name,
         "timestamp": timestamp,
         "model_class_name": class_name,
         "recipe_file": recipe_file,
-        "recipe_name": recipe_name,
-        "task_type": recipe_settings.model.data_interface.task_type,  # 🔄 수정: task_type은 data_interface에 있음
-        **hpo_info
+        "recipe_name": recipe_settings.name,
+        "task_type": recipe_settings.model.data_interface.task_type,
+        "hpo_enabled": hpo_enabled
     }
+    
+    # HPO 세부 정보 (활성화된 경우만)
+    if hpo_enabled:
+        computed.update({
+            "hpo_trials": hpo.n_trials,
+            "hpo_metric": hpo.metric,
+            "hpo_direction": hpo.direction
+        })
+    
+    return computed
 
 
 # 편의 함수들

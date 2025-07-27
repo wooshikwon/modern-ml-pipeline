@@ -52,7 +52,7 @@ class PredictionResponse(BaseModel):
     """
     단일 예측 결과를 위한 응답 스키마입니다.
     """
-    uplift_score: float = Field(..., example=0.123, description="계산된 Uplift 점수")
+    uplift_score: float = Field(..., json_schema_extra={"example": 0.123}, description="계산된 Uplift 점수")
     model_uri: str = Field(
         ...,
         example="models:/uplift-model/Production",
@@ -91,7 +91,7 @@ class BatchPredictionResponse(BaseModel):
         example="models:/uplift-model/Production",
         description="예측에 사용된 모델의 MLflow URI",
     )
-    sample_count: int = Field(..., example=100, description="처리된 샘플 수")
+    sample_count: int = Field(..., json_schema_extra={"example": 100}, description="처리된 샘플 수")
     # 🆕 Blueprint v17.0: 최적화 정보 포함 (Optional로 하위 호환성 보장)
     optimization_enabled: bool = Field(default=False, description="하이퍼파라미터 최적화 여부")
     best_score: float = Field(default=0.0, description="최적화 달성 점수 (활성화된 경우)")
@@ -101,13 +101,13 @@ class HealthCheckResponse(BaseModel):
     """
     헬스 체크 응답 스키마입니다.
     """
-    status: str = Field(..., example="healthy", description="서비스 상태")
+    status: str = Field(..., json_schema_extra={"example": "healthy"}, description="서비스 상태")
     model_uri: str = Field(
         ...,
         example="models:/uplift-model/Production",
         description="현재 로드된 모델의 MLflow URI",
     )
-    model_name: str = Field(..., example="xgboost_x_learner", description="로드된 모델 이름")
+    model_name: str = Field(..., json_schema_extra={"example": "xgboost_x_learner"}, description="로드된 모델 이름")
 
 
 # 🆕 Blueprint v17.0: 새로운 메타데이터 응답 스키마들

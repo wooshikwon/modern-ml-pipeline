@@ -1,0 +1,14 @@
+artifact_uri: /Users/wooshikwon/Desktop/github_wooshikwon/modern-ml-pipeline/mlruns/647522906500310123/070e8bd4d8254a209c1a5ebaf8c5dbb3/artifacts
+end_time: 1753607768909
+entry_point_name: ''
+experiment_id: '647522906500310123'
+lifecycle_stage: active
+run_id: 070e8bd4d8254a209c1a5ebaf8c5dbb3
+run_name: KMeans_kmeans_20250727_181608
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1753607768898
+status: 4
+tags: []
+user_id: wooshikwon

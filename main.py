@@ -44,29 +44,49 @@ mlflow:
 
 DEFAULT_RECIPE_YAML = """
 # recipes/example_recipe.yaml
-# 모델의 논리를 정의합니다.
+# 27개 Recipe 표준 구조로 모델의 논리를 정의합니다.
+name: "example_recipe"
+
 model:
   class_path: "sklearn.ensemble.RandomForestClassifier"
+  
+  # Dictionary 형태 하이퍼파라미터 (27개 Recipe 표준)
   hyperparameters:
     n_estimators: 100
     max_depth: 10
+    random_state: 42
 
   loader:
-    name: "default_loader" # 필수 필드 추가
-    # 로컬 파일 시스템을 사용하는 예제
+    name: "default_loader"
     source_uri: "data/raw/your_data.parquet"
+    # Point-in-Time 정합성을 위한 EntitySchema (27개 Recipe 표준)
+    entity_schema:
+      entity_columns: ["user_id"]
+      timestamp_column: "event_timestamp"
   
-  # 피처 증강은 필요 시 여기에 추가합니다.
-  # augmenter: ...
-  
-  preprocessor:
-    name: "default_preprocessor" # 필수 필드 추가
-    params: # 필수 필드 추가
-      exclude_cols: ["user_id"]
-  
+  # ML 작업별 세부 설정 (27개 Recipe 표준)
   data_interface:
     task_type: "classification"
-    target_col: "target"
+    target_column: "target"  # 🔄 수정: target_col → target_column
+    class_weight: "balanced"
+    average: "weighted"
+  
+  # 피처 증강 (선택적)
+  augmenter:
+    type: "pass_through"  # LOCAL 환경용
+  
+  preprocessor:
+    name: "default_preprocessor"
+    params:
+      exclude_cols: ["user_id", "event_timestamp"]
+
+# 평가 설정 (27개 Recipe 표준)
+evaluation:
+  metrics: ["accuracy", "f1_score", "precision", "recall"]
+  validation:
+    method: "train_test_split"
+    test_size: 0.2
+    random_state: 42
 """
 
 
@@ -110,12 +130,26 @@ def batch_inference(
         config_data = load_config_files()
         
         # 추론 시점에는 모델 설정이 없으므로, 유효성 검사를 통과하기 위한 최소한의 더미 값을 추가
-        if "model" not in config_data:
-            config_data["model"] = {
-                "class_path": "dummy.path",
-                "loader": {"name": "dummy", "source_uri": "dummy"},
-                "data_interface": {"task_type": "dummy"},
-                "hyperparameters": {}
+        if "recipe" not in config_data:  # 🔄 수정: "model" → "recipe"
+            config_data["recipe"] = {
+                "name": "dummy_recipe",
+                "model": {
+                    "class_path": "dummy.path",
+                    "loader": {
+                        "name": "dummy", 
+                        "source_uri": "dummy",
+                        "entity_schema": {
+                            "entity_columns": ["dummy_id"],
+                            "timestamp_column": "dummy_timestamp"
+                        }
+                    },
+                    "data_interface": {"task_type": "dummy"},
+                    "hyperparameters": {}
+                },
+                "evaluation": {
+                    "metrics": ["accuracy"],
+                    "validation": {"method": "train_test_split"}
+                }
             }
             
         settings = Settings(**config_data)
@@ -146,12 +180,26 @@ def serve_api(
         config_data = load_config_files()
 
         # 추론 시점에는 모델 설정이 없으므로, 유효성 검사를 통과하기 위한 최소한의 더미 값을 추가
-        if "model" not in config_data:
-            config_data["model"] = {
-                "class_path": "dummy.path",
-                "loader": {"name": "dummy", "source_uri": "dummy"},
-                "data_interface": {"task_type": "dummy"},
-                "hyperparameters": {}
+        if "recipe" not in config_data:  # 🔄 수정: "model" → "recipe"
+            config_data["recipe"] = {
+                "name": "dummy_recipe",
+                "model": {
+                    "class_path": "dummy.path",
+                    "loader": {
+                        "name": "dummy", 
+                        "source_uri": "dummy",
+                        "entity_schema": {
+                            "entity_columns": ["dummy_id"],
+                            "timestamp_column": "dummy_timestamp"
+                        }
+                    },
+                    "data_interface": {"task_type": "dummy"},
+                    "hyperparameters": {}
+                },
+                "evaluation": {
+                    "metrics": ["accuracy"],
+                    "validation": {"method": "train_test_split"}
+                }
             }
 
         settings = Settings(**config_data)
