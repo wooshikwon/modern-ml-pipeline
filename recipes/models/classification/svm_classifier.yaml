@@ -1,65 +1,90 @@
-# Support Vector Machine - Blueprint v17.0 Automated Excellence
-# 🎯 고차원 데이터에서 최적 결정 경계를 찾는 강력한 분류기
+# SVM Classifier - 강력한 서포트 벡터 머신 분류기
+# ⚡ 최적 경계면을 찾는 수학적 우아함과 강력한 성능
 
-# 1. 모델 기본 정보 (직접 동적 import)
-class_path: "sklearn.svm.SVC"
+name: "svm_classifier"
 
-# 2. 데이터 로더 정의
-loader:
-  name: "classification_dataset"
-  source_uri: "recipes/sql/loader/classification_features.sql"
-
-# 3. 피처 증강기 정의 (🆕 Blueprint v17.0 - Feature Store 방식)
-augmenter:
-  type: "feature_store"
-  features:
-    # 사용자 기본 정보
-    - feature_namespace: "user_demographics"
-      features: ["age", "gender", "education_level", "income_bracket"]
-    # 행동 패턴 피처
-    - feature_namespace: "user_behavior"
-      features: ["click_through_rate", "session_frequency", "avg_session_duration"]
-
-# 4. 전처리기 정의 (SVM에는 특히 중요)
-preprocessor:
-  name: "simple_scaler"
-  params:
-    criterion_col: null
-    exclude_cols: ["user_id", "event_timestamp"]
-
-# 5. 모델 인터페이스
-data_interface:
-  task_type: "classification"
+model:
+  # 직접 동적 import를 통한 SVM 분류기
+  class_path: "sklearn.svm.SVC"
   
-  features:
-    age: "numeric"
-    gender: "category"
-    education_level: "category"
-    income_bracket: "category"
-    click_through_rate: "numeric"
-    session_frequency: "numeric"
-    avg_session_duration: "numeric"
-  
-  target_col: "target_class"
-  class_weight: "balanced"
-  average: "weighted"
+  # 하이퍼파라미터 정의 (Optuna 자동 최적화 지원)
+  hyperparameters:
+    # 🔥 자동 최적화 범위 - SVM 특화 하이퍼파라미터
+    C: {type: "float", low: 0.001, high: 1000.0, log: true}
+    kernel: {type: "categorical", choices: ["rbf", "poly", "sigmoid"]}
+    gamma: {type: "categorical", choices: ["scale", "auto"]}
+    degree: {type: "int", low: 2, high: 5}  # poly 커널용
+    coef0: {type: "float", low: 0.0, high: 10.0}  # poly/sigmoid 커널용
+    
+    # 🔧 고정값 - SVM 안정성을 위한 필수 설정
+    random_state: 42
+    class_weight: "balanced"
+    probability: true  # predict_proba 활성화
+    max_iter: 1000
 
-# 🆕 6. 하이퍼파라미터 (Dictionary 형식 + 자동 튜닝)
-hyperparameters:
-  # 🔥 자동 최적화 범위 (SVM 특화)
-  C: {type: "float", low: 0.1, high: 100, log: true}
-  kernel: {type: "categorical", choices: ["linear", "poly", "rbf", "sigmoid"]}
-  gamma: {type: "categorical", choices: ["scale", "auto"]}
-  degree: {type: "int", low: 2, high: 5}  # poly kernel용
-  
-  # 🔧 고정값
-  random_state: 42
-  class_weight: "balanced"
-  probability: true  # AUC 계산용
+  # 하이퍼파라미터 튜닝 설정
+  hyperparameter_tuning:
+    enabled: true
+    n_trials: 100  # SVM은 시간이 오래 걸리므로 적절한 수준
+    metric: "f1_weighted"
+    direction: "maximize"
 
-# 🆕 7. 하이퍼파라미터 튜닝 설정
-hyperparameter_tuning:
-  enabled: true
-  n_trials: 30
-  metric: "accuracy"
-  direction: "maximize" 
+  # 데이터 로더 정의 (Spine 생성)
+  loader:
+    name: "classification_loader"
+    source_uri: "recipes/sql/loaders/user_features.sql"
+
+  # 피처 증강 정의 (Feature Store 기반)
+  augmenter:
+    type: "feature_store"
+    features:
+      # 사용자 기본 정보 피처
+      - feature_namespace: "user_demographics"
+        features: ["age", "country_code"]
+      
+      # 사용자 구매 이력 피처  
+      - feature_namespace: "user_purchase_summary"
+        features: ["ltv", "total_purchase_count", "last_purchase_date"]
+      
+      # 상품 상세 정보 피처
+      - feature_namespace: "product_details"
+        features: ["price", "category", "brand"]
+      
+      # 세션 행동 피처
+      - feature_namespace: "session_summary"
+        features: ["time_on_page_seconds", "click_count"]
+
+  # 전처리 설정 (SVM은 스케일링이 매우 중요)
+  preprocessor:
+    name: "simple_scaler"
+    params:
+      criterion_col: null
+      # 엔티티 키와 타임스탬프 제외
+      exclude_cols: ["user_id", "product_id", "session_id", "event_timestamp"]
+
+  # 데이터 인터페이스 정의
+  data_interface:
+    task_type: "classification"
+    target_col: "target_class"
+
+  # 평가자 설정
+  evaluator:
+    name: "classification_evaluator"
+
+# 평가 설정
+evaluation:
+  metrics:
+    - "accuracy"
+    - "precision_weighted"
+    - "recall_weighted" 
+    - "f1_weighted"
+    - "roc_auc"
+  
+  validation:
+    method: "train_test_split"
+    test_size: 0.2
+    stratify: true
+    random_state: 42
+
+# 💡 사용 예시:
+# APP_ENV=dev uv run python main.py train --recipe-file models/classification/svm_classifier 

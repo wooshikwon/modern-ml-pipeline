@@ -1,146 +1,372 @@
-# Modern ML Pipeline 리팩토링 및 안정화 마스터 플랜 (v2)
+# Modern ML Pipeline: 시점 기반 데이터 관리 시스템 구현 계획
 
-## 1. 최종 목표 (The Ultimate Goal)
+## 🎯 **프로젝트 목표 (Project Vision)**
 
-현재 시스템에서 발견된 아키텍처적 문제들을 해결하고, **애플리케이션(modern-ml-pipeline)과 인프라스트럭처(mmp-local-dev 등)의 역할을 명확히 분리**하여, **단순하고(Simple), 명확하며(Explicit), 확장 가능한(Scalable)** 구조를 확립한다. 이를 통해 개발 생산성을 극대화하고, 어떤 환경에서도 예측 가능하게 동작하는 견고한 ML 시스템을 완성하며, 최종적으로 **외부에 공개 가능한 라이브러리**로 만든다.
+현대적 MLOps 표준에 부합하는 **Point-in-Time Correctness** 기반 데이터 관리 시스템을 구축하여:
 
-이 문서는 그 목표를 달성하기 위한 **구체적이고 실천적인 실행 계획(Actionable Steps)** 이다.
+- **Data Leakage 완전 방지**: ASOF JOIN으로 미래 데이터 원천 차단
+- **Schema Drift 조기 발견**: 학습/추론 간 스키마 일관성 자동 검증  
+- **Dynamic 시점 지원**: 안전한 범위 내에서 Batch Inference 유연성
+- **업계 표준 준수**: Feast, Databricks와 동일한 Point-in-Time 패턴
 
-## 2. 전체 로드맵 (The Grand Roadmap)
+이를 통해 **Hopsworks, Databricks Feature Store 수준의 시점 기반 데이터 관리**를 달성합니다.
 
-개발은 아래 4개의 논리적 단계에 따라 순차적으로 진행한다. 각 단계는 이전 단계의 성공적인 완료를 전제로 한다.
+---
 
-| 단계 | 목표 | 핵심 기술/전략 | **핵심 결과물** | 예상 기간 |
-| :--- | :--- | :--- | :--- | :--- |
-| **Phase 1: 기반 재설계** | 시스템의 뼈대를 바로잡고 복잡성을 제거한다. | 3계층 아키텍처, 명시적 Registry | `src/core` 완전 제거, 단순화된 `Registry`와 `Factory` | 3-5일 |
-| **Phase 2: 어댑터 현대화** | 외부 시스템 I/O를 표준화하고 유연성을 극대화한다. | Feast Native, fsspec, SQLAlchemy | 통합 `Sql/Storage/Feast` 어댑터, 레거시 어댑터 완전 제거 | 4-6일 |
-| **Phase 3: CLI 및 설정 파이프라인 구축** | 라이브러리로서의 사용성을 완성한다. | Typer CLI, Jinja2, 설정 빌더 | `init`, `validate` 등 신규 CLI, Jinja 템플릿 지원 | 3-4일 |
-| **Phase 4: 최종 통합 및 검증** | 리팩토링된 시스템의 안정성과 완성도를 보장한다. | E2E 테스트, 문서화 | 리팩토링된 시스템의 E2E 테스트 통과, 현대화된 사용자 문서 | 2-3일 |
+## 🚀 **전체 개발 로드맵 (5-Phase Architecture)**
 
 ```mermaid
 graph TD
-    subgraph "Phase 1: 기반 재설계 (Foundation)"
-        A[Step 1.1: 3계층 아키텍처 확립] --> B[Step 1.2: Factory 역할 단순화]
-    end
+    A[Phase 1: Recipe 구조 현대화] --> B[Phase 2: ASOF JOIN Augmenter]
+    B --> C[Phase 3: Dynamic Batch Inference]
+    C --> D[Phase 4: 스키마 검증 시스템]
+    D --> E[Phase 5: Enhanced Wrapped Artifact]
     
-    subgraph "Phase 2: 어댑터 현대화 (Modernization)"
-        B --> C[Step 2.1: 통합 SQL/Storage/Feast 어댑터 구현]
-        C --> D[Step 2.2: Registry 업데이트 및 레거시 어댑터 제거]
-    end
-
-    subgraph "Phase 3: CLI 및 설정 파이프라인 구축 (Interface)"
-        D --> E[Step 3.1: Config 파일 구조 개편]
-        E --> F[Step 3.2: '설정 빌더' 파이프라인 구현 (Jinja 포함)]
-        F --> G[Step 3.3: 신규 CLI 인터페이스 구현]
-    end
-
-    subgraph "Phase 4: 최종 통합 및 검증 (Validation)"
-        G --> H[Step 4.1: PyfuncWrapper 저장 로직 검증]
-        H --> I[Step 4.2: End-to-End 통합 테스트]
-        I --> J[Step 4.3: 사용자 문서 현대화]
-    end
-
-    style A fill:#D5F5E3,stroke:#2ECC71
-    style B fill:#D5F5E3,stroke:#2ECC71
-    style C fill:#EBF5FB,stroke:#3498DB
-    style D fill:#EBF5FB,stroke:#3498DB
-    style E fill:#FEF9E7,stroke:#F1C40F
-    style F fill:#FEF9E7,stroke:#F1C40F
-    style G fill:#FEF9E7,stroke:#F1C40F
-    style H fill:#FDEDEC,stroke:#E74C3C
-    style I fill:#FDEDEC,stroke:#E74C3C
-    style J fill:#FDEDEC,stroke:#E74C3C
+    A --> A1[Entity + Timestamp 필수화]
+    A --> A2[Loader 하위 data_interface 통합]
+    
+    B --> B1[Point-in-Time Augmenter 구현]
+    B --> B2[Pass-through 옵션 지원]
+    
+    C --> C1[안전한 Jinja Template 시스템]
+    C --> C2[Context Params 검증]
+    
+    D --> D1[학습/추론 스키마 일관성 검증]
+    D --> D2[실시간 스키마 검증]
+    
+    E --> E1[완전한 스키마 정보 저장]
+    E --> E2[자동 검증 내장 Artifact]
 ```
 
----
-
-## 3. 상세 실행 계획 (라이브러리화 최종안)
-
-### **Phase 1: 기반 재설계 (Foundation Refactoring)**
-
-**목표:** 라이브러리화에 앞서, 시스템 내부의 구조적 문제를 해결하고 견고한 기반을 다진다.
-
-*   **Step 1.1: 3계층 아키텍처 확립 및 Import 경로 수정**
-    *   **작업:** `grep`을 사용하여 프로젝트 전체에서 `from src.core` 구문을 검색하고, 이를 새로운 3계층 구조(`components`, `engine`, `pipelines`)에 맞게 모두 수정한다.
-    *   **완료 조건:** `src/core` 디렉토리가 완전히 삭제되고, 모든 `import`문이 수정되어 `pytest` 기본 테스트가 정상적으로 실행된다.
-
-*   **Step 1.2: `Factory` 역할 단순화**
-    *   **작업:** `src/engine/factory.py`를 수정한다. `_get_adapter_class`, `create_data_adapter_legacy` 등 `AdapterRegistry`와 책임이 중복되는 모든 매핑/해석 로직과 레거시 메서드를 과감히 제거한다.
-    *   **완료 조건:** `Factory` 클래스에는 오직 `AdapterRegistry.create()`를 호출하여 컴포넌트를 생성하는 로직만 남는다.
-
-### **Phase 2: 어댑터 현대화 및 통합 (Adapter Modernization)**
-
-**목표:** 개별 기술에 종속된 여러 어댑터를 업계 표준 라이브러리를 활용한 단일 통합 어댑터로 교체하여, 복잡성을 극적으로 낮추고 유연성을 극대화한다.
-
-*   **Step 2.1: 통합 `SqlAdapter`, `StorageAdapter`, `FeastAdapter` 구현**
-    *   **작업:** `src/utils/adapters/`에 `sql_adapter.py`, `storage_adapter.py`, `feast_adapter.py`를 신규 생성한다.
-        - `SqlAdapter`: `SQLAlchemy` 기반으로 동작
-        - `StorageAdapter`: `fsspec` 기반으로 동작
-        - `FeastAdapter`: `feast` 라이브러리를 직접 사용하는 가벼운 래퍼
-*   **Step 2.2: `AdapterRegistry` 업데이트 및 레거시 어댑터 제거**
-    *   **작업:** `src/engine/registry.py`의 `register_all_adapters` 함수를 수정하여, 새로 만든 `SqlAdapter`, `StorageAdapter`, `FeastAdapter`를 각각 `"sql"`, `"storage"`, `"feature_store"` 타입으로 명시적으로 등록한다.
-    *   **작업:** `_register_legacy_adapters_temporarily` 함수와 `src/utils/adapters/`에 존재하던 모든 개별 어댑터 파일들(`bigquery_adapter.py`, `gcs_adapter.py` 등)을 **모두 삭제**한다.
-
-### **Phase 3: CLI 및 설정 파이프라인 구축 (CLI & Settings Pipeline)**
-
-**목표:** 라이브러리 사용자에게 명확하고 유용한 CLI 인터페이스를 제공하고, Jinja 템플릿을 지원하는 견고한 설정 로딩 파이프라인을 구축한다.
-
-*   **Step 3.1: Config 파일 구조 개편**
-    *   **작업:** `config/data_adapters.yaml` 파일을 신규 생성하고, `base.yaml`의 `data_adapters` 섹션을 이곳으로 옮긴다.
-    *   **작업:** `config/base.yaml`에서 불필요한 섹션을 정리하고, 핵심적인 인프라 정보만 남도록 단순화한다.
-*   **Step 3.2: "설정 빌더" 파이프라인 구현 (Jinja 포함)**
-    *   **작업:** `src/utils/system/templating_utils.py` 파일을 신규 생성하고, Jinja2 템플릿 렌더링 함수를 구현한다.
-    *   **작업:** `src/settings/loaders.py`를 수정하여 **[YAML 로드 → Jinja 렌더링 → Pydantic 검증]**의 3단계 설정 파이프라인을 구현한다.
-*   **Step 3.3: 신규 CLI 인터페이스 구현**
-    *   **작업:** `main.py`를 수정하여 `Typer` 기반으로 `train`, `batch-inference`, `serve-api`, `init`, `validate`, `test-contract` 커맨드를 모두 구현한다. `train`과 `batch-inference`는 `--context-params` 옵션을 포함한다.
-
-### **Phase 4: 최종 통합 및 검증 (Finalization & Validation)**
-
-**목표:** 리팩토링된 모든 구성요소가 완벽하게 함께 동작함을 검증하고, 변경사항을 모든 사용자 문서에 반영하여 프로젝트를 마무리한다.
-
-*   **Step 4.1: `PyfuncWrapper` 저장 로직 검증**
-    *   **작업:** `src/engine/factory.py`의 `create_pyfunc_wrapper` 함수를 최종 검토하여, `loader_sql_snapshot`에 **Jinja 렌더링이 완료된 최종 SQL 문자열**이 저장되도록 보장한다.
-*   **Step 4.2: End-to-End 통합 테스트**
-    *   **작업:** 새로운 CLI (`--context-params` 포함)를 사용하여 학습 파이프라인을 실행하고, 생성된 `run-id`를 사용하여 `batch-inference`와 `serve-api`가 모두 정상적으로 동작하는지 전체 흐름을 테스트한다.
-*   **Step 4.3: 사용자 문서 현대화**
-    *   **작업:** `README.md`와 `docs/DEVELOPER_GUIDE.md`를 수정하여, 새로운 CLI 사용법, `init` 커맨드, 단순화된 `config` 구조, Jinja 템플릿 작성법 등 모든 변경사항을 반영한다.
+| Phase | 목표 | 핵심 기술 | 예상 기간 | 완료 기준 |
+|:------|:-----|:----------|:----------|:----------|
+| **Phase 1** | Recipe 구조 현대화 | Pydantic 모델, YAML 검증 | **1주** | Entity+Timestamp 필수 Recipe 로딩 성공 |
+| **Phase 2** | ASOF JOIN 구현 | Feast Historical Features, pandas asof_join | **1주** | Pass-through/FeatureStore 모드 모두 동작 |
+| **Phase 3** | Dynamic Inference | Jinja 보안, Context Params | **1주** | 안전한 동적 시점 Batch Inference |
+| **Phase 4** | 스키마 검증 | Schema Validator, 타입 검사 | **1주** | 학습/추론 스키마 불일치 자동 감지 |
+| **Phase 5** | Artifact 강화 | MLflow 통합, 메타데이터 | **1주** | 완전한 재현성 보장 Artifact |
 
 ---
 
-## 4. 리팩토링 완료 후 재개 계획
+## 📋 **Phase 1: Recipe 구조 현대화 (1주차)**
 
-위의 모든 리팩토링이 완료되고 시스템이 안정화된 후, 아래의 기존 기능 고도화 계획들을 순서대로 재개한다.
+### **목표**
+Entity + Timestamp 기반 시점 관리를 Recipe 수준에서 강제하여 모든 ML 파이프라인이 시점 안전성을 갖도록 함
 
-- **Feature Store 심층 테스트 재개**
-- **성능 및 안정성 테스트**
-- **CI/CD 자동화**
+### **핵심 변경사항**
+
+#### **Step 1.1: Pydantic 모델 확장 (2일)**
+```python
+# 구현 대상: src/settings/models.py
+
+class LoaderDataInterface(BaseModel):
+    """시점 기반 데이터 인터페이스 (필수 항목)"""
+    entity_columns: List[str]           # 필수: ["user_id", "product_id"] 
+    timestamp_column: str               # 필수: "event_timestamp"
+    target_column: Optional[str]        # 선택: "target" (Train만)
+    task_type: str                      # 기존: "classification"
+    
+    @validator('entity_columns')
+    def validate_entity_columns(cls, v):
+        if not v or len(v) == 0:
+            raise ValueError("entity_columns는 최소 1개 이상 필요")
+        return v
+
+class LoaderSettings(BaseModel):
+    """확장된 Loader 설정"""
+    name: Optional[str] = None
+    source_uri: str
+    data_interface: LoaderDataInterface  # 🆕 추가
+```
+
+#### **Step 1.2: Recipe YAML 구조 변경 (2일)**
+```yaml
+# 목표 구조: recipes/models/*.yaml
+model:
+  loader:
+    source_uri: "recipes/sql/loaders/fraud_spine.sql.j2"
+    data_interface:                    # 🆕 추가
+      entity_columns: ["user_id", "merchant_id"]
+      timestamp_column: "transaction_timestamp"  
+      target_column: "is_fraud"
+      task_type: "classification"
+```
+
+#### **Step 1.3: 기존 Recipe 파일 전체 업데이트 (1일)**
+- `recipes/models/` 하위 25개 모든 YAML 파일 업데이트
+- 각 Recipe에 `data_interface` 섹션 추가
+- Pydantic 검증 통과하도록 수정
+
+### **완료 기준**
+- [ ] 모든 Recipe 파일이 새로운 구조로 로딩 성공
+- [ ] Entity/Timestamp 컬럼이 명시되지 않은 Recipe는 로딩 실패
+- [ ] `pytest tests/settings/` 모든 테스트 통과
 
 ---
 
-## 부록 (Appendix)
+## ⚙️ **Phase 2: ASOF JOIN 기반 Augmenter 구현 (2주차)**
 
-### A.1: 발견된 문제점 상세
+### **목표**
+Point-in-Time 안전한 Feature 증강을 Augmenter 레벨에서 처리하여 Data Leakage를 원천 차단
 
-- **🔥 Critical: Import/Registry 패턴 충돌:** `src/core/factory.py`와 `src/utils/adapters/__init__.py`에서 어댑터 클래스를 직접 `import`하여, 데코레이터 기반 Registry 패턴과 혼재되며 `pytest` 실행 시 `namespace package` 충돌 발생.
-- **📊 Major: FeatureStoreAdapter 과도한 복잡성:** 369줄의 거대한 단일 클래스가 Redis에 강하게 종속되어, Feast가 지원하는 다른 Online Store(DynamoDB, PostgreSQL 등)로의 확장을 원천 차단.
-- **⚙️ Medium: 복잡한 매핑 로직 중복:** 동일한 어댑터 매핑 로직이 Registry, Factory, Legacy 메서드 등 3곳 이상에서 중복되어 유지보수성과 일관성 저해.
+### **핵심 구현사항**
 
-### A.2: 기존 리팩토링 계획 (v1 - History)
+#### **Step 2.1: 현대화된 Augmenter 아키텍처 (3일)**
+```python
+# 구현 대상: src/components/augmenter.py
 
-- #### **Phase R1: Registry 패턴 완전 단순화 (최우선, 2-3일)**
-  - **목표**: 복잡한 메타프로그래밍 제거, 단순한 딕셔너리 기반 Registry로 전환
-- #### **Phase R2: Factory 단순화 (중요도 높음, 1-2일)**
-  - **목표**: 매핑 로직 단순화, 오직 생성(instantiation) 책임만 수행
-- #### **Phase R2-A: 3층 아키텍처 구조 개편 (병렬 진행, 1-2일)**
-  - **목표**: 현재 혼재된 `src/core/` 구조를 명확한 3층 구조로 재편
-- #### **Phase R3: FeatureStore → Feast Native (혁신적 변화, 3-5일)**
-  - **목표**: Redis 종속성 완전 제거, Feast의 네이티브 Online Store 지원 활용
-- #### **Phase R4: 어댑터 통합 및 추상화 (새로운 단계, 3-4일)**
-  - **목표**: `fsspec`과 `SQLAlchemy`를 활용하여 여러 어댑터를 단일 통합 어댑터로 통합
-- #### **Phase R5: 통합 테스트 및 검증 (최종, 2-3일)**
-  - **목표**: 리팩토링된 전체 구조로 모든 기존 테스트 통과 확인
+class Augmenter(BaseAugmenter):
+    """Point-in-Time 지원 Augmenter"""
+    
+    def augment(self, spine_df: pd.DataFrame, run_mode="batch"):
+        """두 가지 모드 지원"""
+        if self.augmenter_config.type == "pass_through":
+            return spine_df  # SQL만으로 학습
+        elif self.augmenter_config.type == "feature_store":
+            return self._asof_join_features(spine_df, run_mode)
+    
+    def _asof_join_features(self, spine_df, run_mode):
+        """ASOF JOIN으로 안전한 feature 조회"""
+        if run_mode == "batch":
+            # Historical features (ASOF JOIN 내장)
+            return self.feast_adapter.get_historical_features(...)
+        elif run_mode == "serving":
+            # Online features (최신값)
+            return self._get_online_features(...)
+```
 
-### A.3: 완료된 작업 (기존 History)
+#### **Step 2.2: Feast Adapter 개선 (2일)**
+```python
+# 구현 대상: src/utils/adapters/feast_adapter.py
 
-- **Phase 1: 기반 구축 및 계약 확립 (완료)**
-- **Phase 2: 테스트 스위트 전체 현대화 (완료)** 
+class ModernFeastAdapter(BaseAdapter):
+    """Point-in-Time 지원 Feature Store 어댑터"""
+    
+    def get_historical_features(self, entity_df, feature_views):
+        """과거 시점 feature 조회 (ASOF JOIN)"""
+        return self.store.get_historical_features(
+            entity_df=entity_df,
+            features=feature_views
+        ).to_df()
+```
+
+#### **Step 2.3: Pass-through 모드 구현 (1일)**
+- SQL만으로 완전한 feature + target 조회하는 경우
+- Feature Store 없이 단순 학습 지원
+- `augmenter.type: "pass_through"` 설정
+
+#### **Step 2.4: 스키마 검증 로직 (1일)**
+- Spine 데이터 필수 컬럼 검증
+- Timestamp 컬럼 타입 검증
+- Augmented 결과 일관성 검사
+
+### **완료 기준**
+- [ ] Feature Store 모드에서 ASOF JOIN 정상 동작
+- [ ] Pass-through 모드에서 원본 데이터 그대로 반환
+- [ ] `pytest tests/components/test_augmenter.py` 통과
+
+---
+
+## 🔄 **Phase 3: 안전한 Dynamic Batch Inference (3주차)**
+
+### **목표**
+Context Params로 시점을 동적 변경하되, SQL Injection을 방지하고 Template 기반에서만 허용
+
+### **핵심 구현사항**
+
+#### **Step 3.1: 안전한 Jinja Template 시스템 (3일)**
+```python
+# 구현 대상: src/pipelines/inference_pipeline.py
+
+def _is_safe_jinja_template(sql: str) -> bool:
+    """위험한 SQL 패턴 감지 및 차단"""
+    dangerous_patterns = [
+        'DROP', 'DELETE', 'UPDATE', 'INSERT', 'ALTER', 'TRUNCATE'
+    ]
+    # SQL Injection 방지 로직
+
+def _validate_context_params(context_params: dict) -> dict:
+    """허용된 파라미터만 통과"""
+    allowed_keys = ['start_date', 'end_date', 'target_date', 'period']
+    # 날짜 형식 검증 및 안전성 보장
+```
+
+#### **Step 3.2: Template SQL 개선 (2일)**
+```sql
+-- 구현 대상: recipes/sql/loaders/*.sql.j2
+
+SELECT 
+    user_id, merchant_id,              -- Entity
+    transaction_timestamp,             -- Timestamp
+    {% if include_target | default(true) %}
+    is_fraud,                          -- Target (Training만)
+    {% endif %}
+    amount, location
+FROM transactions 
+WHERE transaction_timestamp >= '{{ start_date | default('2024-01-01') }}'
+  AND transaction_timestamp < '{{ end_date | default('2024-12-31') }}'
+  {% if not include_target | default(true) %}
+  AND transaction_timestamp <= CURRENT_TIMESTAMP  -- 미래 방지
+  {% endif %}
+```
+
+#### **Step 3.3: 제한적 Dynamic SQL 전략 (2일)**
+- Train 시 Jinja template 사용한 경우에만 동적 변경 허용
+- 정적 SQL로 학습된 모델은 동적 시점 변경 금지
+- 보안 강화된 context params 검증
+
+### **완료 기준**
+- [ ] Jinja template 기반 Recipe의 동적 Batch Inference 성공
+- [ ] 정적 SQL Recipe의 동적 변경 시 적절한 에러 메시지
+- [ ] SQL Injection 패턴 완전 차단 검증
+
+---
+
+## ✅ **Phase 4: 강화된 스키마 검증 시스템 (4주차)**
+
+### **목표**
+학습 시점과 추론 시점의 데이터 스키마 일관성을 자동으로 검증하여 Schema Drift 조기 발견
+
+### **핵심 구현사항**
+
+#### **Step 4.1: Schema Consistency Validator (3일)**
+```python
+# 구현 대상: src/engine/schema_validator.py
+
+class SchemaConsistencyValidator:
+    """학습/추론 스키마 일관성 검증"""
+    
+    def validate_inference_consistency(self, inference_df: pd.DataFrame):
+        """3단계 검증"""
+        # 1. 필수 컬럼 존재 여부
+        # 2. 컬럼 타입 호환성  
+        # 3. Entity/Timestamp 특별 검증
+        
+    def _is_compatible_dtype(self, expected: str, actual: str):
+        """타입 호환성 매트릭스"""
+        # int64 ↔ int32, float64 ↔ float32 등
+```
+
+#### **Step 4.2: 실시간 검증 통합 (2일)**
+- Batch Inference 시점 자동 스키마 검증
+- API Serving 시점 실시간 검증
+- 불일치 시 상세한 에러 메시지 제공
+
+#### **Step 4.3: Training Pipeline 통합 (2일)**
+- 학습 시점에 스키마 정보 자동 캡처
+- Augmented 데이터 스키마 검증
+- 전처리 후 최종 스키마 검증
+
+### **완료 기준**
+- [ ] 학습/추론 스키마 불일치 시 명확한 에러 메시지
+- [ ] 호환 가능한 타입 변경은 통과 (int64 → int32)
+- [ ] 호환 불가능한 변경은 차단 (string → int)
+
+---
+
+## 📦 **Phase 5: Enhanced Wrapped Artifact (5주차)**
+
+### **목표**
+완전한 스키마 정보와 자동 검증 기능이 내장된 MLflow Artifact로 100% 재현성 보장
+
+### **핵심 구현사항**
+
+#### **Step 5.1: 완전한 스키마 메타데이터 (3일)**
+```python
+# 구현 대상: src/engine/factory.py
+
+def _create_data_schema(self, training_df: pd.DataFrame) -> dict:
+    """학습 데이터로부터 완전한 스키마 정보 생성"""
+    return {
+        'entity_columns': [...],
+        'timestamp_column': '...',
+        'target_column': '...',
+        'training_columns': list(training_df.columns),
+        'inference_columns': [...],
+        'column_types': {col: str(dtype) for col, dtype in ...},
+        'schema_version': '1.0',
+        'created_at': datetime.now().isoformat()
+    }
+```
+
+#### **Step 5.2: 자동 검증 내장 PyfuncWrapper (2일)**
+```python
+# 구현 대상: src/engine/artifact.py
+
+class PyfuncWrapper(mlflow.pyfunc.PythonModel):
+    def predict(self, context, model_input, params=None):
+        # 🆕 자동 스키마 검증
+        if params.get("run_mode") == "batch":
+            self.schema_validator.validate_inference_consistency(model_input)
+        
+        # 기존 예측 로직...
+```
+
+#### **Step 5.3: E2E 통합 테스트 (2일)**
+- 전체 파이프라인 End-to-End 테스트
+- Schema 불일치 시나리오 테스트
+- Dynamic Batch Inference 테스트
+
+### **완료 기준**
+- [ ] MLflow에서 로드한 모델이 자동 스키마 검증 수행
+- [ ] 스키마 정보가 완전히 보존되어 재현성 100% 보장
+- [ ] `pytest tests/integration/test_point_in_time.py` 통과
+
+---
+
+## 🏆 **최종 검증 및 완료 기준**
+
+### **전체 시스템 검증 체크리스트**
+
+#### **Data Leakage 방지 검증**
+- [ ] ASOF JOIN으로 미래 데이터 절대 포함 안됨
+- [ ] Window 연산에서 `following=0` 강제
+- [ ] Inference SQL에서 `CURRENT_TIMESTAMP` 이후 데이터 제외
+
+#### **Schema 일관성 검증**  
+- [ ] 학습 시 스키마와 추론 시 스키마 자동 비교
+- [ ] 컬럼 누락/타입 불일치 즉시 감지
+- [ ] Entity/Timestamp 컬럼 필수 존재 검증
+
+#### **Dynamic 시점 지원**
+- [ ] Jinja template 기반 안전한 동적 시점 변경
+- [ ] SQL Injection 패턴 완전 차단
+- [ ] Context params 화이트리스트 검증
+
+#### **재현성 보장**
+- [ ] Wrapped Artifact에 완전한 스키마 정보 저장
+- [ ] 동일한 입력에 대해 동일한 출력 보장
+- [ ] MLflow에서 로드 시 모든 검증 로직 자동 활성화
+
+### **성능 목표**
+- Batch Inference 스키마 검증: < 100ms 오버헤드
+- ASOF JOIN 처리: 기존 대비 < 20% 성능 저하
+- Dynamic SQL 렌더링: < 50ms
+
+### **최종 데모 시나리오**
+1. **Jinja template로 fraud detection 모델 학습**
+2. **3개월 후 다른 날짜 범위로 batch inference 실행**  
+3. **스키마 변경된 데이터로 inference 시도 → 자동 차단**
+4. **Pass-through 모드로 SQL 기반 단순 모델 학습**
+5. **Feature Store 모드와 동일한 결과 검증**
+
+---
+
+## 📅 **일정 및 마일스톤**
+
+| 주차 | Phase | 핵심 Deliverable | 검증 기준 |
+|:-----|:------|:----------------|:----------|
+| **1주** | Recipe 현대화 | Entity+Timestamp 필수 Recipe | 25개 Recipe 로딩 성공 |
+| **2주** | ASOF JOIN | Point-in-Time Augmenter | Feature Store/Pass-through 모드 동작 |
+| **3주** | Dynamic Inference | 안전한 Jinja Template | SQL Injection 방지 + 동적 시점 |
+| **4주** | 스키마 검증 | Schema Consistency Validator | 학습/추론 불일치 자동 감지 |
+| **5주** | Artifact 강화 | Enhanced PyfuncWrapper | 완전한 재현성 보장 |
+
+### **Critical Path Dependencies**
+```
+Recipe 구조 → Augmenter → Dynamic Inference → Schema 검증 → Artifact
+    ↓           ↓            ↓               ↓            ↓
+  필수 기반   Point-in-Time  시점 유연성    검증 체계    완전성
+```
+
+이 계획을 통해 **Hopsworks, Databricks Feature Store 수준의 현대적 시점 기반 데이터 관리 시스템**을 5주 내에 완성합니다! 🚀 

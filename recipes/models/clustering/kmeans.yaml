@@ -1,70 +1,84 @@
-# K-Means Clustering - Blueprint v17.0 Automated Excellence
-# 🎯 중심점 기반의 직관적이고 효율적인 클러스터링
+# K-Means Clustering - 고전적이고 효과적인 클러스터링
+# 🎯 중심점 기반 군집화를 통한 고객 세분화 및 패턴 발견
 
-# 1. 모델 기본 정보 (직접 동적 import)
-class_path: "sklearn.cluster.KMeans"
+name: "kmeans"
 
-# 2. 데이터 로더 정의
-loader:
-  name: "clustering_dataset"
-  source_uri: "recipes/sql/loader/clustering_features.sql"
-
-# 3. 피처 증강기 정의 (🆕 Blueprint v17.0 - Feature Store 방식)
-augmenter:
-  type: "feature_store"
-  features:
-    # 사용자 행동 패턴
-    - feature_namespace: "user_behavior"
-      features: ["page_views", "session_duration", "click_rate"]
-    # 구매 패턴
-    - feature_namespace: "purchase_behavior"
-      features: ["avg_order_value", "purchase_frequency", "category_preference"]
-    # 참여도 지표
-    - feature_namespace: "engagement_metrics"
-      features: ["login_frequency", "content_interaction", "social_sharing"]
-
-# 4. 전처리기 정의 (클러스터링에는 특히 중요)
-preprocessor:
-  name: "simple_scaler"
-  params:
-    criterion_col: null
-    exclude_cols: ["user_id", "event_timestamp"]
-
-# 5. 모델 인터페이스
-data_interface:
-  task_type: "clustering"
+model:
+  # 직접 동적 import를 통한 K-Means 클러스터링
+  class_path: "sklearn.cluster.KMeans"
   
-  features:
-    page_views: "numeric"
-    session_duration: "numeric"
-    click_rate: "numeric"
-    avg_order_value: "numeric"
-    purchase_frequency: "numeric"
-    category_preference: "category"
-    login_frequency: "numeric"
-    content_interaction: "numeric"
-    social_sharing: "numeric"
-  
-  # 클러스터링 전용 설정
-  n_clusters: 5
-  true_labels_col: "true_cluster"  # 평가용 (선택적)
+  # 하이퍼파라미터 정의 (Optuna 자동 최적화 지원)
+  hyperparameters:
+    # 🔥 자동 최적화 범위 - K-Means 특화 하이퍼파라미터
+    n_clusters: {type: "int", low: 2, high: 20}
+    init: {type: "categorical", choices: ["k-means++", "random"]}
+    n_init: {type: "int", low: 10, high: 50}
+    max_iter: {type: "int", low: 100, high: 1000}
+    tol: {type: "float", low: 1e-6, high: 1e-2, log: true}
+    algorithm: {type: "categorical", choices: ["auto", "full", "elkan"]}
+    
+    # 🔧 고정값 - K-Means 안정성을 위한 설정
+    random_state: 42
 
-# 🆕 6. 하이퍼파라미터 (Dictionary 형식 + 자동 튜닝)
-hyperparameters:
-  # 🔥 자동 최적화 범위 (K-Means 특화)
-  n_clusters: {type: "int", low: 2, high: 10}
-  init: {type: "categorical", choices: ["k-means++", "random"]}
-  n_init: {type: "int", low: 10, high: 50}
-  algorithm: {type: "categorical", choices: ["lloyd", "elkan"]}
-  
-  # 🔧 고정값
-  random_state: 42
-  max_iter: 300
-  tol: 1e-4
+  # 하이퍼파라미터 튜닝 설정
+  hyperparameter_tuning:
+    enabled: true
+    n_trials: 80
+    metric: "silhouette_score"  # 클러스터링 품질 메트릭
+    direction: "maximize"
 
-# 🆕 7. 하이퍼파라미터 튜닝 설정
-hyperparameter_tuning:
-  enabled: true
-  n_trials: 30
-  metric: "silhouette_score"
-  direction: "maximize" 
+  # 데이터 로더 정의 (Spine 생성)
+  loader:
+    name: "clustering_loader"
+    source_uri: "recipes/sql/loaders/user_features.sql"
+
+  # 피처 증강 정의 (Feature Store 기반)
+  augmenter:
+    type: "feature_store"
+    features:
+      # 사용자 기본 정보 피처
+      - feature_namespace: "user_demographics"
+        features: ["age", "country_code"]
+      
+      # 사용자 구매 이력 피처  
+      - feature_namespace: "user_purchase_summary"
+        features: ["ltv", "total_purchase_count", "last_purchase_date"]
+      
+      # 상품 상세 정보 피처
+      - feature_namespace: "product_details"
+        features: ["price", "category", "brand"]
+      
+      # 세션 행동 피처
+      - feature_namespace: "session_summary"
+        features: ["time_on_page_seconds", "click_count"]
+
+  # 전처리 설정 (클러스터링은 스케일링이 매우 중요)
+  preprocessor:
+    name: "simple_scaler"
+    params:
+      criterion_col: null
+      # 엔티티 키와 타임스탬프 제외
+      exclude_cols: ["user_id", "product_id", "session_id", "event_timestamp"]
+
+  # 데이터 인터페이스 정의
+  data_interface:
+    task_type: "clustering"
+    # 클러스터링은 target_col이 없음 (비지도 학습)
+
+  # 평가자 설정
+  evaluator:
+    name: "clustering_evaluator"
+
+# 평가 설정 (클러스터링 특화 메트릭)
+evaluation:
+  metrics:
+    - "silhouette_score"
+    - "calinski_harabasz_score"
+    - "davies_bouldin_score"
+    - "inertia"
+  
+  validation:
+    method: "unsupervised"  # 비지도 학습이므로 별도 분할 없음
+
+# 💡 사용 예시:
+# APP_ENV=dev uv run python main.py train --recipe-file models/clustering/kmeans 

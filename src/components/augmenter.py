@@ -70,12 +70,12 @@ class LocalFileAugmenter(BaseAugmenter):
 class Augmenter(BaseAugmenter):
     """
     Feature Store와 연동하여 데이터를 증강하는 Augmenter.
-    DEV, PROD 등 Feature Store를 사용하는 환경을 위해 사용됩니다.
+    현대화된 Recipe 구조 전용 (settings.recipe.model)
     """
     def __init__(self, settings: Settings, factory: "Factory"):
         self.settings = settings
         self.factory = factory
-        self.feature_config = self.settings.model.augmenter.features or []
+        self.feature_config = self.settings.recipe.model.augmenter.features or []
         
         # Feature Store 어댑터 초기화
         try:

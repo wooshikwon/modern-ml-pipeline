@@ -17,11 +17,17 @@ class StorageAdapter(BaseAdapter):
     """
     def __init__(self, settings: Settings, **kwargs):
         super().__init__(settings, **kwargs)
-        # settings 객체로부터 GCS/S3 등에 필요한 인증 정보를 읽어 
-        # fsspec이 요구하는 storage_options 딕셔너리를 생성합니다.
-        # 예시: self.storage_options = {"project": "my-gcp-project"}
-        self.storage_options = {}
-        logger.info("Storage options 생성. 현재는 기본값 사용.")
+        # settings에서 storage adapter 설정을 동적으로 로드
+        try:
+            storage_adapter_config = self.settings.data_adapters.adapters['storage']
+            self.storage_options = storage_adapter_config.config.get('storage_options', {})
+            logger.info(f"StorageAdapter 초기화 완료. storage_options: {self.storage_options}")
+        except KeyError as e:
+            logger.warning(f"Storage 어댑터 설정을 찾을 수 없습니다: {e}. 기본값 사용.")
+            self.storage_options = {}
+        except Exception as e:
+            logger.error(f"StorageAdapter 초기화 실패: {e}", exc_info=True)
+            self.storage_options = {}
 
     def read(self, uri: str, **kwargs) -> pd.DataFrame:
         """URI로부터 데이터를 읽어 DataFrame으로 반환합니다."""

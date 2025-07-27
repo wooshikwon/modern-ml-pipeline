@@ -1,68 +1,334 @@
-# config/dev.yaml: 'dev' 환경 전용 설정
-# 'mmp-local-dev' 환경을 위한 설정으로, 운영과 유사한 환경을 시뮬레이션합니다.
+# =============================================================================
+# config/dev.yaml - 개발 환경 설정 (팀 협업 및 통합 테스트)
+# =============================================================================
+# 
+# 🎯 DEV 환경 철학: "모든 기능이 완전히 작동하는 안전한 실험실"
+# - 완전한 기능: 운영과 동일한 아키텍처, 다른 스케일
+# - 팀 공유: 통합된 Feature Store와 MLflow
+# - 안전한 실험: 운영에 영향 없는 독립 환경
+# - 실제 환경: PROD와 동일한 기술 스택 검증
+#
+# 📋 주요 Use Cases:
+# 1. 팀 협업 및 모델 공유 (5-10명 개발팀)
+# 2. 통합 테스트 및 CI/CD 검증
+# 3. Feature Store 파이프라인 테스트
+# 4. API 서빙 및 성능 테스트
+# 5. 프로덕션 배포 전 최종 검증
+# =============================================================================
 
-# 데이터 어댑터 설정 (data_adapters.yaml 통합)
+# 🗃️ 데이터 어댑터 설정 - mmp-local-dev 연동
 data_adapters:
-  default_loader: "sql"  # dev 환경에서는 SQL 실행 필요
-  default_storage: "storage"
-  default_feature_store: "feature_store"
+  default_loader: "sql"              # PostgreSQL SQL 실행
+  default_storage: "storage"         # 로컬/클라우드 스토리지
+  default_feature_store: "feature_store"  # Feast Feature Store
   
-  # dev 환경 전용 어댑터 설정
   adapters:
+    # SQL 어댑터 - PostgreSQL 개발 DB
     sql:
       class_name: SqlAdapter
       config:
         connection_uri: "postgresql://mluser:mysecretpassword@127.0.0.1:5432/mlpipeline"
+        
+        # 🎯 Use Case별 DB 설정 예시:
+        #
+        # 🏢 팀 공유 PostgreSQL:
+        # connection_uri: "postgresql://team:${TEAM_DB_PASSWORD}@dev-db.company.com:5432/ml_dev"
+        # pool_size: 10
+        # max_overflow: 5
+        #
+        # ☁️ Cloud SQL (GCP) 개발 인스턴스:
+        # connection_uri: "postgresql://dev_user:${DEV_DB_PASSWORD}@${CLOUD_SQL_DEV_IP}:5432/ml_dev"
+        # ssl_mode: "require"
+        #
+        # 🔵 Azure PostgreSQL:
+        # connection_uri: "postgresql://devuser@dev-server:${DEV_PASSWORD}@dev-server.postgres.database.azure.com:5432/ml_dev"
+        #
+        # 🧪 CI/CD 테스트용:
+        # connection_uri: "postgresql://ci_user:${CI_DB_PASSWORD}@ci-db:5432/test_db"
+        # pool_pre_ping: true
+    
+    # Storage 어댑터 - 개발 환경 스토리지
     storage:
       class_name: StorageAdapter
-      config: {}
+      config: 
+        # 기본값: 로컬 파일시스템 (빠른 개발)
+        storage_options: {}
+        
+        # 🎯 Use Case별 스토리지 설정:
+        #
+        # 📁 로컬 개발 (기본값):
+        # storage_options: {}  # fsspec이 자동으로 로컬 처리
+        #
+        # ☁️ 개발 전용 GCS 버킷:
+        # storage_options:
+        #   project: "ml-dev-project"
+        #   token: ${GCS_DEV_SERVICE_ACCOUNT}
+        #
+        # 🗂️ 팀 공유 NFS:
+        # base_path: "/shared/ml-team/data"
+        # storage_options:
+        #   auto_mkdir: true
+        #
+        # 🧪 CI/CD 임시 스토리지:
+        # storage_options:
+        #   cache_storage: "/tmp/ci_cache"
+        #   auto_cleanup: true
+    
+    # Feature Store 어댑터
     feature_store:
       class_name: FeastAdapter
       config: {}
 
-# dev 환경 Feature Store 설정 (Feast - mmp-local-dev 연동)
+# 🍽️ Feature Store 설정 - 팀 공유 개발 환경
 feature_store:
   provider: "feast"
   feast_config:
     project: "ml_pipeline_dev"
     provider: "local"
     registry: "data/feature_store/dev_registry.sqlite"
+    
+    # Offline Store - PostgreSQL (mmp-local-dev)
     offline_store:
       type: "postgres"
       host: "localhost"
       port: 5432
       database: "mlpipeline"
-      db_schema: "public"
+      db_schema: "features"  # mmp-local-dev의 features 스키마
       user: "mluser"
       password: "mysecretpassword"
+      
+      # 🎯 Use Case별 Offline Store 설정:
+      #
+      # 🏢 팀 공유 PostgreSQL:
+      # host: "dev-db.company.com"
+      # database: "team_features"
+      # user: "team_feast"
+      # password: ${TEAM_FEAST_PASSWORD}
+      # connection_pool_size: 10
+      #
+      # 🗄️ BigQuery 개발 데이터셋:
+      # type: "bigquery"
+      # project_id: "ml-dev-project"
+      # dataset_id: "dev_feature_store"
+      # location: "US"
+      #
+      # 🧪 CI/CD 테스트 환경:
+      # type: "postgres"
+      # host: "ci-postgres"
+      # database: "test_features"
+      # user: "ci_test"
+      # password: ${CI_FEAST_PASSWORD}
+    
+    # Online Store - Redis (mmp-local-dev)
     online_store:
       type: "redis"
       connection_string: "localhost:6379"
+      
+      # 🎯 Use Case별 Online Store 설정:
+      #
+      # ⚡ 팀 공유 Redis:
+      # connection_string: "redis://dev-redis.company.com:6379"
+      # password: ${DEV_REDIS_PASSWORD}
+      # db: 1  # 개발 전용 DB
+      #
+      # 🔧 Redis Cluster (고가용성 테스트):
+      # type: "redis"
+      # redis_type: "redis_cluster"
+      # connection_string: "redis://dev-cluster-1:6379,redis://dev-cluster-2:6379"
+      #
+      # ☁️ Cloud Redis (GCP):
+      # connection_string: "redis://:${REDIS_PASSWORD}@${REDIS_DEV_IP}:6379"
+      # ssl: true
+      #
+      # 🧪 CI/CD 임시 Redis:
+      # connection_string: "redis://ci-redis:6379/5"
+      # socket_timeout: 1
 
-# dev 환경 하이퍼파라미터 튜닝
+# 📊 MLflow 설정 - 팀 공유 실험 추적
+mlflow:
+  tracking_uri: http://localhost:5002  # mmp-local-dev MLflow 서버
+  experiment_name: "E2E-Test-Experiment-2025"
+  
+  # 🎯 Use Case별 MLflow 설정:
+  #
+  # 🏢 팀 공유 MLflow 서버:
+  # tracking_uri: "https://mlflow-dev.company.com"
+  # experiment_name: "Team-Dev-Experiments-${TEAM_NAME}"
+  #
+  # 📊 개발자별 실험 분리:
+  # experiment_name: "Dev-${USER}-Experiments"
+  # tags:
+  #   developer: ${USER}
+  #   environment: "dev"
+  #
+  # 🧪 CI/CD 자동 테스트:
+  # tracking_uri: "http://ci-mlflow:5000"
+  # experiment_name: "CI-Automated-Tests-${BUILD_ID}"
+  #
+  # 🔄 브랜치별 실험:
+  # experiment_name: "Feature-${GIT_BRANCH}-Experiments"
+
+# ⚡ 하이퍼파라미터 튜닝 - 개발 환경 최적화
 hyperparameter_tuning:
   enabled: true
-  timeout: 600  # 10분
+  timeout: 600  # 10분 (개발 환경 자원 보호)
+  engine: "optuna"
+  
+  pruning:
+    enabled: true
+    algorithm: "MedianPruner"
+    n_startup_trials: 5     # 빠른 개발 피드백
+    n_warmup_steps: 10
+  
+  parallelization:
+    n_jobs: 4              # 개발 서버 자원 고려
+    
+  # 🎯 Use Case별 튜닝 설정:
+  #
+  # 🚀 빠른 개발 검증:
+  #   timeout: 300           # 5분 제한
+  #   parallelization:
+  #     n_jobs: 2            # 가벼운 리소스 사용
+  #
+  # 🔍 상세 개발 테스트:
+  #   timeout: 1800          # 30분 허용
+  #   parallelization:
+  #     n_jobs: 8            # 더 많은 리소스 활용
+  #
+  # 🧪 CI/CD 자동 테스트:
+  #   timeout: 180           # 3분 극한 제한
+  #   parallelization:
+  #     n_jobs: 1            # CI 환경 안정성 우선
+  #
+  # 👥 팀 공유 환경:
+  #   timeout: 900           # 15분
+  #   parallelization:
+  #     n_jobs: 6            # 팀원들과 자원 공유
 
+# 🌐 환경 변수 - 개발 환경 설정
 environment:
-  gcp_project_id: "dev-project" # 예시
+  app_env: "dev"
+  gcp_project_id: "dev-project"
+  
+  # 🔧 개발 지원 기능
+  development:
+    enable_debug_mode: true     # 상세 디버깅 정보
+    enable_profiling: false     # 기본 비활성화 (필요시 true)
+    save_intermediate: true     # 중간 결과 저장 (디버깅용)
+    
+  # 🧪 테스트 설정
+  testing:
+    enable_fast_mode: false     # 빠른 테스트 모드
+    mock_external_apis: false   # 외부 API 모킹
+    use_sample_data: false      # 샘플 데이터 사용
 
-mlflow:
-  tracking_uri: http://localhost:5002 # 포트 변경: 5001 -> 5002 (추가 포트 충돌 해결)
-  experiment_name: "E2E-Test-Experiment-2025" # E2E 테스트 전용 실험명
-
-# dev 환경 API 서빙 활성화
+# 🔄 API 서빙 - 개발 및 테스트용
 serving:
   enabled: true
-  model_stage: "Staging"
-  # dev 환경에서는 feature_store 설정을 따름
+  model_stage: "Staging"        # MLflow Staging 스테이지 사용
+  
+  # 🎯 Use Case별 서빙 설정:
+  #
+  # 🔧 개발 테스트:
+  #   host: "localhost"
+  #   port: 8000
+  #   workers: 1
+  #
+  # 👥 팀 공유 개발 서버:
+  #   host: "0.0.0.0"
+  #   port: 8080
+  #   workers: 2
+  #   cors_origins: ["http://localhost:3000", "https://dev-frontend.company.com"]
+  #
+  # 🧪 CI/CD 자동 테스트:
+  #   host: "0.0.0.0"
+  #   port: 8888
+  #   workers: 1
+  #   enable_docs: false     # API 문서 비활성화
+  #
+  # 🚀 성능 테스트:
+  #   workers: 4
+  #   timeout: 30
+  #   enable_metrics: true
 
+# 📦 아티팩트 저장소 - 개발 환경 데이터 관리
 artifact_stores:
+  # 피처 증강 데이터
+  augmented_dataset:
+    enabled: true
+    base_uri: "file://./local/artifacts/dev_augmented"
+    
+    # 🎯 Use Case별 저장소 설정:
+    # base_uri: "file://./shared/team_artifacts"        # 팀 공유 스토리지
+    # base_uri: "gs://ml-dev-artifacts/augmented"       # 클라우드 스토리지
+    # base_uri: "file:///nfs/ml-team/artifacts"         # NFS 공유 스토리지
+  
+  # 전처리 데이터 (개발/디버깅용)
+  preprocessed_dataset:
+    enabled: true           # 개발에서는 활성화
+    base_uri: "file://./local/artifacts/dev_preprocessed"
+    
+  # 예측 결과
   prediction_results:
     enabled: true
     base_uri: "file://./local/artifacts/dev_predictions"
-    # PostgreSQL 저장 옵션 추가 (mmp-local-dev 연동)
+    
+    # PostgreSQL 저장 (mmp-local-dev 연동)
     postgres_storage:
       enabled: true
       table_name: "batch_predictions"
       connection_uri: "postgresql://mluser:mysecretpassword@127.0.0.1:5432/mlpipeline"
+      
+      # 🎯 Use Case별 DB 저장:
+      #
+      # 👥 팀 공유 결과 DB:
+      # connection_uri: "postgresql://team:${TEAM_PASSWORD}@dev-db:5432/ml_results"
+      # table_name: "team_predictions"
+      #
+      # 🧪 CI/CD 테스트 결과:
+      # connection_uri: "postgresql://ci:${CI_PASSWORD}@ci-db:5432/test_results"
+      # table_name: "ci_test_predictions"
+      # auto_cleanup: true
+      #
+      # 📊 성능 테스트 결과:
+      # table_name: "performance_test_predictions"
+      # enable_indexing: true
+      # partition_by: "prediction_date"
+
+# 🔍 개발 환경 모니터링
+monitoring:
+  enable_metrics: true          # 기본 메트릭 수집
+  enable_logging: true          # 상세 로깅
+  
+  # 📊 개발 지원 도구
+  development_tools:
+    enable_query_profiling: false    # SQL 쿼리 프로파일링
+    enable_memory_profiling: false   # 메모리 사용량 프로파일링
+    save_execution_traces: false     # 실행 추적 저장
+    
+  # 🚨 개발 환경 알림 (선택적)
+  alerts:
+    enable_slack_notifications: false
+    slack_channel: "#ml-dev-alerts"
+    error_threshold: 0.05       # 5% 에러율에서 알림
+
+# 💡 개발팀 가이드:
+#
+# 🚀 개발 환경 시작:
+#   ./setup-dev-environment.sh start
+#
+# 🧪 모델 실험:
+#   APP_ENV=dev uv run python main.py train --recipe-file my_experiment
+#
+# 🔄 API 서빙 테스트:
+#   APP_ENV=dev uv run python main.py serve-api --run-id <DEV_RUN_ID>
+#   curl http://localhost:8000/predict -X POST -H "Content-Type: application/json" -d '{"user_id": "test123"}'
+#
+# 📊 MLflow UI 접근:
+#   http://localhost:5002
+#
+# 🗄️ Feature Store 상태 확인:
+#   feast --feature-store-yaml ./feast/feature_store.yaml feature-views list
+#
+# 🧪 통합 테스트:
+#   ./setup-dev-environment.sh test

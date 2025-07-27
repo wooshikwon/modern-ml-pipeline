@@ -1,70 +1,88 @@
-# Elastic Net Regression - Blueprint v17.0 Automated Excellence
-# ⚖️ L1과 L2 정규화를 결합한 균형잡힌 선형 회귀
+# Elastic Net - L1+L2 결합 정규화 회귀
+# ⚖️ Ridge와 Lasso의 최고 장점을 결합한 하이브리드 정규화 회귀
 
-# 1. 모델 기본 정보 (직접 동적 import)
-class_path: "sklearn.linear_model.ElasticNet"
+name: "elastic_net"
 
-# 2. 데이터 로더 정의
-loader:
-  name: "regression_dataset"
-  source_uri: "recipes/sql/loader/regression_features.sql"
-
-# 3. 피처 증강기 정의 (🆕 Blueprint v17.0 - Feature Store 방식)
-augmenter:
-  type: "feature_store"
-  features:
-    # 기본 수치형 피처
-    - feature_namespace: "numerical_features"
-      features: ["feature_1", "feature_2", "feature_3", "feature_4"]
-    # 사용자 행동 피처
-    - feature_namespace: "user_engagement"
-      features: ["page_views", "time_spent", "bounce_rate"]
-    # 고차원 피처 (Elastic Net이 잘 처리함)
-    - feature_namespace: "extended_features"
-      features: ["ext_1", "ext_2", "ext_3", "ext_4", "ext_5"]
-
-# 4. 전처리기 정의
-preprocessor:
-  name: "simple_scaler"
-  params:
-    criterion_col: null
-    exclude_cols: ["user_id", "event_timestamp"]
-
-# 5. 모델 인터페이스
-data_interface:
-  task_type: "regression"
+model:
+  # 직접 동적 import를 통한 Elastic Net 회귀기
+  class_path: "sklearn.linear_model.ElasticNet"
   
-  features:
-    feature_1: "numeric"
-    feature_2: "numeric"
-    feature_3: "numeric"
-    feature_4: "numeric"
-    page_views: "numeric"
-    time_spent: "numeric"
-    bounce_rate: "numeric"
-    ext_1: "numeric"
-    ext_2: "numeric"
-    ext_3: "numeric"
-    ext_4: "numeric"
-    ext_5: "numeric"
-  
-  target_col: "target_value"
+  # 하이퍼파라미터 정의 (Optuna 자동 최적화 지원)
+  hyperparameters:
+    # 🔥 자동 최적화 범위 - Elastic Net 특화 하이퍼파라미터
+    alpha: {type: "float", low: 0.001, high: 10.0, log: true}
+    l1_ratio: {type: "float", low: 0.1, high: 0.9}  # L1과 L2의 비율
+    fit_intercept: {type: "categorical", choices: [true, false]}
+    precompute: {type: "categorical", choices: [true, false, "auto"]}
+    positive: {type: "categorical", choices: [true, false]}
+    selection: {type: "categorical", choices: ["cyclic", "random"]}
+    
+    # 🔧 고정값 - Elastic Net 안정성을 위한 설정
+    random_state: 42
+    max_iter: 2000
+    tol: 1e-4
 
-# 🆕 6. 하이퍼파라미터 (Dictionary 형식 + 자동 튜닝)
-hyperparameters:
-  # 🔥 자동 최적화 범위 (Elastic Net 특화)
-  alpha: {type: "float", low: 0.0001, high: 10, log: true}
-  l1_ratio: {type: "float", low: 0.0, high: 1.0}  # L1과 L2 비율
-  selection: {type: "categorical", choices: ["cyclic", "random"]}
-  
-  # 🔧 고정값
-  random_state: 42
-  max_iter: 1000
-  fit_intercept: true
+  # 하이퍼파라미터 튜닝 설정
+  hyperparameter_tuning:
+    enabled: true
+    n_trials: 80  # alpha와 l1_ratio 두 파라미터가 중요하므로 더 많은 탐색
+    metric: "neg_mean_squared_error"
+    direction: "maximize"
 
-# 🆕 7. 하이퍼파라미터 튜닝 설정
-hyperparameter_tuning:
-  enabled: true
-  n_trials: 40
-  metric: "r2"
-  direction: "maximize" 
+  # 데이터 로더 정의 (Spine 생성)
+  loader:
+    name: "regression_loader"
+    source_uri: "recipes/sql/loaders/user_features.sql"
+
+  # 피처 증강 정의 (Feature Store 기반)
+  augmenter:
+    type: "feature_store"
+    features:
+      # 사용자 기본 정보 피처
+      - feature_namespace: "user_demographics"
+        features: ["age", "country_code"]
+      
+      # 사용자 구매 이력 피처  
+      - feature_namespace: "user_purchase_summary"
+        features: ["ltv", "total_purchase_count", "last_purchase_date"]
+      
+      # 상품 상세 정보 피처
+      - feature_namespace: "product_details"
+        features: ["price", "category", "brand"]
+      
+      # 세션 행동 피처
+      - feature_namespace: "session_summary"
+        features: ["time_on_page_seconds", "click_count"]
+
+  # 전처리 설정 (결합 정규화 모델이므로 스케일링 중요)
+  preprocessor:
+    name: "simple_scaler"
+    params:
+      criterion_col: null
+      # 엔티티 키와 타임스탬프 제외
+      exclude_cols: ["user_id", "product_id", "session_id", "event_timestamp"]
+
+  # 데이터 인터페이스 정의
+  data_interface:
+    task_type: "regression"
+    target_col: "target_value"
+
+  # 평가자 설정
+  evaluator:
+    name: "regression_evaluator"
+
+# 평가 설정
+evaluation:
+  metrics:
+    - "r2_score"
+    - "mean_squared_error"
+    - "mean_absolute_error"
+    - "root_mean_squared_error"
+  
+  validation:
+    method: "train_test_split"
+    test_size: 0.2
+    random_state: 42
+
+# 💡 사용 예시:
+# APP_ENV=dev uv run python main.py train --recipe-file models/regression/elastic_net 

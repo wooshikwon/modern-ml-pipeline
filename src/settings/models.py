@@ -7,7 +7,7 @@ Blueprint v17.0 설정 모델 정의 모듈
 """
 
 from pydantic import BaseModel, Field, RootModel
-from typing import Dict, Any, List, Optional, Union
+from typing import Dict, Any, List, Optional, Union, Literal
 from collections.abc import Mapping
 
 
@@ -107,6 +107,99 @@ class ArtifactStoreSettings(BaseModel):
 # 2. 모델 논리 설정 (recipes/*.yaml)
 # =============================================================================
 
+# 🆕 2.1 Optuna 하이퍼파라미터 지원 모델들
+class OptunaParameterConfig(BaseModel):
+    """Optuna 하이퍼파라미터 설정 (Blueprint v17.0: Automated HPO)"""
+    type: Literal["int", "float", "categorical"]
+    low: Optional[Union[int, float]] = None
+    high: Optional[Union[int, float]] = None
+    log: Optional[bool] = None
+    choices: Optional[List[Any]] = None
+    
+    def validate_optuna_config(self):
+        """Optuna 파라미터 설정 유효성 검증"""
+        if self.type in ["int", "float"]:
+            if self.low is None or self.high is None:
+                raise ValueError(f"{self.type} 타입 파라미터에는 low, high 값이 필요합니다.")
+            if self.low >= self.high:
+                raise ValueError("low 값은 high 값보다 작아야 합니다.")
+        elif self.type == "categorical":
+            if not self.choices or len(self.choices) == 0:
+                raise ValueError("categorical 타입 파라미터에는 choices가 필요합니다.")
+
+
+class ModernHyperparametersSettings(BaseModel):
+    """현대화된 하이퍼파라미터 설정 (Optuna + 고정값 지원)"""
+    root: Dict[str, Union[OptunaParameterConfig, Any]]
+    
+    def get_optuna_params(self) -> Dict[str, OptunaParameterConfig]:
+        """Optuna 최적화 대상 파라미터만 추출"""
+        return {
+            key: value for key, value in self.root.items() 
+            if isinstance(value, OptunaParameterConfig)
+        }
+    
+    def get_fixed_params(self) -> Dict[str, Any]:
+        """고정값 파라미터만 추출"""
+        return {
+            key: value for key, value in self.root.items() 
+            if not isinstance(value, OptunaParameterConfig)
+        }
+
+
+# 🆕 2.2 평가 설정 모델들
+class ValidationMethodSettings(BaseModel):
+    """검증 방법 설정"""
+    method: Literal["train_test_split", "cross_validation", "unsupervised"]
+    test_size: Optional[float] = 0.2
+    stratify: Optional[bool] = None
+    random_state: Optional[int] = 42
+    cv_folds: Optional[int] = 5  # cross_validation용
+    
+    def validate_method_config(self):
+        """검증 방법별 설정 유효성 검증"""
+        if self.method == "train_test_split":
+            if self.test_size is None or not (0.0 < self.test_size < 1.0):
+                raise ValueError("train_test_split에는 0과 1 사이의 test_size가 필요합니다.")
+        elif self.method == "cross_validation":
+            if self.cv_folds is None or self.cv_folds < 2:
+                raise ValueError("cross_validation에는 2 이상의 cv_folds가 필요합니다.")
+
+
+class EvaluationSettings(BaseModel):
+    """평가 설정 (Blueprint v17.0: 작업별 특화 메트릭 지원)"""
+    metrics: List[str]
+    validation: ValidationMethodSettings
+    
+    def validate_task_metrics(self, task_type: str):
+        """작업 타입별 메트릭 유효성 검증"""
+        valid_metrics = {
+            "classification": {
+                "accuracy", "precision", "recall", "f1_score", "roc_auc",
+                "precision_weighted", "recall_weighted", "f1_weighted"
+            },
+            "regression": {
+                "r2_score", "mean_squared_error", "mean_absolute_error", 
+                "root_mean_squared_error", "neg_mean_squared_error", "neg_root_mean_squared_error"
+            },
+            "causal": {
+                "uplift_auc", "uplift_at_k", "qini_coefficient", "treatment_effect"
+            },
+            "clustering": {
+                "silhouette_score", "calinski_harabasz_score", "davies_bouldin_score", 
+                "inertia", "adjusted_rand_score"
+            }
+        }
+        
+        if task_type not in valid_metrics:
+            raise ValueError(f"지원하지 않는 작업 타입: {task_type}")
+        
+        invalid_metrics = set(self.metrics) - valid_metrics[task_type]
+        if invalid_metrics:
+            raise ValueError(f"{task_type}에서 지원하지 않는 메트릭: {invalid_metrics}")
+
+
+# 2.3 모델 논리 컴포넌트 설정들
 class LoaderSettings(BaseModel):
     """데이터 로더 설정"""
     name: str
@@ -151,6 +244,11 @@ class PreprocessorSettings(BaseModel):
     """전처리기 설정"""
     name: str
     params: PreprocessorParamsSettings
+
+
+class EvaluatorSettings(BaseModel):
+    """평가자 설정 (Blueprint v17.0: 새로 추가)"""
+    name: str
 
 
 class HyperparameterTuningSettings(BaseModel):
@@ -219,23 +317,61 @@ class DataInterfaceSettings(BaseModel):
                 raise ValueError("causal 태스크에는 treatment_value가 필요합니다.")
 
 
-class ModelHyperparametersSettings(RootModel[Dict[str, Any]]):
-    """모델 하이퍼파라미터 설정"""
-    root: Dict[str, Any]
-
-
-class ModelSettings(BaseModel):
-    """모델 전체 설정"""
-    class_path: str  # 새로 추가: 동적 모델 로딩용
+# 🆕 2.4 현대화된 모델 설정 (Recipe 구조 지원)
+class ModelConfigurationSettings(BaseModel):
+    """모델 구성 설정 (Blueprint v17.0: Recipe model 섹션)"""
+    class_path: str  # 동적 모델 로딩용
+    
+    # 하이퍼파라미터 (현대화된/기존 형식 모두 지원)
+    hyperparameters: Union[ModernHyperparametersSettings, Dict[str, Any]]
+    
+    # 기본 컴포넌트들
     loader: LoaderSettings
     augmenter: Optional[AugmenterSettings] = None
     preprocessor: Optional[PreprocessorSettings] = None
     data_interface: DataInterfaceSettings
-    hyperparameters: ModelHyperparametersSettings
+    evaluator: Optional[EvaluatorSettings] = None
     
-    # 🆕 새로 추가 (Optional로 하위 호환성 보장)
+    # 튜닝 설정
     hyperparameter_tuning: Optional[HyperparameterTuningSettings] = None
+    
+    # 계산된 필드들
     computed: Optional[Dict[str, Any]] = None
+
+
+# 🆕 2.5 최상위 Recipe 설정
+class RecipeSettings(BaseModel):
+    """
+    완전한 Recipe 설정 (Blueprint v17.0: Recipe YAML 완전 매핑)
+    
+    현대화된 25개 Recipe 파일의 구조를 완전히 지원합니다:
+    - name: Recipe 식별자
+    - model: 모델 구성 설정
+    - evaluation: 평가 설정
+    """
+    name: str
+    model: ModelConfigurationSettings
+    evaluation: EvaluationSettings
+    
+    def validate_recipe_consistency(self):
+        """Recipe 전체의 일관성 검증"""
+        # Task type과 evaluation metrics 일관성 확인
+        self.evaluation.validate_task_metrics(self.model.data_interface.task_type)
+        
+        # Data interface 필수 필드 확인
+        self.model.data_interface.validate_required_fields()
+        
+        # Augmenter 설정 검증
+        if self.model.augmenter:
+            self.model.augmenter.validate_augmenter_config()
+        
+        # Validation method 설정 검증
+        self.evaluation.validation.validate_method_config()
+        
+        # Optuna 파라미터 검증 (현대화된 형식인 경우)
+        if isinstance(self.model.hyperparameters, ModernHyperparametersSettings):
+            for param_name, param_config in self.model.hyperparameters.get_optuna_params().items():
+                param_config.validate_optuna_config()
 
 
 # =============================================================================
@@ -248,6 +384,8 @@ class Settings(BaseModel):
     
     config/*.yaml (인프라 설정) + recipes/*.yaml (모델 논리)의 
     완전한 통합 인터페이스를 제공합니다.
+    
+    현대화된 Recipe 구조 전용 (레거시 지원 제거)
     """
     
     # config/*.yaml에서 오는 필드들 (인프라 설정)
@@ -259,8 +397,8 @@ class Settings(BaseModel):
     # 🆕 Blueprint v17.0: Config-driven Dynamic Factory
     data_adapters: Optional[DataAdapterSettings] = None
     
-    # recipes/*.yaml에서 오는 필드 (모델 논리)
-    model: Optional[ModelSettings] = None
+    # recipes/*.yaml에서 오는 필드 (모델 논리) - 현대화된 Recipe 전용
+    recipe: RecipeSettings
     
     # 🆕 Blueprint v17.0 새로 추가 (Optional로 하위 호환성 보장)
     hyperparameter_tuning: Optional[HyperparameterTuningSettings] = None

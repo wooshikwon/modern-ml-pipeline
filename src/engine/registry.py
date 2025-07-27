@@ -53,32 +53,6 @@ class AdapterRegistry:
         return adapter_class(settings=settings, **kwargs)
 
 
-def _register_legacy_adapters_temporarily():
-    """
-    Phase 2에서 통합 어댑터가 구현되기 전까지, 기존 개별 어댑터들을 임시로 등록합니다.
-    순환 참조 방지를 위해 importlib를 사용합니다.
-    """
-    legacy_adapters = {
-        "filesystem": "src.utils.adapters.file_system_adapter.FileSystemAdapter",
-        "bigquery": "src.utils.adapters.bigquery_adapter.BigQueryAdapter",
-        "gcs": "src.utils.adapters.gcs_adapter.GCSAdapter",
-        "s3": "src.utils.adapters.s3_adapter.S3Adapter",
-        "postgresql": "src.utils.adapters.postgresql_adapter.PostgreSQLAdapter",
-        "redis": "src.utils.adapters.redis_adapter.RedisAdapter",
-        "feature_store": "src.utils.adapters.feature_store_adapter.FeatureStoreAdapter",
-    }
-    
-    for adapter_type, class_path in legacy_adapters.items():
-        try:
-            module_path, class_name = class_path.rsplit('.', 1)
-            module = importlib.import_module(module_path)
-            adapter_class = getattr(module, class_name)
-            AdapterRegistry.register(adapter_type, adapter_class)
-        except ImportError:
-            logger.debug(f"Legacy adapter '{adapter_type}' not found, skipping registration.")
-        except Exception as e:
-            logger.error(f"Error registering legacy adapter '{adapter_type}': {e}")
-
 
 def register_all_adapters():
     """시스템에서 사용하는 모든 어댑터를 명시적으로 등록합니다."""

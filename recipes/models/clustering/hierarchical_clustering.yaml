@@ -1,67 +1,82 @@
-# Hierarchical Clustering (Agglomerative) - Blueprint v17.0 Automated Excellence
-# 🌳 계층적 구조를 발견하는 트리 기반 클러스터링
+# Hierarchical Clustering - 계층적 클러스터링
+# 🌳 트리 구조를 통한 계층적 군집화와 덴드로그램 분석
 
-# 1. 모델 기본 정보 (직접 동적 import)
-class_path: "sklearn.cluster.AgglomerativeClustering"
+name: "hierarchical_clustering"
 
-# 2. 데이터 로더 정의
-loader:
-  name: "clustering_dataset"
-  source_uri: "recipes/sql/loader/clustering_features.sql"
-
-# 3. 피처 증강기 정의 (🆕 Blueprint v17.0 - Feature Store 방식)
-augmenter:
-  type: "feature_store"
-  features:
-    # 사용자 행동 패턴
-    - feature_namespace: "user_behavior"
-      features: ["page_views", "session_duration", "click_rate"]
-    # 구매 패턴
-    - feature_namespace: "purchase_behavior"
-      features: ["avg_order_value", "purchase_frequency", "category_preference"]
-    # 시간 기반 패턴
-    - feature_namespace: "temporal_patterns"
-      features: ["morning_activity", "evening_activity", "weekend_ratio"]
-
-# 4. 전처리기 정의
-preprocessor:
-  name: "simple_scaler"
-  params:
-    criterion_col: null
-    exclude_cols: ["user_id", "event_timestamp"]
-
-# 5. 모델 인터페이스
-data_interface:
-  task_type: "clustering"
+model:
+  # 직접 동적 import를 통한 Agglomerative Clustering
+  class_path: "sklearn.cluster.AgglomerativeClustering"
   
-  features:
-    page_views: "numeric"
-    session_duration: "numeric"
-    click_rate: "numeric"
-    avg_order_value: "numeric"
-    purchase_frequency: "numeric"
-    category_preference: "category"
-    morning_activity: "numeric"
-    evening_activity: "numeric"
-    weekend_ratio: "numeric"
-  
-  # 클러스터링 전용 설정
-  n_clusters: 4
-  true_labels_col: "true_cluster"  # 평가용 (선택적)
+  # 하이퍼파라미터 정의 (Optuna 자동 최적화 지원)
+  hyperparameters:
+    # 🔥 자동 최적화 범위 - Hierarchical Clustering 특화 하이퍼파라미터
+    n_clusters: {type: "int", low: 2, high: 20}
+    metric: {type: "categorical", choices: ["euclidean", "manhattan", "cosine"]}
+    linkage: {type: "categorical", choices: ["ward", "complete", "average", "single"]}
+    
+    # 🔧 고정값 - Hierarchical Clustering 안정성을 위한 설정
+    compute_full_tree: "auto"
+    distance_threshold: null
 
-# 🆕 6. 하이퍼파라미터 (Dictionary 형식 + 자동 튜닝)
-hyperparameters:
-  # 🔥 자동 최적화 범위 (Hierarchical Clustering 특화)
-  n_clusters: {type: "int", low: 2, high: 8}
-  linkage: {type: "categorical", choices: ["ward", "complete", "average", "single"]}
-  metric: {type: "categorical", choices: ["euclidean", "manhattan", "cosine"]}
-  
-  # 🔧 고정값
-  # Hierarchical clustering에는 random_state가 없음
+  # 하이퍼파라미터 튜닝 설정
+  hyperparameter_tuning:
+    enabled: true
+    n_trials: 80  # 클러스터 수와 linkage 조합 탐색
+    metric: "silhouette_score"  # 클러스터링 품질 메트릭
+    direction: "maximize"
 
-# 🆕 7. 하이퍼파라미터 튜닝 설정
-hyperparameter_tuning:
-  enabled: true
-  n_trials: 25
-  metric: "silhouette_score"
-  direction: "maximize" 
+  # 데이터 로더 정의 (Spine 생성)
+  loader:
+    name: "clustering_loader"
+    source_uri: "recipes/sql/loaders/user_features.sql"
+
+  # 피처 증강 정의 (Feature Store 기반)
+  augmenter:
+    type: "feature_store"
+    features:
+      # 사용자 기본 정보 피처
+      - feature_namespace: "user_demographics"
+        features: ["age", "country_code"]
+      
+      # 사용자 구매 이력 피처  
+      - feature_namespace: "user_purchase_summary"
+        features: ["ltv", "total_purchase_count", "last_purchase_date"]
+      
+      # 상품 상세 정보 피처
+      - feature_namespace: "product_details"
+        features: ["price", "category", "brand"]
+      
+      # 세션 행동 피처
+      - feature_namespace: "session_summary"
+        features: ["time_on_page_seconds", "click_count"]
+
+  # 전처리 설정 (계층적 클러스터링은 스케일링이 중요)
+  preprocessor:
+    name: "simple_scaler"
+    params:
+      criterion_col: null
+      # 엔티티 키와 타임스탬프 제외
+      exclude_cols: ["user_id", "product_id", "session_id", "event_timestamp"]
+
+  # 데이터 인터페이스 정의
+  data_interface:
+    task_type: "clustering"
+    # 클러스터링은 target_col이 없음 (비지도 학습)
+
+  # 평가자 설정
+  evaluator:
+    name: "clustering_evaluator"
+
+# 평가 설정 (클러스터링 특화 메트릭)
+evaluation:
+  metrics:
+    - "silhouette_score"
+    - "calinski_harabasz_score"
+    - "davies_bouldin_score"
+    - "linkage_distance"  # Hierarchical Clustering 특화 메트릭
+  
+  validation:
+    method: "unsupervised"  # 비지도 학습이므로 별도 분할 없음
+
+# 💡 사용 예시:
+# APP_ENV=dev uv run python main.py train --recipe-file models/clustering/hierarchical_clustering 

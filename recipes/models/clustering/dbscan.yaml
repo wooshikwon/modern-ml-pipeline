@@ -1,66 +1,84 @@
-# DBSCAN Clustering - Blueprint v17.0 Automated Excellence
-# 🔍 밀도 기반의 노이즈 제거 및 임의 형태 클러스터 발견
+# DBSCAN Clustering - 밀도 기반 클러스터링
+# 🎯 노이즈 제거와 임의 모양 클러스터 발견의 강력한 조합
 
-# 1. 모델 기본 정보 (직접 동적 import)
-class_path: "sklearn.cluster.DBSCAN"
+name: "dbscan"
 
-# 2. 데이터 로더 정의
-loader:
-  name: "clustering_dataset"
-  source_uri: "recipes/sql/loader/clustering_features.sql"
-
-# 3. 피처 증강기 정의 (🆕 Blueprint v17.0 - Feature Store 방식)
-augmenter:
-  type: "feature_store"
-  features:
-    # 사용자 행동 패턴
-    - feature_namespace: "user_behavior"
-      features: ["page_views", "session_duration", "click_rate"]
-    # 구매 패턴
-    - feature_namespace: "purchase_behavior"
-      features: ["avg_order_value", "purchase_frequency"]
-    # 위치 기반 피처 (DBSCAN에 적합)
-    - feature_namespace: "location_features"
-      features: ["latitude", "longitude", "region_density"]
-
-# 4. 전처리기 정의 (DBSCAN에는 특히 중요)
-preprocessor:
-  name: "simple_scaler"
-  params:
-    criterion_col: null
-    exclude_cols: ["user_id", "event_timestamp"]
-
-# 5. 모델 인터페이스
-data_interface:
-  task_type: "clustering"
+model:
+  # 직접 동적 import를 통한 DBSCAN 클러스터링
+  class_path: "sklearn.cluster.DBSCAN"
   
-  features:
-    page_views: "numeric"
-    session_duration: "numeric"
-    click_rate: "numeric"
-    avg_order_value: "numeric"
-    purchase_frequency: "numeric"
-    latitude: "numeric"
-    longitude: "numeric"
-    region_density: "numeric"
-  
-  # 클러스터링 전용 설정
-  true_labels_col: "true_cluster"  # 평가용 (선택적)
+  # 하이퍼파라미터 정의 (Optuna 자동 최적화 지원)
+  hyperparameters:
+    # 🔥 자동 최적화 범위 - DBSCAN 특화 하이퍼파라미터
+    eps: {type: "float", low: 0.1, high: 2.0}
+    min_samples: {type: "int", low: 3, high: 50}
+    algorithm: {type: "categorical", choices: ["auto", "ball_tree", "kd_tree", "brute"]}
+    leaf_size: {type: "int", low: 10, high: 100}
+    p: {type: "int", low: 1, high: 3}  # minkowski distance용
+    metric: {type: "categorical", choices: ["euclidean", "manhattan", "minkowski"]}
+    
+    # 🔧 고정값 - DBSCAN 안정성을 위한 설정
+    n_jobs: -1  # 모든 CPU 코어 활용
 
-# 🆕 6. 하이퍼파라미터 (Dictionary 형식 + 자동 튜닝)
-hyperparameters:
-  # 🔥 자동 최적화 범위 (DBSCAN 특화)
-  eps: {type: "float", low: 0.1, high: 2.0}
-  min_samples: {type: "int", low: 3, high: 20}
-  metric: {type: "categorical", choices: ["euclidean", "manhattan", "cosine"]}
-  algorithm: {type: "categorical", choices: ["auto", "ball_tree", "kd_tree", "brute"]}
-  
-  # 🔧 고정값
-  n_jobs: -1
+  # 하이퍼파라미터 튜닝 설정
+  hyperparameter_tuning:
+    enabled: true
+    n_trials: 100  # eps와 min_samples 조합이 중요하므로 충분한 탐색
+    metric: "silhouette_score"  # 클러스터링 품질 메트릭
+    direction: "maximize"
 
-# 🆕 7. 하이퍼파라미터 튜닝 설정
-hyperparameter_tuning:
-  enabled: true
-  n_trials: 50
-  metric: "calinski_harabasz_score"
-  direction: "maximize" 
+  # 데이터 로더 정의 (Spine 생성)
+  loader:
+    name: "clustering_loader"
+    source_uri: "recipes/sql/loaders/user_features.sql"
+
+  # 피처 증강 정의 (Feature Store 기반)
+  augmenter:
+    type: "feature_store"
+    features:
+      # 사용자 기본 정보 피처
+      - feature_namespace: "user_demographics"
+        features: ["age", "country_code"]
+      
+      # 사용자 구매 이력 피처  
+      - feature_namespace: "user_purchase_summary"
+        features: ["ltv", "total_purchase_count", "last_purchase_date"]
+      
+      # 상품 상세 정보 피처
+      - feature_namespace: "product_details"
+        features: ["price", "category", "brand"]
+      
+      # 세션 행동 피처
+      - feature_namespace: "session_summary"
+        features: ["time_on_page_seconds", "click_count"]
+
+  # 전처리 설정 (밀도 기반 클러스터링은 스케일링이 매우 중요)
+  preprocessor:
+    name: "simple_scaler"
+    params:
+      criterion_col: null
+      # 엔티티 키와 타임스탬프 제외
+      exclude_cols: ["user_id", "product_id", "session_id", "event_timestamp"]
+
+  # 데이터 인터페이스 정의
+  data_interface:
+    task_type: "clustering"
+    # 클러스터링은 target_col이 없음 (비지도 학습)
+
+  # 평가자 설정
+  evaluator:
+    name: "clustering_evaluator"
+
+# 평가 설정 (클러스터링 특화 메트릭)
+evaluation:
+  metrics:
+    - "silhouette_score"
+    - "calinski_harabasz_score"
+    - "davies_bouldin_score"
+    - "adjusted_rand_score"  # DBSCAN 특화 메트릭
+  
+  validation:
+    method: "unsupervised"  # 비지도 학습이므로 별도 분할 없음
+
+# 💡 사용 예시:
+# APP_ENV=dev uv run python main.py train --recipe-file models/clustering/dbscan 

@@ -1,482 +1,387 @@
-# 🔗 mmp-local-dev 연동 가이드
+# 🔗 MMP Local Dev Integration Guide
 
-이 문서는 **modern-ml-pipeline**과 **mmp-local-dev** 간의 완전한 연동을 위한 종합 가이드입니다. 개발 환경에서 PostgreSQL, Redis, MLflow를 활용한 완전한 ML 파이프라인을 구축하는 모든 과정을 다룹니다.
+**Modern ML Pipeline과 mmp-local-dev 완전 통합 가이드**
 
----
-
-## 🎯 **연동 아키텍처 개요**
-
-```mermaid
-graph TD
-    subgraph "modern-ml-pipeline (소비자)"
-        A[Recipe YAML] --> B[Train Pipeline]
-        B --> C[MLflow Client]
-        D[API Server] --> E[Feature Store Client]
-    end
-    
-    subgraph "mmp-local-dev (공급자)"
-        F[PostgreSQL] --> G[Feast Offline Store]
-        H[Redis] --> I[Feast Online Store] 
-        J[MLflow Server] --> K[Artifact Storage]
-        L[Docker Compose] --> F
-        L --> H
-        L --> J
-    end
-    
-    C -->|HTTP:5002| J
-    E -->|Port:6379| H
-    B -->|SQL| F
-```
-
-**핵심 원칙:**
-- **modern-ml-pipeline**: ML 로직과 레시피 정의
-- **mmp-local-dev**: 인프라 서비스 제공 (PostgreSQL, Redis, MLflow)
-- **dev-contract.yml**: 두 프로젝트 간 기술적 계약서
+이 문서는 Modern ML Pipeline(애플리케이션)과 mmp-local-dev(인프라)가 어떻게 독립적으로 운영되면서도 완벽하게 연동되는지에 대한 완전한 가이드입니다.
 
 ---
 
-## 🚀 **1. 초기 설정 및 설치**
+## 🏗️ **아키텍처 개요: 완전한 분리와 명확한 계약**
 
-### 1.1. setup-dev-environment.sh 활용
-
-**modern-ml-pipeline**의 `setup-dev-environment.sh`가 모든 설정을 자동화합니다:
-
-```bash
-# modern-ml-pipeline 디렉토리에서 실행
-./setup-dev-environment.sh
-
-# 🔄 이 스크립트가 자동으로 수행하는 작업들:
-# 1. ../mmp-local-dev 디렉토리 확인/생성
-# 2. mmp-local-dev 저장소 clone (없는 경우)
-# 3. mmp-local-dev/.env 파일 생성
-# 4. Docker Compose 서비스 시작
-# 5. 헬스체크 및 연결 확인
-```
-
-### 1.2. 수동 설정 (고급 사용자용)
-
-자동 스크립트가 실패하거나 수동 제어가 필요한 경우:
-
-```bash
-# 1. mmp-local-dev 저장소 clone
-cd ..
-git clone https://github.com/your-org/mmp-local-dev.git
-cd mmp-local-dev
-
-# 2. 환경변수 파일 생성
-cat > .env << EOF
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_USER=mlpipeline_user
-POSTGRES_DB=mlpipeline_db
-POSTGRES_PASSWORD=secure_password_123
-REDIS_HOST=localhost
-REDIS_PORT=6379
-MLFLOW_TRACKING_URI=http://localhost:5002
-EOF
-
-# 3. 서비스 시작
-docker-compose up -d
-
-# 4. 서비스 확인
-docker-compose ps
-```
-
----
-
-## ⚙️ **2. 환경변수 설정 및 관리**
-
-### 2.1. mmp-local-dev 환경변수 (.env)
-
-`mmp-local-dev/.env` 파일의 표준 설정:
-
-```bash
-# 🐘 PostgreSQL 설정
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_USER=mlpipeline_user
-POSTGRES_DB=mlpipeline_db
-POSTGRES_PASSWORD=secure_password_123
-
-# ⚡ Redis 설정
-REDIS_HOST=localhost
-REDIS_PORT=6379
-
-# 📊 MLflow 설정
-MLFLOW_TRACKING_URI=http://localhost:5002
-
-# 🔒 추가 보안 설정 (선택적)
-POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password
-REDIS_PASSWORD=redis_secure_password_456
-```
-
-### 2.2. modern-ml-pipeline 환경변수 설정
-
-**방법 1: 자동 감지 (권장)**
-```bash
-# modern-ml-pipeline이 ../mmp-local-dev/.env 파일을 자동으로 읽어옴
-APP_ENV=dev uv run python main.py train --recipe-file my_experiment.yaml
-```
-
-**방법 2: 명시적 설정**
-```bash
-# 환경변수를 직접 설정
-export MLFLOW_TRACKING_URI=http://localhost:5002
-export POSTGRES_HOST=localhost
-export POSTGRES_USER=mlpipeline_user
-export POSTGRES_PASSWORD=secure_password_123
-
-APP_ENV=dev uv run python main.py train --recipe-file my_experiment.yaml
-```
-
-**방법 3: .env 파일 사용**
-```bash
-# modern-ml-pipeline/.env 파일 생성 (mmp-local-dev/.env와 별도)
-cat > .env << EOF
-APP_ENV=dev
-MLFLOW_TRACKING_URI=http://localhost:5002
-EOF
-
-uv run python main.py train --recipe-file my_experiment.yaml
-```
-
----
-
-## 🧪 **3. MLflow 실험 관리**
-
-### 3.1. 실험명 지정 및 HTTP 전송
-
-**실험명 설정:**
+### **독립성 원칙**
 ```yaml
-# config/dev.yaml
-mlflow:
-  tracking_uri: http://localhost:5002
-  experiment_name: "My-Awesome-Experiment-2025"  # 🎯 실험명 커스터마이징
+modern-ml-pipeline/     # 🎯 애플리케이션 (ML 로직, 파이프라인)
+├── src/               # ML 파이프라인 코드
+├── config/           # 환경별 설정 (연결 정보만)
+├── recipes/          # 모델 정의
+└── main.py          # CLI 진입점
+
+../mmp-local-dev/      # 🏗️ 인프라 (PostgreSQL, Redis, MLflow)
+├── docker-compose.yml # 서비스 정의
+├── scripts/          # DB 초기화 & 데이터 시드
+├── feast/           # Feature Store 설정
+└── setup.sh         # 원클릭 환경 구성
 ```
 
-**실험 실행:**
-```bash
-# 1. 실험 실행
-APP_ENV=dev uv run python main.py train --recipe-file recipes/models/classification/xgboost_classifier.yaml
+### **연동 계약**
+두 시스템은 `mmp-local-dev/dev-contract.yml`을 통해 공식적으로 연동됩니다:
 
-# 2. 실행 결과 확인
-# ✅ MLflow UI: http://localhost:5002
-# ✅ 실험명: "My-Awesome-Experiment-2025"
-# ✅ Run ID: 자동 생성 (예: aa871f712e36441bb94110368fa09f13)
-```
+```yaml
+# dev-contract.yml - 공식 연동 계약서
+version: \"1.0\"
 
-**HTTP 전송 과정:**
-```python
-# 내부적으로 수행되는 MLflow HTTP 통신
-import mlflow
+provides_env_variables:    # mmp-local-dev가 제공하는 환경변수
+  - POSTGRES_HOST, POSTGRES_PORT, POSTGRES_USER, POSTGRES_DB, POSTGRES_PASSWORD
+  - REDIS_HOST, REDIS_PORT  
+  - MLFLOW_TRACKING_URI
 
-# 1. 실험 생성/확인
-mlflow.set_tracking_uri("http://localhost:5002")
-mlflow.set_experiment("My-Awesome-Experiment-2025")
-
-# 2. Run 시작
-with mlflow.start_run() as run:
-    # 3. 메트릭 로깅 (HTTP POST)
-    mlflow.log_metric("accuracy", 0.95)
-    
-    # 4. 파라미터 로깅 (HTTP POST)
-    mlflow.log_params({"learning_rate": 0.1, "n_estimators": 100})
-    
-    # 5. 아티팩트 업로드 (HTTP POST - Multipart)
-    mlflow.pyfunc.log_model("model", python_model=wrapper)
-```
-
-### 3.2. 실험 추적 및 관리
-
-```bash
-# MLflow UI 접근
-open http://localhost:5002
-
-# CLI를 통한 실험 확인
-mlflow experiments list --tracking-uri http://localhost:5002
-
-# 특정 실험의 Run 목록 확인
-mlflow runs list --experiment-name "My-Awesome-Experiment-2025" --tracking-uri http://localhost:5002
+provides_services:         # mmp-local-dev가 제공하는 서비스
+  - postgresql (port: 5432)
+  - redis (port: 6379)
+  - mlflow (port: 5002)
 ```
 
 ---
 
-## 📦 **4. 아티팩트 저장 및 관리**
+## 🚀 **환경 설정 및 시작 가이드**
 
-### 4.1. 아티팩트 저장 경로 예상
-
-**표준 저장 구조:**
-```
-mmp-local-dev/
-├── mlflow-artifacts/              # 🎯 아티팩트 루트 디렉토리
-│   ├── [experiment-id]/           # 실험별 디렉토리 (예: 4/)
-│   │   ├── [run-id]/              # Run별 디렉토리
-│   │   │   ├── artifacts/         # 모델 아티팩트
-│   │   │   │   ├── MLmodel        # MLflow 모델 메타데이터
-│   │   │   │   ├── python_model.pkl  # PyfuncWrapper 직렬화
-│   │   │   │   ├── requirements.txt  # Python 의존성
-│   │   │   │   ├── conda.yaml        # Conda 환경
-│   │   │   │   └── python_env.yaml   # Python 환경
-│   │   │   └── metadata/          # Run 메타데이터
-│   │   └── [another-run-id]/
-│   └── [another-experiment-id]/
-```
-
-**실제 예시:**
-```bash
-# 실험 실행 후 생성되는 경로 (예시)
-mmp-local-dev/mlflow-artifacts/4/aa871f712e36441bb94110368fa09f13/artifacts/
-
-# 아티팩트 내용 확인
-ls -la ../mmp-local-dev/mlflow-artifacts/4/aa871f712e36441bb94110368fa09f13/artifacts/
-# 출력:
-# MLmodel
-# python_model.pkl
-# requirements.txt
-# conda.yaml
-# python_env.yaml
-```
-
-### 4.2. 아티팩트 저장 과정
-
-**1. HTTP 기반 아티팩트 업로드:**
-```python
-# PyfuncWrapper 저장 시 내부 동작
-def log_model():
-    # 1. 로컬에서 임시 디렉토리에 모델 직렬화
-    temp_dir = "/tmp/mlflow_temp_model"
-    
-    # 2. MLflow 서버로 HTTP POST (multipart/form-data)
-    response = requests.post(
-        "http://localhost:5002/api/2.0/mlflow/model-versions/create-file",
-        files={"file": open(f"{temp_dir}/python_model.pkl", "rb")},
-        data={"run_id": run_id, "path": "artifacts/python_model.pkl"}
-    )
-    
-    # 3. 서버가 mlflow-artifacts/ 디렉토리에 저장
-    # 경로: mlflow-artifacts/{experiment_id}/{run_id}/artifacts/
-```
-
-**2. 아티팩트 접근 URL:**
-```bash
-# 아티팩트 직접 접근 URL
-http://localhost:5002/get-artifact?path=artifacts/python_model.pkl&run_uuid={run_id}
-
-# 모델 다운로드
-curl "http://localhost:5002/get-artifact?path=artifacts&run_uuid=aa871f712e36441bb94110368fa09f13" -o model.zip
-```
-
-### 4.3. 아티팩트 백업 및 관리
+### **1. 초기 환경 구성**
 
 ```bash
-# 전체 아티팩트 백업
+# 1. mmp-local-dev 저장소 클론 (한 번만)
+cd ~/workspace  # modern-ml-pipeline와 같은 레벨
+git clone https://github.com/wooshikwon/mmp-local-dev.git
+
+# 2. 디렉토리 구조 확인
+your-workspace/
+├── modern-ml-pipeline/    # 이 프로젝트
+└── mmp-local-dev/        # 인프라 저장소
+
+# 3. 개발 환경 시작 (modern-ml-pipeline에서 실행)
+cd modern-ml-pipeline
+./setup-dev-environment.sh start
+```
+
+### **2. 개발 환경 관리 명령어**
+
+```bash
+# 환경 시작/재시작
+./setup-dev-environment.sh start
+
+# 현재 상태 확인
+./setup-dev-environment.sh status
+
+# 환경 중지
+./setup-dev-environment.sh stop
+
+# 완전 삭제 (데이터 포함)
+./setup-dev-environment.sh clean
+
+# 통합 테스트 실행
+./setup-dev-environment.sh test
+```
+
+---
+
+## 🔑 **인증 및 연결 정보**
+
+### **기본 인증 정보**
+
+Modern ML Pipeline이 사용하는 기본 인증 정보는 `config/dev.yaml`에 정의되어 있습니다:
+
+```yaml
+# PostgreSQL 연결
+Host: localhost
+Port: 5432
+Database: mlpipeline
+Username: mluser
+Password: mysecretpassword
+
+# Redis 연결  
+Host: localhost
+Port: 6379
+Password: (없음 - 인증 비활성화)
+
+# MLflow 연결
+URL: http://localhost:5002
+Authentication: (없음 - 로컬 개발용)
+```
+
+### **인증 정보 변경 방법**
+
+#### **Option 1: mmp-local-dev에서 변경**
+```bash
+# 1. mmp-local-dev 디렉토리로 이동
 cd ../mmp-local-dev
-tar -czf mlflow-artifacts-backup-$(date +%Y%m%d).tar.gz mlflow-artifacts/
 
-# 특정 실험만 백업
-tar -czf experiment-4-backup.tar.gz mlflow-artifacts/4/
+# 2. .env 파일 수정
+nano .env
 
-# 아티팩트 정리 (오래된 실험 삭제)
-find mlflow-artifacts/ -type d -name "*" -mtime +30 -exec rm -rf {} \;
+# 예시: 패스워드 변경
+POSTGRES_PASSWORD=mynewpassword
+
+# 3. 환경 재시작
+./setup.sh --stop && ./setup.sh
+```
+
+#### **Option 2: modern-ml-pipeline에서 변경**
+```bash
+# config/dev.yaml 수정
+nano config/dev.yaml
+
+# connection_uri 직접 변경
+connection_uri: \"postgresql://mluser:mynewpassword@127.0.0.1:5432/mlpipeline\"
 ```
 
 ---
 
-## 🔧 **5. 연동 검증 및 트러블슈팅**
+## 🗃️ **데이터 관리 가이드**
 
-### 5.1. 연동 상태 종합 확인
+### **Feature Store 데이터 추가**
+
+**중요**: 데이터 추가는 **mmp-local-dev에서만** 수행합니다. modern-ml-pipeline은 데이터 소비자 역할만 합니다.
+
+#### **1. 새로운 피처 테이블 추가**
 
 ```bash
-# 🔍 전체 시스템 헬스체크
-cd ../mmp-local-dev && python test-integration.py
+# 1. mmp-local-dev로 이동
+cd ../mmp-local-dev
 
-# 📊 개별 서비스 확인
+# 2. SQL 스크립트 수정
+nano scripts/seed-features.sql
+
+# 3. 새 테이블 정의 추가
+CREATE TABLE IF NOT EXISTS new_feature_table (
+    entity_id VARCHAR(50) PRIMARY KEY,
+    new_feature_value DECIMAL(10,2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+# 4. 샘플 데이터 삽입
+INSERT INTO new_feature_table (entity_id, new_feature_value) VALUES
+('entity_001', 123.45),
+('entity_002', 678.90);
+```
+
+#### **2. Feast 피처 정의 업데이트**
+
+```bash
+# feast/features.py 수정
+nano feast/features.py
+
+# 새 피처 뷰 추가
+new_feature_source = PostgreSQLSource(
+    name=\"new_feature_source\",
+    query=\"SELECT entity_id, new_feature_value, created_at FROM features.new_feature_table\",
+    timestamp_field=\"created_at\",
+)
+
+new_feature_fv = FeatureView(
+    name=\"new_features\",
+    entities=[entity],
+    ttl=timedelta(days=30),
+    schema=[Field(name=\"new_feature_value\", dtype=Float32)],
+    source=new_feature_source,
+)
+```
+
+#### **3. 변경사항 적용**
+
+```bash
+# 1. 환경 재시작 (데이터 다시 로드)
+./setup.sh --clean && ./setup.sh
+
+# 2. 통합 테스트로 확인
+python test-integration.py
+
+# 3. modern-ml-pipeline에서 사용
+cd ../modern-ml-pipeline
+# recipes/*.yaml에서 새 피처 사용 가능
+```
+
+### **대량 데이터 추가**
+
+```bash
+# 1. CSV 파일 준비
+# data.csv:
+# entity_id,feature_value
+# entity_001,123.45
+
+# 2. PostgreSQL에 직접 로드
+cd ../mmp-local-dev
+docker exec -i ml-pipeline-postgres psql -U mluser -d mlpipeline << EOF
+\\copy features.new_feature_table(entity_id,new_feature_value) FROM '/tmp/data.csv' DELIMITER ',' CSV HEADER;
+EOF
+```
+
+---
+
+## 🔧 **고급 설정 및 트러블슈팅**
+
+### **포트 충돌 해결**
+
+```yaml
+# mmp-local-dev/docker-compose.yml 수정
+services:
+  postgresql:
+    ports:
+      - \"5433:5432\"  # 포트 변경
+  
+  redis:
+    ports:
+      - \"6380:6379\"  # 포트 변경
+      
+  mlflow:
+    ports:
+      - \"5003:5000\"  # 포트 변경
+```
+
+```yaml
+# config/dev.yaml 동기화
+data_adapters:
+  adapters:
+    sql:
+      config:
+        connection_uri: \"postgresql://mluser:mysecretpassword@127.0.0.1:5433/mlpipeline\"
+
+feature_store:
+  feast_config:
+    online_store:
+      connection_string: \"localhost:6380\"
+
+mlflow:
+  tracking_uri: http://localhost:5003
+```
+
+### **Docker 리소스 관리**
+
+```bash
+# 현재 사용 중인 리소스 확인
+docker system df
+
+# 사용하지 않는 리소스 정리
+docker system prune
+
+# 특정 서비스 로그 확인
+docker-compose logs postgresql
+docker-compose logs redis
+docker-compose logs mlflow
+```
+
+### **네트워크 문제 해결**
+
+```bash
+# 서비스 연결 테스트
 # PostgreSQL
-docker exec mmp-local-dev-postgresql-1 pg_isready -U mlpipeline_user
+docker exec ml-pipeline-postgres pg_isready -U mluser -d mlpipeline
 
 # Redis
-docker exec mmp-local-dev-redis-1 redis-cli ping
+docker exec ml-pipeline-redis redis-cli ping
 
 # MLflow
-curl -s http://localhost:5002/health
-```
-
-### 5.2. 일반적인 문제 해결
-
-**문제 1: 포트 충돌**
-```bash
-# 현재 포트 사용 상태 확인
-lsof -i :5002  # MLflow
-lsof -i :5432  # PostgreSQL  
-lsof -i :6379  # Redis
-
-# Apple AirPlay 비활성화 (5000 포트 해제)
-sudo launchctl unload -w /System/Library/LaunchDaemons/com.apple.AirPlayXPCHelper.plist
-```
-
-**문제 2: 아티팩트 저장 실패**
-```bash
-# 권한 확인
-ls -la ../mmp-local-dev/mlflow-artifacts/
-sudo chown -R $(whoami) ../mmp-local-dev/mlflow-artifacts/
-
-# 디스크 공간 확인
-df -h ../mmp-local-dev/
-```
-
-**문제 3: MLflow 연결 실패**
-```bash
-# MLflow 서버 재시작
-cd ../mmp-local-dev
-docker-compose restart mlflow
-
-# 로그 확인
-docker-compose logs mlflow | tail -20
-
-# 네트워크 연결 테스트
-telnet localhost 5002
-```
-
-### 5.3. 개발 환경 초기화
-
-```bash
-# 🔄 전체 환경 리셋
-cd ../mmp-local-dev
-docker-compose down -v  # 볼륨까지 삭제
-docker-compose up -d
-
-# 🗂️ 아티팩트만 정리
-rm -rf mlflow-artifacts/*
-
-# 🔧 설정 파일 재생성
-cd ../modern-ml-pipeline
-./setup-dev-environment.sh
+curl -f http://localhost:5002/api/2.0/mlflow/experiments/list
 ```
 
 ---
 
-## 📋 **6. dev-contract.yml 기반 호환성 보장**
+## 🧪 **통합 테스트 및 검증**
 
-### 6.1. 계약 내용 확인
-
-`mmp-local-dev/dev-contract.yml`이 정의하는 계약:
-
-```yaml
-version: "1.0"
-
-provides_env_variables:
-  - POSTGRES_HOST      # ✅ localhost
-  - POSTGRES_PORT      # ✅ 5432
-  - POSTGRES_USER      # ✅ mlpipeline_user
-  - POSTGRES_DB        # ✅ mlpipeline_db
-  - POSTGRES_PASSWORD  # ✅ secure_password_123
-  - REDIS_HOST         # ✅ localhost
-  - REDIS_PORT         # ✅ 6379
-  - MLFLOW_TRACKING_URI # ✅ http://localhost:5002
-
-provides_services:
-  - name: "postgresql"  # ✅ Port 5432
-  - name: "redis"       # ✅ Port 6379  
-  - name: "mlflow"      # ✅ Port 5002 (수정됨)
-```
-
-### 6.2. 호환성 검증
+### **자동 검증**
 
 ```bash
-# mmp-local-dev 측 검증
+# 전체 계약 준수 테스트
 cd ../mmp-local-dev
 python test-integration.py
 
-# modern-ml-pipeline 측 검증  
-cd ../modern-ml-pipeline
-pytest tests/integration/test_dev_contract.py -v
+# 출력 예시:
+# [SUCCESS] PostgreSQL 연결 성공
+# [SUCCESS] Redis 연결 성공  
+# [SUCCESS] MLflow 서버 응답 확인
+# [SUCCESS] Feast 피처 조회 성공
+# [SUCCESS] 모든 계약 조건 준수 확인
 ```
 
-### 6.3. 버전 호환성 관리
-
-```python
-# modern-ml-pipeline에서 계약 버전 확인
-def check_contract_compatibility():
-    contract_file = "../mmp-local-dev/dev-contract.yml"
-    with open(contract_file) as f:
-        contract = yaml.safe_load(f)
-    
-    required_version = "1.0"
-    actual_version = contract.get("version")
-    
-    assert actual_version >= required_version, \
-        f"mmp-local-dev 버전 {actual_version}는 최소 요구 버전 {required_version}보다 낮습니다"
-```
-
----
-
-## 🎯 **7. 고급 활용 패턴**
-
-### 7.1. 다중 실험 병렬 실행
+### **수동 검증**
 
 ```bash
-# 여러 실험을 동시에 실행
-for model in "xgboost" "lightgbm" "catboost"; do
-    APP_ENV=dev uv run python main.py train \
-        --recipe-file "recipes/models/classification/${model}_classifier.yaml" &
-done
-wait  # 모든 실험 완료 대기
+# PostgreSQL 데이터 확인
+docker exec -it ml-pipeline-postgres psql -U mluser -d mlpipeline -c \"\\dt features.*\"
+
+# Redis 키 확인
+docker exec -it ml-pipeline-redis redis-cli keys \"*\"
+
+# MLflow 실험 확인
+curl -s http://localhost:5002/api/2.0/mlflow/experiments/list | jq '.experiments[].name'
 ```
 
-### 7.2. 실험 결과 자동 비교
-
-```python
-import mlflow
-import pandas as pd
-
-# 실험 결과 비교 스크립트
-def compare_experiments():
-    mlflow.set_tracking_uri("http://localhost:5002")
-    experiment = mlflow.get_experiment_by_name("My-Awesome-Experiment-2025")
-    
-    runs = mlflow.search_runs(experiment_ids=[experiment.experiment_id])
-    comparison = runs[["metrics.accuracy", "params.learning_rate", "params.n_estimators"]]
-    
-    return comparison.sort_values("metrics.accuracy", ascending=False)
-```
-
-### 7.3. 아티팩트 자동 백업
+### **Modern ML Pipeline E2E 테스트**
 
 ```bash
-# 일일 백업 크론잡 (crontab -e)
-0 2 * * * cd /path/to/mmp-local-dev && tar -czf backup/mlflow-$(date +\%Y\%m\%d).tar.gz mlflow-artifacts/
+# 개발 환경에서 전체 파이프라인 테스트
+cd modern-ml-pipeline
+APP_ENV=dev uv run python main.py train --recipe-file recipes/local_classification_test
+
+# 생성된 run-id로 배치 추론 테스트
+APP_ENV=dev uv run python main.py batch-inference --run-id <생성된-run-id>
+
+# API 서빙 테스트
+APP_ENV=dev uv run python main.py serve-api --run-id <생성된-run-id>
 ```
 
 ---
 
-## ✅ **8. 체크리스트: 완벽한 연동 확인**
+## 📊 **모니터링 및 관리**
 
-### 8.1. 초기 설정 체크리스트
+### **서비스 상태 모니터링**
 
-- [ ] `./setup-dev-environment.sh` 성공적 실행
-- [ ] `docker-compose ps`에서 모든 서비스 `Up` 상태
-- [ ] `http://localhost:5002` MLflow UI 접근 가능
-- [ ] `../mmp-local-dev/.env` 파일 생성 확인
-- [ ] `dev-contract.yml` 계약 준수 확인
+```bash
+# Docker Compose 서비스 상태
+cd ../mmp-local-dev
+docker-compose ps
 
-### 8.2. 실험 실행 체크리스트
+# 리소스 사용량
+docker stats ml-pipeline-postgres ml-pipeline-redis ml-pipeline-mlflow
 
-- [ ] `APP_ENV=dev` 환경변수 설정
-- [ ] 실험명이 MLflow UI에서 올바르게 표시
-- [ ] Run ID 자동 생성 및 아티팩트 저장 확인
-- [ ] `../mmp-local-dev/mlflow-artifacts/` 디렉토리에 파일 생성
-- [ ] 배치 추론 및 API 서빙 정상 동작
+# 로그 실시간 모니터링
+docker-compose logs -f
+```
 
-### 8.3. 문제 해결 체크리스트
+### **데이터베이스 관리**
 
-- [ ] 포트 충돌 검사 (`lsof -i :5002`)
-- [ ] 로그 확인 (`docker-compose logs`)
-- [ ] 디스크 공간 확인 (`df -h`)
-- [ ] 권한 확인 (`ls -la mlflow-artifacts/`)
-- [ ] 네트워크 연결 테스트 (`curl http://localhost:5002/health`)
+```bash
+# 백업
+docker exec ml-pipeline-postgres pg_dump -U mluser mlpipeline > backup.sql
+
+# 복원
+docker exec -i ml-pipeline-postgres psql -U mluser mlpipeline < backup.sql
+
+# 피처 스키마 확인
+docker exec -it ml-pipeline-postgres psql -U mluser -d mlpipeline -c \"\\dt features.*\"
+```
 
 ---
 
-**🎉 이제 modern-ml-pipeline과 mmp-local-dev가 완벽하게 연동되었습니다!** 
+## 🎯 **Best Practices**
 
-모든 ML 실험이 견고하고 재현 가능한 인프라 위에서 실행되며, 개발부터 운영까지 일관된 환경을 보장받게 됩니다. 
+### **개발 워크플로우**
+
+1. **인프라 먼저**: mmp-local-dev 환경이 정상 동작하는지 확인
+2. **계약 검증**: dev-contract.yml 준수 여부 테스트
+3. **점진적 개발**: 작은 변경사항부터 테스트
+4. **로그 확인**: 문제 발생 시 각 서비스 로그 우선 확인
+
+### **데이터 관리**
+
+1. **분리된 관리**: 데이터 추가/변경은 mmp-local-dev에서만
+2. **스키마 일관성**: Feast 정의와 PostgreSQL 스키마 동기화 유지
+3. **테스트 데이터**: 실제와 유사하지만 개인정보 없는 합성 데이터 사용
+
+### **보안**
+
+1. **로컬 전용**: 개발 환경 인증 정보는 절대 운영에서 사용 금지
+2. **격리된 네트워크**: Docker 네트워크를 통한 서비스 간 통신
+3. **정기적 업데이트**: mmp-local-dev 저장소 정기적 동기화
+
+---
+
+**🌟 결론: mmp-local-dev는 Modern ML Pipeline의 개발 경험을 극대화하는 독립적인 인프라 스택입니다. 명확한 계약과 자동화된 설정을 통해 복잡한 MLOps 인프라를 개발자가 신경 쓰지 않고도 즉시 사용할 수 있게 해줍니다.** 

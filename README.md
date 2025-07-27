@@ -1,330 +1,322 @@
-# 🚀 Modern ML Pipeline (Blueprint v17.0)
+# �� Modern ML Pipeline
 
-**"Automated Excellence Vision" - "코드로서의 계약"으로 구현된 차세대 MLOps 플랫폼**
+**차세대 MLOps 플랫폼 - 학습부터 배포까지 자동화된 머신러닝 파이프라인**
 
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Blueprint v17.0](https://img.shields.io/badge/blueprint-v17.0-green.svg)](blueprint.md)
-[![Contract v1.0](https://img.shields.io/badge/contract-v1.0-purple.svg)](tests/integration/expected-dev-contract.yml)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![uv](https://img.shields.io/badge/dependency-uv-green.svg)](https://github.com/astral-sh/uv)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-## 📋 프로젝트 개요
+## 📋 프로젝트 소개
 
-Modern ML Pipeline은 **무제한적인 실험 자유도**와 **완전히 일관된 재현성**을 동시에 보장하는 혁신적인 MLOps 플랫폼입니다. Blueprint v17.0의 10대 핵심 설계 원칙과 **"코드로서의 계약(Contract as Code)"** 아키텍처를 통해 **자동화된 하이퍼파라미터 최적화**, **환경별 차등적 기능 분리**, **완전한 Data Leakage 방지**를 구현했습니다.
+Modern ML Pipeline은 **YAML 설정만으로 머신러닝 모델을 학습하고 배포**할 수 있는 통합 MLOps 플랫폼입니다.
 
-### 🎯 Blueprint v17.0 핵심 철학
+### 🎯 핵심 특징
 
-```yaml
-LOCAL 환경: "제약은 단순함을 낳고, 단순함은 집중을 낳는다"
-  → 빠른 실험과 디버깅의 성지
-
-DEV 환경: "모든 기능이 완전히 작동하는 안전한 실험실"  
-  → `mmp-local-dev`와 연동되는 통합 개발 허브
-
-PROD 환경: "성능, 안정성, 관측 가능성의 완벽한 삼위일체"
-  → 확장성과 안정성의 정점
-```
+- **🔧 Zero-Code ML**: YAML 레시피만으로 모든 ML 모델 실험 가능
+- **⚡ 자동 최적화**: Optuna 기반 하이퍼파라미터 자동 튜닝
+- **🏗️ 완전한 재현성**: 동일한 결과 100% 보장
+- **🌍 멀티 환경**: LOCAL → DEV → PROD 단계적 확장
+- **🚀 즉시 배포**: 학습된 모델 바로 API 서빙
 
 ---
 
-## 🚀 빠른 시작 (5분 개발 환경 설정)
+## 🚀 빠른 시작 (5분 설정)
 
-이 프로젝트는 ML 로직을 담당하는 `modern-ml-pipeline`과, 인프라를 담당하는 `mmp-local-dev` 두 개의 저장소로 구성됩니다.
-
-### 1단계: 저장소 클론
+### 1. 설치
 
 ```bash
-# 이 저장소 (ML 파이프라인)
+# 저장소 클론
 git clone https://github.com/wooshikwon/modern-ml-pipeline.git
-# 인프라 저장소
-git clone https://github.com/wooshikwon/mmp-local-dev.git ../mmp-local-dev
-
 cd modern-ml-pipeline
-```
 
-### 2단계: 개발 환경 시작
-
-새로 만든 `setup-dev-environment.sh` 관리자 스크립트를 사용하여 `mmp-local-dev` 인프라(PostgreSQL, Redis, MLflow, Feast)를 시작합니다.
-
-```bash
-# DEV 환경 시작 (../mmp-local-dev/setup.sh를 자동으로 실행)
-./setup-dev-environment.sh start
-```
-
-### 3단계: 첫 번째 실험 실행
-
-```bash
-# 가상환경 활성화 및 의존성 설치
+# Python 환경 설정 (uv 권장)
 uv venv && uv sync
+# 또는 pip 사용시: pip install -r requirements.txt
+```
 
-# DEV 환경에서 학습 실행
-APP_ENV=dev uv run python main.py train --recipe-file recipes/models/classification/local_test.yaml
+### 2. 프로젝트 초기화
 
-# 결과 확인
-open http://localhost:5000  # MLflow UI
+```bash
+# 새 프로젝트 구조 생성
+uv run python main.py init
+
+# 생성된 파일 확인
+ls config/    # base.yaml, data_adapters.yaml
+ls recipes/   # example_recipe.yaml
+```
+
+### 3. 첫 번째 모델 학습
+
+```bash
+# 설정 검증
+uv run python main.py validate --recipe-file recipes/example_recipe.yaml
+
+# 모델 학습 실행
+uv run python main.py train --recipe-file recipes/example_recipe.yaml
+
+# 학습 결과 확인 (MLflow UI)
+open http://localhost:5000  # MLflow 대시보드
+```
+
+### 4. 모델 배포 및 추론
+
+```bash
+# 학습에서 나온 run-id 사용 (예: abc123def456)
+RUN_ID="your-run-id-here"
+
+# 배치 추론
+uv run python main.py batch-inference --run-id $RUN_ID
+
+# 실시간 API 서빙
+uv run python main.py serve-api --run-id $RUN_ID
+# API 테스트: curl http://localhost:8000/predict -X POST -d '{"feature1": 1.0}'
 ```
 
 ---
 
-## 🏗️ 아키텍처 하이라이트
+## 📖 기본 사용법
 
-### 10대 핵심 설계 원칙
+### CLI 명령어 전체 목록
 
-| 원칙 | 내용 | 혜택 |
-|------|------|------|
-| **1. 레시피는 논리, 설정은 인프라** | 모델 로직과 인프라 완전 분리 | 환경 무관한 재현성 |
-| **2. 통합 데이터 어댑터** | 모든 데이터 소스 표준화 | BigQuery↔S3↔Local 즉시 전환 |
-| **3. URI 기반 동적 팩토리** | 선언적 설정으로 자동 구성 | 코드 수정 없는 확장성 |
-| **4. 순수 로직 아티팩트** | 환경 독립적 Wrapped Model | 100% 동일 실행 보장 |
-| **5. 컨텍스트 주입 Augmenter** | 배치/실시간 동일 로직 | Feature Store 완벽 활용 |
-| **6. 자기 기술 API** | SQL 파싱으로 API 자동 생성 | 스키마 변경 무관한 서빙 |
-| **7. 하이브리드 통합 인터페이스** | SQL 자유도 + Feature Store | 최고의 유연성과 일관성 |
-| **8. 자동 HPO + Data Leakage 방지** | Optuna 통합 + Train-only Fit | 최고 성능 + 완전한 안전성 |
-| **9. 환경별 차등적 기능 분리** | LOCAL/DEV/PROD 맞춤 기능 | 점진적 복잡성 증가 |
-| **10. "코드로서의 계약"** | `dev-contract.yml` 기반 자동 검증 | 견고한 양방향 호환성 보장 |
+```bash
+# 프로젝트 관리
+uv run python main.py init [--dir ./my-project]     # 새 프로젝트 초기화
+uv run python main.py validate --recipe-file <path> # 설정 파일 검증
 
-### 혁신적인 기능들
+# 모델 개발
+uv run python main.py train --recipe-file <path>    # 모델 학습
+uv run python main.py train --recipe-file <path> --context-params '{"date":"2024-01-01"}'  # 동적 파라미터
 
-#### 🤖 자동화된 하이퍼파라미터 최적화
+# 모델 추론
+uv run python main.py batch-inference --run-id <id> # 배치 추론
+uv run python main.py serve-api --run-id <id>       # 실시간 API
+
+# 시스템 검증
+uv run python main.py test-contract                 # 인프라 연결 테스트
+```
+
+### Recipe 파일 작성법
+
+Recipe는 모델의 모든 논리를 정의하는 YAML 파일입니다:
+
 ```yaml
-# Recipe에서 범위만 정의하면 자동 최적화
-hyperparameters:
-  learning_rate: {type: "float", low: 0.01, high: 0.3, log: true}
-  n_estimators: {type: "int", low: 50, high: 1000}
+# recipes/my_model.yaml
+model:
+  # 모델 클래스 (sklearn, xgboost, lightgbm 등 모든 Python 패키지)
+  class_path: "sklearn.ensemble.RandomForestClassifier"
+  
+  # 하이퍼파라미터 (고정값 또는 최적화 범위)
+  hyperparameters:
+    n_estimators: 100              # 고정값
+    max_depth: {type: "int", low: 3, high: 10}  # 자동 최적화 범위
+  
+  # 데이터 로딩
+  loader:
+    name: "default_loader"
+    source_uri: "data/my_dataset.parquet"  # 파일 경로 또는 SQL
+  
+  # 데이터 전처리
+  preprocessor:
+    name: "default_preprocessor"
+    params:
+      exclude_cols: ["id", "timestamp"]
+  
+  # 모델 설정
+  data_interface:
+    task_type: "classification"    # classification, regression, causal
+    target_col: "target"
 
+# 자동 하이퍼파라미터 최적화 (선택사항)
 hyperparameter_tuning:
   enabled: true
   n_trials: 50
   metric: "roc_auc"
-```
-
-#### 🏪 완전한 Feature Store 통합
-```yaml
-# 환경별 Feature Store 자동 연결
-augmenter:
-  type: "feature_store"
-  features:
-    - feature_namespace: "user_demographics"
-      features: ["age", "country_code"]
-    - feature_namespace: "product_details"
-      features: ["price", "category"]
-```
-
-#### 🔄 환경별 원활한 전환
-```bash
-# 동일한 Recipe, 다른 환경
-APP_ENV=local python main.py train --recipe-file my_experiment    # 빠른 프로토타입
-APP_ENV=dev python main.py train --recipe-file my_experiment      # 완전한 기능
-APP_ENV=prod python main.py train --recipe-file my_experiment     # 운영 환경
+  direction: "maximize"
 ```
 
 ---
 
-## 🎮 사용법
+## 🔧 고급 기능
 
-### 기본 워크플로우
+### 1. 동적 SQL 템플릿 (Jinja2)
+
+```sql
+-- recipes/sql/dynamic_query.sql.j2
+SELECT user_id, feature1, feature2, target
+FROM my_table 
+WHERE date = '{{ target_date }}'
+LIMIT {{ limit | default(1000) }}
+```
 
 ```bash
-# 1. 학습 (자동 HPO + Feature Store)
-APP_ENV=dev python main.py train --recipe-file models/classification/xgboost_classifier
-
-# 2. 배치 추론 (동일한 Wrapped Artifact)
-APP_ENV=dev python main.py batch-inference --run-id <run_id> --input-file data/test.parquet
-
-# 3. API 서빙 (자기 기술 API)
-APP_ENV=dev python main.py serve-api --run-id <run_id>
-
-# 4. 모델 평가
-APP_ENV=dev python main.py evaluate --run-id <run_id> --input-file data/test.parquet
+# 템플릿 파라미터와 함께 실행
+uv run python main.py train \
+  --recipe-file recipes/templated_model.yaml \
+  --context-params '{"target_date": "2024-01-01", "limit": 5000}'
 ```
 
-### 지원하는 모델 생태계
-
-**분류 (Classification)**
-- Scikit-learn: RandomForest, LogisticRegression, SVM
-- Gradient Boosting: XGBoost, LightGBM, CatBoost
-- 딥러닝: Neural Networks (Scikit-learn MLPClassifier)
-
-**회귀 (Regression)**  
-- 선형: LinearRegression, Ridge, Lasso, ElasticNet
-- 트리: RandomForest, XGBoost, LightGBM
-- 커널: SVR
-
-**인과추론/업리프트 (Causal Inference)**
-- CausalML: XGBTRegressor, S-Learner, T-Learner
-
-**클러스터링 (Clustering)**
-- K-Means, DBSCAN, Hierarchical Clustering
-
-모든 모델은 **Recipe YAML 파일 하나로 즉시 실험 가능**하며, **자동 하이퍼파라미터 최적화**를 지원합니다.
-
----
-
-## 📊 개발환경 관리
-
-`setup-dev-environment.sh` 스크립트를 통해 `modern-ml-pipeline` 디렉토리를 벗어나지 않고 DEV 환경을 편리하게 관리할 수 있습니다.
-
-```bash
-# DEV 환경 상태 확인
-./setup-dev-environment.sh status
-
-# DEV 환경 중지
-./setup-dev-environment.sh stop
-
-# DEV 환경 완전 삭제 (볼륨 포함)
-./setup-dev-environment.sh clean
-
-# DEV 환경 재시작
-./setup-dev-environment.sh start
-
-# DEV 환경이 계약을 준수하는지 테스트
-./setup-dev-environment.sh test
-```
-
----
-
-## 📁 프로젝트 구조
-
-```
-modern-ml-pipeline/
-├── 📊 config/                  # 환경별 인프라 설정
-│   ├── base.yaml              # 공통 기본 설정
-│   ├── dev.yaml               # DEV 환경 (Feature Store 포함)
-│   └── prod.yaml              # PROD 환경 (BigQuery + Redis Labs)
-├── 🧪 recipes/                # 모델 실험 정의 (논리)
-│   ├── models/                # 카테고리별 모델 Recipe
-│   │   ├── classification/    # 분류 모델들
-│   │   ├── regression/        # 회귀 모델들
-│   │   └── causal/           # 인과추론 모델들
-│   └── sql/                   # Spine 생성용 SQL
-├── 🔧 src/                    # 핵심 엔진
-│   ├── core/                  # Factory, Trainer, Augmenter
-│   ├── interface/             # 추상 기본 클래스 (ABC)
-│   ├── pipelines/             # Train/Inference 파이프라인
-│   ├── settings/              # 설정 관리 (Pydantic)
-│   └── utils/                 # 어댑터 & 시스템 유틸리티
-├── 🚀 serving/                # API 서빙
-├── 🧪 tests/                  # 전체 테스트 스위트
-│   └── integration/
-│       └── expected-dev-contract.yml # 소비자 측 기대 계약서
-├── 📋 main.py                 # 단일 CLI 진입점
-├── 🛠️ setup-dev-environment.sh # DEV 환경 관리 스크립트
-└── 📖 blueprint.md            # 전체 아키텍처 설계 문서
-```
-
----
-
-## 🔬 고급 사용법
-
-### 커스텀 모델 추가
+### 2. Feature Store 연동
 
 ```yaml
-# recipes/my_custom_model.yaml
+# recipes/feature_store_model.yaml
 model:
-  class_path: "your_package.YourCustomModel"  # 동적 import
-  hyperparameters:
-    param1: {type: "float", low: 0.1, high: 1.0}
-    param2: {type: "int", low: 10, high: 100}
-
-# pandas DataFrame 기반 fit/predict 인터페이스만 구현하면 즉시 사용 가능
+  augmenter:
+    type: "feature_store"
+    features:
+      - feature_namespace: "user_demographics"
+        features: ["age", "country"]
+      - feature_namespace: "user_behavior"
+        features: ["click_rate", "conversion_rate"]
 ```
 
-### 환경별 설정 커스터마이징
+### 3. 환경별 설정 관리
 
+```bash
+# 환경 변수로 설정 전환
+APP_ENV=local   uv run python main.py train ...  # 로컬 파일 기반
+APP_ENV=dev     uv run python main.py train ...  # PostgreSQL + Redis  
+APP_ENV=prod    uv run python main.py train ...  # BigQuery + Redis Labs
+```
+
+---
+
+## 🌍 환경별 설정
+
+### LOCAL 환경 (기본)
+- **데이터**: 로컬 파일 (Parquet, CSV)
+- **Feature Store**: 비활성화 (Pass-through)
+- **MLflow**: 로컬 디렉토리 (`./mlruns`)
+- **특징**: 빠른 실험, 외부 의존성 없음
+
+### DEV 환경 
+```bash
+# mmp-local-dev 인프라 필요 (별도 설치)
+git clone https://github.com/wooshikwon/mmp-local-dev.git ../mmp-local-dev
+cd ../mmp-local-dev && docker-compose up -d
+
+# DEV 환경에서 실행
+APP_ENV=dev uv run python main.py train --recipe-file recipes/my_model.yaml
+```
+
+- **데이터**: PostgreSQL
+- **Feature Store**: PostgreSQL + Redis
+- **MLflow**: 공유 서버
+- **특징**: 완전한 기능, 팀 협업
+
+### PROD 환경
+- **데이터**: BigQuery, Snowflake
+- **Feature Store**: BigQuery + Redis Labs
+- **MLflow**: 클라우드 스토리지
+- **특징**: 확장성, 안정성
+
+---
+
+## 📊 지원하는 ML 프레임워크
+
+### 분류 (Classification)
 ```yaml
-# config/my_env.yaml
-database:
-  host: "my-custom-db.com"
-  
-feature_store:
-  feast_config:
-    offline_store:
-      type: "snowflake"
-      # Snowflake 설정...
+# scikit-learn
+class_path: "sklearn.ensemble.RandomForestClassifier"
+class_path: "sklearn.linear_model.LogisticRegression"
 
-# 사용법
-APP_ENV=my_env python main.py train --recipe-file my_model
+# XGBoost
+class_path: "xgboost.XGBClassifier"
+
+# LightGBM  
+class_path: "lightgbm.LGBMClassifier"
 ```
 
-### API 서빙 고급 활용
-
-```bash
-# 자동 생성된 API 스키마 확인
-curl http://localhost:8000/docs
-
-# 실시간 예측 (Feature Store 자동 조회)
-curl -X POST "http://localhost:8000/predict" \
-     -H "Content-Type: application/json" \
-     -d '{"user_id": "123", "product_id": "456"}'
+### 회귀 (Regression)
+```yaml
+class_path: "sklearn.ensemble.RandomForestRegressor"
+class_path: "sklearn.linear_model.LinearRegression"
+class_path: "xgboost.XGBRegressor"
+class_path: "lightgbm.LGBMRegressor"
 ```
 
----
-
-## 🧪 테스트
-
-```bash
-# 전체 테스트 스위트
-python -m pytest tests/ -v
-
-# 특정 컴포넌트 테스트
-python -m pytest tests/core/test_factory.py -v
-
-# 통합 테스트 (소비자 측 계약 검증 포함)
-pytest tests/integration/ -v
-
-# 인프라 자체 테스트 (공급자 측 계약 검증)
-(cd ../mmp-local-dev && uv run python test-integration.py)
+### 인과추론 (Causal Inference)
+```yaml
+# CausalML
+class_path: "causalml.inference.meta.XGBTRegressor"
+class_path: "causalml.inference.meta.TRegressor"
 ```
 
 ---
 
-## 📚 문서
+## 🐛 트러블슈팅
 
-- **[Blueprint v17.0 전체 문서](blueprint.md)** - 10대 설계 원칙과 철학
-- **[개발 환경 계약서 (원본)](../mmp-local-dev/dev-contract.yml)** - `mmp-local-dev`가 제공하는 서비스 명세
-- **[개발자 가이드](docs/DEVELOPER_GUIDE.md)** - 상세 개발 가이드
-- **[API 문서](http://localhost:8000/docs)** - FastAPI 자동 생성 문서 (서빙 시)
+### 자주 발생하는 문제
+
+**1. MLflow 연결 오류**
+```bash
+# MLflow 서버 확인
+curl http://localhost:5002/health
+# 환경변수 확인
+echo $MLFLOW_TRACKING_URI
+```
+
+**2. 데이터 파일을 찾을 수 없음**
+```bash
+# 현재 경로 확인
+pwd
+# 데이터 파일 경로 확인 (프로젝트 루트 기준)
+ls data/my_dataset.parquet
+```
+
+**3. 패키지 의존성 오류**
+```bash
+# 필요한 패키지 추가 설치
+uv add scikit-learn xgboost lightgbm
+# 또는: pip install scikit-learn xgboost lightgbm
+```
+
+**4. Feature Store 연결 오류**
+```bash
+# Redis 연결 확인
+redis-cli ping
+# PostgreSQL 연결 확인  
+psql -h localhost -p 5432 -U mlpipeline_user -d mlpipeline_db
+```
+
+### 로그 확인
+
+```bash
+# 상세 로그 출력
+export LOG_LEVEL=DEBUG
+uv run python main.py train --recipe-file recipes/my_model.yaml
+
+# 로그 파일 위치
+tail -f logs/modern_ml_pipeline.log
+```
+
+---
+
+## 📚 추가 문서
+
+- **[개발자 가이드](docs/DEVELOPER_GUIDE.md)**: 심화 사용법 및 커스터마이징
+- **[인프라 가이드](docs/INFRASTRUCTURE_STACKS.md)**: 환경별 인프라 설정
+- **[Blueprint](blueprint.md)**: 시스템 설계 철학 및 아키텍처
 
 ---
 
 ## 🤝 기여하기
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
+1. Fork the Project
+2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the Branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
-
-### 개발 환경 설정
-
-```bash
-# 개발용 의존성 설치
-pip install -r requirements-dev.lock
-
-# Pre-commit hooks 설정
-pre-commit install
-
-# 개발환경 실행
-./setup-dev-environment.sh start
-```
 
 ---
 
 ## 📄 라이선스
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+이 프로젝트는 MIT 라이선스 하에 있습니다. 자세한 내용은 [LICENSE](LICENSE) 파일을 참조하세요.
 
 ---
 
-## 🎉 Blueprint v17.0의 혁신
+## 📞 지원 및 문의
 
-이 프로젝트는 다음과 같은 MLOps 분야의 혁신을 달성했습니다:
-
-- 🚀 **완전한 재현성**: 어떤 환경에서도 100% 동일한 실행 결과
-- 🤖 **자동화된 최적화**: 수동 튜닝의 한계를 뛰어넘는 Optuna 통합
-- 🏪 **오픈소스 Feature Store**: 벤더 종속성 없는 Feast 기반 아키텍처
-- 🔄 **환경별 최적화**: LOCAL/DEV/PROD 각각의 목적에 맞춘 차별화
-- 🛡️ **완전한 안전성**: Data Leakage 원천 차단 및 투명한 검증
-- 🌐 **무제한 확장성**: 로컬부터 글로벌 엔터프라이즈까지
-- **"코드로서의 계약"**: `dev-contract.yml` 기반 자동 검증으로 견고한 호환성
-
-**Modern ML Pipeline으로 MLOps의 새로운 표준을 경험하세요!** ✨
+- **이슈 제보**: [GitHub Issues](https://github.com/wooshikwon/modern-ml-pipeline/issues)
+- **문서**: [Wiki](https://github.com/wooshikwon/modern-ml-pipeline/wiki)
+- **이메일**: [your-email@example.com](mailto:your-email@example.com)
