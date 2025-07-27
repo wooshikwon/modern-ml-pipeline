@@ -41,9 +41,9 @@ class ClassificationEvaluator(BaseEvaluator):
         # 기본 메트릭 계산
         metrics = {
             "accuracy": accuracy_score(y_test, y_pred),
-            "f1": f1_score(y_test, y_pred, average=self.data_interface.average),
-            "precision": precision_score(y_test, y_pred, average=self.data_interface.average),
-            "recall": recall_score(y_test, y_pred, average=self.data_interface.average),
+            "f1": f1_score(y_test, y_pred, average=getattr(self.data_interface, 'average', 'weighted')),
+            "precision": precision_score(y_test, y_pred, average=getattr(self.data_interface, 'average', 'weighted')),
+            "recall": recall_score(y_test, y_pred, average=getattr(self.data_interface, 'average', 'weighted')),
         }
         
         # 이진 분류인 경우 AUC 추가
@@ -88,8 +88,8 @@ class RegressionEvaluator(BaseEvaluator):
         }
         
         # sample_weight가 설정된 경우 추가 정보 로깅
-        if self.data_interface.sample_weight_col:
-            logger.info(f"Sample weight 컬럼 설정: {self.data_interface.sample_weight_col}")
+        if self.data_interface.sample_weight_column:
+            logger.info(f"Sample weight 컬럼 설정: {self.data_interface.sample_weight_column}")
         
         logger.info(f"회귀 모델 평가 완료: {metrics}")
         return metrics
@@ -120,8 +120,8 @@ class ClusteringEvaluator(BaseEvaluator):
             metrics["inertia"] = model.inertia_
         
         # 실제 라벨이 있는 경우 외재적 메트릭 추가
-        if self.data_interface.true_labels_col and self.data_interface.true_labels_col in test_df.columns:
-            true_labels = test_df[self.data_interface.true_labels_col]
+        if self.data_interface.true_labels_column and self.data_interface.true_labels_column in test_df.columns:
+            true_labels = test_df[self.data_interface.true_labels_column]
             metrics.update({
                 "ari": adjusted_rand_score(true_labels, cluster_labels),
                 "ami": adjusted_mutual_info_score(true_labels, cluster_labels),
@@ -149,8 +149,8 @@ class CausalEvaluator(BaseEvaluator):
         logger.info("인과추론/업리프트 모델 성능 평가를 시작합니다...")
         
         # 필요한 컬럼들
-        treatment_col = self.data_interface.treatment_col
-        target_col = self.data_interface.target_col
+        treatment_col = self.data_interface.treatment_column
+        target_col = self.data_interface.target_column
         treatment_value = self.data_interface.treatment_value
         
         # 업리프트 예측

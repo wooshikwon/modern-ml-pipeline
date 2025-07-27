@@ -22,7 +22,10 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
                  recipe_yaml_snapshot: str,
                  model_class_path: str,
                  hyperparameter_optimization: Optional[Dict[str, Any]],
-                 training_methodology: Dict[str, Any]):
+                 training_methodology: Dict[str, Any],
+                 data_schema: Optional[Dict[str, Any]] = None,
+                 schema_validator: Optional[Any] = None,
+                 signature: Optional[Any] = None):
         self.trained_model = trained_model
         self.trained_preprocessor = trained_preprocessor
         self.trained_augmenter = trained_augmenter
@@ -32,14 +35,35 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
         self.model_class_path = model_class_path
         self.hyperparameter_optimization = hyperparameter_optimization
         self.training_methodology = training_methodology
+        # 🆕 Phase 4: 스키마 일관성 검증을 위한 메타데이터
+        self.data_schema = data_schema
+        self.schema_validator = schema_validator
+        # 🆕 Phase 5: Enhanced Model Signature
+        self.signature = signature
 
     def predict(self, context, model_input: pd.DataFrame, params: Optional[Dict[str, Any]] = None) -> pd.DataFrame:
         """
         배치 추론 및 API 서빙을 위한 통합 예측 인터페이스.
-        실행 흐름: [피처 증강 -> 전처리 -> 예측]
+        실행 흐름: [🆕 스키마 검증 -> 피처 증강 -> 전처리 -> 예측]
         """
         params = params or {}
         run_mode = params.get("run_mode", "batch")
+
+        # 0. 🆕 Phase 4: 자동 스키마 일관성 검증
+        if run_mode == "batch" and self.schema_validator:
+            try:
+                self.schema_validator.validate_inference_consistency(model_input)
+                from src.utils.system.logger import logger
+                logger.info("✅ PyfuncWrapper 자동 스키마 검증 완료")
+            except ValueError as e:
+                # Schema Drift 감지 → 상세한 진단 메시지
+                raise ValueError(f"🚨 PyfuncWrapper Schema Drift 감지: {e}")
+        elif run_mode != "batch":
+            # API 서빙 모드에서도 검증 (성능상 간단한 검증만)
+            if self.data_schema and 'inference_columns' in self.data_schema:
+                missing_cols = set(self.data_schema['inference_columns']) - set(model_input.columns)
+                if missing_cols:
+                    raise ValueError(f"🚨 API 요청 스키마 불일치: 필수 컬럼 누락 {missing_cols}")
 
         # 1. 피처 증강 (Augmenter)
         df_augmented = model_input.copy()

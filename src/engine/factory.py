@@ -143,13 +143,53 @@ class Factory:
         self, 
         trained_model, 
         trained_preprocessor: Optional[BasePreprocessor],
+        training_df: Optional[pd.DataFrame] = None,  # 🆕 Phase 5: 스키마 생성용
         training_results: Optional[Dict[str, Any]] = None
     ) -> PyfuncWrapper:
-        """완전한 Wrapped Artifact 생성"""
+        """🔄 Phase 5: 완전한 스키마 정보가 캡슐화된 Enhanced Artifact 생성"""
         from src.engine.artifact import PyfuncWrapper
-        logger.info("Creating PyfuncWrapper artifact.")
+        logger.info("Creating Enhanced PyfuncWrapper artifact with Phase 5 capabilities...")
         
+        # 🆕 Phase 5: Enhanced Signature + Schema 생성 (training_df가 있는 경우)
+        signature = None
+        data_schema = None
+        schema_validator = None
+        
+        if training_df is not None:
+            logger.info("🆕 Phase 5: Enhanced Model Signature + 스키마 메타데이터 생성 중...")
+            from src.utils.integrations.mlflow_integration import create_enhanced_model_signature_with_schema
+            
+            # Phase 1 Schema 정보 통합 (27개 Recipe 대응)
+            entity_schema = self.model_config.loader.entity_schema
+            data_interface = self.model_config.data_interface
+            
+            data_interface_config = {
+                # Entity + Timestamp 정보
+                'entity_columns': entity_schema.entity_columns,
+                'timestamp_column': entity_schema.timestamp_column,
+                # ML 작업 정보
+                'task_type': data_interface.task_type,
+                'target_column': data_interface.target_column,
+                'treatment_column': getattr(data_interface, 'treatment_column', None),
+            }
+            
+            # Enhanced Signature + Schema 생성
+            signature, data_schema = create_enhanced_model_signature_with_schema(
+                training_df, 
+                data_interface_config
+            )
+            
+            # 🆕 Phase 4 SchemaConsistencyValidator 생성
+            from src.utils.system.schema_utils import SchemaConsistencyValidator
+            schema_validator = SchemaConsistencyValidator(data_schema)
+            
+            logger.info("✅ Enhanced Signature + 스키마 검증기 생성 완료")
+        else:
+            logger.warning("⚠️ training_df가 제공되지 않아 기본 PyfuncWrapper 생성 (Phase 5 기능 제한)")
+        
+        # 🔄 Enhanced PyfuncWrapper 생성 (Phase 4, 5 통합)
         return PyfuncWrapper(
+            # 기존 매개변수들 보존
             trained_model=trained_model,
             trained_preprocessor=trained_preprocessor,
             trained_augmenter=self.create_augmenter(),
@@ -159,6 +199,12 @@ class Factory:
             model_class_path=self.model_config.class_path,
             hyperparameter_optimization=training_results.get('hyperparameter_optimization') if training_results else None,
             training_methodology=training_results.get('training_methodology') if training_results else {},
+            
+            # 🆕 Phase 4, 5 통합: 완전한 스키마 정보
+            data_schema=data_schema,
+            schema_validator=schema_validator,
+            # 🆕 Phase 5: Enhanced Signature 저장
+            signature=signature,
         )
     
     def _create_loader_sql_snapshot(self) -> str:

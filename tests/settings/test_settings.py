@@ -33,7 +33,7 @@ class TestSettingsLoading:
         
         # 4. `local_classification_test.yaml` 레시피 내용이 병합되었는지 확인
         assert s.model.class_path == "sklearn.ensemble.RandomForestClassifier"
-        assert s.model.data_interface.task_type == "classification"
+        assert s.recipe.model.loader.entity_schema.task_type == "classification"
 
     def test_load_dev_settings_correctly(self, dev_test_settings: Settings):
         """

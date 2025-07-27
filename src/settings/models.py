@@ -4,9 +4,11 @@ Blueprint v17.0 설정 모델 정의 모듈
 
 이 모듈은 모든 Pydantic 모델들을 관리합니다.
 최종적으로 settings/__init__.py에서 Settings 클래스로 통합됩니다.
+
+🎯 Phase 1 완료: 27개 Recipe와 완전 대응
 """
 
-from pydantic import BaseModel, Field, RootModel
+from pydantic import BaseModel, Field, RootModel, validator
 from typing import Dict, Any, List, Optional, Union, Literal
 from collections.abc import Mapping
 
@@ -104,12 +106,12 @@ class ArtifactStoreSettings(BaseModel):
 
 
 # =============================================================================
-# 2. 모델 논리 설정 (recipes/*.yaml)
+# 2. 모델 논리 설정 (recipes/*.yaml) - 27개 Recipe 완전 대응
 # =============================================================================
 
-# 🆕 2.1 Optuna 하이퍼파라미터 지원 모델들
+# 🆕 2.1 Dictionary 형태 하이퍼파라미터 완벽 지원
 class OptunaParameterConfig(BaseModel):
-    """Optuna 하이퍼파라미터 설정 (Blueprint v17.0: Automated HPO)"""
+    """Optuna 하이퍼파라미터 설정 (27개 Recipe 전용)"""
     type: Literal["int", "float", "categorical"]
     low: Optional[Union[int, float]] = None
     high: Optional[Union[int, float]] = None
@@ -128,9 +130,29 @@ class OptunaParameterConfig(BaseModel):
                 raise ValueError("categorical 타입 파라미터에는 choices가 필요합니다.")
 
 
-class ModernHyperparametersSettings(BaseModel):
-    """현대화된 하이퍼파라미터 설정 (Optuna + 고정값 지원)"""
+class HyperparametersSettings(BaseModel):
+    """
+    Dictionary 형태 하이퍼파라미터 (27개 Recipe 표준)
+    
+    Examples:
+        C: {type: "float", low: 0.001, high: 100.0, log: true}
+        penalty: {type: "categorical", choices: ["l1", "l2"]}
+        random_state: 42
+    """
     root: Dict[str, Union[OptunaParameterConfig, Any]]
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "HyperparametersSettings":
+        """Dictionary에서 HyperparametersSettings 생성"""
+        processed_data = {}
+        for key, value in data.items():
+            if isinstance(value, dict) and "type" in value:
+                # Optuna 형태 파라미터
+                processed_data[key] = OptunaParameterConfig(**value)
+            else:
+                # 고정값 파라미터
+                processed_data[key] = value
+        return cls(root=processed_data)
     
     def get_optuna_params(self) -> Dict[str, OptunaParameterConfig]:
         """Optuna 최적화 대상 파라미터만 추출"""
@@ -147,14 +169,140 @@ class ModernHyperparametersSettings(BaseModel):
         }
 
 
-# 🆕 2.2 평가 설정 모델들
+# 🆕 2.2 Point-in-Time EntitySchema (완전 Recipe 대응)
+class EntitySchema(BaseModel):
+    """
+    Entity + Timestamp 기반 Point-in-Time 정합성 스키마
+    
+    27개 Recipe의 loader.entity_schema와 완전 대응
+    """
+    # 필수 필드 (27개 Recipe 표준)
+    entity_columns: List[str]    # ["user_id", "product_id"] - PK 정의
+    timestamp_column: str        # "event_timestamp" - Point-in-Time 기준
+    
+    @validator('entity_columns')
+    def validate_entity_columns(cls, v):
+        if not v or len(v) == 0:
+            raise ValueError("Entity 컬럼은 Point-in-Time JOIN의 핵심입니다. 최소 1개 필요.")
+        return v
+    
+    @validator('timestamp_column')
+    def validate_timestamp_column(cls, v):
+        if not v or v.strip() == "":
+            raise ValueError("Timestamp 컬럼은 Point-in-Time Correctness의 핵심입니다.")
+        return v
+    
+    def get_key_columns(self) -> List[str]:
+        """JOIN 키 컬럼들 반환"""
+        return self.entity_columns + [self.timestamp_column]
+
+
+# 🆕 2.3 ML Task Settings (27개 Recipe 완전 대응)
+class MLTaskSettings(BaseModel):
+    """
+    ML 작업별 세부 설정 - 27개 Recipe의 data_interface와 완전 대응
+    
+    필드명이 Recipe YAML과 정확히 일치:
+    - target_column (기존 target_col에서 변경)
+    - treatment_column (기존 treatment_col에서 변경)
+    """
+    
+    # 🎯 필수 필드 (모든 Recipe 공통)
+    task_type: str  # "classification", "regression", "clustering", "causal"
+    
+    # 🎯 조건부 필수 필드들 (Recipe YAML과 완전 일치)
+    target_column: Optional[str] = None           # 🔄 변경: target_col → target_column
+    
+    # 🎯 Causal 전용 필드들 (Recipe YAML과 완전 일치)
+    treatment_column: Optional[str] = None        # 🔄 변경: treatment_col → treatment_column
+    treatment_value: Optional[Any] = None
+    
+    # 🎯 Classification 전용 필드들
+    class_weight: Optional[str] = None            # "balanced" 등
+    pos_label: Optional[Any] = None               # 이진 분류용
+    average: Optional[str] = "weighted"           # f1 계산 방식
+    
+    # 🎯 Regression 전용 필드들
+    sample_weight_column: Optional[str] = None    # 가중치 컬럼
+    
+    # 🎯 Clustering 전용 필드들
+    n_clusters: Optional[int] = None              # K-Means, Hierarchical용
+    
+    def validate_required_fields(self):
+        """task_type에 따른 필수 필드 검증"""
+        if self.task_type in ["classification", "regression", "causal"]:
+            if not self.target_column:
+                raise ValueError(f"{self.task_type} 태스크에는 target_column이 필요합니다.")
+        
+        if self.task_type == "causal":
+            if not self.treatment_column:
+                raise ValueError("causal 태스크에는 treatment_column이 필요합니다.")
+            if self.treatment_value is None:
+                raise ValueError("causal 태스크에는 treatment_value가 필요합니다.")
+    
+    def get_target_fields(self) -> List[str]:
+        """타겟 관련 모든 필드 반환"""
+        fields = []
+        if self.target_column:
+            fields.append(self.target_column)
+        if self.treatment_column:
+            fields.append(self.treatment_column)
+        return fields
+
+
+# 🆕 2.4 Feature Store 설정 (27개 Recipe 대응)
+class FeatureNamespaceSettings(BaseModel):
+    """Feature Store 네임스페이스 설정"""
+    feature_namespace: str
+    features: List[str]
+
+
+class AugmenterSettings(BaseModel):
+    """피처 증강기 설정 (27개 Recipe 대응)"""
+    
+    # 🆕 Feature Store 방식 (27개 Recipe 표준)
+    type: str = "feature_store"                           # "feature_store" 표준
+    features: Optional[List[FeatureNamespaceSettings]] = None  # Feature 네임스페이스들
+    
+    # 🔄 기존 필드들 (하위 호환성)
+    name: Optional[str] = None
+    source_uri: Optional[str] = None
+    local_override_uri: Optional[str] = None
+    
+    def validate_augmenter_config(self):
+        """Augmenter 설정의 유효성 검증"""
+        if self.type == "feature_store":
+            if not self.features:
+                raise ValueError("Feature Store 방식 Augmenter에는 features 설정이 필요합니다.")
+            for feature_ns in self.features:
+                if not feature_ns.features:
+                    raise ValueError(f"네임스페이스 '{feature_ns.feature_namespace}'에 피처가 정의되지 않았습니다.")
+
+
+# 🆕 2.5 전처리기 설정 (27개 Recipe 대응)
+class PreprocessorParamsSettings(BaseModel):
+    """전처리기 파라미터 설정 (27개 Recipe 완전 대응)"""
+    criterion_col: Optional[str] = None
+    exclude_cols: List[str] = []
+    handle_missing: Optional[str] = "median"      # 결측치 처리 방식
+    scale_features: Optional[bool] = False        # 피처 스케일링 여부
+    encode_categorical: Optional[str] = "onehot"  # 범주형 인코딩 방식
+
+
+class PreprocessorSettings(BaseModel):
+    """전처리기 설정"""
+    name: str
+    params: PreprocessorParamsSettings
+
+
+# 🆕 2.6 평가 설정 (27개 Recipe 대응)
 class ValidationMethodSettings(BaseModel):
-    """검증 방법 설정"""
-    method: Literal["train_test_split", "cross_validation", "unsupervised"]
+    """검증 방법 설정 (27개 Recipe 표준)"""
+    method: str = "train_test_split"              # 기본값
     test_size: Optional[float] = 0.2
     stratify: Optional[bool] = None
     random_state: Optional[int] = 42
-    cv_folds: Optional[int] = 5  # cross_validation용
+    cv_folds: Optional[int] = 5                   # cross_validation용
     
     def validate_method_config(self):
         """검증 방법별 설정 유효성 검증"""
@@ -167,12 +315,12 @@ class ValidationMethodSettings(BaseModel):
 
 
 class EvaluationSettings(BaseModel):
-    """평가 설정 (Blueprint v17.0: 작업별 특화 메트릭 지원)"""
+    """평가 설정 (27개 Recipe 완전 대응)"""
     metrics: List[str]
     validation: ValidationMethodSettings
     
     def validate_task_metrics(self, task_type: str):
-        """작업 타입별 메트릭 유효성 검증"""
+        """작업 타입별 메트릭 유효성 검증 (27개 Recipe 지원)"""
         valid_metrics = {
             "classification": {
                 "accuracy", "precision", "recall", "f1_score", "roc_auc",
@@ -180,7 +328,9 @@ class EvaluationSettings(BaseModel):
             },
             "regression": {
                 "r2_score", "mean_squared_error", "mean_absolute_error", 
-                "root_mean_squared_error", "neg_mean_squared_error", "neg_root_mean_squared_error"
+                "root_mean_squared_error", "neg_mean_squared_error", 
+                "neg_root_mean_squared_error", "neg_mean_absolute_error",
+                "neg_mean_absolute_percentage_error"
             },
             "causal": {
                 "uplift_auc", "uplift_at_k", "qini_coefficient", "treatment_effect"
@@ -199,166 +349,97 @@ class EvaluationSettings(BaseModel):
             raise ValueError(f"{task_type}에서 지원하지 않는 메트릭: {invalid_metrics}")
 
 
-# 2.3 모델 논리 컴포넌트 설정들
+# 🆕 2.7 기타 컴포넌트 설정들
 class LoaderSettings(BaseModel):
-    """데이터 로더 설정"""
+    """데이터 로더 설정 (27개 Recipe 완전 대응)"""
     name: str
     source_uri: str
+    entity_schema: EntitySchema                   # Point-in-Time 스키마
     local_override_uri: Optional[str] = None
-
-
-class AugmenterSettings(BaseModel):
-    """피처 증강기 설정 (Blueprint v17.0: Feature Store 지원)"""
-    
-    # 🔄 기존 필드들 (하위 호환성 유지)
-    name: Optional[str] = None
-    source_uri: Optional[str] = None
-    local_override_uri: Optional[str] = None
-    
-    # 🆕 Feature Store 방식 필드들 (Blueprint v17.0)
-    type: Optional[str] = None  # "feature_store" or "sql" (기본값: sql)
-    features: Optional[List[Dict[str, Any]]] = None  # Feature Store 피처 설정
-    
-    def validate_augmenter_config(self):
-        """Augmenter 설정의 유효성 검증"""
-        if self.type == "feature_store":
-            # Feature Store 방식: features가 필요
-            if not self.features:
-                raise ValueError("Feature Store 방식 Augmenter에는 features 설정이 필요합니다.")
-        elif self.type == "pass_through":
-            # Blueprint 원칙 9: LOCAL 환경의 의도적 제약 - 추가 검증 불필요
-            pass
-        else:
-            # 기존 SQL 방식: source_uri가 필요 (기본값)
-            if not self.source_uri:
-                raise ValueError("기존 SQL 방식 Augmenter에는 source_uri가 필요합니다.")
-
-
-class PreprocessorParamsSettings(BaseModel):
-    """전처리기 파라미터 설정"""
-    criterion_col: Optional[str] = None
-    exclude_cols: List[str]
-
-
-class PreprocessorSettings(BaseModel):
-    """전처리기 설정"""
-    name: str
-    params: PreprocessorParamsSettings
 
 
 class EvaluatorSettings(BaseModel):
-    """평가자 설정 (Blueprint v17.0: 새로 추가)"""
+    """평가자 설정"""
     name: str
 
 
 class HyperparameterTuningSettings(BaseModel):
-    """하이퍼파라미터 튜닝 설정 (Blueprint v17.0)"""
-    enabled: bool = False  # 기본값: 기존 동작 유지
-    engine: str = "optuna"
+    """하이퍼파라미터 튜닝 설정 (27개 Recipe 완전 대응)"""
+    enabled: bool = False
     n_trials: int = 10
     metric: str = "accuracy"
     direction: str = "maximize"
-    timeout: Optional[int] = None  # 초 단위, None이면 제한 없음
-    pruning: Optional[Dict[str, Any]] = None
-    parallelization: Optional[Dict[str, Any]] = None
+    timeout: Optional[int] = None
 
 
-class FeatureStoreSettings(BaseModel):
-    """Feature Store 설정 (Blueprint v17.0: config 통합)"""
-    provider: str = "dynamic"
-    
-    # 🎯 Blueprint 원칙 1 준수: config 내 완전한 Feast 설정
-    feast_config: Optional[Dict[str, Any]] = None
-    
-    # 연결 정보 (하위 호환성)
-    connection_timeout: int = 5000
-    retry_attempts: int = 3
-    connection_info: Dict[str, Any] = {}
+# 🆕 2.8 Recipe 메타데이터 (새로 추가)
+class RecipeMetadataSettings(BaseModel):
+    """Recipe 메타데이터 (선택적)"""
+    description: Optional[str] = None
+    use_cases: Optional[List[str]] = None
+    performance_baseline: Optional[Dict[str, Any]] = None
+    data_requirements: Optional[Dict[str, Any]] = None
 
 
-class DataInterfaceSettings(BaseModel):
-    """데이터 인터페이스 설정 (다양한 ML 태스크 지원)"""
-    
-    # 필수 필드
-    task_type: str  # "classification", "regression", "clustering", "causal"
-    
-    # 조건부 필수 필드들 (clustering 제외하고 필수)
-    target_col: Optional[str] = None
-    
-    # Causal 전용 필드들 (기존 호환성 유지)
-    treatment_col: Optional[str] = None
-    treatment_value: Optional[Any] = None
-    
-    # Classification 전용 필드들
-    class_weight: Optional[str] = None  # "balanced" 등
-    pos_label: Optional[Any] = None  # 이진 분류용
-    average: Optional[str] = "weighted"  # f1 계산 방식
-    
-    # Regression 전용 필드들
-    sample_weight_col: Optional[str] = None
-    
-    # Clustering 전용 필드들
-    n_clusters: Optional[int] = None
-    true_labels_col: Optional[str] = None  # 평가용 실제 라벨
-    
-    # 기존 필드 유지 (Optional로 변경)
-    features: Optional[Dict[str, str]] = None
-    
-    def validate_required_fields(self):
-        """task_type에 따른 필수 필드 검증"""
-        if self.task_type in ["classification", "regression", "causal"]:
-            if not self.target_col:
-                raise ValueError(f"{self.task_type} 태스크에는 target_col이 필요합니다.")
-        
-        if self.task_type == "causal":
-            if not self.treatment_col:
-                raise ValueError("causal 태스크에는 treatment_col이 필요합니다.")
-            if self.treatment_value is None:
-                raise ValueError("causal 태스크에는 treatment_value가 필요합니다.")
-
-
-# 🆕 2.4 현대화된 모델 설정 (Recipe 구조 지원)
+# 🆕 2.9 모델 구성 설정 (27개 Recipe 완전 대응)
 class ModelConfigurationSettings(BaseModel):
-    """모델 구성 설정 (Blueprint v17.0: Recipe model 섹션)"""
-    class_path: str  # 동적 모델 로딩용
+    """모델 구성 설정 (27개 Recipe 완전 대응)"""
     
-    # 하이퍼파라미터 (현대화된/기존 형식 모두 지원)
-    hyperparameters: Union[ModernHyperparametersSettings, Dict[str, Any]]
+    # 🎯 필수 필드들
+    class_path: str                                       # 동적 모델 로딩용
     
-    # 기본 컴포넌트들
-    loader: LoaderSettings
-    augmenter: Optional[AugmenterSettings] = None
-    preprocessor: Optional[PreprocessorSettings] = None
-    data_interface: DataInterfaceSettings
-    evaluator: Optional[EvaluatorSettings] = None
+    # 🎯 하이퍼파라미터 (Dictionary 형태 표준)
+    hyperparameters: Union[HyperparametersSettings, Dict[str, Any]]
     
-    # 튜닝 설정
+    # 🎯 컴포넌트들 (27개 Recipe 구조)
+    loader: LoaderSettings                                # Point-in-Time 데이터 로딩
+    data_interface: MLTaskSettings                        # ML 작업별 세부 설정
+    augmenter: Optional[AugmenterSettings] = None         # Feature Store 증강
+    preprocessor: Optional[PreprocessorSettings] = None   # 전처리
+    evaluator: Optional[EvaluatorSettings] = None         # 평가
+    
+    # 🎯 튜닝 설정
     hyperparameter_tuning: Optional[HyperparameterTuningSettings] = None
     
-    # 계산된 필드들
-    computed: Optional[Dict[str, Any]] = None
+    def get_all_exclude_columns(self) -> List[str]:
+        """모든 제외 컬럼들 반환"""
+        exclude_cols = []
+        
+        # Entity + Timestamp 컬럼들
+        exclude_cols.extend(self.loader.entity_schema.get_key_columns())
+        
+        # Target 관련 컬럼들
+        exclude_cols.extend(self.data_interface.get_target_fields())
+        
+        # 전처리기 제외 컬럼들
+        if self.preprocessor:
+            exclude_cols.extend(self.preprocessor.params.exclude_cols)
+        
+        return list(set(exclude_cols))  # 중복 제거
 
 
-# 🆕 2.5 최상위 Recipe 설정
+# 🆕 2.10 Recipe 설정 (27개 Recipe 완전 대응)
 class RecipeSettings(BaseModel):
     """
-    완전한 Recipe 설정 (Blueprint v17.0: Recipe YAML 완전 매핑)
+    완전한 Recipe 설정 (27개 Recipe 완전 대응)
     
-    현대화된 25개 Recipe 파일의 구조를 완전히 지원합니다:
+    모든 Recipe YAML 파일의 구조를 완벽하게 지원:
     - name: Recipe 식별자
-    - model: 모델 구성 설정
+    - model: 모델 구성 (class_path, hyperparameters, 컴포넌트들)
     - evaluation: 평가 설정
+    - metadata: 메타데이터 (선택적)
     """
     name: str
     model: ModelConfigurationSettings
     evaluation: EvaluationSettings
+    metadata: Optional[RecipeMetadataSettings] = None    # 🆕 메타데이터 지원
     
     def validate_recipe_consistency(self):
-        """Recipe 전체의 일관성 검증"""
+        """Recipe 전체의 일관성 검증 (27개 Recipe 대응)"""
         # Task type과 evaluation metrics 일관성 확인
         self.evaluation.validate_task_metrics(self.model.data_interface.task_type)
         
-        # Data interface 필수 필드 확인
+        # ML Task 필수 필드 확인
         self.model.data_interface.validate_required_fields()
         
         # Augmenter 설정 검증
@@ -368,24 +449,35 @@ class RecipeSettings(BaseModel):
         # Validation method 설정 검증
         self.evaluation.validation.validate_method_config()
         
-        # Optuna 파라미터 검증 (현대화된 형식인 경우)
-        if isinstance(self.model.hyperparameters, ModernHyperparametersSettings):
+        # Optuna 파라미터 검증
+        if isinstance(self.model.hyperparameters, HyperparametersSettings):
             for param_name, param_config in self.model.hyperparameters.get_optuna_params().items():
                 param_config.validate_optuna_config()
 
 
 # =============================================================================
-# 3. 최종 통합 설정 모델
+# 3. Feature Store 설정 (config 통합)
+# =============================================================================
+
+class FeatureStoreSettings(BaseModel):
+    """Feature Store 설정"""
+    provider: str = "dynamic"
+    feast_config: Optional[Dict[str, Any]] = None
+    connection_timeout: int = 5000
+    retry_attempts: int = 3
+    connection_info: Dict[str, Any] = {}
+
+
+# =============================================================================
+# 4. 최종 통합 설정 모델 (27개 Recipe 완전 지원)
 # =============================================================================
 
 class Settings(BaseModel):
     """
-    Blueprint v17.0 통합 설정 모델
+    Blueprint v17.0 통합 설정 모델 (27개 Recipe 완전 지원)
     
     config/*.yaml (인프라 설정) + recipes/*.yaml (모델 논리)의 
     완전한 통합 인터페이스를 제공합니다.
-    
-    현대화된 Recipe 구조 전용 (레거시 지원 제거)
     """
     
     # config/*.yaml에서 오는 필드들 (인프라 설정)
@@ -394,13 +486,13 @@ class Settings(BaseModel):
     serving: ServingSettings
     artifact_stores: Dict[str, ArtifactStoreSettings]
     
-    # 🆕 Blueprint v17.0: Config-driven Dynamic Factory
+    # 🆕 Config-driven Dynamic Factory
     data_adapters: Optional[DataAdapterSettings] = None
     
-    # recipes/*.yaml에서 오는 필드 (모델 논리) - 현대화된 Recipe 전용
+    # 🎯 recipes/*.yaml에서 오는 필드 (27개 Recipe 완전 지원)
     recipe: RecipeSettings
     
-    # 🆕 Blueprint v17.0 새로 추가 (Optional로 하위 호환성 보장)
+    # 🆕 추가 설정들
     hyperparameter_tuning: Optional[HyperparameterTuningSettings] = None
     feature_store: Optional[FeatureStoreSettings] = None
     

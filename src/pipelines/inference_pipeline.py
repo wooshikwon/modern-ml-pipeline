@@ -25,44 +25,81 @@ def run_batch_inference(settings: Settings, run_id: str, context_params: dict = 
         logger.info(f"MLflow 모델 로딩 시작: {model_uri}")
         model = mlflow.pyfunc.load_model(model_uri)
         
-        # 3. 데이터 로딩
+        # 3. 데이터 로딩 - 🆕 Phase 3: 보안 강화 Dynamic SQL 처리
         # Wrapper에 내장된 loader_sql_snapshot을 사용
         wrapped_model = model.unwrap_python_model()
-        loader_sql = wrapped_model.loader_sql_snapshot
+        loader_sql_template = wrapped_model.loader_sql_snapshot
         
         # Factory를 통해 현재 환경에 맞는 데이터 어댑터 생성
         factory = Factory(settings)
         
+        # 🆕 Phase 3: Template SQL 보안 렌더링
+        if _is_jinja_template(loader_sql_template) and context_params:
+            # Jinja template + context_params → 보안 강화 동적 렌더링
+            from src.utils.system.templating_utils import render_sql_from_string_safe
+            try:
+                rendered_sql = render_sql_from_string_safe(loader_sql_template, context_params)
+                logger.info("✅ 동적 SQL 렌더링 성공 (보안 검증 완료)")
+            except ValueError as e:
+                # 보안 위반 또는 잘못된 파라미터 → 명확한 에러
+                raise ValueError(f"동적 SQL 렌더링 실패: {e}")
+                
+        elif context_params:
+            # 정적 SQL + context_params → 보안 에러 (명확한 안내)
+            raise ValueError(
+                "🚨 보안 위반: 이 모델은 정적 SQL로 학습되어 동적 시점 변경을 지원하지 않습니다.\n"
+                "동적 Batch Inference를 원한다면 Jinja template (.sql.j2)로 학습하세요.\n"
+                f"현재 SQL: {loader_sql_template[:100]}..."
+            )
+        else:
+            # 정적 SQL + context_params 없음 → 정상 처리
+            rendered_sql = loader_sql_template
+        
         # --- E2E 테스트를 위한 임시 Mocking 로직 ---
-        is_e2e_test_run = "LIMIT 100" in loader_sql
+        is_e2e_test_run = "LIMIT 100" in rendered_sql
         if is_e2e_test_run:
             logger.warning("E2E 테스트 모드: 실제 데이터 로딩 대신 Mock DataFrame을 생성합니다.")
             df = pd.DataFrame({
                 'user_id': [f'user_{i}' for i in range(100)],
                 'item_id': [f'item_{i % 10}' for i in range(100)],
                 'timestamp': pd.to_datetime('2024-01-01'),
-                'target_date': context_params.get('target_date', '2024-01-01'),
+                'target_date': context_params.get('target_date', '2024-01-01') if context_params else '2024-01-01',
                 'target': [0] * 100, # 스키마 검증을 위한 target 컬럼 추가
             })
         else:
             data_adapter = factory.create_data_adapter(settings.data_adapters.default_loader)
-            df = data_adapter.read(loader_sql, params=context_params)
+            # 🔄 Phase 3: 보안 검증된 SQL 사용, params는 제거 (이미 렌더링됨)
+            df = data_adapter.read(rendered_sql)
         
-        # 4. 예측 실행
+        # 4. 🆕 Phase 4: 자동 스키마 일관성 검증
+        if hasattr(wrapped_model, 'data_schema'):
+            from src.utils.system.schema_utils import SchemaConsistencyValidator
+            
+            try:
+                validator = SchemaConsistencyValidator(wrapped_model.data_schema)
+                validator.validate_inference_consistency(df)
+                logger.info("✅ Batch Inference 스키마 일관성 검증 완료")
+            except ValueError as e:
+                # Schema Drift 감지 → 상세한 진단 메시지
+                raise ValueError(f"🚨 Schema Drift 감지: {e}")
+        else:
+            logger.warning("⚠️ 모델에 data_schema가 없어 스키마 검증을 스킵합니다. (Phase 4 이전 모델일 가능성)")
+        
+        # 5. 예측 실행
         predictions_df = model.predict(df)
         
-        # 5. 핵심 메타데이터 추가 (추적성 보장)
+        # 6. 핵심 메타데이터 추가 (추적성 보장)
         predictions_df['model_run_id'] = run_id  # 사용된 모델의 MLflow Run ID
         predictions_df['inference_run_id'] = run.info.run_id  # 현재 배치 추론 실행 ID
         predictions_df['inference_timestamp'] = datetime.now()  # 예측 수행 시각
         
-        # 6. 결과 저장
+        # 7. 결과 저장
         storage_adapter = factory.create_data_adapter("storage")
         # 올바른 접근 방식 적용: dict['키'].속성
         target_path = f"{settings.artifact_stores['prediction_results'].base_uri}/{run.info.run_name}.parquet"
         storage_adapter.write(predictions_df, target_path)
 
-        # 7. PostgreSQL 저장 (설정이 활성화된 경우)
+        # 8. PostgreSQL 저장 (설정이 활성화된 경우)
         prediction_config = settings.artifact_stores['prediction_results']
         
         if hasattr(prediction_config, 'postgres_storage') and prediction_config.postgres_storage:
@@ -131,3 +168,17 @@ def _save_dataset(
     logger.info(f"'{store_name}' 아티팩트 저장 시작: {final_target}")
     adapter.write(df, final_target, options)
     logger.info(f"'{store_name}' 아티팩트 저장 완료: {final_target}")
+
+
+def _is_jinja_template(sql: str) -> bool:
+    """
+    🆕 Phase 3: SQL 문자열이 Jinja2 템플릿인지 감지
+    
+    Args:
+        sql: 검사할 SQL 문자열
+        
+    Returns:
+        Jinja2 템플릿 패턴이 포함되어 있으면 True, 아니면 False
+    """
+    jinja_patterns = ['{{', '}}', '{%', '%}']
+    return any(pattern in sql for pattern in jinja_patterns)
