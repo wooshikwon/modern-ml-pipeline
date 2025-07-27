@@ -1,71 +1,82 @@
-# Elastic Net - L1+L2 결합 정규화 회귀
-# ⚖️ Ridge와 Lasso의 최고 장점을 결합한 하이브리드 정규화 회귀
+# Elastic Net: Ridge와 Lasso의 완벽한 조합
+# ⚖️ L1과 L2 정규화를 균형있게 조합한 최적의 회귀
 
 name: "elastic_net"
 
 model:
-  # 직접 동적 import를 통한 Elastic Net 회귀기
+  # Scikit-learn Elastic Net 직접 동적 import
   class_path: "sklearn.linear_model.ElasticNet"
   
-  # 하이퍼파라미터 정의 (Optuna 자동 최적화 지원)
-  hyperparameters:
-    # 🔥 자동 최적화 범위 - Elastic Net 특화 하이퍼파라미터
-    alpha: {type: "float", low: 0.001, high: 10.0, log: true}
-    l1_ratio: {type: "float", low: 0.1, high: 0.9}  # L1과 L2의 비율
-    fit_intercept: {type: "categorical", choices: [true, false]}
-    precompute: {type: "categorical", choices: [true, false, "auto"]}
-    positive: {type: "categorical", choices: [true, false]}
-    selection: {type: "categorical", choices: ["cyclic", "random"]}
+  # Phase 1: Point-in-Time 정합성 스키마
+  loader:
+    name: "sales_forecasting_loader"
+    source_uri: "recipes/sql/loaders/sales_prediction_features.sql"
+    entity_schema:
+      entity_columns: ["product_id", "store_id"]        # 제품-매장 페어
+      timestamp_column: "forecast_date"                 # 예측 기준일
+  
+  # 기존: ML 작업별 세부 설정 (Regression 전용)
+  data_interface:
+    task_type: "regression"
+    target_column: "weekly_sales_units"        # 주간 판매량 (연속형)
     
-    # 🔧 고정값 - Elastic Net 안정성을 위한 설정
+  # Dictionary 형태 하이퍼파라미터 (Elastic Net 특화)
+  hyperparameters:
+    # 정규화 강도 (전체)
+    alpha: {type: "float", low: 0.001, high: 10.0, log: true}
+    
+    # L1과 L2 비율 조정 (Elastic Net의 핵심)
+    l1_ratio: {type: "float", low: 0.1, high: 0.9}    # 0: Ridge, 1: Lasso
+    
+    # 최대 반복 횟수
+    max_iter: {type: "int", low: 1000, high: 5000}
+    
+    # 수렴 허용 오차
+    tol: {type: "float", low: 1e-5, high: 1e-3, log: true}
+    
+    # 양수 제약 (판매량은 양수)
+    positive: true
+    
+    # 고정값
     random_state: 42
-    max_iter: 2000
-    tol: 1e-4
+    fit_intercept: true
 
   # 하이퍼파라미터 튜닝 설정
   hyperparameter_tuning:
     enabled: true
-    n_trials: 80  # alpha와 l1_ratio 두 파라미터가 중요하므로 더 많은 탐색
-    metric: "neg_mean_squared_error"
+    n_trials: 60                      # Elastic Net은 두 정규화를 조합하므로 더 많은 trial
+    metric: "neg_mean_absolute_percentage_error"
     direction: "maximize"
-
-  # 데이터 로더 정의 (Spine 생성)
-  loader:
-    name: "regression_loader"
-    source_uri: "recipes/sql/loaders/user_features.sql"
-
-  # 피처 증강 정의 (Feature Store 기반)
+  
+  # Feature Store 기반 피처 증강
   augmenter:
     type: "feature_store"
     features:
-      # 사용자 기본 정보 피처
-      - feature_namespace: "user_demographics"
-        features: ["age", "country_code"]
+      # 제품 특성
+      - feature_namespace: "product_characteristics"
+        features: ["price", "category", "brand", "seasonal_factor", "promotion_sensitivity"]
       
-      # 사용자 구매 이력 피처  
-      - feature_namespace: "user_purchase_summary"
-        features: ["ltv", "total_purchase_count", "last_purchase_date"]
+      # 매장 특성
+      - feature_namespace: "store_characteristics"
+        features: ["store_size", "location_type", "foot_traffic", "competitor_density", "demographics"]
       
-      # 상품 상세 정보 피처
-      - feature_namespace: "product_details"
-        features: ["price", "category", "brand"]
+      # 시간적 트렌드
+      - feature_namespace: "temporal_trends"
+        features: ["week_of_year", "month", "holiday_proximity", "weather_index", "economic_indicator"]
       
-      # 세션 행동 피처
-      - feature_namespace: "session_summary"
-        features: ["time_on_page_seconds", "click_count"]
+      # 마케팅 활동
+      - feature_namespace: "marketing_activities"
+        features: ["advertising_spend", "promotion_active", "discount_percentage", "social_media_engagement"]
 
-  # 전처리 설정 (결합 정규화 모델이므로 스케일링 중요)
+  # 전처리 설정 (Elastic Net은 스케일링 필요)
   preprocessor:
-    name: "simple_scaler"
+    name: "regression_preprocessor"
     params:
       criterion_col: null
-      # 엔티티 키와 타임스탬프 제외
-      exclude_cols: ["user_id", "product_id", "session_id", "event_timestamp"]
-
-  # 데이터 인터페이스 정의
-  data_interface:
-    task_type: "regression"
-    target_col: "target_value"
+      exclude_cols: ["product_id", "store_id", "forecast_date", "weekly_sales_units"]
+      handle_missing: "median"
+      scale_features: true             # Elastic Net은 스케일링 필요
+      encode_categorical: "onehot"
 
   # 평가자 설정
   evaluator:
@@ -75,14 +86,11 @@ model:
 evaluation:
   metrics:
     - "r2_score"
-    - "mean_squared_error"
     - "mean_absolute_error"
+    - "mean_squared_error"
     - "root_mean_squared_error"
   
   validation:
     method: "train_test_split"
     test_size: 0.2
     random_state: 42
-
-# 💡 사용 예시:
-# APP_ENV=dev uv run python main.py train --recipe-file models/regression/elastic_net 

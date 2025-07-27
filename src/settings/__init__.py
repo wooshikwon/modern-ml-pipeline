@@ -1,9 +1,9 @@
 """
 Settings Module
-Blueprint v17.0 설정 시스템 통합 인터페이스
+Blueprint v17.0 설정 시스템 통합 인터페이스 (27개 Recipe 완전 지원)
 
 관심사별로 분리된 모듈들의 통합 진입점입니다.
-기존 settings.py 코드와 완전히 호환됩니다.
+27개 Recipe와 완전히 호환됩니다.
 """
 
 # =============================================================================
@@ -14,14 +14,20 @@ from .models import (
     # 통합 설정 모델
     Settings,
     
-    # 🆕 현대화된 Recipe 모델들
+    # 🆕 27개 Recipe 모델들
     RecipeSettings,
     ModelConfigurationSettings,
     EvaluationSettings,
     ValidationMethodSettings,
     OptunaParameterConfig,
-    ModernHyperparametersSettings,
+    HyperparametersSettings,  # 🔄 수정: ModernHyperparametersSettings → HyperparametersSettings
     EvaluatorSettings,
+    
+    # 🆕 27개 Recipe 추가 모델들
+    EntitySchema,
+    MLTaskSettings,
+    FeatureNamespaceSettings,
+    RecipeMetadataSettings,
     
     # 운영 환경 설정 모델들
     EnvironmentSettings,
@@ -36,14 +42,13 @@ from .models import (
     AdapterConfigSettings,
     PostgresStorageSettings,
     
-    # 모델 논리 설정 모델들 (현대화된 Recipe 컴포넌트)
+    # 모델 논리 설정 모델들 (27개 Recipe 컴포넌트)
     LoaderSettings,
     AugmenterSettings,
     PreprocessorParamsSettings,
     PreprocessorSettings,
     HyperparameterTuningSettings,
     FeatureStoreSettings,
-    DataInterfaceSettings,
 )
 
 from .loaders import (
@@ -71,12 +76,21 @@ from .loaders import (
 # Example: from src.settings.extensions import validate_environment_settings
 
 # =============================================================================
-# Public API Definition
+# Public API Definition (27개 Recipe 완전 지원)
 # =============================================================================
 
 __all__ = [
     # 메인 클래스
     "Settings",
+    
+    # 🆕 27개 Recipe 핵심 모델들
+    "RecipeSettings",
+    "ModelConfigurationSettings", 
+    "EntitySchema",
+    "MLTaskSettings",
+    "HyperparametersSettings",
+    "FeatureNamespaceSettings",
+    "RecipeMetadataSettings",
     
     # 로딩 함수들 (기존 호환성)
     "load_settings",
@@ -84,22 +98,32 @@ __all__ = [
     "load_config_files", 
     "load_recipe_file",
     
-    # 모든 Pydantic 모델들
+    # 환경 설정 모델들
     "EnvironmentSettings",
     "MlflowSettings", 
     "RealtimeFeatureStoreConnectionSettings",
     "RealtimeFeatureStoreSettings",
     "ServingSettings",
     "ArtifactStoreSettings",
+    
+    # 컴포넌트 설정 모델들
     "LoaderSettings",
     "AugmenterSettings",
     "PreprocessorParamsSettings", 
     "PreprocessorSettings",
+    "EvaluatorSettings",
+    
+    # 평가 및 튜닝 모델들
+    "EvaluationSettings",
+    "ValidationMethodSettings",
     "HyperparameterTuningSettings",
+    "OptunaParameterConfig",
+    
+    # 기타 설정 모델들
     "FeatureStoreSettings",
-    "DataInterfaceSettings",
-    "ModelHyperparametersSettings",
-    "ModelSettings",
+    "DataAdapterSettings",
+    "AdapterConfigSettings",
+    "PostgresStorageSettings",
     
     # 편의 함수들
     "get_app_env",

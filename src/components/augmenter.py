@@ -69,48 +69,122 @@ class LocalFileAugmenter(BaseAugmenter):
 
 class Augmenter(BaseAugmenter):
     """
-    Feature Store와 연동하여 데이터를 증강하는 Augmenter.
-    현대화된 Recipe 구조 전용 (settings.recipe.model)
+    🆕 Phase 2: Type 기반 통합 Augmenter (Pass-through + Feature Store)
+    
+    단일 클래스가 settings.recipe.model.augmenter.type에 따라 
+    적절한 증강 모드로 동작하는 현대화된 구조
     """
     def __init__(self, settings: Settings, factory: "Factory"):
         self.settings = settings
         self.factory = factory
-        self.feature_config = self.settings.recipe.model.augmenter.features or []
         
-        # Feature Store 어댑터 초기화
-        try:
-            self.feature_store_adapter = self.factory.create_feature_store_adapter()
-            logger.info("Feature Store 어댑터 초기화 성공")
-        except (ValueError, Exception) as e:
-            logger.warning(f"Feature Store 어댑터 초기화 실패: {e}")
-            self.feature_store_adapter = None
+        # Phase 1 경로: settings.recipe.model.augmenter.type 사용
+        self.augmenter_type = self.settings.recipe.model.augmenter.type if hasattr(self.settings.recipe.model, 'augmenter') and self.settings.recipe.model.augmenter else "pass_through"
+        
+        logger.info(f"🔄 Augmenter 초기화: type={self.augmenter_type}")
+        
+        # type 기반 초기화
+        if self.augmenter_type == "feature_store":
+            try:
+                # Factory에서 data_adapter("feature_store") 생성
+                self.feast_adapter = factory.create_data_adapter("feature_store")
+                self.feature_config = self.settings.recipe.model.augmenter.features or []
+                logger.info("✅ Feature Store 어댑터 초기화 성공")
+            except Exception as e:
+                logger.warning(f"⚠️ Feature Store 어댑터 초기화 실패: {e}")
+                logger.info("🔄 Pass-through 모드로 자동 전환")
+                self.augmenter_type = "pass_through"
+                self.feast_adapter = None
+        else:
+            # pass_through는 별도 초기화 불필요
+            self.feast_adapter = None
+            self.feature_config = []
 
     def augment(
         self,
-        data: pd.DataFrame,
+        spine_df: pd.DataFrame,
         run_mode: str = "batch",
         **kwargs,
     ) -> pd.DataFrame:
         """
-        Feature Store를 통해 피처를 증강합니다.
-        """
-        logger.info(f"Feature Store 피처 증강 시작 (모드: {run_mode})")
+        🆕 Phase 2: Type 기반 명확한 분기로 증강 수행
         
-        if not self.feature_store_adapter:
-            logger.warning("Feature Store 어댑터가 없어 원본 데이터를 반환합니다.")
-            return data
-        
-        try:
-            # FeatureStoreAdapter를 통해 피처 조회
-            augmented_df = self.feature_store_adapter.read(
-                model_input=data,
-                run_mode=run_mode
-            )
+        Args:
+            spine_df: Entity+Timestamp 스파인 DataFrame
+            run_mode: "batch" 또는 "realtime" 
+            **kwargs: 추가 매개변수
             
-            logger.info(f"Feature Store 피처 증강 완료: {len(augmented_df.columns)}개 컬럼")
-            return augmented_df
+        Returns:
+            증강된 DataFrame (type에 따라 원본 또는 Feature Store 증강)
+        """
+        logger.info(f"🔄 피처 증강 시작: type={self.augmenter_type}, mode={run_mode}")
+        
+        if self.augmenter_type == "pass_through":
+            # Blueprint 원칙 9: LOCAL 환경 의도적 제약
+            logger.info("✅ Pass-through 모드: Feature Store 없이 학습 (Blueprint 철학)")
+            logger.info(f"   입력 데이터: {len(spine_df)} 행, {len(spine_df.columns)} 컬럼")
+            return spine_df
+            
+        elif self.augmenter_type == "feature_store" and self.feast_adapter:
+            # Phase 2: Point-in-Time Correctness 보장 피처 증강
+            logger.info("🔒 Feature Store 모드: Point-in-Time 안전성 보장")
+            
+            try:
+                # Phase 1 EntitySchema 정보 활용
+                data_interface_config = self._get_data_interface_config()
+                features = self._build_feature_list()
+                
+                # 🆕 Phase 2: 검증 강화된 피처 조회
+                augmented_df = self.feast_adapter.get_historical_features_with_validation(
+                    entity_df=spine_df,
+                    features=features,
+                    data_interface_config=data_interface_config
+                )
+                
+                logger.info(f"✅ Feature Store 증강 완료: {len(augmented_df)} 행, {len(augmented_df.columns)} 컬럼")
+                return augmented_df
+                
+            except Exception as e:
+                logger.error(f"❌ Feature Store 증강 실패: {e}")
+                logger.info("🔄 안전한 fallback: 원본 데이터 반환")
+                return spine_df
+        else:
+            # fallback: pass_through로 동작
+            logger.warning("⚠️ 알 수 없는 augmenter type, pass-through로 동작")
+            return spine_df
+    
+    def _get_data_interface_config(self) -> Dict[str, Any]:
+        """Phase 1 EntitySchema + Data Interface 설정 추출 (27개 Recipe 대응)"""
+        try:
+            # Entity + Timestamp는 entity_schema에서
+            entity_schema = self.settings.recipe.model.loader.entity_schema
+            # ML 설정들은 data_interface에서
+            data_interface = self.settings.recipe.model.data_interface
+            
+            return {
+                'entity_columns': entity_schema.entity_columns,
+                'timestamp_column': entity_schema.timestamp_column,
+                'target_column': data_interface.target_column,  # 🔄 수정: data_interface에서 가져옴
+                'task_type': data_interface.task_type           # 🔄 수정: data_interface에서 가져옴
+            }
+        except Exception as e:
+            logger.warning(f"Schema 정보 추출 실패: {e}")
+            return {}
+    
+    def _build_feature_list(self) -> List[str]:
+        """Feature Store 피처 목록 생성"""
+        try:
+            features = []
+            for feature_group in self.feature_config:
+                namespace = feature_group.get('feature_namespace', '')
+                feature_names = feature_group.get('features', [])
+                
+                for feature_name in feature_names:
+                    features.append(f"{namespace}:{feature_name}")
+            
+            logger.info(f"🎯 Feature 목록 생성: {len(features)}개 피처")
+            return features
             
         except Exception as e:
-            logger.error(f"Feature Store 피처 증강 실패: {e}")
-            # 안전한 fallback: 원본 데이터 반환
-            return data
+            logger.warning(f"Feature 목록 생성 실패: {e}")
+            return []

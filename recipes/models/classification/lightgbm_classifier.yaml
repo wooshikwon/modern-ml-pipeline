@@ -1,77 +1,90 @@
-# LightGBM Classifier - 빠르고 효율적인 그래디언트 부스팅
-# ⚡ 메모리 효율성과 빠른 학습 속도의 완벽한 조화
+# LightGBM Classifier: 초고속 그래디언트 부스팅
+# ⚡ 속도와 메모리 효율성의 완벽한 조화
 
 name: "lightgbm_classifier"
 
 model:
-  # 직접 동적 import를 통한 LightGBM 분류기
+  # LightGBM Classifier 직접 동적 import
   class_path: "lightgbm.LGBMClassifier"
   
-  # 하이퍼파라미터 정의 (Optuna 자동 최적화 지원)
+  # Phase 1: Point-in-Time 정합성 스키마
+  loader:
+    name: "user_churn_prediction_loader"
+    source_uri: "recipes/sql/loaders/churn_prediction_features.sql"
+    entity_schema:
+      entity_columns: ["user_id", "subscription_tier"]  # 사용자-구독등급 페어
+      timestamp_column: "feature_extraction_date"       # 피처 추출 기준일
+  
+  # 기존: ML 작업별 세부 설정 (Classification 전용)
+  data_interface:
+    task_type: "classification"
+    target_column: "will_churn"           # 이탈 예측 (0: 유지, 1: 이탈)
+    class_weight: "balanced"              # 이탈/유지 클래스 균형
+    average: "weighted"
+    
+  # Dictionary 형태 하이퍼파라미터 (LightGBM 특화)
   hyperparameters:
-    # 🔥 자동 최적화 범위 - LightGBM 특화 하이퍼파라미터
+    # 부스팅 설정
+    num_leaves: {type: "int", low: 20, high: 300}           # 리프 노드 수
     learning_rate: {type: "float", low: 0.01, high: 0.3, log: true}
     n_estimators: {type: "int", low: 100, high: 1000}
-    num_leaves: {type: "int", low: 10, high: 300}
-    max_depth: {type: "int", low: 3, high: 15}
-    feature_fraction: {type: "float", low: 0.4, high: 1.0}
-    bagging_fraction: {type: "float", low: 0.4, high: 1.0}
-    bagging_freq: {type: "int", low: 1, high: 7}
-    min_child_samples: {type: "int", low: 5, high: 100}
-    reg_alpha: {type: "float", low: 0.0, high: 1.0}
-    reg_lambda: {type: "float", low: 0.0, high: 1.0}
     
-    # 🔧 고정값 - LightGBM 안정성을 위한 필수 설정
+    # 트리 구조 제어
+    max_depth: {type: "int", low: 3, high: 12}
+    min_child_samples: {type: "int", low: 5, high: 100}
+    min_child_weight: {type: "float", low: 0.001, high: 0.1, log: true}
+    
+    # 정규화
+    reg_alpha: {type: "float", low: 0, high: 1}            # L1 정규화
+    reg_lambda: {type: "float", low: 0, high: 1}           # L2 정규화
+    
+    # 샘플링 (LightGBM 특화)
+    subsample: {type: "float", low: 0.6, high: 1.0}
+    colsample_bytree: {type: "float", low: 0.6, high: 1.0}
+    subsample_freq: {type: "int", low: 1, high: 5}         # 샘플링 빈도
+    
+    # 고정값
     random_state: 42
-    objective: "binary"
-    metric: "binary_logloss"
-    verbosity: -1
-    force_col_wise: true
+    n_jobs: -1
+    verbosity: -1                                          # 조용한 실행
+    class_weight: "balanced"
 
   # 하이퍼파라미터 튜닝 설정
   hyperparameter_tuning:
     enabled: true
-    n_trials: 120  # LightGBM은 빠르므로 더 많은 trial 가능
-    metric: "f1_weighted"
+    n_trials: 120                     # LightGBM은 빠르므로 많은 trial
+    metric: "roc_auc"
     direction: "maximize"
-
-  # 데이터 로더 정의 (Spine 생성)
-  loader:
-    name: "classification_loader"
-    source_uri: "recipes/sql/loaders/user_features.sql"
-
-  # 피처 증강 정의 (Feature Store 기반)
+  
+  # Feature Store 기반 피처 증강
   augmenter:
     type: "feature_store"
     features:
-      # 사용자 기본 정보 피처
-      - feature_namespace: "user_demographics"
-        features: ["age", "country_code"]
+      # 사용자 활동 패턴
+      - feature_namespace: "user_activity"
+        features: ["login_frequency", "session_duration", "feature_usage_count", "last_active_days"]
       
-      # 사용자 구매 이력 피처  
-      - feature_namespace: "user_purchase_summary"
-        features: ["ltv", "total_purchase_count", "last_purchase_date"]
+      # 구독 및 결제 패턴
+      - feature_namespace: "subscription_behavior"
+        features: ["subscription_duration", "payment_delays", "plan_changes", "support_tickets"]
       
-      # 상품 상세 정보 피처
-      - feature_namespace: "product_details"
-        features: ["price", "category", "brand"]
+      # 참여도 지표
+      - feature_namespace: "engagement_metrics"
+        features: ["content_consumed", "social_interactions", "feedback_scores", "recommendation_clicks"]
       
-      # 세션 행동 피처
-      - feature_namespace: "session_summary"
-        features: ["time_on_page_seconds", "click_count"]
+      # 고객 가치
+      - feature_namespace: "customer_value"
+        features: ["lifetime_value", "monthly_revenue", "referral_count", "premium_features_used"]
 
   # 전처리 설정
   preprocessor:
-    name: "simple_scaler"
+    name: "classification_preprocessor"
     params:
       criterion_col: null
-      # 엔티티 키와 타임스탬프 제외
-      exclude_cols: ["user_id", "product_id", "session_id", "event_timestamp"]
-
-  # 데이터 인터페이스 정의
-  data_interface:
-    task_type: "classification"
-    target_col: "target_class"
+      exclude_cols: ["user_id", "subscription_tier", "feature_extraction_date", "will_churn"]
+      handle_missing: "median"
+      scale_features: false        # LightGBM은 스케일링 불필요
+      encode_categorical: "label"   # Label encoding for LightGBM
 
   # 평가자 설정
   evaluator:
@@ -82,7 +95,7 @@ evaluation:
   metrics:
     - "accuracy"
     - "precision_weighted"
-    - "recall_weighted" 
+    - "recall_weighted"
     - "f1_weighted"
     - "roc_auc"
   
@@ -91,6 +104,3 @@ evaluation:
     test_size: 0.2
     stratify: true
     random_state: 42
-
-# 💡 사용 예시:
-# APP_ENV=dev uv run python main.py train --recipe-file models/classification/lightgbm_classifier 

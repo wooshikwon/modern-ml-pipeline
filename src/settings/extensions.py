@@ -63,7 +63,7 @@ def validate_environment_settings(settings: Settings) -> Dict[str, Any]:
     
     # LOCAL 환경 검증
     if app_env == "local":
-        if settings.model.augmenter and settings.model.augmenter.type == "feature_store":
+        if settings.recipe.model.augmenter and settings.recipe.model.augmenter.type == "feature_store":
             validation_results["warnings"].append(
                 "LOCAL 환경에서는 PassThroughAugmenter 사용을 권장합니다 (Blueprint 원칙 9)"
             )
@@ -97,7 +97,7 @@ def validate_environment_settings(settings: Settings) -> Dict[str, Any]:
 
 
 def print_settings_summary(settings: Settings) -> None:
-    """Settings 객체 요약 출력 (개발용)"""
+    """Settings 객체 요약 출력 (개발용) - 27개 Recipe 대응"""
     print(f"""
 🎯 Blueprint v17.0 Settings Summary
 =====================================
@@ -106,10 +106,10 @@ GCP 프로젝트: {settings.environment.gcp_project_id}
 MLflow: {settings.mlflow.tracking_uri}
 
 모델 설정:
-- 클래스: {settings.model.class_path}
-- 로더: {settings.model.loader.source_uri}
-- 증강기: {settings.model.augmenter.type if settings.model.augmenter else 'None'}
-- 태스크: {settings.model.data_interface.task_type}
+- 클래스: {settings.recipe.model.class_path}
+- 로더: {settings.recipe.model.loader.source_uri}
+- 증강기: {settings.recipe.model.augmenter.type if settings.recipe.model.augmenter else 'None'}
+- 태스크: {settings.recipe.model.data_interface.task_type}  # 🔄 수정: task_type은 data_interface에 있음
 
 Feature Store: {'✅ 설정됨' if settings.feature_store else '❌ 미설정'}
 HPO: {'✅ 활성화' if settings.hyperparameter_tuning and settings.hyperparameter_tuning.enabled else '❌ 비활성화'}
@@ -183,7 +183,7 @@ def check_blueprint_compliance(settings: Settings) -> Dict[str, Any]:
     }
     
     if settings.environment.app_env == "local":
-        if settings.model.augmenter and settings.model.augmenter.type == "feature_store":
+        if settings.recipe.model.augmenter and settings.recipe.model.augmenter.type == "feature_store":
             principle_9["score"] -= 5
             principle_9["issues"].append("LOCAL 환경에서 Feature Store 사용")
     

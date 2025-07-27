@@ -1,69 +1,83 @@
-# KNN Classifier - 단순하고 직관적인 거리 기반 분류기
-# 🎯 가장 가까운 이웃들의 지혜를 활용하는 비모수적 분류
+# KNN Classifier: 단순함 속의 지혜
+# 🎯 최근접 이웃의 힘으로 지역적 패턴을 완벽하게 포착
 
 name: "knn_classifier"
 
 model:
-  # 직접 동적 import를 통한 KNN 분류기
+  # Scikit-learn KNN Classifier 직접 동적 import
   class_path: "sklearn.neighbors.KNeighborsClassifier"
   
-  # 하이퍼파라미터 정의 (Optuna 자동 최적화 지원)
-  hyperparameters:
-    # 🔥 자동 최적화 범위 - KNN 특화 하이퍼파라미터
-    n_neighbors: {type: "int", low: 3, high: 50}
-    weights: {type: "categorical", choices: ["uniform", "distance"]}
-    algorithm: {type: "categorical", choices: ["auto", "ball_tree", "kd_tree", "brute"]}
-    metric: {type: "categorical", choices: ["euclidean", "manhattan", "minkowski"]}
-    p: {type: "int", low: 1, high: 3}  # minkowski 거리용
+  # Phase 1: Point-in-Time 정합성 스키마
+  loader:
+    name: "product_recommendation_loader"
+    source_uri: "recipes/sql/loaders/product_similarity_features.sql"
+    entity_schema:
+      entity_columns: ["user_id", "product_category"]    # 사용자-상품카테고리 페어
+      timestamp_column: "interaction_time"               # 상호작용 시점
+  
+  # 기존: ML 작업별 세부 설정 (Classification 전용)
+  data_interface:
+    task_type: "classification"
+    target_column: "user_preference"     # 사용자 선호도 (좋아요/싫어요/중립)
+    class_weight: "balanced"             # 다중 클래스 균형
+    average: "weighted"
     
-    # 🔧 고정값 - KNN 안정성을 위한 설정
-    leaf_size: 30
-    n_jobs: -1  # 모든 CPU 코어 활용
+  # Dictionary 형태 하이퍼파라미터 (KNN 특화)
+  hyperparameters:
+    # 이웃 수 (KNN의 핵심)
+    n_neighbors: {type: "int", low: 3, high: 50}
+    
+    # 거리 계산 방법
+    metric: {type: "categorical", choices: ["euclidean", "manhattan", "minkowski", "cosine"]}
+    
+    # 가중치 방법
+    weights: {type: "categorical", choices: ["uniform", "distance"]}
+    
+    # Minkowski 거리 파라미터
+    p: {type: "int", low: 1, high: 3}              # 1: 맨하탄, 2: 유클리드
+    
+    # 알고리즘 선택
+    algorithm: {type: "categorical", choices: ["auto", "ball_tree", "kd_tree", "brute"]}
+    
+    # 리프 크기 (트리 알고리즘용)
+    leaf_size: {type: "int", low: 10, high: 50}
 
   # 하이퍼파라미터 튜닝 설정
   hyperparameter_tuning:
     enabled: true
-    n_trials: 80  # KNN은 빠르므로 충분한 탐색
+    n_trials: 50                      # KNN은 단순하므로 적은 trial
     metric: "f1_weighted"
     direction: "maximize"
-
-  # 데이터 로더 정의 (Spine 생성)
-  loader:
-    name: "classification_loader"
-    source_uri: "recipes/sql/loaders/user_features.sql"
-
-  # 피처 증강 정의 (Feature Store 기반)
+  
+  # Feature Store 기반 피처 증강
   augmenter:
     type: "feature_store"
     features:
-      # 사용자 기본 정보 피처
-      - feature_namespace: "user_demographics"
-        features: ["age", "country_code"]
+      # 사용자 행동 벡터
+      - feature_namespace: "user_behavior_vector"
+        features: ["click_rate", "purchase_rate", "time_spent", "return_rate"]
       
-      # 사용자 구매 이력 피처  
-      - feature_namespace: "user_purchase_summary"
-        features: ["ltv", "total_purchase_count", "last_purchase_date"]
+      # 제품 특성 벡터
+      - feature_namespace: "product_feature_vector"
+        features: ["price_normalized", "rating_score", "popularity_index", "category_affinity"]
       
-      # 상품 상세 정보 피처
-      - feature_namespace: "product_details"
-        features: ["price", "category", "brand"]
+      # 상호작용 컨텍스트
+      - feature_namespace: "interaction_context"
+        features: ["session_position", "time_of_day", "device_type", "season"]
       
-      # 세션 행동 피처
-      - feature_namespace: "session_summary"
-        features: ["time_on_page_seconds", "click_count"]
+      # 유사도 기반 피처
+      - feature_namespace: "similarity_features"
+        features: ["user_similarity_avg", "product_similarity_avg", "collaborative_score"]
 
-  # 전처리 설정 (KNN은 거리 기반이므로 스케일링 필수)
+  # 전처리 설정 (KNN은 스케일링 필수!)
   preprocessor:
-    name: "simple_scaler"
+    name: "classification_preprocessor"
     params:
       criterion_col: null
-      # 엔티티 키와 타임스탬프 제외
-      exclude_cols: ["user_id", "product_id", "session_id", "event_timestamp"]
-
-  # 데이터 인터페이스 정의
-  data_interface:
-    task_type: "classification"
-    target_col: "target_class"
+      exclude_cols: ["user_id", "product_category", "interaction_time", "user_preference"]
+      handle_missing: "median"
+      scale_features: true             # KNN은 거리 기반이므로 스케일링 필수
+      encode_categorical: "onehot"     # One-hot encoding for distance calculation
 
   # 평가자 설정
   evaluator:
@@ -74,15 +88,12 @@ evaluation:
   metrics:
     - "accuracy"
     - "precision_weighted"
-    - "recall_weighted" 
+    - "recall_weighted"
     - "f1_weighted"
-    - "roc_auc"
+    - "roc_auc"                        # 다중분류의 경우 macro-average
   
   validation:
     method: "train_test_split"
     test_size: 0.2
     stratify: true
     random_state: 42
-
-# 💡 사용 예시:
-# APP_ENV=dev uv run python main.py train --recipe-file models/classification/knn_classifier 

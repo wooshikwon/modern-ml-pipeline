@@ -1,74 +1,83 @@
-# CatBoost Classifier - 범주형 데이터 특화 그래디언트 부스팅
-# 🐱 범주형 피처 자동 처리와 뛰어난 성능의 결합
+# CatBoost Classifier: 범주형 데이터의 마법사
+# 🐈 범주형 변수를 자동으로 완벽하게 처리하는 똑똑한 부스팅
 
 name: "catboost_classifier"
 
 model:
-  # 직접 동적 import를 통한 CatBoost 분류기
+  # CatBoost Classifier 직접 동적 import
   class_path: "catboost.CatBoostClassifier"
   
-  # 하이퍼파라미터 정의 (Optuna 자동 최적화 지원)
-  hyperparameters:
-    # 🔥 자동 최적화 범위 - CatBoost 특화 하이퍼파라미터
-    learning_rate: {type: "float", low: 0.01, high: 0.3, log: true}
-    iterations: {type: "int", low: 100, high: 1000}
-    depth: {type: "int", low: 4, high: 10}
-    l2_leaf_reg: {type: "float", low: 1.0, high: 10.0}
-    border_count: {type: "int", low: 32, high: 255}
-    bagging_temperature: {type: "float", low: 0.0, high: 1.0}
-    random_strength: {type: "float", low: 0.0, high: 1.0}
+  # Phase 1: Point-in-Time 정합성 스키마
+  loader:
+    name: "credit_risk_assessment_loader"
+    source_uri: "recipes/sql/loaders/credit_risk_features.sql"
+    entity_schema:
+      entity_columns: ["applicant_id", "application_id"]  # 신청자-신청서 페어
+      timestamp_column: "application_date"                # 신청 날짜
+  
+  # 기존: ML 작업별 세부 설정 (Classification 전용)
+  data_interface:
+    task_type: "classification"
+    target_column: "credit_approved"      # 신용 승인 여부 (0: 거절, 1: 승인)
+    class_weight: "balanced"              # 승인/거절 균형
+    average: "weighted"
     
-    # 🔧 고정값 - CatBoost 안정성을 위한 필수 설정
+  # Dictionary 형태 하이퍼파라미터 (CatBoost 특화)
+  hyperparameters:
+    # 부스팅 파라미터
+    iterations: {type: "int", low: 100, high: 1500}       # CatBoost는 iterations 사용
+    learning_rate: {type: "float", low: 0.01, high: 0.3, log: true}
+    depth: {type: "int", low: 4, high: 10}                # CatBoost는 depth 사용
+    
+    # 정규화
+    l2_leaf_reg: {type: "float", low: 1, high: 30}        # L2 정규화
+    bagging_temperature: {type: "float", low: 0, high: 1} # 베이지안 부트스트랩
+    
+    # 범주형 처리 (CatBoost 특화)
+    one_hot_max_size: {type: "int", low: 2, high: 25}     # One-hot 임계값
+    border_count: {type: "int", low: 32, high: 255}       # 경계 개수
+    
+    # 고정값
     random_state: 42
-    loss_function: "Logloss"
-    eval_metric: "AUC"
-    verbose: false
-    auto_class_weights: "Balanced"
+    verbose: false                                         # 조용한 실행
+    class_weights: [1, 1]                                  # 클래스 가중치
 
   # 하이퍼파라미터 튜닝 설정
   hyperparameter_tuning:
     enabled: true
-    n_trials: 100
+    n_trials: 80                      # CatBoost는 안정적이므로 적당히
     metric: "roc_auc"
     direction: "maximize"
-
-  # 데이터 로더 정의 (Spine 생성)
-  loader:
-    name: "classification_loader"
-    source_uri: "recipes/sql/loaders/user_features.sql"
-
-  # 피처 증강 정의 (Feature Store 기반)
+  
+  # Feature Store 기반 피처 증강
   augmenter:
     type: "feature_store"
     features:
-      # 사용자 기본 정보 피처
-      - feature_namespace: "user_demographics"
-        features: ["age", "country_code"]
+      # 개인 신용 정보
+      - feature_namespace: "personal_credit"
+        features: ["credit_score", "employment_type", "income_level", "debt_to_income_ratio"]
       
-      # 사용자 구매 이력 피처  
-      - feature_namespace: "user_purchase_summary"
-        features: ["ltv", "total_purchase_count", "last_purchase_date"]
+      # 과거 금융 이력
+      - feature_namespace: "financial_history"
+        features: ["previous_loans", "payment_delays", "bankruptcies", "credit_utilization"]
       
-      # 상품 상세 정보 피처
-      - feature_namespace: "product_details"
-        features: ["price", "category", "brand"]
+      # 인구통계학적 특성
+      - feature_namespace: "demographics"
+        features: ["age_group", "education_level", "marital_status", "residence_type"]
       
-      # 세션 행동 피처
-      - feature_namespace: "session_summary"
-        features: ["time_on_page_seconds", "click_count"]
+      # 신청 관련 정보
+      - feature_namespace: "application_details"
+        features: ["loan_amount", "loan_purpose", "application_channel", "co_signer_present"]
 
-  # 전처리 설정
+  # 전처리 설정 (CatBoost는 범주형 자동 처리!)
   preprocessor:
-    name: "simple_scaler"
+    name: "classification_preprocessor"
     params:
       criterion_col: null
-      # 엔티티 키와 타임스탬프 제외
-      exclude_cols: ["user_id", "product_id", "session_id", "event_timestamp"]
-
-  # 데이터 인터페이스 정의
-  data_interface:
-    task_type: "classification"
-    target_col: "target_class"
+      exclude_cols: ["applicant_id", "application_id", "application_date", "credit_approved"]
+      handle_missing: "median"
+      scale_features: false        # CatBoost는 스케일링 불필요
+      encode_categorical: "none"   # CatBoost가 자동으로 범주형 처리!
 
   # 평가자 설정
   evaluator:
@@ -79,7 +88,7 @@ evaluation:
   metrics:
     - "accuracy"
     - "precision_weighted"
-    - "recall_weighted" 
+    - "recall_weighted"
     - "f1_weighted"
     - "roc_auc"
   
@@ -88,6 +97,3 @@ evaluation:
     test_size: 0.2
     stratify: true
     random_state: 42
-
-# 💡 사용 예시:
-# APP_ENV=dev uv run python main.py train --recipe-file models/classification/catboost_classifier 

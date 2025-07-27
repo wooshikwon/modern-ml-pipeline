@@ -1,64 +1,71 @@
-# Naive Bayes Classifier - 빠르고 간단한 확률 기반 분류기
-# 🎯 베이즈 정리의 단순함과 효과적인 분류 성능
+# Naive Bayes Classifier: 확률의 단순한 아름다움
+# 📊 베이즈 정리의 힘으로 불확실성을 명확하게 분류
 
 name: "naive_bayes"
 
 model:
-  # 직접 동적 import를 통한 Gaussian Naive Bayes 분류기
+  # Scikit-learn Gaussian Naive Bayes 직접 동적 import
   class_path: "sklearn.naive_bayes.GaussianNB"
   
-  # 하이퍼파라미터 정의 (Optuna 자동 최적화 지원)
-  hyperparameters:
-    # 🔥 자동 최적화 범위 - Naive Bayes 특화 하이퍼파라미터
-    var_smoothing: {type: "float", low: 1e-12, high: 1e-5, log: true}
+  # Phase 1: Point-in-Time 정합성 스키마
+  loader:
+    name: "sentiment_analysis_loader"
+    source_uri: "recipes/sql/loaders/customer_feedback_features.sql"
+    entity_schema:
+      entity_columns: ["feedback_id", "customer_id"]    # 피드백-고객 페어
+      timestamp_column: "feedback_date"                 # 피드백 날짜
+  
+  # 기존: ML 작업별 세부 설정 (Classification 전용)
+  data_interface:
+    task_type: "classification"
+    target_column: "sentiment"           # 감정 분류 (긍정/부정/중립)
+    class_weight: "balanced"             # 감정 클래스 균형
+    average: "weighted"
     
-    # 🔧 고정값 - Naive Bayes는 파라미터가 적음
-    # 추가 파라미터 없음 (GaussianNB는 매우 단순한 모델)
+  # Dictionary 형태 하이퍼파라미터 (Naive Bayes 특화)
+  hyperparameters:
+    # 가우시안 나이브 베이즈의 스무딩 파라미터
+    var_smoothing: {type: "float", low: 1e-10, high: 1e-8, log: true}
+    
+    # 사전 확률 설정 (None은 자동 추정)
+    priors: null
 
   # 하이퍼파라미터 튜닝 설정
   hyperparameter_tuning:
     enabled: true
-    n_trials: 30  # 파라미터가 적으므로 적은 trial로 충분
+    n_trials: 30                      # Naive Bayes는 매우 단순하므로 적은 trial
     metric: "f1_weighted"
     direction: "maximize"
-
-  # 데이터 로더 정의 (Spine 생성)
-  loader:
-    name: "classification_loader"
-    source_uri: "recipes/sql/loaders/user_features.sql"
-
-  # 피처 증강 정의 (Feature Store 기반)
+  
+  # Feature Store 기반 피처 증강
   augmenter:
     type: "feature_store"
     features:
-      # 사용자 기본 정보 피처
-      - feature_namespace: "user_demographics"
-        features: ["age", "country_code"]
+      # 텍스트 기반 피처
+      - feature_namespace: "text_features"
+        features: ["positive_words_count", "negative_words_count", "neutral_words_count", "total_words"]
       
-      # 사용자 구매 이력 피처  
-      - feature_namespace: "user_purchase_summary"
-        features: ["ltv", "total_purchase_count", "last_purchase_date"]
+      # 감정 어휘 사전 기반
+      - feature_namespace: "sentiment_lexicon"
+        features: ["polarity_score", "subjectivity_score", "emotion_intensity", "confidence_score"]
       
-      # 상품 상세 정보 피처
-      - feature_namespace: "product_details"
-        features: ["price", "category", "brand"]
+      # 언어적 특성
+      - feature_namespace: "linguistic_features"
+        features: ["exclamation_count", "question_count", "capitalization_ratio", "punctuation_density"]
       
-      # 세션 행동 피처
-      - feature_namespace: "session_summary"
-        features: ["time_on_page_seconds", "click_count"]
+      # 고객 특성
+      - feature_namespace: "customer_context"
+        features: ["customer_tier", "purchase_history", "previous_feedback_sentiment", "interaction_frequency"]
 
   # 전처리 설정
   preprocessor:
-    name: "simple_scaler"
+    name: "classification_preprocessor"
     params:
       criterion_col: null
-      # 엔티티 키와 타임스탬프 제외
-      exclude_cols: ["user_id", "product_id", "session_id", "event_timestamp"]
-
-  # 데이터 인터페이스 정의
-  data_interface:
-    task_type: "classification"
-    target_col: "target_class"
+      exclude_cols: ["feedback_id", "customer_id", "feedback_date", "sentiment"]
+      handle_missing: "median"
+      scale_features: true             # Gaussian NB는 정규화된 데이터 선호
+      encode_categorical: "onehot"     # One-hot encoding
 
   # 평가자 설정
   evaluator:
@@ -69,15 +76,12 @@ evaluation:
   metrics:
     - "accuracy"
     - "precision_weighted"
-    - "recall_weighted" 
+    - "recall_weighted"
     - "f1_weighted"
-    - "roc_auc"
+    - "roc_auc"                        # 다중분류 ROC AUC
   
   validation:
     method: "train_test_split"
     test_size: 0.2
     stratify: true
     random_state: 42
-
-# 💡 사용 예시:
-# APP_ENV=dev uv run python main.py train --recipe-file models/classification/naive_bayes 

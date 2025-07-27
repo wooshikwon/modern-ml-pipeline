@@ -1,68 +1,76 @@
-# Ridge Regression - L2 정규화를 통한 안정적인 선형 회귀
-# 📈 과적합 방지와 안정성을 제공하는 정규화된 선형 회귀
+# Ridge Regression: L2 정규화의 안정성
+# 🛡️ 다중공선성을 완벽하게 제어하는 안정적인 회귀
 
 name: "ridge_regression"
 
 model:
-  # 직접 동적 import를 통한 Ridge Regression 회귀기
+  # Scikit-learn Ridge Regression 직접 동적 import
   class_path: "sklearn.linear_model.Ridge"
   
-  # 하이퍼파라미터 정의 (Optuna 자동 최적화 지원)
-  hyperparameters:
-    # 🔥 자동 최적화 범위 - Ridge Regression 특화 하이퍼파라미터
-    alpha: {type: "float", low: 0.001, high: 1000.0, log: true}
-    fit_intercept: {type: "categorical", choices: [true, false]}
-    solver: {type: "categorical", choices: ["auto", "svd", "cholesky", "lsqr", "sparse_cg", "sag", "saga"]}
-    positive: {type: "categorical", choices: [true, false]}
+  # Phase 1: Point-in-Time 정합성 스키마
+  loader:
+    name: "house_price_prediction_loader"
+    source_uri: "recipes/sql/loaders/real_estate_features.sql"
+    entity_schema:
+      entity_columns: ["property_id", "location_id"]    # 부동산-위치 페어
+      timestamp_column: "listing_date"                  # 매물 등록일
+  
+  # 기존: ML 작업별 세부 설정 (Regression 전용)
+  data_interface:
+    task_type: "regression"
+    target_column: "price_per_sqft"      # 평방피트당 가격 (연속형)
     
-    # 🔧 고정값 - Ridge Regression 안정성을 위한 설정
+  # Dictionary 형태 하이퍼파라미터 (Ridge 특화)
+  hyperparameters:
+    # L2 정규화 강도 (Ridge의 핵심)
+    alpha: {type: "float", low: 0.01, high: 100.0, log: true}
+    
+    # 솔버 선택
+    solver: {type: "categorical", choices: ["auto", "svd", "cholesky", "lsqr", "sparse_cg"]}
+    
+    # 최대 반복 횟수
+    max_iter: {type: "int", low: 100, high: 2000}
+    
+    # 고정값
     random_state: 42
-    max_iter: 1000
+    fit_intercept: true
 
   # 하이퍼파라미터 튜닝 설정
   hyperparameter_tuning:
     enabled: true
-    n_trials: 60  # Ridge는 alpha 값이 중요하므로 충분한 탐색
-    metric: "neg_mean_squared_error"
+    n_trials: 40                      # Ridge는 단순하므로 적당히
+    metric: "neg_root_mean_squared_error"
     direction: "maximize"
-
-  # 데이터 로더 정의 (Spine 생성)
-  loader:
-    name: "regression_loader"
-    source_uri: "recipes/sql/loaders/user_features.sql"
-
-  # 피처 증강 정의 (Feature Store 기반)
+  
+  # Feature Store 기반 피처 증강
   augmenter:
     type: "feature_store"
     features:
-      # 사용자 기본 정보 피처
-      - feature_namespace: "user_demographics"
-        features: ["age", "country_code"]
+      # 부동산 물리적 특성
+      - feature_namespace: "property_characteristics"
+        features: ["square_footage", "bedrooms", "bathrooms", "lot_size", "year_built"]
       
-      # 사용자 구매 이력 피처  
-      - feature_namespace: "user_purchase_summary"
-        features: ["ltv", "total_purchase_count", "last_purchase_date"]
+      # 위치 기반 특성
+      - feature_namespace: "location_features"
+        features: ["school_rating", "crime_index", "walkability_score", "public_transport_access"]
       
-      # 상품 상세 정보 피처
-      - feature_namespace: "product_details"
-        features: ["price", "category", "brand"]
+      # 시장 조건
+      - feature_namespace: "market_conditions"
+        features: ["median_neighborhood_price", "days_on_market_avg", "inventory_level", "price_trend"]
       
-      # 세션 행동 피처
-      - feature_namespace: "session_summary"
-        features: ["time_on_page_seconds", "click_count"]
+      # 경제적 지표
+      - feature_namespace: "economic_indicators"
+        features: ["mortgage_rate", "employment_rate", "population_growth", "income_level"]
 
-  # 전처리 설정 (정규화 모델이므로 스케일링 중요)
+  # 전처리 설정 (Ridge는 스케일링 필요)
   preprocessor:
-    name: "simple_scaler"
+    name: "regression_preprocessor"
     params:
       criterion_col: null
-      # 엔티티 키와 타임스탬프 제외
-      exclude_cols: ["user_id", "product_id", "session_id", "event_timestamp"]
-
-  # 데이터 인터페이스 정의
-  data_interface:
-    task_type: "regression"
-    target_col: "target_value"
+      exclude_cols: ["property_id", "location_id", "listing_date", "price_per_sqft"]
+      handle_missing: "median"
+      scale_features: true             # Ridge는 스케일링 필요
+      encode_categorical: "onehot"
 
   # 평가자 설정
   evaluator:
@@ -72,14 +80,11 @@ model:
 evaluation:
   metrics:
     - "r2_score"
-    - "mean_squared_error"
     - "mean_absolute_error"
+    - "mean_squared_error"
     - "root_mean_squared_error"
   
   validation:
     method: "train_test_split"
     test_size: 0.2
     random_state: 42
-
-# 💡 사용 예시:
-# APP_ENV=dev uv run python main.py train --recipe-file models/regression/ridge_regression 

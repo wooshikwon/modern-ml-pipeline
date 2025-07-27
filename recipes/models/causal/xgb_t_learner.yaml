@@ -1,83 +1,90 @@
-# XGBoost T-Learner - 고성능 그래디언트 부스팅 기반 인과추론
-# 🚀 XGBoost의 강력한 성능과 T-Learner의 정확한 효과 분리
+# XGBoost T-Learner: High-Performance Causal Inference
+# 🚀 XGBoost의 강력함과 T-Learner의 정밀함을 결합
 
 name: "xgb_t_learner"
 
 model:
-  # 직접 동적 import를 통한 XGBoost T-Learner 모델
+  # CausalML XGBoost T-Learner 직접 동적 import
   class_path: "causalml.inference.meta.XGBTRegressor"
   
-  # 하이퍼파라미터 정의 (Optuna 자동 최적화 지원)
+  # Phase 1: Point-in-Time 정합성 스키마
+  loader:
+    name: "product_recommendation_loader"
+    source_uri: "recipes/sql/loaders/recommendation_features.sql"
+    entity_schema:
+      entity_columns: ["user_id", "product_id"]    # 사용자-제품 페어
+      timestamp_column: "interaction_timestamp"    # 상호작용 시점
+  
+  # 기존: ML 작업별 세부 설정 (Causal 전용)
+  data_interface:
+    task_type: "causal"
+    target_column: "engagement_score"       # 참여도 점수 (연속형)
+    treatment_column: "personalized_rec"    # 개인화 추천 여부 (0/1)
+    treatment_value: 1                      # Treatment 그룹 (개인화 받은 경우)
+    
+  # Dictionary 형태 하이퍼파라미터 (XGBoost T-Learner 특화)
   hyperparameters:
-    # 🔥 자동 최적화 범위 - XGBoost T-Learner 특화 하이퍼파라미터
+    # XGBoost 핵심 하이퍼파라미터
+    n_estimators: {type: "int", low: 100, high: 1500}
     learning_rate: {type: "float", low: 0.01, high: 0.3, log: true}
-    n_estimators: {type: "int", low: 50, high: 1000}
-    max_depth: {type: "int", low: 3, high: 10}
+    max_depth: {type: "int", low: 3, high: 12}
+    
+    # 정규화 파라미터
+    reg_alpha: {type: "float", low: 0, high: 1}      # L1 정규화
+    reg_lambda: {type: "float", low: 1, high: 10}    # L2 정규화
+    
+    # 샘플링 파라미터
     subsample: {type: "float", low: 0.6, high: 1.0}
     colsample_bytree: {type: "float", low: 0.6, high: 1.0}
-    min_child_weight: {type: "int", low: 1, high: 10}
-    gamma: {type: "float", low: 0.0, high: 1.0}
-    reg_alpha: {type: "float", low: 0.0, high: 1.0}
-    reg_lambda: {type: "float", low: 0.0, high: 1.0}
+    colsample_bylevel: {type: "float", low: 0.6, high: 1.0}
     
-    # 🔧 고정값 - XGBoost T-Learner 안정성을 위한 설정
+    # 고정값
     random_state: 42
-    objective: "reg:squarederror"
-    eval_metric: "rmse"
+    n_jobs: -1
     verbosity: 0
 
   # 하이퍼파라미터 튜닝 설정
   hyperparameter_tuning:
     enabled: true
-    n_trials: 120  # XGBoost는 복잡한 파라미터 공간이므로 충분한 탐색
-    metric: "uplift_auc"  # 업리프트 모델 전용 메트릭
+    n_trials: 100                   # XGBoost는 복잡하므로 더 많은 trial
+    metric: "uplift_auc"
     direction: "maximize"
-
-  # 데이터 로더 정의 (Spine 생성)
-  loader:
-    name: "causal_loader"
-    source_uri: "recipes/sql/loaders/user_features.sql"
-
-  # 피처 증강 정의 (Feature Store 기반)
+  
+  # Feature Store 기반 피처 증강
   augmenter:
     type: "feature_store"
     features:
-      # 사용자 기본 정보 피처
-      - feature_namespace: "user_demographics"
-        features: ["age", "country_code"]
+      # 사용자 행동 패턴
+      - feature_namespace: "user_behavior"
+        features: ["browse_history", "purchase_frequency", "session_duration", "click_through_rate"]
       
-      # 사용자 구매 이력 피처  
-      - feature_namespace: "user_purchase_summary"
-        features: ["ltv", "total_purchase_count", "last_purchase_date"]
+      # 제품 특성
+      - feature_namespace: "product_attributes"
+        features: ["category", "price_range", "popularity_score", "review_rating"]
       
-      # 상품 상세 정보 피처
-      - feature_namespace: "product_details"
-        features: ["price", "category", "brand"]
+      # 상호작용 컨텍스트
+      - feature_namespace: "interaction_context"
+        features: ["time_of_day", "device_type", "referral_source", "page_context"]
       
-      # 세션 행동 피처
-      - feature_namespace: "session_summary"
-        features: ["time_on_page_seconds", "click_count"]
+      # 추천 시스템 메타데이터
+      - feature_namespace: "recommendation_meta"
+        features: ["algorithm_version", "confidence_score", "diversity_score"]
 
   # 전처리 설정
   preprocessor:
-    name: "simple_scaler"
+    name: "causal_preprocessor"
     params:
       criterion_col: null
-      # 엔티티 키와 타임스탬프 제외
-      exclude_cols: ["user_id", "product_id", "session_id", "event_timestamp"]
-
-  # 데이터 인터페이스 정의 (인과추론 특화)
-  data_interface:
-    task_type: "causal"
-    target_col: "outcome"
-    treatment_col: "treatment"
-    treatment_value: "1"  # treatment 그룹 표시
+      exclude_cols: ["user_id", "product_id", "interaction_timestamp", "engagement_score", "personalized_rec"]
+      handle_missing: "median"
+      scale_features: false        # XGBoost는 스케일링 불필요
+      encode_categorical: "label"   # Label encoding for XGBoost
 
   # 평가자 설정
   evaluator:
     name: "causal_evaluator"
 
-# 평가 설정 (인과추론 특화 메트릭)
+# 평가 설정
 evaluation:
   metrics:
     - "uplift_auc"
@@ -88,8 +95,5 @@ evaluation:
   validation:
     method: "train_test_split"
     test_size: 0.2
-    stratify: true  # treatment 비율 유지
+    stratify: true
     random_state: 42
-
-# 💡 사용 예시:
-# APP_ENV=dev uv run python main.py train --recipe-file models/causal/xgb_t_learner 

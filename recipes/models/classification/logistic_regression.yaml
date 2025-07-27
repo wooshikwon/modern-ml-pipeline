@@ -1,88 +1,101 @@
-# Logistic Regression - 간단하고 해석 가능한 선형 분류기
+# Logistic Regression: 해석 가능한 선형 분류기
 # 📊 확률적 해석과 빠른 학습의 완벽한 조화
 
 name: "logistic_regression"
 
 model:
-  # 직접 동적 import를 통한 Logistic Regression 분류기
+  # Scikit-learn Logistic Regression 직접 동적 import
   class_path: "sklearn.linear_model.LogisticRegression"
   
-  # 하이퍼파라미터 정의 (Optuna 자동 최적화 지원)
-  hyperparameters:
-    # 🔥 자동 최적화 범위 - Logistic Regression 특화 하이퍼파라미터
-    C: {type: "float", low: 0.001, high: 100.0, log: true}
-    penalty: {type: "categorical", choices: ["l1", "l2", "elasticnet"]}
-    solver: {type: "categorical", choices: ["liblinear", "saga", "lbfgs"]}
-    l1_ratio: {type: "float", low: 0.0, high: 1.0}  # elasticnet용
+  # Phase 1: Point-in-Time 정합성 스키마
+  loader:
+    name: "customer_churn_loader"
+    source_uri: "recipes/sql/loaders/customer_behavior_features.sql"
+    entity_schema:
+      entity_columns: ["customer_id"]     # 고객 ID
+      timestamp_column: "activity_date"   # 활동 날짜
+  
+  # 기존: ML 작업별 세부 설정 (Classification 전용)
+  data_interface:
+    task_type: "classification"
+    target_column: "will_churn"          # 이탈 예측 (0: 유지, 1: 이탈)
+    class_weight: "balanced"             # 불균형 데이터 자동 처리
+    average: "weighted"                  # 가중 평균으로 성능 평가
     
-    # 🔧 고정값 - 안정성을 위한 필수 설정
+  # Dictionary 형태 하이퍼파라미터 (Logistic Regression 특화)
+  hyperparameters:
+    # 정규화 강도 (가장 중요한 하이퍼파라미터)
+    C: {type: "float", low: 0.001, high: 100.0, log: true}
+    
+    # 정규화 방법
+    penalty: {type: "categorical", choices: ["l1", "l2", "elasticnet"]}
+    
+    # 최적화 알고리즘 (penalty에 따라 호환성 고려)
+    solver: {type: "categorical", choices: ["liblinear", "saga", "lbfgs"]}
+    
+    # ElasticNet 정규화 비율 (penalty="elasticnet"일 때만 사용)
+    l1_ratio: {type: "float", low: 0.0, high: 1.0}
+    
+    # 고정값 - 안정성과 재현성을 위한 설정
     random_state: 42
     max_iter: 1000
-    class_weight: "balanced"
+    class_weight: "balanced"   # 불균형 데이터 처리
 
-  # 하이퍼파라미터 튜닝 설정
+  # 하이퍼파라미터 튜닝 설정 (Classification 메트릭 최적화)
   hyperparameter_tuning:
     enabled: true
-    n_trials: 80  # 빠른 모델이므로 충분한 탐색
-    metric: "roc_auc"
+    n_trials: 100                       # 로지스틱 회귀는 빠르므로 더 많은 trial
+    metric: "roc_auc"                  # ROC AUC로 최적화 (이진 분류)
     direction: "maximize"
-
-  # 데이터 로더 정의 (Spine 생성)
-  loader:
-    name: "classification_loader"
-    source_uri: "recipes/sql/loaders/user_features.sql"
-
-  # 피처 증강 정의 (Feature Store 기반)
+  
+  # Feature Store 기반 피처 증강
   augmenter:
     type: "feature_store"
     features:
-      # 사용자 기본 정보 피처
-      - feature_namespace: "user_demographics"
-        features: ["age", "country_code"]
+      # 고객 기본 정보
+      - feature_namespace: "customer_profile"
+        features: ["age", "gender", "subscription_type", "tenure_months"]
       
-      # 사용자 구매 이력 피처  
-      - feature_namespace: "user_purchase_summary"
-        features: ["ltv", "total_purchase_count", "last_purchase_date"]
+      # 사용 패턴 분석
+      - feature_namespace: "usage_patterns"
+        features: ["monthly_usage_hours", "feature_adoption_score", "support_tickets_count"]
       
-      # 상품 상세 정보 피처
-      - feature_namespace: "product_details"
-        features: ["price", "category", "brand"]
+      # 결제 및 구매 이력
+      - feature_namespace: "payment_history"
+        features: ["total_spent_6m", "payment_failures", "upgrade_count"]
       
-      # 세션 행동 피처
-      - feature_namespace: "session_summary"
-        features: ["time_on_page_seconds", "click_count"]
+      # 인게이지먼트 지표
+      - feature_namespace: "engagement_metrics"
+        features: ["login_frequency", "session_duration_avg", "last_activity_days"]
 
-  # 전처리 설정 (선형 모델이므로 스케일링 중요)
+  # 전처리 설정 (Logistic Regression 특화)
   preprocessor:
-    name: "simple_scaler"
+    name: "classification_preprocessor"
     params:
       criterion_col: null
-      # 엔티티 키와 타임스탬프 제외
-      exclude_cols: ["user_id", "product_id", "session_id", "event_timestamp"]
-
-  # 데이터 인터페이스 정의
-  data_interface:
-    task_type: "classification"
-    target_col: "target_class"
+      # Entity 키, timestamp, target는 전처리에서 제외
+      exclude_cols: ["customer_id", "activity_date", "will_churn"]
+      # 로지스틱 회귀를 위한 특별 설정
+      handle_missing: "mean"            # 수치형은 평균으로 채움
+      scale_features: true              # 표준화 (로지스틱 회귀에 중요)
+      encode_categorical: "onehot"      # 원핫 인코딩
+      remove_low_variance: true         # 분산이 낮은 피처 제거
 
   # 평가자 설정
   evaluator:
     name: "classification_evaluator"
 
-# 평가 설정
+# 평가 설정 (Classification 특화 메트릭)
 evaluation:
   metrics:
-    - "accuracy"
-    - "precision_weighted"
-    - "recall_weighted" 
-    - "f1_weighted"
-    - "roc_auc"
+    - "accuracy"           # 전체 정확도
+    - "precision_weighted" # 가중 정밀도
+    - "recall_weighted"    # 가중 재현율
+    - "f1_weighted"        # 가중 F1 스코어
+    - "roc_auc"           # ROC AUC (이진 분류의 핵심)
   
   validation:
     method: "train_test_split"
     test_size: 0.2
-    stratify: true
+    stratify: true          # 클래스 비율 유지 (불균형 데이터 처리)
     random_state: 42
-
-# 💡 사용 예시:
-# APP_ENV=dev uv run python main.py train --recipe-file models/classification/logistic_regression 

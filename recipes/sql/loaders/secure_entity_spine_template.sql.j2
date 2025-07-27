@@ -1,0 +1,54 @@
+-- 🆕 Phase 3: 보안 강화 Entity Spine 표준 템플릿
+-- Point-in-Time Correctness + SQL Injection 방지 + Context Params 화이트리스트 기반
+
+SELECT 
+    -- 🎯 Phase 1 LoaderDataInterface 필수 컬럼들
+    -- Entity 컬럼들 (Primary Key 역할)
+    user_id,
+    product_id,
+    merchant_id,
+    
+    -- 🎯 Timestamp 컬럼 (Point-in-Time JOIN 기준)
+    event_timestamp,
+    
+    -- 🔄 동적 Target 컬럼 (Training/Inference 분기)
+    {% if include_target | default(true) %}
+    target_class as target,
+    {% endif %}
+    
+    -- 📊 추가 Feature 컬럼들
+    transaction_amount,
+    merchant_category,
+    user_country_code,
+    device_type,
+    
+    -- 🕒 시점 정보 (디버깅 및 추적용)
+    '{{ start_date | default('2024-01-01') }}' as spine_start_date,
+    '{{ end_date | default('2024-12-31') }}' as spine_end_date
+
+FROM user_transactions_fact 
+
+WHERE 
+    -- 📅 날짜 범위 필터 (Context Params 화이트리스트 기반)
+    event_timestamp >= '{{ start_date | default('2024-01-01') }}'
+    AND event_timestamp < '{{ end_date | default('2024-12-31') }}'
+    
+    -- 🔒 미래 데이터 누출 방지 (Phase 2 Point-in-Time 연계)
+    {% if not include_target | default(true) %}
+    AND event_timestamp <= CURRENT_TIMESTAMP
+    {% endif %}
+    
+    -- 📊 데이터 품질 필터
+    AND user_id IS NOT NULL
+    AND product_id IS NOT NULL
+    AND event_timestamp IS NOT NULL
+    AND transaction_amount > 0
+
+ORDER BY 
+    user_id, 
+    product_id, 
+    event_timestamp
+
+-- 💡 사용법:
+-- Training: include_target=true, start_date='2024-01-01', end_date='2024-06-30'
+-- Inference: include_target=false, start_date='2024-07-01', end_date='2024-07-31' 

@@ -115,15 +115,15 @@ class FeatureStoreSettings(BaseModel):
     retry_attempts: int = 3
     connection_info: Dict[str, Any] = {}
 
-class DataInterfaceSettings(BaseModel):
+class MLTaskSettings(BaseModel):
     # 필수 필드
     task_type: str  # "classification", "regression", "clustering", "causal"
     
     # 조건부 필수 필드들 (clustering 제외하고 필수)
-    target_col: Optional[str] = None
+    target_column: Optional[str] = None  # 🔄 수정: target_col → target_column
     
     # Causal 전용 필드들 (기존 호환성 유지)
-    treatment_col: Optional[str] = None
+    treatment_column: Optional[str] = None  # 🔄 수정: treatment_col → treatment_column
     treatment_value: Optional[Any] = None
     
     # Classification 전용 필드들
@@ -132,24 +132,24 @@ class DataInterfaceSettings(BaseModel):
     average: Optional[str] = "weighted"  # f1 계산 방식
     
     # Regression 전용 필드들
-    sample_weight_col: Optional[str] = None
+    sample_weight_column: Optional[str] = None  # 🔄 수정: sample_weight_col → sample_weight_column
     
     # Clustering 전용 필드들
     n_clusters: Optional[int] = None
-    true_labels_col: Optional[str] = None  # 평가용 실제 라벨
+    true_labels_column: Optional[str] = None  # 🔄 수정: true_labels_col → true_labels_column
     
     # 기존 필드 유지 (Optional로 변경)
     features: Optional[Dict[str, str]] = None
     
     def validate_required_fields(self):
-        """task_type에 따른 동적 필수 필드 검증"""
+        """task_type에 따른 동적 필수 필드 검증 (27개 Recipe 대응)"""
         if self.task_type in ["classification", "regression", "causal"]:
-            if not self.target_col:
-                raise ValueError(f"{self.task_type} 모델에는 target_col이 필요합니다.")
+            if not self.target_column:  # 🔄 수정: target_col → target_column
+                raise ValueError(f"{self.task_type} 모델에는 target_column이 필요합니다.")
         
         if self.task_type == "causal":
-            if not self.treatment_col or self.treatment_value is None:
-                raise ValueError("causal 모델에는 treatment_col과 treatment_value가 필요합니다.")
+            if not self.treatment_column or self.treatment_value is None:  # 🔄 수정: treatment_col → treatment_column
+                raise ValueError("causal 모델에는 treatment_column과 treatment_value가 필요합니다.")
                 
         # 지원하는 task_type 검증
         supported_types = ["classification", "regression", "clustering", "causal"]
@@ -164,7 +164,7 @@ class ModelSettings(BaseModel):
     loader: LoaderSettings
     augmenter: Optional[AugmenterSettings] = None
     preprocessor: Optional[PreprocessorSettings] = None
-    data_interface: DataInterfaceSettings
+    data_interface: MLTaskSettings
     hyperparameters: ModelHyperparametersSettings
     
     # 🆕 새로 추가 (Optional로 하위 호환성 보장)

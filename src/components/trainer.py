@@ -40,7 +40,7 @@ class Trainer(BaseTrainer):
         logger.info("🚀 하이퍼파라미터 자동 최적화 모드 시작")
         
         # 기본 설정 검증 및 데이터 분할
-        self.settings.recipe.model.data_interface.validate_required_fields()
+        self.settings.recipe.model.data_interface.validate_required_fields()  # 🔄 수정: entity_schema → data_interface
         train_df, test_df = self._split_data(df)
         
         # 피처 증강
@@ -262,7 +262,7 @@ class Trainer(BaseTrainer):
         
         # 공통: Feature와 Target 분리
         if task_type in ["classification", "regression"]:
-            target_col = data_interface.target_col
+            target_col = data_interface.target_column
             X = df.drop(columns=[target_col])
             y = df[target_col]
             additional_data = {}
@@ -275,8 +275,8 @@ class Trainer(BaseTrainer):
             
         elif task_type == "causal":
             # Causal: treatment와 target 모두 필요
-            target_col = data_interface.target_col
-            treatment_col = data_interface.treatment_col
+            target_col = data_interface.target_column
+            treatment_col = data_interface.treatment_column
             X = df.drop(columns=[target_col, treatment_col])
             y = df[target_col]
             additional_data = {
@@ -321,11 +321,11 @@ class Trainer(BaseTrainer):
         
         if task_type == "classification":
             # 분류: target 컬럼으로 stratify
-            target_col = data_interface.target_col
+            target_col = data_interface.target_column
             return df[target_col] if target_col in df.columns else None
         elif task_type == "causal":
             # 인과추론: treatment 컬럼으로 stratify
-            treatment_col = data_interface.treatment_col
+            treatment_col = data_interface.treatment_column
             return df[treatment_col] if treatment_col in df.columns else None
         else:
             # 회귀, 클러스터링: stratify 없음

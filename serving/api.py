@@ -322,6 +322,25 @@ def run_api_server(settings: Settings, run_id: str, host: str = "0.0.0.0", port:
         # Dict 형태로 받아서 DataFrame으로 변환
         request_df = pd.DataFrame([request])
         
+        # 🆕 Phase 4: 실시간 API 스키마 검증
+        try:
+            wrapped_model = app_context.model.unwrap_python_model()
+            if hasattr(wrapped_model, 'data_schema') and wrapped_model.data_schema:
+                from src.utils.system.schema_utils import SchemaConsistencyValidator
+                
+                validator = SchemaConsistencyValidator(wrapped_model.data_schema)
+                validator.validate_inference_consistency(request_df)
+                logger.info("✅ API 실시간 스키마 검증 완료")
+        except ValueError as e:
+            # Schema Drift 감지 → HTTP 400 에러
+            raise HTTPException(
+                status_code=400, 
+                detail=f"스키마 검증 실패: {e}"
+            )
+        except Exception as e:
+            # 기타 검증 오류 → 경고 후 계속 진행 (하위 호환성)
+            logger.warning(f"스키마 검증 중 오류 (계속 진행): {e}")
+        
         # 모델 예측
         predictions = app_context.model.predict(request_df)
         

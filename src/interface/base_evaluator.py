@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any
 import pandas as pd
 
-from src.settings import DataInterfaceSettings
+from src.settings import MLTaskSettings
 
 
 class BaseEvaluator(ABC):
@@ -11,12 +11,12 @@ class BaseEvaluator(ABC):
     각 Task Type별로 최적화된 평가 메트릭을 계산하는 Strategy Pattern의 기반.
     """
     
-    def __init__(self, data_interface: DataInterfaceSettings):
+    def __init__(self, data_interface: MLTaskSettings):
         """
         Evaluator 초기화
         
         Args:
-            data_interface: task_type별 설정이 포함된 DataInterfaceSettings
+            data_interface: task_type별 설정이 포함된 MLTaskSettings
         """
         self.data_interface = data_interface
         self.task_type = data_interface.task_type

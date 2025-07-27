@@ -89,7 +89,7 @@ def train(
         setup_logging(settings)
         
         logger.info(f"'{recipe_file}' 레시피로 학습을 시작합니다.")
-        logger.info(f"Run Name: {settings.model.computed['run_name']}")
+        logger.info(f"Run Name: {settings.recipe.model.computed['run_name']}")  # 🔄 Phase 1: 새 구조 반영
         run_training(settings=settings, context_params=params)
         
     except Exception as e:

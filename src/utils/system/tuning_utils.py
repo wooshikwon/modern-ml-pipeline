@@ -46,12 +46,12 @@ class TuningUtils:
         """데이터프레임에서 stratify할 컬럼 결정"""
         stratify_col = None
         
-        if task_type == "causal" and data_interface.treatment_col:
-            if data_interface.treatment_col in df.columns:
-                stratify_col = data_interface.treatment_col
-        elif task_type == "classification" and data_interface.target_col:
-            if data_interface.target_col in df.columns:
-                stratify_col = data_interface.target_col
+        if task_type == "causal" and data_interface.treatment_column:
+            if data_interface.treatment_column in df.columns:
+                stratify_col = data_interface.treatment_column
+        elif task_type == "classification" and data_interface.target_column:
+            if data_interface.target_column in df.columns:
+                stratify_col = data_interface.target_column
         
         # stratify가 가능한지 확인 (unique 값이 2개 이상)
         if stratify_col and df[stratify_col].nunique() > 1:

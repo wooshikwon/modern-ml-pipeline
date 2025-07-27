@@ -1,79 +1,86 @@
-# T-Learner - 인과추론 업리프트 모델
-# 🎯 Treatment와 Control 그룹 분리 학습을 통한 정확한 효과 측정
+# T-Learner: Two-Model Approach for Causal Inference
+# 📊 Treatment와 Control을 별도 모델로 학습하는 정밀한 접근법
 
 name: "t_learner"
 
 model:
-  # 직접 동적 import를 통한 T-Learner 모델
+  # CausalML T-Learner 직접 동적 import
   class_path: "causalml.inference.meta.TLearner"
   
-  # 하이퍼파라미터 정의 (Optuna 자동 최적화 지원)
+  # Phase 1: Point-in-Time 정합성 스키마
+  loader:
+    name: "marketing_campaign_loader"
+    source_uri: "recipes/sql/loaders/campaign_response_features.sql"
+    entity_schema:
+      entity_columns: ["customer_id", "campaign_id"]  # 고객-캠페인 페어
+      timestamp_column: "campaign_launch_date"        # 캠페인 시작일
+  
+  # 기존: ML 작업별 세부 설정 (Causal 전용)
+  data_interface:
+    task_type: "causal"
+    target_column: "conversion_value"        # 전환 가치 (연속형)
+    treatment_column: "received_campaign"    # 캠페인 수신 여부 (0/1)
+    treatment_value: 1                       # Treatment 그룹 (캠페인 받은 경우)
+    
+  # Dictionary 형태 하이퍼파라미터 (T-Learner 특화)
   hyperparameters:
-    # 🔥 자동 최적화 범위 - T-Learner는 base learner에 의존
-    # Base learner 설정 (XGBoost 사용)
+    # Base learner로 XGBoost 사용 (T-Learner는 더 복잡한 모델 선호)
     base_learner: "xgboost"
     
-    # XGBoost 하이퍼파라미터 (T-Learner 내부)
+    # XGBoost 하이퍼파라미터 자동 최적화
+    n_estimators: {type: "int", low: 100, high: 1000}
     learning_rate: {type: "float", low: 0.01, high: 0.3, log: true}
-    n_estimators: {type: "int", low: 50, high: 500}
-    max_depth: {type: "int", low: 3, high: 10}
+    max_depth: {type: "int", low: 3, high: 15}
     subsample: {type: "float", low: 0.6, high: 1.0}
+    colsample_bytree: {type: "float", low: 0.6, high: 1.0}
     
-    # 🔧 고정값 - T-Learner 안정성을 위한 설정
+    # 고정값 - 재현성과 성능을 위한 설정
     random_state: 42
+    n_jobs: -1
+    verbosity: 0
 
   # 하이퍼파라미터 튜닝 설정
   hyperparameter_tuning:
     enabled: true
-    n_trials: 100
-    metric: "uplift_auc"  # 업리프트 모델 전용 메트릭
+    n_trials: 60                    # T-Learner는 2개 모델을 학습하므로 적당히
+    metric: "uplift_auc"           # Uplift AUC로 최적화
     direction: "maximize"
-
-  # 데이터 로더 정의 (Spine 생성)
-  loader:
-    name: "causal_loader"
-    source_uri: "recipes/sql/loaders/user_features.sql"
-
-  # 피처 증강 정의 (Feature Store 기반)
+  
+  # Feature Store 기반 피처 증강
   augmenter:
     type: "feature_store"
     features:
-      # 사용자 기본 정보 피처
-      - feature_namespace: "user_demographics"
-        features: ["age", "country_code"]
+      # 고객 프로필
+      - feature_namespace: "customer_profile"
+        features: ["age_group", "income_level", "subscription_tier", "geographic_region"]
       
-      # 사용자 구매 이력 피처  
-      - feature_namespace: "user_purchase_summary"
-        features: ["ltv", "total_purchase_count", "last_purchase_date"]
+      # 과거 캠페인 반응
+      - feature_namespace: "campaign_history"
+        features: ["previous_conversions", "avg_response_time", "preferred_channel"]
       
-      # 상품 상세 정보 피처
-      - feature_namespace: "product_details"
-        features: ["price", "category", "brand"]
+      # 제품 관심도
+      - feature_namespace: "product_affinity"
+        features: ["category_preferences", "price_sensitivity", "brand_loyalty"]
       
-      # 세션 행동 피처
-      - feature_namespace: "session_summary"
-        features: ["time_on_page_seconds", "click_count"]
+      # 행동 패턴
+      - feature_namespace: "behavioral_signals"
+        features: ["website_activity", "email_engagement", "social_interaction"]
 
   # 전처리 설정
   preprocessor:
-    name: "simple_scaler"
+    name: "causal_preprocessor"
     params:
       criterion_col: null
-      # 엔티티 키와 타임스탬프 제외
-      exclude_cols: ["user_id", "product_id", "session_id", "event_timestamp"]
-
-  # 데이터 인터페이스 정의 (인과추론 특화)
-  data_interface:
-    task_type: "causal"
-    target_col: "outcome"
-    treatment_col: "treatment"
-    treatment_value: "1"  # treatment 그룹 표시
+      exclude_cols: ["customer_id", "campaign_id", "campaign_launch_date", "conversion_value", "received_campaign"]
+      handle_missing: "median"
+      scale_features: true
+      encode_categorical: "onehot"
 
   # 평가자 설정
   evaluator:
     name: "causal_evaluator"
 
-# 평가 설정 (인과추론 특화 메트릭)
+# 평가 설정
 evaluation:
   metrics:
     - "uplift_auc"
@@ -84,8 +91,5 @@ evaluation:
   validation:
     method: "train_test_split"
     test_size: 0.2
-    stratify: true  # treatment 비율 유지
+    stratify: true
     random_state: 42
-
-# 💡 사용 예시:
-# APP_ENV=dev uv run python main.py train --recipe-file models/causal/t_learner 

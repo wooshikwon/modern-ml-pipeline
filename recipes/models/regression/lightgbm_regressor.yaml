@@ -1,77 +1,87 @@
-# LightGBM Regressor - 빠르고 효율적인 그래디언트 부스팅 회귀
-# ⚡ 메모리 효율성과 빠른 학습 속도의 완벽한 조화
+# LightGBM Regressor: 초고속 그래디언트 부스팅
+# ⚡ 빠르고 효율적인 그래디언트 부스팅으로 실시간 예측
 
 name: "lightgbm_regressor"
 
 model:
-  # 직접 동적 import를 통한 LightGBM 회귀기
+  # LightGBM Regressor 직접 동적 import
   class_path: "lightgbm.LGBMRegressor"
   
-  # 하이퍼파라미터 정의 (Optuna 자동 최적화 지원)
+  # Phase 1: Point-in-Time 정합성 스키마
+  loader:
+    name: "demand_forecasting_loader"
+    source_uri: "recipes/sql/loaders/demand_prediction_features.sql"
+    entity_schema:
+      entity_columns: ["product_id", "region_id"]       # 제품-지역 페어
+      timestamp_column: "forecast_week"                 # 예측 주차
+  
+  # 기존: ML 작업별 세부 설정 (Regression 전용)
+  data_interface:
+    task_type: "regression"
+    target_column: "weekly_demand_units"       # 주간 수요량 (단위)
+    
+  # Dictionary 형태 하이퍼파라미터 (LightGBM 특화)
   hyperparameters:
-    # 🔥 자동 최적화 범위 - LightGBM 특화 하이퍼파라미터
+    # 부스팅 설정
+    num_leaves: {type: "int", low: 20, high: 300}
     learning_rate: {type: "float", low: 0.01, high: 0.3, log: true}
     n_estimators: {type: "int", low: 100, high: 1000}
-    num_leaves: {type: "int", low: 10, high: 300}
-    max_depth: {type: "int", low: 3, high: 15}
-    feature_fraction: {type: "float", low: 0.4, high: 1.0}
-    bagging_fraction: {type: "float", low: 0.4, high: 1.0}
-    bagging_freq: {type: "int", low: 1, high: 7}
-    min_child_samples: {type: "int", low: 5, high: 100}
-    reg_alpha: {type: "float", low: 0.0, high: 1.0}
-    reg_lambda: {type: "float", low: 0.0, high: 1.0}
     
-    # 🔧 고정값 - LightGBM 안정성을 위한 필수 설정
+    # 트리 구조 제어
+    max_depth: {type: "int", low: 3, high: 12}
+    min_child_samples: {type: "int", low: 5, high: 100}
+    min_child_weight: {type: "float", low: 0.001, high: 0.1, log: true}
+    
+    # 정규화
+    reg_alpha: {type: "float", low: 0, high: 1}
+    reg_lambda: {type: "float", low: 0, high: 1}
+    
+    # 샘플링
+    subsample: {type: "float", low: 0.6, high: 1.0}
+    colsample_bytree: {type: "float", low: 0.6, high: 1.0}
+    subsample_freq: {type: "int", low: 1, high: 5}
+    
+    # 고정값
     random_state: 42
-    objective: "regression"
-    metric: "rmse"
+    n_jobs: -1
     verbosity: -1
-    force_col_wise: true
 
   # 하이퍼파라미터 튜닝 설정
   hyperparameter_tuning:
     enabled: true
-    n_trials: 120  # LightGBM은 빠르므로 더 많은 trial 가능
-    metric: "neg_root_mean_squared_error"
+    n_trials: 120                     # LightGBM은 빠르므로 많은 trial
+    metric: "neg_mean_absolute_percentage_error"
     direction: "maximize"
-
-  # 데이터 로더 정의 (Spine 생성)
-  loader:
-    name: "regression_loader"
-    source_uri: "recipes/sql/loaders/user_features.sql"
-
-  # 피처 증강 정의 (Feature Store 기반)
+  
+  # Feature Store 기반 피처 증강
   augmenter:
     type: "feature_store"
     features:
-      # 사용자 기본 정보 피처
-      - feature_namespace: "user_demographics"
-        features: ["age", "country_code"]
+      # 과거 수요 패턴
+      - feature_namespace: "historical_demand"
+        features: ["lag_1_week", "lag_2_week", "lag_4_week", "rolling_avg_4w", "trend_slope"]
       
-      # 사용자 구매 이력 피처  
-      - feature_namespace: "user_purchase_summary"
-        features: ["ltv", "total_purchase_count", "last_purchase_date"]
+      # 계절성 요인
+      - feature_namespace: "seasonality_factors"
+        features: ["week_of_year", "month", "quarter", "holiday_effect", "seasonal_index"]
       
-      # 상품 상세 정보 피처
-      - feature_namespace: "product_details"
-        features: ["price", "category", "brand"]
+      # 제품 특성
+      - feature_namespace: "product_attributes"
+        features: ["category", "price_tier", "promotion_sensitivity", "lifecycle_stage", "substitutes_count"]
       
-      # 세션 행동 피처
-      - feature_namespace: "session_summary"
-        features: ["time_on_page_seconds", "click_count"]
+      # 외부 요인
+      - feature_namespace: "external_factors"
+        features: ["economic_index", "competitor_activity", "weather_impact", "marketing_spend"]
 
   # 전처리 설정
   preprocessor:
-    name: "simple_scaler"
+    name: "regression_preprocessor"
     params:
       criterion_col: null
-      # 엔티티 키와 타임스탬프 제외
-      exclude_cols: ["user_id", "product_id", "session_id", "event_timestamp"]
-
-  # 데이터 인터페이스 정의
-  data_interface:
-    task_type: "regression"
-    target_col: "target_value"
+      exclude_cols: ["product_id", "region_id", "forecast_week", "weekly_demand_units"]
+      handle_missing: "median"
+      scale_features: false        # LightGBM은 스케일링 불필요
+      encode_categorical: "label"
 
   # 평가자 설정
   evaluator:
@@ -81,14 +91,11 @@ model:
 evaluation:
   metrics:
     - "r2_score"
-    - "mean_squared_error"
     - "mean_absolute_error"
+    - "mean_squared_error"
     - "root_mean_squared_error"
   
   validation:
     method: "train_test_split"
     test_size: 0.2
     random_state: 42
-
-# 💡 사용 예시:
-# APP_ENV=dev uv run python main.py train --recipe-file models/regression/lightgbm_regressor 

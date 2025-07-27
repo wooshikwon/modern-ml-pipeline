@@ -1,84 +1,99 @@
-# K-Means Clustering - 고전적이고 효과적인 클러스터링
-# 🎯 중심점 기반 군집화를 통한 고객 세분화 및 패턴 발견
+# K-Means: 고전적이면서도 강력한 클러스터링 알고리즘
+# 🎯 고객 세분화와 시장 분석의 핵심 도구
 
 name: "kmeans"
 
 model:
-  # 직접 동적 import를 통한 K-Means 클러스터링
+  # Scikit-learn K-Means 직접 동적 import
   class_path: "sklearn.cluster.KMeans"
   
-  # 하이퍼파라미터 정의 (Optuna 자동 최적화 지원)
-  hyperparameters:
-    # 🔥 자동 최적화 범위 - K-Means 특화 하이퍼파라미터
-    n_clusters: {type: "int", low: 2, high: 20}
-    init: {type: "categorical", choices: ["k-means++", "random"]}
-    n_init: {type: "int", low: 10, high: 50}
-    max_iter: {type: "int", low: 100, high: 1000}
-    tol: {type: "float", low: 1e-6, high: 1e-2, log: true}
-    algorithm: {type: "categorical", choices: ["auto", "full", "elkan"]}
+  # Phase 1: Point-in-Time 정합성 스키마
+  loader:
+    name: "customer_segmentation_loader"
+    source_uri: "recipes/sql/loaders/customer_analytics_features.sql"
+    entity_schema:
+      entity_columns: ["customer_id"]        # 고객 ID
+      timestamp_column: "analysis_date"      # 분석 기준일
+  
+  # 기존: ML 작업별 세부 설정 (Clustering 전용)
+  data_interface:
+    task_type: "clustering"
+    n_clusters: 5           # 기본 클러스터 수 (고객 세분화: 5개 그룹)
     
-    # 🔧 고정값 - K-Means 안정성을 위한 설정
+  # Dictionary 형태 하이퍼파라미터 (K-Means 특화)
+  hyperparameters:
+    # 클러스터 수 (가장 중요한 하이퍼파라미터)
+    n_clusters: {type: "int", low: 3, high: 10}
+    
+    # 초기화 방법
+    init: {type: "categorical", choices: ["k-means++", "random"]}
+    
+    # 최대 반복 횟수
+    max_iter: {type: "int", low: 100, high: 500}
+    
+    # 허용 오차 (조기 종료)
+    tol: {type: "float", low: 1e-6, high: 1e-3, log: true}
+    
+    # 초기화 시도 횟수
+    n_init: {type: "int", low: 5, high: 20}
+    
+    # 고정값 - 재현성과 성능을 위한 설정
     random_state: 42
+    algorithm: "lloyd"      # Lloyd 알고리즘 (안정적)
 
-  # 하이퍼파라미터 튜닝 설정
+  # 하이퍼파라미터 튜닝 설정 (Clustering 메트릭 최적화)
   hyperparameter_tuning:
     enabled: true
-    n_trials: 80
-    metric: "silhouette_score"  # 클러스터링 품질 메트릭
+    n_trials: 50                        # 클러스터링은 비교적 빠름
+    metric: "silhouette_score"         # 실루엣 점수로 최적화
     direction: "maximize"
-
-  # 데이터 로더 정의 (Spine 생성)
-  loader:
-    name: "clustering_loader"
-    source_uri: "recipes/sql/loaders/user_features.sql"
-
-  # 피처 증강 정의 (Feature Store 기반)
+  
+  # Feature Store 기반 피처 증강
   augmenter:
     type: "feature_store"
     features:
-      # 사용자 기본 정보 피처
-      - feature_namespace: "user_demographics"
-        features: ["age", "country_code"]
+      # 고객 인구통계학적 정보
+      - feature_namespace: "customer_demographics"
+        features: ["age", "income", "education_level", "family_size"]
       
-      # 사용자 구매 이력 피처  
-      - feature_namespace: "user_purchase_summary"
-        features: ["ltv", "total_purchase_count", "last_purchase_date"]
+      # 구매 행동 패턴
+      - feature_namespace: "purchase_behavior"
+        features: ["total_spent_12m", "purchase_frequency", "avg_order_value", "preferred_category"]
       
-      # 상품 상세 정보 피처
-      - feature_namespace: "product_details"
-        features: ["price", "category", "brand"]
+      # 디지털 활동
+      - feature_namespace: "digital_engagement"
+        features: ["website_visits", "email_open_rate", "social_media_activity"]
       
-      # 세션 행동 피처
-      - feature_namespace: "session_summary"
-        features: ["time_on_page_seconds", "click_count"]
+      # 만족도 및 충성도
+      - feature_namespace: "loyalty_metrics"
+        features: ["nps_score", "churn_probability", "lifetime_value", "referral_count"]
 
-  # 전처리 설정 (클러스터링은 스케일링이 매우 중요)
+  # 전처리 설정 (K-Means 특화)
   preprocessor:
-    name: "simple_scaler"
+    name: "clustering_preprocessor"
     params:
       criterion_col: null
-      # 엔티티 키와 타임스탬프 제외
-      exclude_cols: ["user_id", "product_id", "session_id", "event_timestamp"]
-
-  # 데이터 인터페이스 정의
-  data_interface:
-    task_type: "clustering"
-    # 클러스터링은 target_col이 없음 (비지도 학습)
+      # Entity 키, timestamp는 전처리에서 제외 (clustering은 target 없음)
+      exclude_cols: ["customer_id", "analysis_date"]
+      # K-Means를 위한 특별 설정
+      handle_missing: "mean"            # 결측치를 평균으로 처리
+      scale_features: true              # 표준화 (K-Means에 필수!)
+      encode_categorical: "onehot"      # 범주형 원핫 인코딩
+      remove_outliers: true             # 이상치 제거 (클러스터링에 중요)
+      feature_selection: true           # 상관관계 높은 피처 제거
 
   # 평가자 설정
   evaluator:
     name: "clustering_evaluator"
 
-# 평가 설정 (클러스터링 특화 메트릭)
+# 평가 설정 (Clustering 특화 메트릭)
 evaluation:
   metrics:
-    - "silhouette_score"
-    - "calinski_harabasz_score"
-    - "davies_bouldin_score"
-    - "inertia"
+    - "silhouette_score"           # 실루엣 점수 (클러스터 품질)
+    - "calinski_harabasz_score"    # Calinski-Harabasz 지수
+    - "davies_bouldin_score"       # Davies-Bouldin 지수
+    - "inertia"                    # 클러스터 내 제곱합
   
   validation:
-    method: "unsupervised"  # 비지도 학습이므로 별도 분할 없음
-
-# 💡 사용 예시:
-# APP_ENV=dev uv run python main.py train --recipe-file models/clustering/kmeans 
+    method: "unsupervised"         # 비지도 학습 (train/test split 불필요)
+    random_state: 42

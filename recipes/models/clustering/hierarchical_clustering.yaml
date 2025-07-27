@@ -1,82 +1,88 @@
-# Hierarchical Clustering - 계층적 클러스터링
-# 🌳 트리 구조를 통한 계층적 군집화와 덴드로그램 분석
+# Hierarchical Clustering: 계층적 구조의 완벽한 발견
+# 🌳 덴드로그램으로 데이터의 자연스러운 계층 구조를 시각화
 
 name: "hierarchical_clustering"
 
 model:
-  # 직접 동적 import를 통한 Agglomerative Clustering
+  # Scikit-learn Agglomerative Clustering 직접 동적 import
   class_path: "sklearn.cluster.AgglomerativeClustering"
   
-  # 하이퍼파라미터 정의 (Optuna 자동 최적화 지원)
+  # Phase 1: Point-in-Time 정합성 스키마
+  loader:
+    name: "market_segmentation_loader"
+    source_uri: "recipes/sql/loaders/market_segmentation_features.sql"
+    entity_schema:
+      entity_columns: ["company_id", "industry_sector"]    # 회사-산업섹터 페어
+      timestamp_column: "analysis_quarter"                 # 분석 분기
+  
+  # 기존: ML 작업별 세부 설정 (Clustering 전용)
+  data_interface:
+    task_type: "clustering"
+    n_clusters: 5                       # 초기 클러스터 수 (조정 가능)
+    
+  # Dictionary 형태 하이퍼파라미터 (Hierarchical 특화)
   hyperparameters:
-    # 🔥 자동 최적화 범위 - Hierarchical Clustering 특화 하이퍼파라미터
-    n_clusters: {type: "int", low: 2, high: 20}
-    metric: {type: "categorical", choices: ["euclidean", "manhattan", "cosine"]}
+    # 클러스터 수 (Hierarchical의 핵심)
+    n_clusters: {type: "int", low: 2, high: 15}
+    
+    # 연결 방법 (Linkage Criteria)
     linkage: {type: "categorical", choices: ["ward", "complete", "average", "single"]}
     
-    # 🔧 고정값 - Hierarchical Clustering 안정성을 위한 설정
-    compute_full_tree: "auto"
-    distance_threshold: null
+    # 거리 메트릭
+    metric: {type: "categorical", choices: ["euclidean", "manhattan", "cosine"]}
+    
+    # 연결성 제약 (선택적)
+    connectivity: null
 
   # 하이퍼파라미터 튜닝 설정
   hyperparameter_tuning:
     enabled: true
-    n_trials: 80  # 클러스터 수와 linkage 조합 탐색
-    metric: "silhouette_score"  # 클러스터링 품질 메트릭
+    n_trials: 50                      # 계층적 클러스터링은 적당한 trial
+    metric: "silhouette_score"
     direction: "maximize"
-
-  # 데이터 로더 정의 (Spine 생성)
-  loader:
-    name: "clustering_loader"
-    source_uri: "recipes/sql/loaders/user_features.sql"
-
-  # 피처 증강 정의 (Feature Store 기반)
+  
+  # Feature Store 기반 피처 증강
   augmenter:
     type: "feature_store"
     features:
-      # 사용자 기본 정보 피처
-      - feature_namespace: "user_demographics"
-        features: ["age", "country_code"]
+      # 재무 성과 지표
+      - feature_namespace: "financial_performance"
+        features: ["revenue_growth", "profit_margin", "roe", "debt_ratio", "cash_flow"]
       
-      # 사용자 구매 이력 피처  
-      - feature_namespace: "user_purchase_summary"
-        features: ["ltv", "total_purchase_count", "last_purchase_date"]
+      # 시장 포지션
+      - feature_namespace: "market_position"
+        features: ["market_share", "competitive_advantage", "brand_value", "customer_loyalty", "innovation_index"]
       
-      # 상품 상세 정보 피처
-      - feature_namespace: "product_details"
-        features: ["price", "category", "brand"]
+      # 운영 효율성
+      - feature_namespace: "operational_efficiency"
+        features: ["asset_turnover", "productivity_index", "cost_efficiency", "supply_chain_score"]
       
-      # 세션 행동 피처
-      - feature_namespace: "session_summary"
-        features: ["time_on_page_seconds", "click_count"]
+      # ESG 지표
+      - feature_namespace: "esg_factors"
+        features: ["environmental_score", "social_responsibility", "governance_quality", "sustainability_index"]
 
-  # 전처리 설정 (계층적 클러스터링은 스케일링이 중요)
+  # 전처리 설정 (Hierarchical은 스케일링 중요!)
   preprocessor:
-    name: "simple_scaler"
+    name: "clustering_preprocessor"
     params:
       criterion_col: null
-      # 엔티티 키와 타임스탬프 제외
-      exclude_cols: ["user_id", "product_id", "session_id", "event_timestamp"]
-
-  # 데이터 인터페이스 정의
-  data_interface:
-    task_type: "clustering"
-    # 클러스터링은 target_col이 없음 (비지도 학습)
+      exclude_cols: ["company_id", "industry_sector", "analysis_quarter"]
+      handle_missing: "median"
+      scale_features: true             # 계층적 클러스터링은 거리 기반이므로 스케일링 필수
+      encode_categorical: "onehot"
 
   # 평가자 설정
   evaluator:
     name: "clustering_evaluator"
 
-# 평가 설정 (클러스터링 특화 메트릭)
+# 평가 설정
 evaluation:
   metrics:
     - "silhouette_score"
     - "calinski_harabasz_score"
     - "davies_bouldin_score"
-    - "linkage_distance"  # Hierarchical Clustering 특화 메트릭
+    - "adjusted_rand_score"
   
   validation:
-    method: "unsupervised"  # 비지도 학습이므로 별도 분할 없음
-
-# 💡 사용 예시:
-# APP_ENV=dev uv run python main.py train --recipe-file models/clustering/hierarchical_clustering 
+    method: "clustering_validation"
+    random_state: 42

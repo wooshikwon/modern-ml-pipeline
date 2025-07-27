@@ -1,95 +1,97 @@
-# Causal Random Forest - 인과효과 추정 특화 랜덤 포레스트
-# 🌲 Random Forest의 강력함과 인과추론의 정확성을 결합한 모델
+# Causal Random Forest: Robust Tree-Based Causal Inference
+# 🌲 Random Forest의 안정성과 Causal inference의 정확성을 결합
 
 name: "causal_random_forest"
 
 model:
-  # 직접 동적 import를 통한 Causal Random Forest 모델
+  # EconML Causal Forest 직접 동적 import
   class_path: "econml.dml.CausalForestDML"
   
-  # 하이퍼파라미터 정의 (Optuna 자동 최적화 지원)
+  # Phase 1: Point-in-Time 정합성 스키마
+  loader:
+    name: "pricing_strategy_loader"
+    source_uri: "recipes/sql/loaders/pricing_experiment_features.sql"
+    entity_schema:
+      entity_columns: ["customer_id", "product_category"]  # 고객-상품카테고리 페어
+      timestamp_column: "pricing_test_date"                # 가격 실험 날짜
+  
+  # 기존: ML 작업별 세부 설정 (Causal 전용)
+  data_interface:
+    task_type: "causal"
+    target_column: "purchase_probability"    # 구매 확률 (연속형)
+    treatment_column: "discount_applied"     # 할인 적용 여부 (0/1)
+    treatment_value: 1                       # Treatment 그룹 (할인 받은 경우)
+    
+  # Dictionary 형태 하이퍼파라미터 (Causal Random Forest 특화)
   hyperparameters:
-    # 🔥 자동 최적화 범위 - Causal Forest 특화 하이퍼파라미터
-    n_estimators: {type: "int", low: 50, high: 500}
-    max_depth: {type: "int", low: 3, high: 20}
-    min_samples_split: {type: "int", low: 2, high: 20}
-    min_samples_leaf: {type: "int", low: 1, high: 10}
+    # Forest 구조 파라미터
+    n_estimators: {type: "int", low: 100, high: 1000}
+    max_depth: {type: "int", low: 5, high: 25}
+    min_samples_split: {type: "int", low: 5, high: 50}
+    min_samples_leaf: {type: "int", low: 2, high: 20}
+    
+    # Causal Forest 특화 파라미터
+    subsample_fr: {type: "float", low: 0.5, high: 1.0}    # 샘플링 비율
+    honest: true                                           # Honest 분할 (Causal inference 필수)
+    
+    # 피처 선택
     max_features: {type: "categorical", choices: ["sqrt", "log2", "auto"]}
-    criterion: {type: "categorical", choices: ["mse", "mae"]}
     
-    # Causal Forest 특화 하이퍼파라미터
-    subforest_size: {type: "int", low: 1, high: 8}
-    honest: {type: "categorical", choices: [true, false]}
-    
-    # 🔧 고정값 - Causal Forest 안정성을 위한 설정
+    # 고정값
     random_state: 42
     n_jobs: -1
 
   # 하이퍼파라미터 튜닝 설정
   hyperparameter_tuning:
     enabled: true
-    n_trials: 100
-    metric: "uplift_auc"  # 업리프트 모델 전용 메트릭
+    n_trials: 80                    # Causal Forest는 학습이 오래 걸림
+    metric: "treatment_effect"      # Treatment effect로 최적화
     direction: "maximize"
-
-  # 데이터 로더 정의 (Spine 생성)
-  loader:
-    name: "causal_loader"
-    source_uri: "recipes/sql/loaders/user_features.sql"
-
-  # 피처 증강 정의 (Feature Store 기반)
+  
+  # Feature Store 기반 피처 증강
   augmenter:
     type: "feature_store"
     features:
-      # 사용자 기본 정보 피처
-      - feature_namespace: "user_demographics"
-        features: ["age", "country_code"]
+      # 고객 가격 민감도
+      - feature_namespace: "price_sensitivity"
+        features: ["historical_discount_usage", "price_elasticity", "budget_segment"]
       
-      # 사용자 구매 이력 피처  
-      - feature_namespace: "user_purchase_summary"
-        features: ["ltv", "total_purchase_count", "last_purchase_date"]
+      # 상품 특성
+      - feature_namespace: "product_characteristics"
+        features: ["base_price", "margin", "competition_level", "seasonality"]
       
-      # 상품 상세 정보 피처
-      - feature_namespace: "product_details"
-        features: ["price", "category", "brand"]
+      # 시장 조건
+      - feature_namespace: "market_conditions"
+        features: ["competitor_pricing", "demand_index", "inventory_level"]
       
-      # 세션 행동 피처
-      - feature_namespace: "session_summary"
-        features: ["time_on_page_seconds", "click_count"]
+      # 고객 세분화
+      - feature_namespace: "customer_segments"
+        features: ["loyalty_tier", "purchase_frequency", "category_affinity"]
 
   # 전처리 설정
   preprocessor:
-    name: "simple_scaler"
+    name: "causal_preprocessor"
     params:
       criterion_col: null
-      # 엔티티 키와 타임스탬프 제외
-      exclude_cols: ["user_id", "product_id", "session_id", "event_timestamp"]
-
-  # 데이터 인터페이스 정의 (인과추론 특화)
-  data_interface:
-    task_type: "causal"
-    target_col: "outcome"
-    treatment_col: "treatment"
-    treatment_value: "1"  # treatment 그룹 표시
+      exclude_cols: ["customer_id", "product_category", "pricing_test_date", "purchase_probability", "discount_applied"]
+      handle_missing: "median"
+      scale_features: false        # Random Forest는 스케일링 불필요
+      encode_categorical: "onehot"
 
   # 평가자 설정
   evaluator:
     name: "causal_evaluator"
 
-# 평가 설정 (인과추론 특화 메트릭)
+# 평가 설정
 evaluation:
   metrics:
     - "uplift_auc"
     - "uplift_at_k"
     - "qini_coefficient"
     - "treatment_effect"
-    - "heterogeneity_score"  # Causal Forest 특화 메트릭
   
   validation:
     method: "train_test_split"
     test_size: 0.2
-    stratify: true  # treatment 비율 유지
+    stratify: true
     random_state: 42
-
-# 💡 사용 예시:
-# APP_ENV=dev uv run python main.py train --recipe-file models/causal/causal_random_forest 

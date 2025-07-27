@@ -1,69 +1,80 @@
-# Random Forest Regressor - 강력한 앙상블 회귀 모델
-# 🌲 해석 가능성과 성능의 완벽한 균형을 제공하는 Random Forest
+# Random Forest Regressor: 앙상블의 안정적인 힘
+# 🌲 다수의 트리가 만드는 강력하고 안정적인 예측
 
 name: "random_forest_regressor"
 
 model:
-  # 직접 동적 import를 통한 Random Forest 회귀기
+  # Scikit-learn Random Forest Regressor 직접 동적 import
   class_path: "sklearn.ensemble.RandomForestRegressor"
   
-  # 하이퍼파라미터 정의 (Optuna 자동 최적화 지원)
+  # Phase 1: Point-in-Time 정합성 스키마
+  loader:
+    name: "stock_price_prediction_loader"
+    source_uri: "recipes/sql/loaders/financial_market_features.sql"
+    entity_schema:
+      entity_columns: ["stock_symbol", "exchange_id"]   # 주식-거래소 페어
+      timestamp_column: "trading_date"                  # 거래일
+  
+  # 기존: ML 작업별 세부 설정 (Regression 전용)
+  data_interface:
+    task_type: "regression"
+    target_column: "next_day_return"           # 다음날 수익률 (연속형)
+    
+  # Dictionary 형태 하이퍼파라미터 (Random Forest 특화)
   hyperparameters:
-    # 🔥 자동 최적화 범위 - Random Forest 특화 하이퍼파라미터
-    n_estimators: {type: "int", low: 50, high: 500}
-    max_depth: {type: "int", low: 3, high: 20}
+    # 트리 개수와 구조
+    n_estimators: {type: "int", low: 100, high: 800}
+    max_depth: {type: "int", low: 5, high: 30}
     min_samples_split: {type: "int", low: 2, high: 20}
     min_samples_leaf: {type: "int", low: 1, high: 10}
+    
+    # 피처 샘플링
     max_features: {type: "categorical", choices: ["sqrt", "log2", "auto"]}
     
-    # 🔧 고정값 - 항상 동일하게 사용될 파라미터
+    # 부트스트랩과 샘플링
+    bootstrap: true
+    max_samples: {type: "float", low: 0.5, high: 1.0}
+    
+    # 고정값
     random_state: 42
-    n_jobs: -1  # 모든 CPU 코어 활용
+    n_jobs: -1
 
   # 하이퍼파라미터 튜닝 설정
   hyperparameter_tuning:
     enabled: true
-    n_trials: 100
+    n_trials: 80
     metric: "neg_mean_squared_error"
     direction: "maximize"
-
-  # 데이터 로더 정의 (Spine 생성)
-  loader:
-    name: "regression_loader"
-    source_uri: "recipes/sql/loaders/user_features.sql"
-
-  # 피처 증강 정의 (Feature Store 기반)
+  
+  # Feature Store 기반 피처 증강
   augmenter:
     type: "feature_store"
     features:
-      # 사용자 기본 정보 피처
-      - feature_namespace: "user_demographics"
-        features: ["age", "country_code"]
+      # 기술적 지표
+      - feature_namespace: "technical_indicators"
+        features: ["rsi", "macd", "bollinger_bands", "moving_average_20", "volume_sma"]
       
-      # 사용자 구매 이력 피처  
-      - feature_namespace: "user_purchase_summary"
-        features: ["ltv", "total_purchase_count", "last_purchase_date"]
+      # 시장 정보
+      - feature_namespace: "market_data"
+        features: ["market_cap", "pe_ratio", "volatility", "beta", "sector_performance"]
       
-      # 상품 상세 정보 피처
-      - feature_namespace: "product_details"
-        features: ["price", "category", "brand"]
+      # 거시경제 지표
+      - feature_namespace: "macroeconomic_indicators"
+        features: ["interest_rate", "inflation", "gdp_growth", "unemployment", "currency_index"]
       
-      # 세션 행동 피처
-      - feature_namespace: "session_summary"
-        features: ["time_on_page_seconds", "click_count"]
+      # 감정 지표
+      - feature_namespace: "sentiment_indicators"
+        features: ["vix_index", "put_call_ratio", "insider_trading", "analyst_ratings"]
 
   # 전처리 설정
   preprocessor:
-    name: "simple_scaler"
+    name: "regression_preprocessor"
     params:
       criterion_col: null
-      # 엔티티 키와 타임스탬프 제외
-      exclude_cols: ["user_id", "product_id", "session_id", "event_timestamp"]
-
-  # 데이터 인터페이스 정의
-  data_interface:
-    task_type: "regression"
-    target_col: "target_value"
+      exclude_cols: ["stock_symbol", "exchange_id", "trading_date", "next_day_return"]
+      handle_missing: "median"
+      scale_features: false        # Random Forest는 스케일링 불필요
+      encode_categorical: "onehot"
 
   # 평가자 설정
   evaluator:
@@ -73,14 +84,11 @@ model:
 evaluation:
   metrics:
     - "r2_score"
-    - "mean_squared_error"
     - "mean_absolute_error"
+    - "mean_squared_error"
     - "root_mean_squared_error"
   
   validation:
     method: "train_test_split"
     test_size: 0.2
     random_state: 42
-
-# 💡 사용 예시:
-# APP_ENV=dev uv run python main.py train --recipe-file models/regression/random_forest_regressor 

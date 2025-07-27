@@ -189,7 +189,7 @@ def _render_recipe_templates(recipe_data: Dict[str, Any], context_params: Dict[s
 
 
 def _create_computed_fields(recipe_settings: 'RecipeSettings', recipe_file: str) -> Dict[str, Any]:
-    """현대화된 Recipe를 위한 computed 필드 생성"""
+    """현대화된 Recipe를 위한 computed 필드 생성 (27개 Recipe 완전 대응)"""
     from datetime import datetime
     
     # 모델 클래스에서 간단한 이름 추출
@@ -222,7 +222,7 @@ def _create_computed_fields(recipe_settings: 'RecipeSettings', recipe_file: str)
         "model_class_name": class_name,
         "recipe_file": recipe_file,
         "recipe_name": recipe_name,
-        "task_type": recipe_settings.model.data_interface.task_type,
+        "task_type": recipe_settings.model.data_interface.task_type,  # 🔄 수정: task_type은 data_interface에 있음
         **hpo_info
     }
 

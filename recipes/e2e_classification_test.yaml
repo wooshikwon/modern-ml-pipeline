@@ -1,59 +1,43 @@
-# E2E 테스트용 분류 모델 레시피
-# 실제 PostgreSQL + Redis 데이터를 사용한 완전한 E2E 테스트
-
-name: "e2e_classification_test"
-
+name: e2e_classification_test
 model:
-  # 간단하고 빠른 모델로 E2E 테스트 수행
-  class_path: "sklearn.ensemble.RandomForestClassifier"
-  
-  # 빠른 테스트를 위해 간단한 하이퍼파라미터만 사용
+  class_path: sklearn.ensemble.RandomForestClassifier
   hyperparameters:
-    n_estimators: 10  # 빠른 테스트를 위해 적은 수
+    n_estimators: 10
     max_depth: 3
     random_state: 42
-
-  # 하이퍼파라미터 튜닝 비활성화 (빠른 테스트를 위해)
   hyperparameter_tuning:
     enabled: false
-
-  # 데이터 로더 정의 (Spine 생성)
   loader:
-    name: "e2e_loader"
-    # PostgreSQL에서 세션 Spine 데이터 로딩
-    source_uri: "recipes/sql/loaders/e2e_sessions_spine.sql"
-
-  # 피처 증강 정의 (단순 패스스루로 변경)
+    name: e2e_loader
+    source_uri: recipes/sql/loaders/e2e_mock_data.sql
+    entity_schema:
+      entity_columns:
+      - user_id
+      - product_id
+      timestamp_column: event_timestamp
   augmenter:
-    type: "pass_through"  # Feature Store 대신 간단한 패스스루 사용
-
-  # 전처리 설정 (기본 전처리만)
+    type: pass_through
   preprocessor:
-    name: "simple_scaler"
+    name: simple_scaler
     params:
       criterion_col: null
-      # 엔티티 키와 타임스탬프만 제외, 실제 피처들은 포함
-      exclude_cols: ["session_id", "user_id", "product_id", "event_timestamp"]
-
-  # 데이터 인터페이스 정의
-  data_interface:
-    task_type: "classification"
-    target_col: "outcome"
-
-  # 평가자 설정
+      exclude_cols:
+      - session_id
+      - user_id
+      - product_id
+      - event_timestamp
   evaluator:
-    name: "classification_evaluator"
-
-# 평가 설정
+    name: classification_evaluator
+  data_interface:
+    task_type: classification
+    target_column: outcome
+    class_weight: balanced
+    average: weighted
 evaluation:
   metrics:
-    - "accuracy"
-    - "precision"
-    - "recall"
-    - "f1"
-  
+  - accuracy
   validation:
-    method: "train_test_split"
+    method: train_test_split
     test_size: 0.2
     stratify: true
-    random_state: 42 
+    random_state: 42

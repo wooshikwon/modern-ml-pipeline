@@ -25,7 +25,7 @@ model:
       criterion_col: null
       exclude_cols: ["user_id", "event_timestamp"]
 
-  data_interface:
+  entity_schema:
     task_type: "classification"
     target_col: "approved"
 

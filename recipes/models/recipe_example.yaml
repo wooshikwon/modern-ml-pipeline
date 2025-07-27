@@ -1,172 +1,117 @@
-# Recipe Example - Modern ML Pipeline 표준 구조 템플릿
-# 🎯 새로운 recipe 작성 시 복사해서 사용할 수 있는 완벽한 표준 템플릿
-# 
-# 이 파일은 Modern ML Pipeline의 모든 recipe가 따라야 할 표준 구조를 정의합니다.
-# 새로운 모델을 추가할 때 이 템플릿을 복사하고 필요한 부분만 수정하세요.
+# Recipe Example: 완벽한 ML Pipeline 설정 가이드
+# 📚 모든 Recipe의 모범이 되는 완전한 구조 예시
 
-# ================================================================
-# 1. MODEL IDENTIFICATION
-# ================================================================
-name: "recipe_example"  # 🔥 필수: recipe 고유 식별자
+name: "recipe_example"
 
-# ================================================================
-# 2. MODEL CONFIGURATION
-# ================================================================
 model:
-  # 직접 동적 import를 통한 모델 클래스 경로
-  class_path: "sklearn.ensemble.RandomForestClassifier"  # 🔥 필수: 실제 모델 클래스
+  # ML 모델 클래스 경로 (동적 import)
+  class_path: "sklearn.ensemble.RandomForestClassifier"
   
-  # ================================================================
-  # 2.1 HYPERPARAMETER DEFINITION (Optuna 자동 최적화 지원)
-  # ================================================================
+  # Phase 1: Point-in-Time 정합성 스키마
+  loader:
+    name: "comprehensive_ml_loader"
+    source_uri: "recipes/sql/loaders/comprehensive_features.sql"
+    entity_schema:
+      entity_columns: ["user_id", "product_id", "session_id"]  # Primary Key 조합
+      timestamp_column: "event_timestamp"                      # Point-in-Time 기준
+  
+  # 기존: ML 작업별 세부 설정 (완전히 보존)
+  data_interface:
+    task_type: "classification"
+    target_column: "purchase_decision"    # 타겟 변수
+    class_weight: "balanced"              # 클래스 불균형 처리
+    average: "weighted"                   # 다중분류 평가 방식
+    
+  # Dictionary 형태 하이퍼파라미터 (Optuna 호환)
   hyperparameters:
-    # 🔥 자동 최적화 범위 - Optuna가 자동으로 탐색할 하이퍼파라미터
+    # 트리 구조 파라미터
     n_estimators: {type: "int", low: 50, high: 500}
     max_depth: {type: "int", low: 3, high: 20}
     min_samples_split: {type: "int", low: 2, high: 20}
     min_samples_leaf: {type: "int", low: 1, high: 10}
+    
+    # 피처 샘플링
     max_features: {type: "categorical", choices: ["sqrt", "log2", "auto"]}
+    
+    # 분할 기준
     criterion: {type: "categorical", choices: ["gini", "entropy"]}
     
-    # 🔧 고정값 - 변경되지 않는 안정성 보장 파라미터
+    # 고정값
     random_state: 42
-    n_jobs: -1  # 모든 CPU 코어 활용
-    class_weight: "balanced"  # 클래스 불균형 처리
+    n_jobs: -1
+    class_weight: "balanced"
 
-  # ================================================================
-  # 2.2 HYPERPARAMETER TUNING CONFIGURATION
-  # ================================================================
+  # 하이퍼파라미터 자동 최적화 설정
   hyperparameter_tuning:
-    enabled: true  # 🔥 HPO 활성화 여부
-    n_trials: 100  # 시도할 최적화 횟수 (모델 복잡도에 따라 조정)
-    metric: "f1_weighted"  # 최적화할 메트릭 (작업 타입별로 다름)
-    direction: "maximize"  # 방향: maximize 또는 minimize
-
-  # ================================================================
-  # 2.3 DATA LOADER DEFINITION (Spine 생성)
-  # ================================================================
-  loader:
-    name: "classification_loader"  # 로더 식별자
-    source_uri: "recipes/sql/loaders/user_features.sql"  # SQL 파일 경로
-
-  # ================================================================
-  # 2.4 FEATURE AUGMENTATION (Feature Store 기반)
-  # ================================================================
-  augmenter:
-    type: "feature_store"  # 🔥 반드시 "feature_store"로 설정
-    features:
-      # 사용자 기본 정보 피처
-      - feature_namespace: "user_demographics"
-        features: ["age", "country_code"]
-      
-      # 사용자 구매 이력 피처  
-      - feature_namespace: "user_purchase_summary"
-        features: ["ltv", "total_purchase_count", "last_purchase_date"]
-      
-      # 상품 상세 정보 피처
-      - feature_namespace: "product_details"
-        features: ["price", "category", "brand"]
-      
-      # 세션 행동 피처
-      - feature_namespace: "session_summary"
-        features: ["time_on_page_seconds", "click_count"]
-
-  # ================================================================
-  # 2.5 PREPROCESSING CONFIGURATION
-  # ================================================================
-  preprocessor:
-    name: "simple_scaler"  # 전처리기 타입
-    params:
-      criterion_col: null  # 기준 컬럼 (보통 null)
-      # 🔥 중요: 엔티티 키와 타임스탬프는 반드시 제외
-      exclude_cols: ["user_id", "product_id", "session_id", "event_timestamp"]
-
-  # ================================================================
-  # 2.6 DATA INTERFACE DEFINITION
-  # ================================================================
-  data_interface:
-    task_type: "classification"  # 작업 타입: classification, regression, causal, clustering
-    target_col: "target_label"  # 타겟 컬럼명
-    # treatment_col: "treatment"  # 인과추론 전용
-    # treatment_value: "1"        # 인과추론 전용
-
-  # ================================================================
-  # 2.7 EVALUATOR CONFIGURATION
-  # ================================================================
-  evaluator:
-    name: "classification_evaluator"  # 평가자 타입
-
-# ================================================================
-# 3. EVALUATION CONFIGURATION
-# ================================================================
-evaluation:
-  # 작업별 특화 메트릭 정의
-  metrics:
-    - "accuracy"
-    - "precision_weighted"
-    - "recall_weighted" 
-    - "f1_weighted"
-    - "roc_auc"
+    enabled: true
+    n_trials: 100                     # Optuna 시행 횟수
+    metric: "f1_weighted"            # 최적화 목표 메트릭
+    direction: "maximize"            # 최적화 방향
   
-  # 검증 방법 정의
+  # Feature Store 기반 피처 증강
+  augmenter:
+    type: "feature_store"
+    features:
+      # 사용자 인구통계학적 특성
+      - feature_namespace: "user_demographics"
+        features: ["age", "gender", "location", "education_level", "income_bracket"]
+      
+      # 사용자 구매 이력
+      - feature_namespace: "user_purchase_summary"
+        features: ["ltv", "total_purchase_count", "avg_order_value", "last_purchase_date"]
+      
+      # 제품 정보
+      - feature_namespace: "product_details"
+        features: ["price", "category", "brand", "rating", "popularity_score"]
+      
+      # 세션 행동 데이터
+      - feature_namespace: "session_summary"
+        features: ["time_on_page_seconds", "click_count", "page_views", "bounce_rate"]
+      
+      # 실시간 컨텍스트
+      - feature_namespace: "contextual_features"
+        features: ["time_of_day", "device_type", "referral_source", "campaign_id"]
+
+  # 데이터 전처리 설정
+  preprocessor:
+    name: "classification_preprocessor"
+    params:
+      criterion_col: null
+      exclude_cols: ["user_id", "product_id", "session_id", "event_timestamp", "purchase_decision"]
+      handle_missing: "median"        # 결측치 처리 방식
+      scale_features: false           # Random Forest는 스케일링 불필요
+      encode_categorical: "onehot"    # 범주형 변수 인코딩
+
+  # 평가자 설정
+  evaluator:
+    name: "classification_evaluator"
+
+# 모델 평가 설정
+evaluation:
+  metrics:
+    - "accuracy"              # 정확도
+    - "precision_weighted"    # 가중 정밀도
+    - "recall_weighted"       # 가중 재현율
+    - "f1_weighted"          # 가중 F1-Score
+    - "roc_auc"              # ROC AUC
+  
   validation:
-    method: "train_test_split"  # 또는 "cross_validation", "unsupervised"
+    method: "train_test_split"
     test_size: 0.2
-    stratify: true  # 분류 작업의 경우 클래스 비율 유지
+    stratify: true            # 타겟 분포 유지
     random_state: 42
 
-# ================================================================
-# 4. USAGE EXAMPLE (사용 예시)
-# ================================================================
-# 💡 이 recipe를 실행하는 방법:
-# APP_ENV=dev uv run python main.py train --recipe-file models/recipe_example
-
-# ================================================================
-# 5. CUSTOMIZATION GUIDE (커스터마이징 가이드)
-# ================================================================
-# 🔥 새로운 recipe 작성 시 수정해야 할 주요 부분:
-#
-# 1. name: recipe 고유 이름으로 변경
-# 2. class_path: 사용할 모델 클래스로 변경
-# 3. hyperparameters: 해당 모델의 하이퍼파라미터로 변경
-# 4. n_trials: 모델 복잡도에 맞게 조정
-# 5. metric: 작업 타입에 맞는 메트릭으로 변경
-# 6. data_interface.task_type: 작업 타입 변경
-# 7. data_interface.target_col: 실제 타겟 컬럼명으로 변경
-# 8. evaluation.metrics: 작업 타입에 맞는 메트릭들로 변경
-# 9. evaluator.name: 작업 타입에 맞는 평가자로 변경
-
-# ================================================================
-# 6. TASK TYPE SPECIFIC EXAMPLES (작업별 특화 예시)
-# ================================================================
-
-# 🎯 Classification (분류):
-# - task_type: "classification"
-# - metrics: ["accuracy", "precision_weighted", "recall_weighted", "f1_weighted", "roc_auc"]
-# - validation.stratify: true
-
-# 📈 Regression (회귀):
-# - task_type: "regression"  
-# - metrics: ["r2_score", "mean_squared_error", "mean_absolute_error", "root_mean_squared_error"]
-# - validation.stratify: false (또는 제거)
-
-# 🎯 Causal (인과추론):
-# - task_type: "causal"
-# - treatment_col: "treatment"
-# - treatment_value: "1"
-# - metrics: ["uplift_auc", "uplift_at_k", "qini_coefficient", "treatment_effect"]
-# - validation.stratify: true
-
-# 🔍 Clustering (클러스터링):
-# - task_type: "clustering"
-# - target_col 제거 (비지도 학습)
-# - metrics: ["silhouette_score", "calinski_harabasz_score", "davies_bouldin_score"]
-# - validation.method: "unsupervised"
-
-# ================================================================
-# 7. TRIAL COUNT RECOMMENDATIONS (Trial 수 권장사항)
-# ================================================================
-# - 간단한 모델 (Linear Regression, Naive Bayes): 20-30 trials
-# - 중간 복잡도 (Random Forest, SVM): 80-100 trials
-# - 복잡한 모델 (XGBoost, LightGBM): 120-150 trials
-# - 매우 복잡한 모델 (Neural Networks): 200+ trials 
+# 추가 메타데이터 (선택적)
+metadata:
+  description: "완벽한 ML Pipeline 설정을 보여주는 종합 예시"
+  use_cases:
+    - "구매 의도 예측"
+    - "고객 세분화"
+    - "개인화 추천"
+  performance_baseline:
+    target_metric: "f1_weighted"
+    minimum_score: 0.75
+  data_requirements:
+    minimum_samples: 10000
+    feature_count: "20+"
+    time_range: "6개월 이상"

@@ -1,70 +1,79 @@
-# SVR - 서포트 벡터 회귀
-# ⚡ 최적 회귀 경계면을 찾는 수학적 우아함과 강력한 비선형 회귀
+# SVR (Support Vector Regression): 고차원 비선형 회귀
+# 🎯 커널 트릭으로 복잡한 비선형 관계를 완벽하게 모델링
 
 name: "svr"
 
 model:
-  # 직접 동적 import를 통한 Support Vector Regression
+  # Scikit-learn SVR 직접 동적 import
   class_path: "sklearn.svm.SVR"
   
-  # 하이퍼파라미터 정의 (Optuna 자동 최적화 지원)
-  hyperparameters:
-    # 🔥 자동 최적화 범위 - SVR 특화 하이퍼파라미터
-    C: {type: "float", low: 0.001, high: 1000.0, log: true}
-    epsilon: {type: "float", low: 0.001, high: 1.0, log: true}
-    kernel: {type: "categorical", choices: ["rbf", "poly", "sigmoid"]}
-    gamma: {type: "categorical", choices: ["scale", "auto"]}
-    degree: {type: "int", low: 2, high: 5}  # poly 커널용
-    coef0: {type: "float", low: 0.0, high: 10.0}  # poly/sigmoid 커널용
+  # Phase 1: Point-in-Time 정합성 스키마
+  loader:
+    name: "air_quality_prediction_loader"
+    source_uri: "recipes/sql/loaders/environmental_features.sql"
+    entity_schema:
+      entity_columns: ["station_id", "pollutant_type"]   # 측정소-오염물질 페어
+      timestamp_column: "measurement_datetime"           # 측정 시점
+  
+  # 기존: ML 작업별 세부 설정 (Regression 전용)
+  data_interface:
+    task_type: "regression"
+    target_column: "pollutant_concentration"    # 오염물질 농도 (연속형)
     
-    # 🔧 고정값 - SVR 안정성을 위한 설정
-    max_iter: 2000
-    tol: 1e-3
+  # Dictionary 형태 하이퍼파라미터 (SVR 특화)
+  hyperparameters:
+    # 커널 설정 (SVR의 핵심)
+    kernel: {type: "categorical", choices: ["rbf", "linear", "poly"]}
+    
+    # 정규화 파라미터
+    C: {type: "float", low: 0.1, high: 100.0, log: true}      # 오차 허용도
+    epsilon: {type: "float", low: 0.01, high: 1.0, log: true} # 허용 오차 범위
+    
+    # RBF 커널 파라미터
+    gamma: {type: "categorical", choices: ["scale", "auto"]}
+    
+    # 다항식 커널 파라미터
+    degree: {type: "int", low: 2, high: 5}
+    
+    # 수렴 허용 오차
+    tol: {type: "float", low: 1e-4, high: 1e-2, log: true}
 
   # 하이퍼파라미터 튜닝 설정
   hyperparameter_tuning:
     enabled: true
-    n_trials: 100  # SVR은 시간이 오래 걸리므로 적절한 수준
+    n_trials: 60                      # SVR은 학습이 오래 걸림
     metric: "neg_mean_squared_error"
     direction: "maximize"
-
-  # 데이터 로더 정의 (Spine 생성)
-  loader:
-    name: "regression_loader"
-    source_uri: "recipes/sql/loaders/user_features.sql"
-
-  # 피처 증강 정의 (Feature Store 기반)
+  
+  # Feature Store 기반 피처 증강
   augmenter:
     type: "feature_store"
     features:
-      # 사용자 기본 정보 피처
-      - feature_namespace: "user_demographics"
-        features: ["age", "country_code"]
+      # 기상 조건
+      - feature_namespace: "weather_conditions"
+        features: ["temperature", "humidity", "wind_speed", "wind_direction", "atmospheric_pressure"]
       
-      # 사용자 구매 이력 피처  
-      - feature_namespace: "user_purchase_summary"
-        features: ["ltv", "total_purchase_count", "last_purchase_date"]
+      # 교통 및 산업 활동
+      - feature_namespace: "emission_sources"
+        features: ["traffic_density", "industrial_activity", "construction_index", "shipping_activity"]
       
-      # 상품 상세 정보 피처
-      - feature_namespace: "product_details"
-        features: ["price", "category", "brand"]
+      # 지리적 특성
+      - feature_namespace: "geographical_features"
+        features: ["elevation", "distance_to_sea", "urban_density", "vegetation_index"]
       
-      # 세션 행동 피처
-      - feature_namespace: "session_summary"
-        features: ["time_on_page_seconds", "click_count"]
+      # 시간적 패턴
+      - feature_namespace: "temporal_patterns"
+        features: ["hour_of_day", "day_of_week", "month", "season", "holiday_indicator"]
 
-  # 전처리 설정 (SVR은 스케일링이 매우 중요)
+  # 전처리 설정 (SVR은 스케일링 필수!)
   preprocessor:
-    name: "simple_scaler"
+    name: "regression_preprocessor"
     params:
       criterion_col: null
-      # 엔티티 키와 타임스탬프 제외
-      exclude_cols: ["user_id", "product_id", "session_id", "event_timestamp"]
-
-  # 데이터 인터페이스 정의
-  data_interface:
-    task_type: "regression"
-    target_col: "target_value"
+      exclude_cols: ["station_id", "pollutant_type", "measurement_datetime", "pollutant_concentration"]
+      handle_missing: "median"
+      scale_features: true             # SVR은 반드시 스케일링 필요
+      encode_categorical: "onehot"
 
   # 평가자 설정
   evaluator:
@@ -74,14 +83,11 @@ model:
 evaluation:
   metrics:
     - "r2_score"
-    - "mean_squared_error"
     - "mean_absolute_error"
+    - "mean_squared_error"
     - "root_mean_squared_error"
   
   validation:
     method: "train_test_split"
     test_size: 0.2
     random_state: 42
-
-# 💡 사용 예시:
-# APP_ENV=dev uv run python main.py train --recipe-file models/regression/svr 

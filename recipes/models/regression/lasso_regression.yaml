@@ -1,70 +1,79 @@
-# Lasso Regression - L1 정규화를 통한 특성 선택 회귀
-# 🔍 특성 선택과 희소성을 제공하는 L1 정규화 선형 회귀
+# Lasso Regression: L1 정규화로 피처 선택
+# ✂️ 불필요한 피처를 자동으로 제거하는 스마트한 회귀
 
 name: "lasso_regression"
 
 model:
-  # 직접 동적 import를 통한 Lasso Regression 회귀기
+  # Scikit-learn Lasso Regression 직접 동적 import
   class_path: "sklearn.linear_model.Lasso"
   
-  # 하이퍼파라미터 정의 (Optuna 자동 최적화 지원)
-  hyperparameters:
-    # 🔥 자동 최적화 범위 - Lasso Regression 특화 하이퍼파라미터
-    alpha: {type: "float", low: 0.001, high: 10.0, log: true}
-    fit_intercept: {type: "categorical", choices: [true, false]}
-    precompute: {type: "categorical", choices: [true, false, "auto"]}
-    positive: {type: "categorical", choices: [true, false]}
-    selection: {type: "categorical", choices: ["cyclic", "random"]}
+  # Phase 1: Point-in-Time 정합성 스키마
+  loader:
+    name: "energy_consumption_prediction_loader"
+    source_uri: "recipes/sql/loaders/energy_usage_features.sql"
+    entity_schema:
+      entity_columns: ["building_id", "meter_id"]       # 건물-미터 페어
+      timestamp_column: "measurement_timestamp"         # 측정 시점
+  
+  # 기존: ML 작업별 세부 설정 (Regression 전용)
+  data_interface:
+    task_type: "regression"
+    target_column: "energy_consumption_kwh"    # 시간당 에너지 소비량 (연속형)
     
-    # 🔧 고정값 - Lasso Regression 안정성을 위한 설정
+  # Dictionary 형태 하이퍼파라미터 (Lasso 특화)
+  hyperparameters:
+    # L1 정규화 강도 (Lasso의 핵심)
+    alpha: {type: "float", low: 0.001, high: 10.0, log: true}
+    
+    # 최대 반복 횟수
+    max_iter: {type: "int", low: 1000, high: 5000}
+    
+    # 수렴 허용 오차
+    tol: {type: "float", low: 1e-5, high: 1e-3, log: true}
+    
+    # 양수 제약 (에너지 소비량은 양수)
+    positive: false
+    
+    # 고정값
     random_state: 42
-    max_iter: 2000
-    tol: 1e-4
+    fit_intercept: true
 
   # 하이퍼파라미터 튜닝 설정
   hyperparameter_tuning:
     enabled: true
-    n_trials: 60  # Lasso는 alpha 값이 중요하므로 충분한 탐색
-    metric: "neg_mean_squared_error"
+    n_trials: 50                      # Lasso는 피처 선택이 있어 조금 더 trial
+    metric: "neg_mean_absolute_error"
     direction: "maximize"
-
-  # 데이터 로더 정의 (Spine 생성)
-  loader:
-    name: "regression_loader"
-    source_uri: "recipes/sql/loaders/user_features.sql"
-
-  # 피처 증강 정의 (Feature Store 기반)
+  
+  # Feature Store 기반 피처 증강
   augmenter:
     type: "feature_store"
     features:
-      # 사용자 기본 정보 피처
-      - feature_namespace: "user_demographics"
-        features: ["age", "country_code"]
+      # 건물 특성
+      - feature_namespace: "building_characteristics"
+        features: ["floor_area", "building_age", "occupancy_rate", "hvac_type", "insulation_rating"]
       
-      # 사용자 구매 이력 피처  
-      - feature_namespace: "user_purchase_summary"
-        features: ["ltv", "total_purchase_count", "last_purchase_date"]
+      # 기상 조건
+      - feature_namespace: "weather_conditions"
+        features: ["temperature", "humidity", "wind_speed", "solar_radiation", "cloud_cover"]
       
-      # 상품 상세 정보 피처
-      - feature_namespace: "product_details"
-        features: ["price", "category", "brand"]
+      # 시간적 패턴
+      - feature_namespace: "temporal_patterns"
+        features: ["hour_of_day", "day_of_week", "month", "season", "is_holiday"]
       
-      # 세션 행동 피처
-      - feature_namespace: "session_summary"
-        features: ["time_on_page_seconds", "click_count"]
+      # 운영 조건
+      - feature_namespace: "operational_factors"
+        features: ["equipment_efficiency", "maintenance_status", "occupant_behavior", "energy_price"]
 
-  # 전처리 설정 (L1 정규화 모델이므로 스케일링 중요)
+  # 전처리 설정 (Lasso는 스케일링 필요)
   preprocessor:
-    name: "simple_scaler"
+    name: "regression_preprocessor"
     params:
       criterion_col: null
-      # 엔티티 키와 타임스탬프 제외
-      exclude_cols: ["user_id", "product_id", "session_id", "event_timestamp"]
-
-  # 데이터 인터페이스 정의
-  data_interface:
-    task_type: "regression"
-    target_col: "target_value"
+      exclude_cols: ["building_id", "meter_id", "measurement_timestamp", "energy_consumption_kwh"]
+      handle_missing: "median"
+      scale_features: true             # Lasso는 스케일링 필요
+      encode_categorical: "onehot"
 
   # 평가자 설정
   evaluator:
@@ -74,14 +83,11 @@ model:
 evaluation:
   metrics:
     - "r2_score"
-    - "mean_squared_error"
     - "mean_absolute_error"
+    - "mean_squared_error"
     - "root_mean_squared_error"
   
   validation:
     method: "train_test_split"
     test_size: 0.2
     random_state: 42
-
-# 💡 사용 예시:
-# APP_ENV=dev uv run python main.py train --recipe-file models/regression/lasso_regression 

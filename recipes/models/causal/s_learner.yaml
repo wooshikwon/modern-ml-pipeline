@@ -1,93 +1,96 @@
-# S-Learner - 단일 모델 인과추론
-# 🎯 Treatment를 피처로 포함한 단일 모델을 통한 효과 측정
+# S-Learner: Single Learner Approach for Causal Inference
+# 📊 Treatment와 Control을 하나의 모델로 학습하는 간단하면서도 강력한 접근법
 
 name: "s_learner"
 
 model:
-  # 직접 동적 import를 통한 S-Learner 모델
+  # CausalML S-Learner 직접 동적 import
   class_path: "causalml.inference.meta.SLearner"
   
-  # 하이퍼파라미터 정의 (Optuna 자동 최적화 지원)
+  # Phase 1: Point-in-Time 정합성 스키마
+  loader:
+    name: "causal_user_transaction_loader"
+    source_uri: "recipes/sql/loaders/user_transaction_features.sql"
+    entity_schema:
+      entity_columns: ["user_id", "merchant_id"]  # 사용자-판매자 페어
+      timestamp_column: "transaction_timestamp"   # 거래 시점
+  
+  # 기존: ML 작업별 세부 설정 (Causal 전용)
+  data_interface:
+    task_type: "causal"
+    target_column: "purchase_amount"           # 구매 금액 (연속형)
+    treatment_column: "promotion_received"     # 프로모션 수신 여부 (0/1)
+    treatment_value: 1                         # Treatment 그룹 (프로모션 받은 경우)
+    
+  # Dictionary 형태 하이퍼파라미터 (S-Learner 특화)
   hyperparameters:
-    # 🔥 자동 최적화 범위 - S-Learner는 base learner에 의존
-    # Base learner 설정 (Random Forest 사용)
+    # Base learner로 Random Forest 사용
     base_learner: "random_forest"
     
-    # Random Forest 하이퍼파라미터 (S-Learner 내부)
+    # Random Forest 하이퍼파라미터 자동 최적화
     n_estimators: {type: "int", low: 50, high: 500}
     max_depth: {type: "int", low: 3, high: 20}
     min_samples_split: {type: "int", low: 2, high: 20}
     min_samples_leaf: {type: "int", low: 1, high: 10}
     max_features: {type: "categorical", choices: ["sqrt", "log2", "auto"]}
     
-    # 🔧 고정값 - S-Learner 안정성을 위한 설정
+    # 고정값 - 재현성과 성능을 위한 설정
     random_state: 42
     n_jobs: -1
 
-  # 하이퍼파라미터 튜닝 설정
+  # 하이퍼파라미터 튜닝 설정 (Causal 메트릭 최적화)
   hyperparameter_tuning:
     enabled: true
-    n_trials: 80
-    metric: "uplift_auc"  # 업리프트 모델 전용 메트릭
+    n_trials: 80                    # 충분한 탐색을 위한 trial 수
+    metric: "uplift_auc"           # Uplift AUC로 최적화
     direction: "maximize"
-
-  # 데이터 로더 정의 (Spine 생성)
-  loader:
-    name: "causal_loader"
-    source_uri: "recipes/sql/loaders/user_features.sql"
-
-  # 피처 증강 정의 (Feature Store 기반)
+  
+  # Feature Store 기반 피처 증강
   augmenter:
     type: "feature_store"
     features:
-      # 사용자 기본 정보 피처
+      # 사용자 인구통계학적 정보
       - feature_namespace: "user_demographics"
-        features: ["age", "country_code"]
+        features: ["age", "gender", "income_bracket", "location_tier"]
       
-      # 사용자 구매 이력 피처  
-      - feature_namespace: "user_purchase_summary"
-        features: ["ltv", "total_purchase_count", "last_purchase_date"]
+      # 사용자 과거 구매 행동
+      - feature_namespace: "user_purchase_history"
+        features: ["total_purchases_30d", "avg_purchase_amount", "favorite_category"]
       
-      # 상품 상세 정보 피처
-      - feature_namespace: "product_details"
-        features: ["price", "category", "brand"]
+      # 판매자 정보
+      - feature_namespace: "merchant_profile"
+        features: ["merchant_category", "merchant_rating", "promotion_frequency"]
       
-      # 세션 행동 피처
-      - feature_namespace: "session_summary"
-        features: ["time_on_page_seconds", "click_count"]
+      # 거래 컨텍스트
+      - feature_namespace: "transaction_context"
+        features: ["day_of_week", "hour_of_day", "is_weekend", "season"]
 
-  # 전처리 설정
+  # 전처리 설정 (Causal inference 특화)
   preprocessor:
-    name: "simple_scaler"
+    name: "causal_preprocessor"
     params:
       criterion_col: null
-      # 엔티티 키와 타임스탬프 제외
-      exclude_cols: ["user_id", "product_id", "session_id", "event_timestamp"]
-
-  # 데이터 인터페이스 정의 (인과추론 특화)
-  data_interface:
-    task_type: "causal"
-    target_col: "outcome"
-    treatment_col: "treatment"
-    treatment_value: "1"  # treatment 그룹 표시
+      # Entity 키, timestamp, target, treatment는 전처리에서 제외
+      exclude_cols: ["user_id", "merchant_id", "transaction_timestamp", "purchase_amount", "promotion_received"]
+      # Causal inference를 위한 특별 설정
+      handle_missing: "median"      # 결측치 처리
+      scale_features: true          # 피처 스케일링
+      encode_categorical: "onehot"  # 범주형 인코딩
 
   # 평가자 설정
   evaluator:
     name: "causal_evaluator"
 
-# 평가 설정 (인과추론 특화 메트릭)
+# 평가 설정 (Causal inference 특화 메트릭)
 evaluation:
   metrics:
-    - "uplift_auc"
-    - "uplift_at_k"
-    - "qini_coefficient"
-    - "treatment_effect"
+    - "uplift_auc"        # Uplift modeling의 핵심 메트릭
+    - "uplift_at_k"       # 상위 k%에서의 uplift
+    - "qini_coefficient"  # Qini curve 기반 평가
+    - "treatment_effect"  # 평균 treatment effect
   
   validation:
     method: "train_test_split"
     test_size: 0.2
-    stratify: true  # treatment 비율 유지
+    stratify: true        # Treatment 그룹 비율 유지
     random_state: 42
-
-# 💡 사용 예시:
-# APP_ENV=dev uv run python main.py train --recipe-file models/causal/s_learner 

@@ -1,75 +1,81 @@
-# XGBoost Regressor - 고성능 그래디언트 부스팅 회귀기
-# 🚀 Gradient Boosting의 혁신, 뛰어난 회귀 성능과 효율성
+# XGBoost Regressor: 고성능 그래디언트 부스팅
+# 🚀 최고 성능의 그래디언트 부스팅으로 정밀한 예측
 
 name: "xgboost_regressor"
 
 model:
-  # 직접 동적 import를 통한 XGBoost 회귀기
+  # XGBoost Regressor 직접 동적 import
   class_path: "xgboost.XGBRegressor"
   
-  # 하이퍼파라미터 정의 (Optuna 자동 최적화 지원)
+  # Phase 1: Point-in-Time 정합성 스키마
+  loader:
+    name: "delivery_time_prediction_loader"
+    source_uri: "recipes/sql/loaders/logistics_features.sql"
+    entity_schema:
+      entity_columns: ["order_id", "route_id"]          # 주문-경로 페어
+      timestamp_column: "order_placed_time"             # 주문 시점
+  
+  # 기존: ML 작업별 세부 설정 (Regression 전용)
+  data_interface:
+    task_type: "regression"
+    target_column: "actual_delivery_minutes"   # 실제 배송 시간 (분 단위)
+    
+  # Dictionary 형태 하이퍼파라미터 (XGBoost 특화)
   hyperparameters:
-    # 🔥 자동 최적화 범위 - XGBoost 특화 하이퍼파라미터
-    learning_rate: {type: "float", low: 0.01, high: 0.3, log: true}
+    # 부스팅 파라미터
     n_estimators: {type: "int", low: 100, high: 1000}
+    learning_rate: {type: "float", low: 0.01, high: 0.3, log: true}
     max_depth: {type: "int", low: 3, high: 10}
+    
+    # 정규화
+    reg_alpha: {type: "float", low: 0, high: 1}
+    reg_lambda: {type: "float", low: 1, high: 10}
+    
+    # 샘플링
     subsample: {type: "float", low: 0.6, high: 1.0}
     colsample_bytree: {type: "float", low: 0.6, high: 1.0}
-    min_child_weight: {type: "int", low: 1, high: 10}
-    gamma: {type: "float", low: 0.0, high: 1.0}
-    reg_alpha: {type: "float", low: 0.0, high: 1.0}
-    reg_lambda: {type: "float", low: 0.0, high: 1.0}
     
-    # 🔧 고정값 - XGBoost 안정성을 위한 필수 설정
+    # 고정값
     random_state: 42
-    objective: "reg:squarederror"
-    eval_metric: "rmse"
+    n_jobs: -1
     verbosity: 0
 
   # 하이퍼파라미터 튜닝 설정
   hyperparameter_tuning:
     enabled: true
-    n_trials: 150  # XGBoost는 더 많은 trial이 유리
-    metric: "neg_root_mean_squared_error"
+    n_trials: 100
+    metric: "neg_mean_absolute_error"
     direction: "maximize"
-
-  # 데이터 로더 정의 (Spine 생성)
-  loader:
-    name: "regression_loader"
-    source_uri: "recipes/sql/loaders/user_features.sql"
-
-  # 피처 증강 정의 (Feature Store 기반)
+  
+  # Feature Store 기반 피처 증강
   augmenter:
     type: "feature_store"
     features:
-      # 사용자 기본 정보 피처
-      - feature_namespace: "user_demographics"
-        features: ["age", "country_code"]
+      # 주문 특성
+      - feature_namespace: "order_characteristics"
+        features: ["package_weight", "package_size", "item_count", "fragile_items", "special_handling"]
       
-      # 사용자 구매 이력 피처  
-      - feature_namespace: "user_purchase_summary"
-        features: ["ltv", "total_purchase_count", "last_purchase_date"]
+      # 배송 경로
+      - feature_namespace: "route_features"
+        features: ["distance_km", "estimated_traffic", "toll_roads", "highway_percentage", "urban_density"]
       
-      # 상품 상세 정보 피처
-      - feature_namespace: "product_details"
-        features: ["price", "category", "brand"]
+      # 시간적 요인
+      - feature_namespace: "temporal_factors"
+        features: ["hour_of_day", "day_of_week", "is_holiday", "weather_condition", "season"]
       
-      # 세션 행동 피처
-      - feature_namespace: "session_summary"
-        features: ["time_on_page_seconds", "click_count"]
+      # 운영 요인
+      - feature_namespace: "operational_factors"
+        features: ["driver_experience", "vehicle_type", "warehouse_load", "peak_hour_indicator"]
 
   # 전처리 설정
   preprocessor:
-    name: "simple_scaler"
+    name: "regression_preprocessor"
     params:
       criterion_col: null
-      # 엔티티 키와 타임스탬프 제외
-      exclude_cols: ["user_id", "product_id", "session_id", "event_timestamp"]
-
-  # 데이터 인터페이스 정의
-  data_interface:
-    task_type: "regression"
-    target_col: "target_value"
+      exclude_cols: ["order_id", "route_id", "order_placed_time", "actual_delivery_minutes"]
+      handle_missing: "median"
+      scale_features: false        # XGBoost는 스케일링 불필요
+      encode_categorical: "label"
 
   # 평가자 설정
   evaluator:
@@ -79,14 +85,11 @@ model:
 evaluation:
   metrics:
     - "r2_score"
-    - "mean_squared_error"
     - "mean_absolute_error"
+    - "mean_squared_error"
     - "root_mean_squared_error"
   
   validation:
     method: "train_test_split"
     test_size: 0.2
     random_state: 42
-
-# 💡 사용 예시:
-# APP_ENV=dev uv run python main.py train --recipe-file models/regression/xgboost_regressor 

@@ -1,76 +1,83 @@
-# XGBoost Classifier - 고성능 그래디언트 부스팅 분류기
-# 🚀 Gradient Boosting의 혁신, 뛰어난 성능과 효율성의 결합
+# XGBoost Classifier: 고성능 그래디언트 부스팅
+# 🚀 속도와 성능을 모두 잡은 최고의 분류기
 
 name: "xgboost_classifier"
 
 model:
-  # 직접 동적 import를 통한 XGBoost 분류기
+  # XGBoost Classifier 직접 동적 import
   class_path: "xgboost.XGBClassifier"
   
-  # 하이퍼파라미터 정의 (Optuna 자동 최적화 지원)
+  # Phase 1: Point-in-Time 정합성 스키마
+  loader:
+    name: "email_spam_loader"
+    source_uri: "recipes/sql/loaders/email_classification_features.sql"
+    entity_schema:
+      entity_columns: ["email_id", "sender_domain"]    # 이메일-도메인 페어
+      timestamp_column: "received_datetime"            # 수신 시점
+  
+  # 기존: ML 작업별 세부 설정 (Classification 전용)
+  data_interface:
+    task_type: "classification"
+    target_column: "is_spam"              # 스팸 여부 (0: 정상, 1: 스팸)
+    class_weight: "balanced"              # 불균형 데이터 자동 처리
+    average: "weighted"
+    
+  # Dictionary 형태 하이퍼파라미터 (XGBoost 특화)
   hyperparameters:
-    # 🔥 자동 최적화 범위 - XGBoost 특화 하이퍼파라미터
-    learning_rate: {type: "float", low: 0.01, high: 0.3, log: true}
+    # 부스팅 파라미터
     n_estimators: {type: "int", low: 100, high: 1000}
+    learning_rate: {type: "float", low: 0.01, high: 0.3, log: true}
     max_depth: {type: "int", low: 3, high: 10}
+    
+    # 정규화
+    reg_alpha: {type: "float", low: 0, high: 1}
+    reg_lambda: {type: "float", low: 1, high: 10}
+    
+    # 샘플링
     subsample: {type: "float", low: 0.6, high: 1.0}
     colsample_bytree: {type: "float", low: 0.6, high: 1.0}
-    min_child_weight: {type: "int", low: 1, high: 10}
-    gamma: {type: "float", low: 0.0, high: 1.0}
-    reg_alpha: {type: "float", low: 0.0, high: 1.0}
-    reg_lambda: {type: "float", low: 0.0, high: 1.0}
     
-    # 🔧 고정값 - XGBoost 안정성을 위한 필수 설정
+    # 고정값
     random_state: 42
-    objective: "binary:logistic"
-    eval_metric: "auc"
-    use_label_encoder: false
+    n_jobs: -1
     verbosity: 0
 
   # 하이퍼파라미터 튜닝 설정
   hyperparameter_tuning:
     enabled: true
-    n_trials: 150  # XGBoost는 더 많은 trial이 유리
+    n_trials: 100
     metric: "roc_auc"
     direction: "maximize"
-
-  # 데이터 로더 정의 (Spine 생성)
-  loader:
-    name: "classification_loader"
-    source_uri: "recipes/sql/loaders/user_features.sql"
-
-  # 피처 증강 정의 (Feature Store 기반)
+  
+  # Feature Store 기반 피처 증강
   augmenter:
     type: "feature_store"
     features:
-      # 사용자 기본 정보 피처
-      - feature_namespace: "user_demographics"
-        features: ["age", "country_code"]
+      # 이메일 콘텐츠 특성
+      - feature_namespace: "email_content"
+        features: ["subject_length", "body_length", "html_ratio", "link_count"]
       
-      # 사용자 구매 이력 피처  
-      - feature_namespace: "user_purchase_summary"
-        features: ["ltv", "total_purchase_count", "last_purchase_date"]
+      # 발신자 신뢰도
+      - feature_namespace: "sender_reputation"
+        features: ["domain_age", "spam_history", "whitelist_status", "authentication_score"]
       
-      # 상품 상세 정보 피처
-      - feature_namespace: "product_details"
-        features: ["price", "category", "brand"]
+      # 언어적 특성
+      - feature_namespace: "linguistic_features"
+        features: ["spam_keywords_count", "urgency_indicators", "language_detection"]
       
-      # 세션 행동 피처
-      - feature_namespace: "session_summary"
-        features: ["time_on_page_seconds", "click_count"]
+      # 메타데이터
+      - feature_namespace: "email_metadata"
+        features: ["attachment_count", "recipient_count", "reply_to_differs"]
 
   # 전처리 설정
   preprocessor:
-    name: "simple_scaler"
+    name: "classification_preprocessor"
     params:
       criterion_col: null
-      # 엔티티 키와 타임스탬프 제외
-      exclude_cols: ["user_id", "product_id", "session_id", "event_timestamp"]
-
-  # 데이터 인터페이스 정의
-  data_interface:
-    task_type: "classification"
-    target_col: "target_class"
+      exclude_cols: ["email_id", "sender_domain", "received_datetime", "is_spam"]
+      handle_missing: "median"
+      scale_features: false        # XGBoost는 스케일링 불필요
+      encode_categorical: "label"
 
   # 평가자 설정
   evaluator:
@@ -81,7 +88,7 @@ evaluation:
   metrics:
     - "accuracy"
     - "precision_weighted"
-    - "recall_weighted" 
+    - "recall_weighted"
     - "f1_weighted"
     - "roc_auc"
   
@@ -90,6 +97,3 @@ evaluation:
     test_size: 0.2
     stratify: true
     random_state: 42
-
-# 💡 사용 예시:
-# APP_ENV=dev uv run python main.py train --recipe-file models/classification/xgboost_classifier 
