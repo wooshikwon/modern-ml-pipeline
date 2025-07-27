@@ -74,10 +74,10 @@ class Factory:
             raise ValueError(f"Could not load model class: {class_path}") from e
 
     def _extract_hyperparameters(self) -> Dict[str, Any]:
-        """하이퍼파라미터 추출 (현대화된 형식 전용)"""
+        """하이퍼파라미터 추출 (27개 Recipe 완전 대응)"""
         hyperparams_config = self.model_config.hyperparameters
         
-        # 현대화된 ModernHyperparametersSettings 형식
+        # 27개 Recipe HyperparametersSettings 형식
         if hasattr(hyperparams_config, 'get_fixed_params'):
             return hyperparams_config.get_fixed_params()
         

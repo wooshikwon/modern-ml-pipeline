@@ -1,0 +1,59 @@
+# LOCAL 환경 E2E 테스트용 Regression Recipe
+# Feature Store 없이 직접 CSV 파일로 데이터 로딩
+
+name: "local_regression_test"
+
+model:
+  # Scikit-learn Linear Regression
+  class_path: "sklearn.linear_model.LinearRegression"
+  
+  # Phase 1: Point-in-Time 정합성 스키마
+  loader:
+    name: "local_csv_loader"
+    source_uri: "data/local_test_regression.csv"
+    entity_schema:
+      entity_columns: ["user_id", "property_id"]
+      timestamp_column: "event_timestamp"
+  
+  # ML 작업별 세부 설정 (Regression 전용)
+  data_interface:
+    task_type: "regression"
+    target_column: "price"
+    
+  # 간단한 하이퍼파라미터 (빠른 테스트용)
+  hyperparameters:
+    fit_intercept: true
+    
+  # 하이퍼파라미터 튜닝 비활성화 (LOCAL 테스트용)
+  hyperparameter_tuning:
+    enabled: false
+
+  # LOCAL 환경: Feature Store 없이 Passthrough
+  augmenter:
+    type: "passthrough"
+    features: []
+
+  # 기본적인 전처리만
+  preprocessor:
+    name: "local_regression_preprocessor"
+    params:
+      exclude_cols: ["user_id", "property_id", "event_timestamp"]
+      handle_missing: "mean"
+      scale_features: true
+      encode_categorical: "none"
+
+  # 기본 평가 설정
+  evaluator:
+    name: "regression_evaluator"
+    
+evaluation:
+  metrics: ["mae", "mse", "r2"]
+  validation:
+    method: "train_test_split"
+    test_size: 0.2
+    random_state: 42
+  
+# 메타데이터
+metadata:
+  description: "LOCAL 환경 E2E 테스트용 Regression Recipe"
+  use_cases: ["테스트", "검증"] 

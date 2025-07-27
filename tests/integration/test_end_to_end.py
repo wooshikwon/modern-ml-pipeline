@@ -410,7 +410,7 @@ def test_blueprint_v13_complete_workflow():
     recipe_file = "test_experiment"
     
     # Mock settings 생성 (class_path 기반)
-    with patch('src.settings.settings.load_settings_by_file') as mock_load_settings:
+    with patch('src.settings.loaders.load_settings_by_file') as mock_load_settings:  # 🔄 수정: settings → loaders
         mock_settings = Mock()
         mock_settings.model.class_path = "src.models.xgboost_x_learner.XGBoostXLearner"
         mock_settings.model.computed = {
@@ -457,7 +457,7 @@ def test_blueprint_v13_batch_inference_complete():
     
     with patch('mlflow.pyfunc.load_model', return_value=mock_wrapper):
         with patch('src.pipelines.inference_pipeline._save_dataset') as mock_save:
-            with patch('src.settings.settings.load_settings') as mock_load_settings:
+            with patch('src.settings.loaders.load_settings') as mock_load_settings:  # 🔄 수정: settings → loaders
                 mock_settings = Mock()
                 mock_load_settings.return_value = mock_settings
                 
@@ -493,7 +493,7 @@ def test_blueprint_v13_api_serving_dynamic_schema():
     mock_wrapper.predict.return_value = pd.DataFrame({"uplift_score": [0.85]})
     
     with patch('mlflow.pyfunc.load_model', return_value=mock_wrapper):
-        with patch('src.settings.settings.load_settings') as mock_load_settings:
+        with patch('src.settings.loaders.load_settings') as mock_load_settings:  # 🔄 수정: settings → loaders
             mock_settings = Mock()
             mock_settings.serving.realtime_feature_store = {"store_type": "redis"}
             mock_load_settings.return_value = mock_settings
@@ -522,7 +522,7 @@ def test_blueprint_v13_seven_principles_compliance():
     Blueprint v13.0 7대 핵심 설계 원칙 준수 검증 테스트
     """
     # 원칙 1: 레시피는 논리, 설정은 인프라
-    with patch('src.settings.settings.load_settings_by_file') as mock_load:
+    with patch('src.settings.loaders.load_settings_by_file') as mock_load:  # 🔄 수정: settings → loaders
         mock_settings = Mock()
         mock_settings.model.class_path = "external.model.ExternalModel"  # 외부 모델도 지원
         mock_settings.environment.app_env = "prod"  # 환경 분리

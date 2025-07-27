@@ -4,33 +4,44 @@ from typing import Dict, List, Any
 from src.settings import Settings
 from src.utils.system.logger import logger
 
-def validate_schema(df: pd.DataFrame, settings: Settings):
+def validate_schema(df: pd.DataFrame, settings: Settings, for_training: bool = False):
     """
     입력 데이터프레임이 Recipe 스키마와 일치하는지 검증합니다. (27개 Recipe 대응)
 
     Args:
         df (pd.DataFrame): 검증할 데이터프레임.
         settings (Settings): 스키마 정보가 포함된 설정 객체.
+        for_training (bool): True면 모델 학습용 데이터 검증 (entity, timestamp 컬럼 제외)
+                            False면 원본 데이터 검증 (모든 컬럼 요구)
 
     Raises:
         TypeError: 스키마 검증에 실패할 경우 발생합니다.
     """
-    logger.info("모델 입력 데이터 스키마를 검증합니다...")
+    logger.info(f"모델 입력 데이터 스키마를 검증합니다... (for_training: {for_training})")
 
     # 27개 Recipe 구조: 필수 컬럼들 확인
     entity_schema = settings.recipe.model.loader.entity_schema
     data_interface = settings.recipe.model.data_interface
     
     errors = []
+    required_columns = []
     
-    # 1. Entity + Timestamp 컬럼 검증
-    required_columns = entity_schema.entity_columns + [entity_schema.timestamp_column]
-    
-    # 2. Target 컬럼 검증 (clustering 제외)
-    if data_interface.task_type != "clustering" and data_interface.target_column:
-        required_columns.append(data_interface.target_column)
-    
-    # 3. Treatment 컬럼 검증 (causal 전용)
+    if not for_training:
+        # 원본 데이터 검증: 모든 컬럼 요구
+        # 1. Entity + Timestamp 컬럼 검증
+        required_columns = entity_schema.entity_columns + [entity_schema.timestamp_column]
+        
+        # 2. Target 컬럼 검증 (clustering 제외)
+        if data_interface.task_type != "clustering" and data_interface.target_column:
+            required_columns.append(data_interface.target_column)
+    else:
+        # 모델 학습용 데이터 검증: entity_schema 컬럼들 제외
+        logger.info("모델 학습용 데이터 검증: entity_columns, timestamp_column 제외")
+        required_columns = []
+        
+        # Target 컬럼은 이미 분리되었으므로 검증하지 않음
+        
+    # 3. Treatment 컬럼 검증 (causal 전용) - 학습 시에도 필요
     if data_interface.task_type == "causal" and data_interface.treatment_column:
         required_columns.append(data_interface.treatment_column)
     

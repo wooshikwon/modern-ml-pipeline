@@ -1,0 +1,65 @@
+# LOCAL 환경 E2E 테스트용 Classification Recipe (v2)
+# Mock 데이터 시스템 활용 (LIMIT 100 자동 감지)
+
+name: "local_classification_test_v2"
+
+model:
+  # Scikit-learn Logistic Regression
+  class_path: "sklearn.linear_model.LogisticRegression"
+  
+  # Phase 1: Point-in-Time 정합성 스키마
+  loader:
+    name: "local_test_loader"
+    source_uri: "recipes/sql/loaders/local_test_data.sql"
+    entity_schema:
+      entity_columns: ["user_id", "product_id"]
+      timestamp_column: "event_timestamp"
+  
+  # ML 작업별 세부 설정 (Classification 전용)  
+  data_interface:
+    task_type: "classification"
+    target_column: "outcome"
+    class_weight: "balanced"
+    average: "weighted"
+    
+  # 간단한 하이퍼파라미터 (빠른 테스트용)
+  hyperparameters:
+    C: 1.0
+    max_iter: 100
+    random_state: 42
+    
+  # 하이퍼파라미터 튜닝 비활성화 (LOCAL 테스트용)
+  hyperparameter_tuning:
+    enabled: false
+
+  # LOCAL 환경: 자동으로 PassThroughAugmenter 사용됨
+  augmenter:
+    type: "feature_store"
+    features:
+      - feature_namespace: "dummy"  # Pydantic 검증용 더미
+        features: ["dummy_feature"]
+
+  # 기본적인 전처리만
+  preprocessor:
+    name: "local_classification_preprocessor"
+    params:
+      exclude_cols: ["user_id", "product_id", "event_timestamp"]
+      handle_missing: "mean"
+      scale_features: true
+      encode_categorical: "none"
+
+  # 기본 평가 설정
+  evaluator:
+    name: "classification_evaluator"
+    
+evaluation:
+  metrics: ["accuracy", "precision", "recall", "f1_score"]
+  validation:
+    method: "train_test_split"
+    test_size: 0.2
+    random_state: 42
+    
+# 메타데이터
+metadata:
+  description: "LOCAL 환경 E2E 테스트용 Classification Recipe (Mock 데이터)"
+  use_cases: ["테스트", "검증"] 

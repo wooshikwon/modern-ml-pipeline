@@ -1,0 +1,14 @@
+artifact_uri: /Users/wooshikwon/Desktop/github_wooshikwon/modern-ml-pipeline/mlruns/647522906500310123/69b9107be79c44d2ba5a14c03150407d/artifacts
+end_time: 1753607706936
+entry_point_name: ''
+experiment_id: '647522906500310123'
+lifecycle_stage: active
+run_id: 69b9107be79c44d2ba5a14c03150407d
+run_name: LogisticRegression_logistic_regression_20250727_181506
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1753607706925
+status: 4
+tags: []
+user_id: wooshikwon

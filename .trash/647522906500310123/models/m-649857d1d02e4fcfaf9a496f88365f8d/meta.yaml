@@ -1,0 +1,10 @@
+artifact_location: /Users/wooshikwon/Desktop/github_wooshikwon/modern-ml-pipeline/mlruns/647522906500310123/models/m-649857d1d02e4fcfaf9a496f88365f8d/artifacts
+creation_timestamp: 1753610236888
+experiment_id: '647522906500310123'
+last_updated_timestamp: 1753610238844
+model_id: m-649857d1d02e4fcfaf9a496f88365f8d
+model_type: null
+name: simple_model
+source_run_id: 8b316b5609934f4cab7c4e447d453208
+status: 2
+status_message: null

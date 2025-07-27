@@ -165,6 +165,9 @@ class Trainer(BaseTrainer):
         # 동적 데이터 준비
         X_train, y_train, additional_data = self._prepare_training_data(train_df)
         X_test, y_test, _ = self._prepare_training_data(test_df)
+        
+        # 원본 데이터 스키마 검증 (entity, timestamp, target 컬럼 있는지)
+        validate_schema(train_df, self.settings, for_training=False)
 
         # 전처리기 학습 및 변환 (주입받은 Preprocessor 사용)
         if preprocessor:
@@ -178,8 +181,8 @@ class Trainer(BaseTrainer):
             X_test_processed = X_test
             logger.info("Preprocessor가 주입되지 않아 전처리를 건너뜁니다.")
 
-        # 스키마 검증
-        validate_schema(X_train_processed, self.settings)
+        # 스키마 검증 (모델 학습용 데이터)
+        validate_schema(X_train_processed, self.settings, for_training=True)
 
         # 동적 모델 학습
         logger.info(f"'{self.settings.recipe.model.class_path}' 모델 학습을 시작합니다.")

@@ -32,8 +32,8 @@ class TestSettingsLoading:
             "LOCAL 환경에서 HPO가 활성화되어 있습니다. local.yaml 설정을 확인하세요."
         
         # 4. `local_classification_test.yaml` 레시피 내용이 병합되었는지 확인
-        assert s.model.class_path == "sklearn.ensemble.RandomForestClassifier"
-        assert s.recipe.model.loader.entity_schema.task_type == "classification"
+        assert s.recipe.model.class_path == "sklearn.ensemble.RandomForestClassifier"  # 🔄 수정: 일관성을 위해 recipe 구조 사용
+        assert s.recipe.model.data_interface.task_type == "classification"  # 🔄 수정: task_type은 data_interface에 있음
 
     def test_load_dev_settings_correctly(self, dev_test_settings: Settings):
         """
@@ -55,8 +55,8 @@ class TestSettingsLoading:
             "DEV 환경의 MLflow 실험 이름이 올바르지 않습니다."
             
         # 4. `dev_classification_test.yaml` 레시피 내용이 병합되었는지 확인
-        assert s.model.class_path == "sklearn.ensemble.RandomForestClassifier"
-        assert s.model.augmenter.type == "feature_store"
+        assert s.recipe.model.class_path == "sklearn.ensemble.RandomForestClassifier"  # 🔄 수정: 일관성을 위해 recipe 구조 사용
+        assert s.recipe.model.augmenter.type == "feature_store"
 
     def test_loading_non_existent_recipe_raises_error(self):
         """
