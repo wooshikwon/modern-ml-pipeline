@@ -8,6 +8,7 @@ from pathlib import Path
 from src.interface.base_adapter import BaseAdapter
 from src.settings import Settings
 from src.utils.system.logger import logger
+from src.engine import AdapterRegistry
 
 
 class StorageAdapter(BaseAdapter):
@@ -44,3 +45,5 @@ class StorageAdapter(BaseAdapter):
             path.parent.mkdir(parents=True, exist_ok=True)
             
         df.to_parquet(uri, storage_options=self.storage_options, **kwargs) 
+
+AdapterRegistry.register("storage", StorageAdapter) 

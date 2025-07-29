@@ -6,10 +6,10 @@ import mlflow
 from datetime import datetime
 from typing import Dict, Any, Optional
 
-from src.engine.factory import Factory
+from src.engine import Factory
 from src.utils.integrations.mlflow_integration import start_run
 from src.utils.system.logger import logger
-from src.settings.models import Settings
+from src.settings import Settings
 
 
 def run_batch_inference(settings: Settings, run_id: str, context_params: dict = None):
