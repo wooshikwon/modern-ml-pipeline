@@ -7,8 +7,8 @@ import pandas as pd
 from contextlib import contextmanager
 
 from src.settings import Settings
-from src.engine.factory import Factory
-from src.components.trainer import Trainer
+from src.engine import Factory
+from src.components._trainer import Trainer
 from src.utils.system.logger import logger
 from src.utils.integrations import mlflow_integration as mlflow_utils
 
@@ -95,7 +95,8 @@ def run_training(settings: Settings, context_params: Optional[Dict[str, Any]] = 
         pyfunc_wrapper = factory.create_pyfunc_wrapper(
             trained_model=trained_model,
             trained_preprocessor=trained_preprocessor,
-            training_df=df,  # 🆕 Phase 5: 스키마 생성용
+            trained_augmenter=augmenter, # 학습에 사용된 augmenter를 직접 전달
+            training_df=df,
             training_results=training_results,
         )
         

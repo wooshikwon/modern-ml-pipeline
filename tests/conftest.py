@@ -1,7 +1,10 @@
 import pytest
 import os
-from src.settings import Settings
-from src.settings.loaders import load_settings_by_file
+from pathlib import Path
+from unittest.mock import MagicMock
+import pandas as pd
+
+from src.settings import Settings, load_settings_by_file
 from src.utils.system.logger import setup_logging
 
 # 🆕 Phase 6: 테스트 환경 자동 감지 시스템
@@ -52,6 +55,28 @@ def test_environment():
         return DevTestConfig() 
     else:
         return MockTestConfig()
+
+@pytest.fixture(scope="session")
+def tests_root() -> Path:
+    """Fixture to return the root path of the tests directory."""
+    return Path(__file__).parent
+
+@pytest.fixture
+def fixture_recipes_path(tests_root: Path) -> Path:
+    """Fixture to return the path to the test recipes in fixtures."""
+    return tests_root / "fixtures" / "recipes"
+
+@pytest.fixture(scope="session")
+def test_settings(tests_root: Path) -> Settings:
+    """테스트용 기본 Settings 객체를 로드합니다."""
+    # 이제 fixtures 디렉토리의 테스트 레시피를 사용하도록 경로를 수정합니다.
+    recipe_path = tests_root / "fixtures" / "recipes" / "local_classification_test.yaml"
+    return load_settings_by_file(str(recipe_path))
+
+@pytest.fixture(scope="session", autouse=True)
+def setup_test_logging(test_settings: Settings):
+    """모든 테스트 세션에 대해 로깅을 설정합니다."""
+    setup_logging(test_settings)
 
 @pytest.fixture(scope="session")
 def local_test_settings() -> Settings:

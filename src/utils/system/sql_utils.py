@@ -1,45 +1,16 @@
 """
 SQL 유틸리티 모듈
-- Jinja2 템플릿을 사용하여 SQL 파일을 렌더링합니다.
 - sqlparse를 사용하여 SQL 쿼리를 파싱합니다.
 """
 
 from pathlib import Path
 from typing import Dict, Any, Union, Optional, List
 
-import jinja2
 import sqlparse
 from sqlparse.sql import Identifier, IdentifierList
 from sqlparse.tokens import DML
 
 from src.utils.system.logger import logger
-
-
-def render_sql(
-    file_path: str, params: Union[Dict[str, Any], None] = None
-) -> str:
-    """
-    SQL 파일을 로드하고 Jinja2 템플릿을 사용하여 파라미터를 주입합니다.
-    """
-    params = params or {}
-    try:
-        project_root = Path(__file__).resolve().parent.parent.parent
-        env = jinja2.Environment(
-            loader=jinja2.FileSystemLoader(str(project_root)),
-            trim_blocks=True,
-            lstrip_blocks=True,
-            keep_trailing_newline=True,
-        )
-        template = env.get_template(file_path)
-        rendered_sql = template.render(params)
-        logger.info(f"SQL 템플릿 렌더링 성공: {file_path}")
-        return rendered_sql
-    except jinja2.TemplateError as e:
-        logger.error(f"SQL 템플릿 렌더링 오류: {e}")
-        raise
-    except Exception as e:
-        logger.error(f"SQL 템플릿 처리 중 예상치 못한 오류: {e}")
-        raise
 
 
 def get_selected_columns(sql_query: str) -> List[str]:

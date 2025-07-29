@@ -4,6 +4,8 @@ from typing import TYPE_CHECKING, Dict, Any, List
 from src.interface.base_adapter import BaseAdapter
 from src.utils.system.logger import logger
 from pydantic import BaseModel
+from src.settings import Settings
+from src.engine import AdapterRegistry
 
 try:
     from feast import FeatureStore
@@ -175,6 +177,8 @@ class FeastAdapter(BaseAdapter):
             raise ValueError("'entity_df' and 'features' must be provided for read operation.")
         return self.get_historical_features(entity_df, features, **kwargs)
 
-    def write(self, df: pd.DataFrame, **kwargs):
+    def write(self, df: pd.DataFrame, table_name: str, **kwargs):
         """Feast는 주로 읽기용이므로, write는 기본적으로 지원하지 않습니다."""
-        raise NotImplementedError("Write operation is not supported by the FeastAdapter.") 
+        raise NotImplementedError("FeastAdapter does not support write operation.")
+
+AdapterRegistry.register("feature_store", FeastAdapter) 

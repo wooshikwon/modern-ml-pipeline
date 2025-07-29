@@ -1,0 +1,85 @@
+# src/settings/_config_schema.py
+from pydantic import BaseModel
+from typing import Dict, Any, Optional
+
+class EnvironmentSettings(BaseModel):
+    """환경별 기본 설정"""
+    app_env: str
+    gcp_project_id: str
+    gcp_credential_path: Optional[str] = None
+
+class MlflowSettings(BaseModel):
+    """MLflow 실험 추적 설정"""
+    tracking_uri: str
+    experiment_name: str
+
+class AdapterConfigSettings(BaseModel):
+    """개별 어댑터 설정"""
+    class_name: str
+    config: Dict[str, Any] = {}
+
+class DataAdapterSettings(BaseModel):
+    """데이터 어댑터 설정 - Config-driven Dynamic Factory"""
+    default_loader: str = "filesystem"
+    default_storage: str = "filesystem"
+    default_feature_store: str = "filesystem"
+    adapters: Dict[str, AdapterConfigSettings] = {}
+
+    def get_adapter_config(self, adapter_name: str) -> AdapterConfigSettings:
+        if adapter_name not in self.adapters:
+            raise ValueError(f"어댑터 설정을 찾을 수 없습니다: {adapter_name}")
+        return self.adapters[adapter_name]
+    
+    def get_default_adapter(self, purpose: str) -> str:
+        purpose_mapping = {
+            "loader": self.default_loader,
+            "storage": self.default_storage,
+            "feature_store": self.default_feature_store,
+        }
+        if purpose not in purpose_mapping:
+            raise ValueError(f"지원하지 않는 어댑터 목적: {purpose}")
+        return purpose_mapping[purpose]
+
+class RealtimeFeatureStoreConnectionSettings(BaseModel):
+    """실시간 Feature Store 연결 설정"""
+    host: str
+    port: int
+    db: int = 0
+
+class RealtimeFeatureStoreSettings(BaseModel):
+    """실시간 Feature Store 설정"""
+    store_type: str
+    connection: RealtimeFeatureStoreConnectionSettings
+
+class ServingSettings(BaseModel):
+    """API 서빙 설정"""
+    model_stage: str
+    realtime_feature_store: RealtimeFeatureStoreSettings
+
+class PostgresStorageSettings(BaseModel):
+    """PostgreSQL 저장 설정"""
+    enabled: bool = False
+    table_name: str = "batch_predictions"
+    connection_uri: str
+
+class ArtifactStoreSettings(BaseModel):
+    """아티팩트 저장소 설정"""
+    enabled: bool
+    base_uri: str
+    postgres_storage: Optional[PostgresStorageSettings] = None
+
+class FeatureStoreSettings(BaseModel):
+    """Feature Store 설정"""
+    provider: str = "dynamic"
+    feast_config: Optional[Dict[str, Any]] = None
+    connection_timeout: int = 5000
+    retry_attempts: int = 3
+    connection_info: Dict[str, Any] = {}
+
+class HyperparameterTuningSettings(BaseModel):
+    """하이퍼파라미터 튜닝 설정 (인프라 제약)"""
+    enabled: bool = False
+    n_trials: int = 10
+    metric: str = "accuracy"
+    direction: str = "maximize"
+    timeout: Optional[int] = None 

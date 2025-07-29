@@ -1,0 +1,58 @@
+# LOCAL 환경 테스트용 분류 레시피
+# Blueprint v17.0: LOCAL 환경의 의도적 제약 구현
+
+name: "local_classification_test"
+
+model:
+  class_path: "sklearn.ensemble.RandomForestClassifier"
+  
+  hyperparameters:
+    n_estimators: 10
+    max_depth: 3
+    random_state: 42
+    n_jobs: 2
+  
+  loader:
+    name: "default_loader"
+    source_uri: "recipes/sql/loaders/local_test_data.sql"
+    entity_schema:
+      entity_columns:
+        - "user_id"
+      timestamp_column: "event_timestamp"
+  data_interface:
+    task_type: "classification"
+    target_column: "outcome"
+  preprocessor:
+    column_transforms:
+      numerical_imputer:
+        type: "simple_imputer"
+        params:
+          strategy: "median"
+        columns: ["age", "income"]
+      numerical_scaler:
+        type: "standard_scaler"
+        params: {}
+        columns: ["age", "income"]
+    steps:
+      - name: "imputer"
+        transformer: "numerical_imputer"
+      - name: "scaler"
+        transformer: "numerical_scaler"
+
+  entity_schema:
+    task_type: "classification"
+    target_col: "approved"
+
+  hyperparameter_tuning:
+    enabled: false
+
+evaluation:
+  metrics:
+    - "accuracy"
+    - "f1_score"
+    - "precision"
+    - "recall"
+  validation:
+    method: "train_test_split"
+    test_size: 0.2
+    random_state: 42 

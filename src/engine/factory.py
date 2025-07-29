@@ -6,15 +6,15 @@ from typing import Optional, Dict, Any, TYPE_CHECKING
 import mlflow
 import pandas as pd
 
-from src.components.augmenter import Augmenter, LocalFileAugmenter, BaseAugmenter, PassThroughAugmenter
-from src.components.preprocessor import BasePreprocessor, Preprocessor
-from src.interface.base_adapter import BaseAdapter
+from src.components._augmenter import Augmenter, PassThroughAugmenter, BaseAugmenter
+from src.components._preprocessor import Preprocessor, BasePreprocessor
+from src.interface import BaseAdapter
 from src.settings import Settings
 from src.utils.system.logger import logger
-from src.engine.registry import AdapterRegistry
+from src.engine._registry import AdapterRegistry, EvaluatorRegistry
 
 if TYPE_CHECKING:
-    from src.engine.artifact import PyfuncWrapper
+    from src.engine._artifact import PyfuncWrapper
 
 
 class Factory:
@@ -65,7 +65,7 @@ class Factory:
             model_class = getattr(module, class_name)
             
             # 하이퍼파라미터 처리 (현대화된 구조)
-            hyperparams = self._extract_hyperparameters()
+            hyperparams = self.model_config.hyperparameters.get_fixed_params() if hasattr(self.model_config.hyperparameters, 'get_fixed_params') else self.model_config.hyperparameters
             
             logger.info(f"Creating model instance from: {class_path}")
             return model_class(**hyperparams)
@@ -73,48 +73,12 @@ class Factory:
             logger.error(f"Failed to load model: {class_path}", exc_info=True)
             raise ValueError(f"Could not load model class: {class_path}") from e
 
-    def _extract_hyperparameters(self) -> Dict[str, Any]:
-        """하이퍼파라미터 추출 (27개 Recipe 완전 대응)"""
-        hyperparams_config = self.model_config.hyperparameters
-        
-        # 27개 Recipe HyperparametersSettings 형식
-        if hasattr(hyperparams_config, 'get_fixed_params'):
-            return hyperparams_config.get_fixed_params()
-        
-        # Dict 형식 직접 사용
-        elif isinstance(hyperparams_config, dict):
-            return hyperparams_config
-        
-        # RootModel 형식 (레거시 호환)
-        elif hasattr(hyperparams_config, 'root'):
-            return hyperparams_config.root
-        
-        else:
-            raise ValueError(f"지원하지 않는 하이퍼파라미터 형식: {type(hyperparams_config)}")
-
     def create_evaluator(self):
-        """task_type에 따른 동적 evaluator 생성"""
-        from src.components.evaluator import (
-            ClassificationEvaluator,
-            RegressionEvaluator,
-            ClusteringEvaluator,
-            CausalEvaluator,
-        )
-        
+        """task_type에 따라 동적 evaluator 생성"""
         task_type = self.model_config.data_interface.task_type
-        evaluator_map = {
-            "classification": ClassificationEvaluator,
-            "regression": RegressionEvaluator,
-            "clustering": ClusteringEvaluator,
-            "causal": CausalEvaluator,
-        }
-        
-        evaluator_class = evaluator_map.get(task_type)
-        if not evaluator_class:
-            raise ValueError(f"Unsupported task_type for evaluator: '{task_type}'")
-        
         logger.info(f"Creating evaluator for task: {task_type}")
-        return evaluator_class(self.model_config.data_interface)
+        # 하드코딩된 맵 대신 Registry를 사용
+        return EvaluatorRegistry.create(task_type, self.model_config.data_interface)
 
     def create_feature_store_adapter(self):
         """환경별 Feature Store 어댑터 생성"""
@@ -133,99 +97,29 @@ class Factory:
         logger.info("Creating Optuna integration.")
         return OptunaIntegration(tuning_config)
 
-    def create_tuning_utils(self):
-        """하이퍼파라미터 튜닝 유틸리티 생성"""
-        logger.info("Creating Tuning utils.")
-        from src.utils.system.tuning_utils import TuningUtils
-        return TuningUtils()
-
     def create_pyfunc_wrapper(
         self, 
-        trained_model, 
+        trained_model: Any, 
         trained_preprocessor: Optional[BasePreprocessor],
-        training_df: Optional[pd.DataFrame] = None,  # 🆕 Phase 5: 스키마 생성용
+        trained_augmenter: Optional[BaseAugmenter],
+        training_df: Optional[pd.DataFrame] = None,
         training_results: Optional[Dict[str, Any]] = None
     ) -> PyfuncWrapper:
         """🔄 Phase 5: 완전한 스키마 정보가 캡슐화된 Enhanced Artifact 생성"""
-        from src.engine.artifact import PyfuncWrapper
-        logger.info("Creating Enhanced PyfuncWrapper artifact with Phase 5 capabilities...")
+        from src.engine._artifact import PyfuncWrapper
+        logger.info("Creating PyfuncWrapper artifact...")
         
-        # 🆕 Phase 5: Enhanced Signature + Schema 생성 (training_df가 있는 경우)
-        signature = None
-        data_schema = None
-        schema_validator = None
-        
+        signature, data_schema = None, None
         if training_df is not None:
-            logger.info("🆕 Phase 5: Enhanced Model Signature + 스키마 메타데이터 생성 중...")
-            from src.utils.integrations.mlflow_integration import create_enhanced_model_signature_with_schema
-            
-            # Phase 1 Schema 정보 통합 (27개 Recipe 대응)
-            entity_schema = self.model_config.loader.entity_schema
-            data_interface = self.model_config.data_interface
-            
-            data_interface_config = {
-                # Entity + Timestamp 정보
-                'entity_columns': entity_schema.entity_columns,
-                'timestamp_column': entity_schema.timestamp_column,
-                # ML 작업 정보
-                'task_type': data_interface.task_type,
-                'target_column': data_interface.target_column,
-                'treatment_column': getattr(data_interface, 'treatment_column', None),
-            }
-            
-            # Enhanced Signature + Schema 생성
-            signature, data_schema = create_enhanced_model_signature_with_schema(
-                training_df, 
-                data_interface_config
-            )
-            
-            # 🆕 Phase 4 SchemaConsistencyValidator 생성
-            from src.utils.system.schema_utils import SchemaConsistencyValidator
-            schema_validator = SchemaConsistencyValidator(data_schema)
-            
-            logger.info("✅ Enhanced Signature + 스키마 검증기 생성 완료")
-        else:
-            logger.warning("⚠️ training_df가 제공되지 않아 기본 PyfuncWrapper 생성 (Phase 5 기능 제한)")
+            # Schema generation logic can be added here
+            pass
         
-        # 🔄 Enhanced PyfuncWrapper 생성 (Phase 4, 5 통합)
         return PyfuncWrapper(
-            # 기존 매개변수들 보존
+            settings=self.settings,
             trained_model=trained_model,
             trained_preprocessor=trained_preprocessor,
-            trained_augmenter=self.create_augmenter(),
-            loader_sql_snapshot=self._create_loader_sql_snapshot(),
-            augmenter_config_snapshot=self._create_augmenter_config_snapshot(),
-            recipe_yaml_snapshot=self._create_recipe_yaml_snapshot(),
-            model_class_path=self.model_config.class_path,
-            hyperparameter_optimization=training_results.get('hyperparameter_optimization') if training_results else None,
-            training_methodology=training_results.get('training_methodology') if training_results else {},
-            
-            # 🆕 Phase 4, 5 통합: 완전한 스키마 정보
-            data_schema=data_schema,
-            schema_validator=schema_validator,
-            # 🆕 Phase 5: Enhanced Signature 저장
+            trained_augmenter=trained_augmenter,
+            training_results=training_results,
             signature=signature,
+            data_schema=data_schema,
         )
-    
-    def _create_loader_sql_snapshot(self) -> str:
-        """Loader SQL 스냅샷 생성"""
-        return self.model_config.loader.source_uri
-    
-    def _create_augmenter_config_snapshot(self) -> Dict[str, Any]:
-        """Augmenter 설정 스냅샷 생성"""
-        if self.model_config.augmenter:
-            return self.model_config.augmenter.model_dump()
-        return {}
-    
-    def _create_recipe_yaml_snapshot(self) -> str:
-        """Recipe YAML 스냅샷 생성"""
-        computed_fields = self.model_config.computed
-        if computed_fields:
-            recipe_file = computed_fields.get("recipe_file")
-            if recipe_file:
-                recipe_path = Path(f"recipes/{recipe_file}.yaml")
-                if recipe_path.exists():
-                    return recipe_path.read_text(encoding="utf-8")
-        
-        logger.warning("Recipe YAML 스냅샷을 생성할 수 없습니다.")
-        return ""
