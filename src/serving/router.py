@@ -12,6 +12,7 @@ from src.utils.system.logger import logger
 from src.serving._context import app_context
 from src.serving._lifespan import lifespan, setup_api_context
 from src.serving import _endpoints as handlers
+from src.components._augmenter._pass_through import PassThroughAugmenter
 from src.serving.schemas import (
     get_pk_from_loader_sql,
     create_dynamic_prediction_request,
@@ -106,6 +107,14 @@ def run_api_server(settings: Settings, run_id: str, host: str = "0.0.0.0", port:
 
     # 서버 시작 시 컨텍스트 설정
     setup_api_context(run_id=run_id, settings=settings)
+
+    # [신규] Augmenter 타입 명시적 검증
+    wrapped_model = app_context.model.unwrap_python_model()
+    if isinstance(wrapped_model.trained_augmenter, PassThroughAugmenter):
+        raise TypeError(
+            "API serving is not supported when the augmenter is 'pass_through'. "
+            "A feature store connection is required."
+        )
     
     # 동적 라우트 생성
     PredictionRequest = app_context.PredictionRequest

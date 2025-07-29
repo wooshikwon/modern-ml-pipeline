@@ -31,6 +31,18 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
         self.signature = signature
         self.data_schema = data_schema
 
+    def _validate_input_schema(self, df: pd.DataFrame):
+        """입력 데이터프레임의 스키마를 검증합니다."""
+        if self.data_schema:
+            try:
+                from src.utils.system.schema_utils import SchemaConsistencyValidator
+                validator = SchemaConsistencyValidator(self.data_schema)
+                validator.validate_inference_consistency(df)
+                logger.info("✅ PyfuncWrapper: 입력 스키마 검증 완료.")
+            except ValueError as e:
+                logger.error(f"🚨 PyfuncWrapper: 스키마 검증 실패 (Schema Drift 감지): {e}")
+                raise
+
     @property
     def model_class_path(self) -> str:
         return self.settings.recipe.model.class_path
@@ -65,33 +77,14 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
 
         if not isinstance(model_input, pd.DataFrame):
             model_input = pd.DataFrame(model_input)
+            
+        # 1. 자동 스키마 검증
+        self._validate_input_schema(model_input)
 
-        # 0. 🆕 Phase 4: 자동 스키마 일관성 검증
-        if run_mode == "batch" and self.data_schema:
-            try:
-                self.data_schema.validate_inference_consistency(model_input)
-                logger.info("✅ PyfuncWrapper 자동 스키마 검증 완료")
-            except ValueError as e:
-                # Schema Drift 감지 → 상세한 진단 메시지
-                raise ValueError(f"🚨 PyfuncWrapper Schema Drift 감지: {e}")
-        elif run_mode != "batch":
-            # API 서빙 모드에서도 검증 (성능상 간단한 검증만)
-            if self.data_schema and 'inference_columns' in self.data_schema:
-                missing_cols = set(self.data_schema['inference_columns']) - set(model_input.columns)
-                if missing_cols:
-                    raise ValueError(f"🚨 API 요청 스키마 불일치: 필수 컬럼 누락 {missing_cols}")
-
-        # 1. 피처 증강 (Augmenter)
+        # 2. 피처 증강 -> 전처리 -> 예측
         augmented_df = self.trained_augmenter.augment(model_input, run_mode=run_mode)
-
-        # 2. 데이터 전처리 (Preprocessor)
         preprocessed_df = self.trained_preprocessor.transform(augmented_df) if self.trained_preprocessor else augmented_df
-
-        # 3. 예측 (Model)
-        # 전처리기가 모델이 사용할 피처만 반환한다고 가정합니다.
         predictions = self.trained_model.predict(preprocessed_df)
-
-        # 4. 결과 포맷팅
-        # 입력 데이터에 예측 결과를 추가하여 반환합니다.
+        
         result_df = pd.DataFrame(predictions, columns=['prediction'], index=model_input.index)
         return result_df

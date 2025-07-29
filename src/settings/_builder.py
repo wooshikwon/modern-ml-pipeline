@@ -7,6 +7,7 @@ from src.utils.system.logger import logger
 from ._recipe_schema import RecipeSettings, JinjaVariable
 from src.settings import Settings
 import pandas as pd
+from src.utils.system.sql_utils import prevent_select_star
 
 
 def load_config_files() -> Dict[str, Any]:
@@ -43,7 +44,7 @@ def load_recipe_file(recipe_file: str) -> Dict[str, Any]:
     return _load_yaml_with_env(final_path)
 
 def _render_recipe_templates(recipe_data: Dict[str, Any], context_params: Dict[str, Any]) -> Dict[str, Any]:
-    """Recipe 구조의 Jinja 템플릿 렌더링"""
+    """Recipe 구조의 Jinja 템플릿 렌더링 및 SQL 안전성 검증"""
     try:
         from src.utils.system.templating_utils import render_template_from_file
         
@@ -53,13 +54,17 @@ def _render_recipe_templates(recipe_data: Dict[str, Any], context_params: Dict[s
         
         if loader_uri and loader_uri.endswith(".sql.j2"):
             rendered_sql = render_template_from_file(loader_uri, context_params)
+            
+            # [신규] 렌더링된 SQL에 대해 SELECT * 검증 수행
+            prevent_select_star(rendered_sql)
+
             recipe_data["model"]["loader"]["source_uri"] = rendered_sql
-            logger.info(f"Loader SQL template '{loader_uri}' rendered.")
+            logger.info(f"Loader SQL template '{loader_uri}' rendered and validated.")
         
         return recipe_data
         
     except Exception as e:
-        raise ValueError(f"Jinja 템플릿 렌더링 실패: {e}") from e
+        raise ValueError(f"Jinja 템플릿 렌더링 또는 검증 실패: {e}") from e
 
 def _create_computed_fields(recipe_settings: RecipeSettings, recipe_file: str) -> Dict[str, Any]:
     """Recipe 런타임 필드 생성"""

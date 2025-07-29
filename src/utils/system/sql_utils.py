@@ -13,6 +13,25 @@ from sqlparse.tokens import DML
 from src.utils.system.logger import logger
 
 
+def prevent_select_star(sql: str):
+    """SQL 쿼리에 `SELECT *` 사용을 방지합니다."""
+    parsed = sqlparse.parse(sql)[0]
+    
+    select_seen = False
+    for token in parsed.tokens:
+        if token.is_keyword and token.normalized == 'SELECT':
+            select_seen = True
+            continue
+        
+        if select_seen:
+            if not token.is_whitespace and token.normalized == '*':
+                raise ValueError(
+                    "SQL loader에서 `SELECT *` 사용은 금지됩니다. "
+                    "재현성을 위해 모든 컬럼을 명시적으로 지정해야 합니다."
+                )
+            elif not token.is_whitespace:
+                break
+
 def get_selected_columns(sql_query: str) -> List[str]:
     """
     주어진 SQL 쿼리 문자열을 파싱하여 SELECT 절에 있는 컬럼명들을 추출합니다.
