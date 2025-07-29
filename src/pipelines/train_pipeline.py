@@ -32,34 +32,7 @@ def run_training(settings: Settings, context_params: Optional[Dict[str, Any]] = 
 
         # 1. 데이터 어댑터를 사용하여 데이터 로딩
         data_adapter = factory.create_data_adapter(settings.data_adapters.default_loader)
-        
-        # --- E2E 테스트를 위한 임시 Mocking 로직 ---
-        # 🎯 안정성 강화: pathlib를 사용하여 파일 존재 확인
-        is_e2e_test_run = False
-        source_path = Path(settings.recipe.model.loader.source_uri)
-        if source_path.exists() and source_path.is_file():
-            try:
-                file_content = source_path.read_text()
-                is_e2e_test_run = "LIMIT 100" in file_content
-            except Exception as e:
-                logger.warning(f"파일 '{source_path}'을 읽는 중 오류 발생: {e}")
-        else:
-            logger.warning(f"파일이 존재하지 않음: {source_path}")
-            is_e2e_test_run = False
-
-        if is_e2e_test_run:
-            logger.warning("E2E 테스트 모드: 실제 데이터 로딩 대신 Mock DataFrame을 생성합니다.")
-            # 🎯 최종 해결: Mock 데이터 크기를 줄여 uv run 환경 문제 회피
-            df = pd.DataFrame({
-                'user_id': [f'user_{i}' for i in range(10)],
-                'product_id': [f'product_{i % 10}' for i in range(10)],
-                'event_timestamp': pd.to_datetime('2024-01-01'),
-                'session_duration': [300 + i for i in range(10)],
-                'page_views': [5 + (i % 10) for i in range(10)],
-                'outcome': [i % 2 for i in range(10)]
-            })
-        else:
-            df = data_adapter.read(settings.recipe.model.loader.source_uri)
+        df = data_adapter.read(settings.recipe.model.loader.source_uri)
 
         mlflow.log_metric("row_count", len(df))
         mlflow.log_metric("column_count", len(df.columns))

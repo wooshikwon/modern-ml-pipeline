@@ -8,15 +8,19 @@ from typing_extensions import Annotated
 from typing import Optional
 import subprocess
 
-from src.settings import Settings, load_settings_by_file, create_settings_for_inference
+from src.settings import Settings, load_settings_by_file, create_settings_for_inference, load_config_files
 from src.pipelines import run_training, run_batch_inference
 from src.serving import run_api_server
 from src.utils.system.logger import setup_logging, logger
+from src.engine import AdapterRegistry, EvaluatorRegistry, PreprocessorStepRegistry
+from src.utils.system.catalog_parser import load_model_catalog
 
 app = typer.Typer(
     help="Modern ML Pipeline - A robust tool for building and deploying ML.",
     rich_markup_mode="markdown"
 )
+
+# --- Main Commands ---
 
 @app.command()
 def train(
@@ -143,3 +147,46 @@ def test_contract():
     except FileNotFoundError:
         typer.secho("❌ 오류: `pytest`를 찾을 수 없습니다. 테스트 의존성이 설치되었는지 확인하세요.", fg=typer.colors.RED)
         raise typer.Exit(code=1) 
+
+# --- List Commands Group ---
+
+list_app = typer.Typer(help="사용 가능한 컴포넌트들의 '별명(type)' 목록을 확인합니다.")
+app.add_typer(list_app, name="list")
+
+@list_app.command("adapters")
+def list_adapters():
+    """사용 가능한 모든 데이터 어댑터의 별명 목록을 출력합니다."""
+    typer.echo("✅ Available Adapters:")
+    available_items = sorted(AdapterRegistry._adapters.keys())
+    for item in available_items:
+        typer.echo(f"- {item}")
+
+@list_app.command("evaluators")
+def list_evaluators():
+    """사용 가능한 모든 평가자의 별명 목록을 출력합니다."""
+    typer.echo("✅ Available Evaluators:")
+    available_items = sorted(EvaluatorRegistry._evaluators.keys())
+    for item in available_items:
+        typer.echo(f"- {item}")
+
+@list_app.command("preprocessors")
+def list_preprocessors():
+    """사용 가능한 모든 전처리기 블록의 별명 목록을 출력합니다."""
+    typer.echo("✅ Available Preprocessor Steps:")
+    available_items = sorted(PreprocessorStepRegistry._steps.keys())
+    for item in available_items:
+        typer.echo(f"- {item}")
+
+@list_app.command("models")
+def list_models():
+    """src/models/catalog.yaml에 등록된 사용 가능한 모델 목록을 출력합니다."""
+    typer.echo("✅ Available Models from Catalog:")
+    model_catalog = load_model_catalog()
+    if not model_catalog:
+        typer.secho("Error: src/models/catalog.yaml 파일을 찾을 수 없거나 내용이 비어있습니다.", fg="red")
+        raise typer.Exit(1)
+    
+    for category, models in model_catalog.items():
+        typer.secho(f"\n--- {category} ---", fg=typer.colors.CYAN)
+        for model_info in models:
+            typer.echo(f"- {model_info['class_path']} ({model_info['library']})") 

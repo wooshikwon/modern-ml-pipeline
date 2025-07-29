@@ -69,29 +69,44 @@ class Trainer(BaseTrainer):
         if augmenter:
             train_df = augmenter.augment(train_df, run_mode="batch", context_params=context_params)
             test_df = augmenter.augment(test_df, run_mode="batch", context_params=context_params)
-
-        X_train, y_train, additional_data = prepare_training_data(train_df, self.settings)
-        X_test, y_test, _ = prepare_training_data(test_df, self.settings)
-
-        if preprocessor:
-            preprocessor.fit(X_train)
-            X_train_processed = preprocessor.transform(X_train)
-            X_test_processed = preprocessor.transform(X_test)
-        else:
-            X_train_processed, X_test_processed = X_train, X_test
         
-        self._fit_model(model, X_train_processed, y_train, additional_data)
+        if getattr(model, 'handles_own_preprocessing', False):
+            logger.info(f"모델 '{type(model).__name__}'이(가) 내장된 전처리 로직을 사용합니다.")
+            target_col = self.settings.recipe.model.data_interface.target_column
+            model.fit(train_df.drop(columns=[target_col]), train_df[target_col])
+            trained_preprocessor = None # 메인 preprocessor는 사용되지 않음
+        else:
+            logger.info("파이프라인의 선언적 Preprocessor를 사용합니다.")
+            X_train, y_train, additional_data = prepare_training_data(train_df, self.settings)
+            
+            if preprocessor:
+                preprocessor.fit(X_train)
+                X_train_processed = preprocessor.transform(X_train)
+            else:
+                X_train_processed = X_train
+            
+            self._fit_model(model, X_train_processed, y_train, additional_data)
+            trained_preprocessor = preprocessor
 
+        # 평가 로직 (공통)
         from src.engine import Factory
         factory = Factory(self.settings)
         evaluator = factory.create_evaluator()
+        
+        X_test, y_test, _ = prepare_training_data(test_df, self.settings)
+        # 모델 타입에 따라 평가에 사용할 X_test 결정
+        if trained_preprocessor:
+            X_test_processed = trained_preprocessor.transform(X_test)
+        else: # 자체 전처리 모델의 경우, predict 메서드가 전처리를 내장하고 있음
+            X_test_processed = test_df # 원본에 가까운 데이터 전달
+            
         metrics = evaluator.evaluate(model, X_test_processed, y_test, test_df)
         
         training_results = {
             'hyperparameter_optimization': {'enabled': False},
             'training_methodology': self._get_training_methodology()
         }
-        return model, preprocessor, metrics, training_results
+        return model, trained_preprocessor, metrics, training_results
 
     def _single_training_iteration(self, train_df, params, seed):
         """Data Leakage 방지를 보장하는 단일 학습/검증 사이클."""

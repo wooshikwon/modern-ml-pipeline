@@ -19,6 +19,12 @@ from ._builder import (
     _validate_and_prepare_context_params,
 )
 from ._recipe_schema import JinjaVariable
+from src.settings import Settings
+from src.utils.system.sql_utils import prevent_select_star
+from pathlib import Path
+from ._utils import BASE_DIR
+
+__all__ = ["load_settings", "load_settings_by_file", "create_settings_for_inference", "load_config_files"]
 
 def load_settings(model_name: str) -> Settings:
     """
@@ -53,23 +59,33 @@ def load_settings_by_file(recipe_file: str, context_params: Optional[Dict[str, A
             logger.warning("`context_params`가 제공되었지만, 레시피에 `jinja_variables` 명세가 없습니다.")
             recipe_data = _render_recipe_templates(recipe_data, context_params)
 
-    # 4. Pydantic 모델로 변환 및 검증
+    # 4. 정적 SQL에 대한 SELECT * 검증
+    loader_config = recipe_data.get("model", {}).get("loader", {})
+    source_uri = loader_config.get("source_uri")
+    if source_uri and source_uri.endswith(".sql"):
+        sql_path = Path(source_uri)
+        if not sql_path.is_absolute():
+            sql_path = BASE_DIR / sql_path
+        if sql_path.exists():
+            prevent_select_star(sql_path.read_text())
+
+    # 5. Pydantic 모델로 변환 및 검증
     try:
         recipe_settings = RecipeSettings(**recipe_data)
         recipe_settings.validate_recipe_consistency()
     except Exception as e:
         raise ValueError(f"Recipe 검증 실패: {e}\n데이터: {recipe_data}")
     
-    # 5. 최종 Settings 객체 생성
+    # 6. 최종 Settings 객체 생성
     final_data = {**config_data, "recipe": recipe_settings.model_dump()}
     
     try:
         settings = Settings(**final_data)
         
-        # 6. 동적 필드 생성
+        # 7. 동적 필드 생성
         settings.recipe.model.computed = _create_computed_fields(settings.recipe, recipe_file)
         
-        # 7. 후처리 위임
+        # 8. 후처리 위임
         settings = _post_process_settings(settings)
 
         return settings

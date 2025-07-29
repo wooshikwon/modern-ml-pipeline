@@ -122,19 +122,7 @@ def get_api_schema() -> Dict[str, Any]:
 def predict(request: Dict[str, Any]) -> Dict[str, Any]:
     request_df = pd.DataFrame([request])
     
-    try:
-        wrapped_model = app_context.model.unwrap_python_model()
-        if hasattr(wrapped_model, 'schema_validator') and wrapped_model.schema_validator:
-            wrapped_model.schema_validator.validate_inference_consistency(request_df)
-            logger.info("✅ API 실시간 스키마 검증 완료")
-    except ValueError as e:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"스키마 검증 실패: {e}"
-        )
-    except Exception as e:
-        logger.warning(f"스키마 검증 중 오류 (계속 진행): {e}")
-    
+    # PyfuncWrapper.predict()가 내부적으로 자동 스키마 검증을 수행합니다.
     predictions = app_context.model.predict(request_df)
     
     if hasattr(predictions, 'iloc'):

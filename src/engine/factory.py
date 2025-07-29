@@ -64,9 +64,18 @@ class Factory:
             module = importlib.import_module(module_path)
             model_class = getattr(module, class_name)
             
-            # 하이퍼파라미터 처리 (현대화된 구조)
-            hyperparams = self.model_config.hyperparameters.get_fixed_params() if hasattr(self.model_config.hyperparameters, 'get_fixed_params') else self.model_config.hyperparameters
-            
+            hyperparams = self.model_config.hyperparameters.get_fixed_params() if hasattr(self.model_config.hyperparameters, 'get_fixed_params') else self.model_config.hyperparameters.copy()
+
+            for key, value in hyperparams.items():
+                if isinstance(value, str) and "." in value and ("_fn" in key or "_class" in key):
+                    try:
+                        module_path, class_name = value.rsplit('.', 1)
+                        obj_module = importlib.import_module(module_path)
+                        hyperparams[key] = getattr(obj_module, class_name)
+                        logger.info(f"Hyperparameter '{key}' converted to object: {value}")
+                    except (ImportError, AttributeError):
+                        logger.warning(f"Could not convert hyperparameter '{key}' to object: {value}. Keeping as string.")
+
             logger.info(f"Creating model instance from: {class_path}")
             return model_class(**hyperparams)
         except Exception as e:
@@ -111,8 +120,25 @@ class Factory:
         
         signature, data_schema = None, None
         if training_df is not None:
-            # Schema generation logic can be added here
-            pass
+            logger.info("Generating model signature and data schema from training_df...")
+            from src.utils.integrations.mlflow_integration import create_enhanced_model_signature_with_schema
+            
+            entity_schema = self.model_config.loader.entity_schema
+            data_interface = self.model_config.data_interface
+            
+            data_interface_config = {
+                'entity_columns': entity_schema.entity_columns,
+                'timestamp_column': entity_schema.timestamp_column,
+                'task_type': data_interface.task_type,
+                'target_column': data_interface.target_column,
+                'treatment_column': getattr(data_interface, 'treatment_column', None),
+            }
+            
+            signature, data_schema = create_enhanced_model_signature_with_schema(
+                training_df, 
+                data_interface_config
+            )
+            logger.info("✅ Signature and data schema created successfully.")
         
         return PyfuncWrapper(
             settings=self.settings,
