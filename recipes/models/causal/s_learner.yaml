@@ -9,11 +9,12 @@ model:
   
   # Phase 1: Point-in-Time 정합성 스키마
   loader:
-    name: "causal_user_transaction_loader"
-    source_uri: "recipes/sql/loaders/user_transaction_features.sql"
+    name: "ad_impact_analysis_loader"
+    source_uri: "recipes/sql/loaders/ad_campaign_effectiveness.sql"
+    adapter: sql
     entity_schema:
-      entity_columns: ["user_id", "merchant_id"]  # 사용자-판매자 페어
-      timestamp_column: "transaction_timestamp"   # 거래 시점
+      entity_columns: ["user_id"]
+      timestamp_column: "conversion_date"
   
   # 기존: ML 작업별 세부 설정 (Causal 전용)
   data_interface:

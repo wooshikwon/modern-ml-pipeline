@@ -9,11 +9,12 @@ model:
   
   # Phase 1: Point-in-Time 정합성 스키마
   loader:
-    name: "stock_price_prediction_loader"
-    source_uri: "recipes/sql/loaders/financial_market_features.sql"
+    name: "bike_sharing_demand_loader"
+    source_uri: "recipes/sql/loaders/bike_sharing_features.sql"
+    adapter: sql
     entity_schema:
-      entity_columns: ["stock_symbol", "exchange_id"]   # 주식-거래소 페어
-      timestamp_column: "trading_date"                  # 거래일
+      entity_columns: ["datetime"]
+      timestamp_column: "datetime"
   
   # 기존: ML 작업별 세부 설정 (Regression 전용)
   data_interface:

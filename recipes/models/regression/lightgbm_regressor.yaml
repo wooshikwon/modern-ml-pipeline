@@ -9,11 +9,12 @@ model:
   
   # Phase 1: Point-in-Time 정합성 스키마
   loader:
-    name: "demand_forecasting_loader"
-    source_uri: "recipes/sql/loaders/demand_prediction_features.sql"
+    name: "nyc_taxi_fare_loader"
+    source_uri: "recipes/sql/loaders/nyc_taxi_fare_features.sql"
+    adapter: sql
     entity_schema:
-      entity_columns: ["product_id", "region_id"]       # 제품-지역 페어
-      timestamp_column: "forecast_week"                 # 예측 주차
+      entity_columns: ["key"]
+      timestamp_column: "pickup_datetime"
   
   # 기존: ML 작업별 세부 설정 (Regression 전용)
   data_interface:

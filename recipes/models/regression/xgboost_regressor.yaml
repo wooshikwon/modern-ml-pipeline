@@ -9,11 +9,12 @@ model:
   
   # Phase 1: Point-in-Time 정합성 스키마
   loader:
-    name: "delivery_time_prediction_loader"
-    source_uri: "recipes/sql/loaders/logistics_features.sql"
+    name: "sales_prediction_loader"
+    source_uri: "recipes/sql/loaders/rossmann_sales_features.sql"
+    adapter: sql
     entity_schema:
-      entity_columns: ["order_id", "route_id"]          # 주문-경로 페어
-      timestamp_column: "order_placed_time"             # 주문 시점
+      entity_columns: ["Store", "Date"]
+      timestamp_column: "Date"
   
   # 기존: ML 작업별 세부 설정 (Regression 전용)
   data_interface:

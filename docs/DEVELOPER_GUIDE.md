@@ -11,6 +11,64 @@
 
 ---
 
+## 1.5. 핵심 컨셉: 동적 레시피 가이드 및 자동 검증
+
+우리 파이프라인은 개발자의 실수를 줄이고 생산성을 극대화하기 위한 두 가지 강력한 지능형 기능을 내장하고 있습니다.
+
+### 1.5.1. `guide` 명령어로 레시피 작성 시작하기
+
+**문제점**: 새로운 모델을 사용할 때마다 어떤 하이퍼파라미터를 사용해야 하는지, 어떤 타입을 써야 하는지 문서를 찾아봐야 하는 번거로움이 있습니다.
+
+**해결책**: `guide` 명령어는 모델의 클래스 경로만 알려주면, 해당 모델에 대한 완벽한 레시피 초안을 즉시 생성해 줍니다.
+
+**상세 사용법**
+```bash
+# RandomForestClassifier에 대한 가이드 생성
+uv run python main.py guide sklearn.ensemble.RandomForestClassifier
+
+# XGBRegressor에 대한 가이드 생성
+uv run python main.py guide xgboost.XGBRegressor
+```
+
+**출력 예시 (`... guide xgboost.XGBRegressor`)**
+```yaml
+# xgboost.XGBRegressor 모델을 위한 레시피 가이드
+# ...
+model:
+  class_path: "xgboost.XGBRegressor"
+  data_interface:
+    task_type: "regression"
+    # ...
+  hyperparameters:
+    n_estimators: 100  # type: <class 'int'>, default: 100
+    learning_rate: 0.3 # type: <class 'float'>, default: 0.3
+    # ... (그 외 모든 파라미터와 기본값) ...
+# ...
+evaluation:
+  metrics:
+    - "mse"
+    - "rmse"
+    - "mae"
+    - "r2"
+# ...
+```
+**원리**: 이 기능은 파이썬의 `inspect` 모듈을 사용해 모델 클래스의 `__init__` 시그니처를 실시간으로 분석하여 동작합니다. 따라서 새로운 모델이 추가되어도 별도의 설정 없이 이 기능을 즉시 사용할 수 있습니다.
+
+### 1.5.2. 실패-조기(Fail-Fast) 자동 검증
+
+**문제점**: 레시피의 사소한 오타나 논리적 오류(예: 회귀 모델에 분류 지표 사용)는 데이터 로딩과 전처리가 모두 끝난 후에야 발견되어 많은 시간을 낭비하게 만듭니다.
+
+**해결책**: 우리 시스템은 `train` 명령어 실행 즉시, 설정 로딩 단계에서 레시피의 논리적 일관성을 자동으로 검증합니다.
+
+**자동 검증 항목**
+1.  **모델-하이퍼파라미터 호환성 검증**: 레시피에 정의된 `hyperparameters`가 `model.class_path`에 명시된 실제 모델이 수용할 수 있는 유효한 파라미터인지 검증합니다.
+    *   **오류 예시**: `ValueError: 잘못된 하이퍼파라미터: 'invalid_param'은(는) ... 유효한 파라미터가 아닙니다. 사용 가능한 파라미터: [...]`
+2.  **태스크-평가지표 호환성 검증**: `data_interface.task_type`과 `evaluation.metrics`에 명시된 평가지표가 서로 호환되는지 검증합니다.
+    *   **오류 예시**: `ValueError: 평가 지표 'roc_auc'은(는) 'regression' 태스크 타입과 호환되지 않습니다. 'regression'에 사용 가능한 지표: ['mse', 'rmse', ...]`
+
+**원리**: 이 기능은 `Pydantic`의 `model_validator`를 활용하여 구현되었습니다. 시스템은 설정을 단순한 딕셔너리가 아닌, 자체 검증 로직을 가진 똑똑한 `Settings` 객체로 로드하기 때문에 이러한 강력한 사전 검증이 가능합니다.
+
+
 ## 2. 환경별 점진적 발전 경로
 
 ### 2.1. LOCAL 환경: 빠른 실험의 성지
@@ -87,6 +145,7 @@ model:
   loader:
     name: "default_loader"
     source_uri: "data/classification_dataset.parquet"
+    adapter: storage
     
   # 4. 피처 증강 설정 (선택사항)
   augmenter:
@@ -192,6 +251,7 @@ model:
   loader:
     name: "default_loader"
     source_uri: "recipes/sql/user_behavior_spine.sql.j2"  # .j2 확장자
+    adapter: sql
 
 # CLI에서 파라미터 전달
 # uv run python main.py train \
@@ -299,7 +359,9 @@ data_adapters:
 # Recipe에서 다양한 스토리지 사용
 model:
   loader:
+    name: "storage_loader_example" # name is optional
     source_uri: "file://data/local_file.parquet"           # 로컬
+    adapter: storage
     # source_uri: "gs://my-bucket/data/file.parquet"       # GCS
     # source_uri: "s3://my-bucket/data/file.parquet"       # S3
 ```
@@ -552,6 +614,7 @@ ls ~/.optuna/  # 기본 SQLite 저장 위치
 model:
   loader:
     source_uri: "SELECT * FROM large_table LIMIT 10000"  # 샘플링
+    adapter: sql
     
 hyperparameter_tuning:
   n_trials: 10  # trial 수 감소
@@ -605,6 +668,7 @@ print(columns)  # ['user_id', 'product_id']
 model:
   loader:
     source_uri: "data/dataset.parquet"  # ✅ 권장
+    adapter: storage
     # source_uri: "data/dataset.csv"   # ❌ 느림
 ```
 

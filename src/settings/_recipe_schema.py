@@ -1,6 +1,11 @@
 # src/settings/_recipe_schema.py
-from pydantic import BaseModel, Field, RootModel, validator
+from pydantic import BaseModel, Field, RootModel, validator, model_validator
 from typing import Dict, Any, List, Optional, Union, Literal
+import importlib
+import inspect
+
+from .compatibility_maps import TASK_METRIC_COMPATIBILITY
+from src.utils.system.logger import logger
 
 class JinjaVariable(BaseModel):
     """Jinja 템플릿 변수에 대한 명세서"""
@@ -136,8 +141,9 @@ class EvaluationSettings(BaseModel):
 
 class LoaderSettings(BaseModel):
     """데이터 로더 설정 (27개 Recipe 완전 대응)"""
-    name: str
+    name: Optional[str] = None
     source_uri: str
+    adapter: str  # 데이터 로딩에 사용할 어댑터의 타입(예: 'sql', 'storage')
     entity_schema: EntitySchema
     jinja_variables: Optional[List[JinjaVariable]] = None # [신규] Jinja 변수 명세서
     local_override_uri: Optional[str] = None
@@ -170,6 +176,51 @@ class ModelConfigurationSettings(BaseModel):
     hyperparameter_tuning: Optional[HyperparameterTuningSettings] = None
     computed: Optional[Dict[str, Any]] = None
 
+class ModelSettings(BaseModel):
+    """모델 설정 (27개 Recipe 완전 대응)"""
+    class_path: str
+    hyperparameters: Union[HyperparametersSettings, Dict[str, Any]]
+    
+    @model_validator(mode='after')
+    def validate_hyperparameters_are_valid_for_model(cls, v: "ModelSettings") -> "ModelSettings":
+        """
+        레시피의 하이퍼파라미터가 class_path에 명시된 실제 모델 클래스의
+        유효한 초기화 인자인지 동적으로 검증합니다.
+        """
+        # 1. 검증할 하이퍼파라미터가 없으면 즉시 통과
+        if not v.hyperparameters:
+            return v
+
+        # 2. 모델 클래스를 동적으로 로드
+        try:
+            module_path, class_name = v.class_path.rsplit('.', 1)
+            module = importlib.import_module(module_path)
+            model_class = getattr(module, class_name)
+        except (ImportError, AttributeError, ValueError):
+            # 클래스를 임포트할 수 없는 경우, 이 검증기는 통과시키고 경고를 남김.
+            # (다른 검증 단계나 파이프라인 실행 시점에서 오류가 발생할 것임)
+            logger.warning(f"'{v.class_path}' 모델 클래스를 임포트할 수 없어 하이퍼파라미터 검증을 건너뜁니다.")
+            return v
+
+        # 3. 모델의 __init__ 시그니처에서 유효한 파라미터 목록을 추출
+        try:
+            init_signature = inspect.signature(model_class.__init__)
+            valid_params = set(init_signature.parameters.keys())
+        except (TypeError, ValueError):
+            # 일부 C++ 기반 모델처럼 시그니처 분석이 불가능한 경우, 검증을 건너뜀
+            logger.warning(f"'{v.class_path}' 모델의 시그니처를 분석할 수 없어 하이퍼파라미터 검증을 건너뜁니다.")
+            return v
+
+        # 4. 레시피의 각 하이퍼파라미터가 유효한지 확인
+        for param_name in v.hyperparameters.keys():
+            if param_name not in valid_params:
+                raise ValueError(
+                    f"잘못된 하이퍼파라미터: '{param_name}'은(는) 모델 '{v.class_path}'의 유효한 파라미터가 아닙니다. "
+                    f"사용 가능한 파라미터: {sorted(list(valid_params))}"
+                )
+
+        return v
+
 class RecipeSettings(BaseModel):
     """완전한 Recipe 설정 (27개 Recipe 완전 대응)"""
     name: str
@@ -179,3 +230,32 @@ class RecipeSettings(BaseModel):
     
     def validate_recipe_consistency(self):
         self.model.data_interface.validate_required_fields() 
+
+    @model_validator(mode='after')
+    def validate_recipe_consistency(cls, v: "RecipeSettings") -> "RecipeSettings":
+        """
+        레시피의 여러 섹션 간의 논리적 일관성을 검증합니다.
+        (기존 로직 + 신규 로직)
+        """
+        # 1. 태스크 타입과 평가지표 호환성 검증
+        task_type = v.model.data_interface.task_type
+        
+        if task_type in TASK_METRIC_COMPATIBILITY:
+            allowed_metrics = TASK_METRIC_COMPATIBILITY[task_type]
+            for metric in v.evaluation.metrics:
+                # 'precision_weighted' -> 'precision' 으로 기본 이름만 검사
+                base_metric = metric.split('_')[0]
+                if base_metric not in allowed_metrics and metric not in allowed_metrics:
+                    raise ValueError(
+                        f"평가 지표 '{metric}'은(는) '{task_type}' 태스크 타입과 호환되지 않습니다. "
+                        f"'{task_type}'에 사용 가능한 지표: {allowed_metrics}"
+                    )
+        
+        # 2. (기존) Augmenter-Feature Store 호환성 검증
+        if v.model.augmenter and v.model.augmenter.type == "feature_store":
+            if not v.model.loader.feature_retrieval:
+                raise ValueError(
+                    "Augmenter 타입이 'feature_store'일 경우, "
+                    "loader.feature_retrieval 섹션이 반드시 필요합니다."
+                )
+        return v 

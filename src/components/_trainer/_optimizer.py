@@ -1,13 +1,15 @@
 # src/components/_trainer/_optimizer.py
 from datetime import datetime
-from typing import Dict, Any, Callable
+from typing import Dict, Any, Callable, Tuple
 import pandas as pd
 from src.settings import Settings
 from src.utils.system.logger import logger
+from src.utils.integrations.optuna_integration import logging_callback
 
 class OptunaOptimizer:
     def __init__(self, settings: Settings):
         self.settings = settings
+        self.pruner = self._create_pruner()
 
     def optimize(self, train_df: pd.DataFrame, training_callback: Callable) -> Dict[str, Any]:
         """Optuna를 사용하여 하이퍼파라미터 최적화를 수행합니다."""
@@ -19,7 +21,8 @@ class OptunaOptimizer:
 
         study = optuna_integration.create_study(
             direction=self.settings.recipe.model.hyperparameter_tuning.direction,
-            study_name=f"study_{self.settings.recipe.model.computed['run_name']}"
+            study_name=f"study_{self.settings.recipe.model.computed['run_name']}",
+            pruner=self.pruner
         )
         
         start_time = datetime.now()
@@ -35,7 +38,8 @@ class OptunaOptimizer:
         study.optimize(
             objective, 
             n_trials=self.settings.recipe.model.hyperparameter_tuning.n_trials,
-            timeout=getattr(self.settings.hyperparameter_tuning, 'timeout', None)
+            timeout=getattr(self.settings.hyperparameter_tuning, 'timeout', None),
+            callbacks=[logging_callback]
         )
         
         end_time = datetime.now()

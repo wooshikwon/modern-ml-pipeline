@@ -9,11 +9,12 @@ model:
   
   # Phase 1: Point-in-Time 정합성 스키마
   loader:
-    name: "air_quality_prediction_loader"
-    source_uri: "recipes/sql/loaders/environmental_features.sql"
+    name: "california_housing_loader"
+    source_uri: "data/california_housing.csv"
+    adapter: storage
     entity_schema:
-      entity_columns: ["station_id", "pollutant_type"]   # 측정소-오염물질 페어
-      timestamp_column: "measurement_datetime"           # 측정 시점
+      entity_columns: ["MedInc", "HouseAge", "AveRooms", "AveBedrms", "Population", "AveOccup", "Latitude", "Longitude"]
+      timestamp_column: "timestamp"
   
   # 기존: ML 작업별 세부 설정 (Regression 전용)
   data_interface:

@@ -9,11 +9,12 @@ model:
   
   # Phase 1: Point-in-Time 정합성 스키마
   loader:
-    name: "energy_consumption_prediction_loader"
-    source_uri: "recipes/sql/loaders/energy_usage_features.sql"
+    name: "stock_price_loader"
+    source_uri: "recipes/sql/loaders/stock_market_features.sql"
+    adapter: sql
     entity_schema:
-      entity_columns: ["building_id", "meter_id"]       # 건물-미터 페어
-      timestamp_column: "measurement_timestamp"         # 측정 시점
+      entity_columns: ["stock_ticker"]
+      timestamp_column: "trade_date"
   
   # 기존: ML 작업별 세부 설정 (Regression 전용)
   data_interface:

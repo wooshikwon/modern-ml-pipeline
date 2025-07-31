@@ -11,6 +11,7 @@ from src.engine import Factory
 from src.components._trainer import Trainer
 from src.utils.system.logger import logger
 from src.utils.integrations import mlflow_integration as mlflow_utils
+from src.utils.system.environment_check import get_pip_requirements
 
 
 def run_training(settings: Settings, context_params: Optional[Dict[str, Any]] = None):
@@ -41,14 +42,16 @@ def run_training(settings: Settings, context_params: Optional[Dict[str, Any]] = 
         augmenter = factory.create_augmenter()
         preprocessor = factory.create_preprocessor()
         model = factory.create_model()
+        evaluator = factory.create_evaluator()
 
         # 3. 모델 학습
         trainer = Trainer(settings=settings)
-        trained_model, trained_preprocessor, metrics, training_results = trainer.train(  # 🔄 수정: 반환값 순서 올바르게 변경
+        trained_model, trained_preprocessor, metrics, training_results = trainer.train(
             df=df,
             model=model,
             augmenter=augmenter,
             preprocessor=preprocessor,
+            evaluator=evaluator,
             context_params=context_params,
         )
         
@@ -76,6 +79,9 @@ def run_training(settings: Settings, context_params: Optional[Dict[str, Any]] = 
         # 6. 🆕 Phase 5: Enhanced Model + 완전한 메타데이터 저장
         logger.info("🆕 Phase 5: Enhanced Artifact 저장 중...")
         
+        # 모델 저장 시점의 패키지 의존성 캡처
+        pip_reqs = get_pip_requirements()
+        
         if pyfunc_wrapper.signature and pyfunc_wrapper.data_schema:
             # Phase 5 Enhanced 저장 로직 사용
             from src.utils.integrations.mlflow_integration import log_enhanced_model_with_schema
@@ -84,7 +90,8 @@ def run_training(settings: Settings, context_params: Optional[Dict[str, Any]] = 
                 python_model=pyfunc_wrapper,
                 signature=pyfunc_wrapper.signature,
                 data_schema=pyfunc_wrapper.data_schema,
-                input_example=df.head(5)  # 입력 예제
+                input_example=df.head(5),  # 입력 예제
+                pip_requirements=pip_reqs
             )
             
             model_name = getattr(settings.recipe.model, 'name', None) or settings.recipe.model.computed['run_name']
@@ -115,6 +122,7 @@ def run_training(settings: Settings, context_params: Optional[Dict[str, Any]] = 
                 python_model=pyfunc_wrapper,
                 signature=signature,
                 input_example=sample_input,
+                pip_requirements=pip_reqs
             )
             
             model_name = getattr(settings.recipe.model, 'name', None) or settings.recipe.model.computed['run_name']

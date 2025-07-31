@@ -13,8 +13,12 @@ model:
     n_jobs: 2
   
   loader:
-    name: "file_loader"
-    source_uri: "data/processed/classification_test.parquet"
+    name: "local_test_data_loader"
+    source_uri: "tests/fixtures/data/local_classification_test_data.csv"
+    adapter: storage
+    entity_schema:
+      entity_columns: ["user_id"]
+      timestamp_column: "event_timestamp"
 
   augmenter:
     type: "pass_through"

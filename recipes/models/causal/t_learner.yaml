@@ -9,11 +9,12 @@ model:
   
   # Phase 1: Point-in-Time 정합성 스키마
   loader:
-    name: "marketing_campaign_loader"
-    source_uri: "recipes/sql/loaders/campaign_response_features.sql"
+    name: "treatment_effect_loader"
+    source_uri: "recipes/sql/loaders/medical_treatment_effects.sql"
+    adapter: sql
     entity_schema:
-      entity_columns: ["customer_id", "campaign_id"]  # 고객-캠페인 페어
-      timestamp_column: "campaign_launch_date"        # 캠페인 시작일
+      entity_columns: ["patient_id"]
+      timestamp_column: "treatment_date"
   
   # 기존: ML 작업별 세부 설정 (Causal 전용)
   data_interface:

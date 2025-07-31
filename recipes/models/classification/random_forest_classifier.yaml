@@ -11,6 +11,7 @@ model:
   loader:
     name: "fraud_detection_loader"
     source_uri: "recipes/sql/loaders/transaction_fraud_features.sql"
+    adapter: sql
     entity_schema:
       entity_columns: ["transaction_id", "account_id"]  # 거래-계좌 페어
       timestamp_column: "transaction_datetime"          # 거래 시점

@@ -13,11 +13,11 @@ model:
     n_jobs: 2
   
   loader:
-    name: "default_loader"
-    source_uri: "recipes/sql/loaders/local_test_data.sql"
+    name: "local_test_data_loader"
+    source_uri: "data/local_test_data.csv"
+    adapter: storage
     entity_schema:
-      entity_columns:
-        - "user_id"
+      entity_columns: ["user_id"]
       timestamp_column: "event_timestamp"
   data_interface:
     task_type: "classification"

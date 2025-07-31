@@ -306,7 +306,8 @@ def log_enhanced_model_with_schema(
     python_model, 
     signature: ModelSignature,
     data_schema: dict,
-    input_example: pd.DataFrame
+    input_example: pd.DataFrame,
+    pip_requirements: Optional[List[str]] = None
 ):
     """
     🆕 Phase 5: 기존 mlflow.pyfunc.log_model + 확장된 메타데이터 저장
@@ -327,7 +328,9 @@ def log_enhanced_model_with_schema(
         artifact_path="model",
         python_model=python_model,
         signature=signature,
+        pip_requirements=pip_requirements,
         input_example=input_example,
+        metadata={"data_schema": json.dumps(data_schema)}
     )
     
     # 2. 🆕 완전한 스키마 메타데이터 저장

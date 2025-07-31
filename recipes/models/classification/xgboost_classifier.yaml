@@ -9,11 +9,12 @@ model:
   
   # Phase 1: Point-in-Time 정합성 스키마
   loader:
-    name: "email_spam_loader"
-    source_uri: "recipes/sql/loaders/email_classification_features.sql"
+    name: "employee_attrition_loader"
+    source_uri: "recipes/sql/loaders/employee_attrition_features.sql"
+    adapter: sql
     entity_schema:
-      entity_columns: ["email_id", "sender_domain"]    # 이메일-도메인 페어
-      timestamp_column: "received_datetime"            # 수신 시점
+      entity_columns: ["employee_id"]
+      timestamp_column: "snapshot_date"
   
   # 기존: ML 작업별 세부 설정 (Classification 전용)
   data_interface:

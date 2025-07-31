@@ -9,11 +9,12 @@ model:
   
   # Phase 1: Point-in-Time 정합성 스키마
   loader:
-    name: "pricing_strategy_loader"
-    source_uri: "recipes/sql/loaders/pricing_experiment_features.sql"
+    name: "campaign_uplift_loader"
+    source_uri: "recipes/sql/loaders/uplift_modeling_features.sql"
+    adapter: sql
     entity_schema:
-      entity_columns: ["customer_id", "product_category"]  # 고객-상품카테고리 페어
-      timestamp_column: "pricing_test_date"                # 가격 실험 날짜
+      entity_columns: ["customer_id"]
+      timestamp_column: "exposure_date"
   
   # 기존: ML 작업별 세부 설정 (Causal 전용)
   data_interface:

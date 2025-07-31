@@ -9,11 +9,12 @@ model:
   
   # Phase 1: Point-in-Time 정합성 스키마
   loader:
-    name: "property_price_loader"
-    source_uri: "recipes/sql/loaders/property_market_features.sql"
+    name: "boston_housing_loader"
+    source_uri: "data/boston_housing.csv"
+    adapter: storage
     entity_schema:
-      entity_columns: ["property_id", "region_id"]  # 부동산-지역 페어
-      timestamp_column: "valuation_date"            # 평가 날짜
+      entity_columns: ["CRIM", "ZN", "INDUS", "CHAS", "NOX", "RM", "AGE", "DIS", "RAD", "TAX", "PTRATIO", "B", "LSTAT"]
+      timestamp_column: "timestamp"
   
   # 기존: ML 작업별 세부 설정 (Regression 전용)
   data_interface:

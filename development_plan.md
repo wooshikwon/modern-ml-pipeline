@@ -1,246 +1,198 @@
-# Source-Test Environment Separation Refactoring Plan
+알겠습니다. `next_step.md`에 정리된 개선안들을 실제 코드로 구현하기 위한 구체적이고 상세한 개발 계획 보고서를 작성해 드리겠습니다. 이 보고서는 각 개선 항목의 목표, 변경이 필요한 파일, 그리고 단계별 개발 절차를 명확히 제시하여 즉시 개발에 착수할 수 있는 가이드 역할을 할 것입니다.
 
-## 1. Goal and Principles
+---
 
-- **Primary Goal**: To achieve 100% purity of production code by completely removing all test-related files from production directories, including `src/` and `recipes/`.
-- **Core Principle**: The `tests/` directory must be a self-contained, independent testing environment that holds all its necessary resources (configs, recipes, SQL) internally, without relying on external files.
+### **MMP 시스템 개선을 위한 상세 개발 계획 보고서**
 
-## 2. Problems with the Current Structure (As-Is)
+#### **1. 개요**
 
-1.  **Production Code Pollution**: Test-specific files like `recipes/local_test/` and `recipes/local_classification_test.yaml` are mixed with actual operational recipes. This creates a risk of packaging and deploying unnecessary or insecure test files.
-2.  **Unclear Boundaries**: It is difficult to immediately distinguish between production files and test files, leading to confusion and potential mistakes during maintenance.
-3.  **Brittle Tests**: Test code relies on the structure of the project root (e.g., `recipes/`), making tests fragile and prone to breaking if the root directory structure changes.
+본 문서는 `next_step.md`에서 합의된 시스템 개선안을 실제 개발로 이행하기 위한 구체적인 실행 계획을 기술합니다. 각 과제는 **(1)핵심 로직 개선 → (2)사용자 경험 향상 → (3)견고성 및 재현성 강화**의 순서로, 시스템의 근본적인 부분부터 점진적으로 안정화하고 완성도를 높이는 방향으로 진행합니다.
 
-## 3. Proposed New Structure (To-Be)
+---
 
-All resources required for testing will be moved into a standard `fixtures` directory within `tests/`. This `fixtures` directory will mimic the actual project structure for intuitive use.
+#### **Phase 1: 핵심 로직 개선 및 명확성 강화**
 
-```
-modern-ml-pipeline/
-├── src/
-│   └── ... (Contains only pure production code)
-├── recipes/
-│   └── models/
-│       ├── classification/
-│       │   └── logistic_regression.yaml  <-- Only production recipes remain
-│       └── ...
-└── tests/
-    ├── ...
-    ├── fixtures/  <-- [NEW] All test resources are stored here
-    │   ├── recipes/
-    │   │   ├── local_classification_test.yaml
-    │   │   ├── dev_classification_test.yaml
-    │   │   └── local_test/
-    │   │       └── ... (All test-specific recipes)
-    │   └── sql/
-    │       └── loaders/
-    │           ├── e2e_mock_data.sql
-    │           └── local_test_data.sql
-    └── conftest.py  <-- Manages the test environment setup
-```
+시스템의 철학과 구현 사이의 잠재적 충돌을 해결하고, 동작의 명확성을 높이는 데 집중합니다.
 
-## 4. Detailed Refactoring Plan
+##### **과제 1.1: 지능형 Augmenter 구현**
 
-**Step 1: Create the `fixtures` directory for test assets**
-- Create the `fixtures` directory and its sub-structure within `tests/` to store test recipes and SQL files.
-- **Command**: `mkdir -p tests/fixtures/recipes tests/fixtures/sql/loaders`
+*   **목표**: `config`의 환경 설정이 `recipe`의 논리적 요구사항을 안전하게 덮어쓸 수 있도록 하여, 레시피 수정 없이 모든 환경에서 파이프라인이 정상 동작하도록 보장합니다.
+*   **주요 변경 파일**:
+    *   `src/engine/factory.py`
+    *   `src/components/_augmenter/_augmenter.py`
+    *   `src/components/_augmenter/_pass_through.py`
 
-**Step 2: Move all test-related files**
-- Move all files and directories identified as test-specific from the `recipes/` directory to `tests/fixtures/recipes/`.
-- **Targets**:
-    - `recipes/dev_classification_test.yaml`
-    - `recipes/e2e_classification_test.yaml`
-    - `recipes/local_classification_test.yaml`
-    - `recipes/local_test/` (the entire directory)
-    - `recipes/sql/loaders/e2e_mock_data.sql`
-    - `recipes/sql/loaders/local_test_data.sql`
-- **Commands**: A series of `mv` commands, such as `mv recipes/local_test tests/fixtures/recipes/`.
+*   **상세 개발 절차**:
+    1.  **`Factory` 로직 수정 (`factory.py`)**:
+        *   `create_augmenter` 메서드 내부의 로직을 변경합니다.
+        *   기존에는 레시피의 `augmenter.type`을 기준으로 분기했다면, 이제는 **`settings.feature_store.provider` 값을 최우선으로 확인**합니다.
+        *   만약 `settings.feature_store.provider`가 `"passthrough"`이면, 레시피의 `augmenter` 설정과 관계없이 강제로 `PassThroughAugmenter`를 생성하여 반환하도록 수정합니다.
+    2.  **`PassThroughAugmenter` 기능 강화 (`_pass_through.py`)**:
+        *   `_augment` 메서드에 `logger`를 추가합니다.
+        *   메서드 실행 시, `"INFO: 'passthrough' 모드가 활성화되어 피처 증강을 건너뜁니다."` 와 같은 로그를 출력하여, 사용자에게 현재 동작 상태를 명확히 알립니다.
+    3.  **기존 `_augmenter.py` 역할 유지**: `FeastAugmenter`와 같은 실제 증강 로직은 그대로 유지합니다. `Factory`의 변경으로 인해 이 로직은 `passthrough`가 아닐 때만 호출될 것입니다.
 
-**Step 3: Update file path references in the test code (Crucial Step)**
-- Modify the test code to reference the new paths within `tests/fixtures/`.
-- **Best Practice**: Utilize `pytest`'s `conftest.py` and fixtures to manage paths robustly. Create separate fixtures for different environments (e.g., `local_settings`, `dev_settings`) to test various merging scenarios.
+---
 
-- **Example code for `tests/conftest.py`**:
-  ```python
-  import pytest
-  from pathlib import Path
+##### **과제 1.2: 데이터 어댑터 타입 명시성 강화**
 
-  @pytest.fixture(scope="session")
-  def tests_root() -> Path:
-      """Fixture to return the root path of the tests directory."""
-      return Path(__file__).parent
+*   **목표**: 데이터 어댑터 선택의 모호함을 제거하고, 레시피만으로 데이터 로딩 방식을 명확히 알 수 있도록 합니다.
+*   **주요 변경 파일**:
+    *   `src/settings/_recipe_schema.py`
+    *   `src/engine/factory.py`
+    *   `config/local.yaml`
+    *   모든 `recipes/**/*.yaml` 및 `tests/fixtures/recipes/**/*.yaml` 파일
 
-  @pytest.fixture
-  def fixture_recipes_path(tests_root: Path) -> Path:
-      """Fixture to return the path to the test recipes in fixtures."""
-      return tests_root / "fixtures" / "recipes"
-  ```
+*   **상세 개발 절차**:
+    1.  **설정 파일 정리 (`config/local.yaml`)**:
+        *   `data_adapters` 섹션의 `default_loader` 키와 값을 완전히 삭제합니다.
+    2.  **레시피 스키마 수정 (`_recipe_schema.py`)**:
+        *   `LoaderSettings` Pydantic 모델에 `adapter: str` 필드를 새롭게 추가합니다. 이 필드는 "sql" 또는 "storage"와 같은 값을 갖게 될 것입니다.
+    3.  **`Factory` 로직 단순화 (`factory.py`)**:
+        *   `create_data_adapter` 메서드를 수정합니다.
+        *   더 이상 `source_uri`의 확장자나 `default_loader`를 확인하지 않습니다.
+        *   오직 `settings.recipe.model.loader.adapter` 값을 기준으로, 등록된 어댑터 레지스트리에서 해당 어댑터를 찾아 생성하도록 로직을 단순화합니다.
+    4.  **전체 레시피 파일 업데이트**:
+        *   `recipes/` 및 `tests/fixtures/recipes/` 내의 모든 `.yaml` 파일을 열어 `loader` 섹션에 `adapter: storage` 또는 `adapter: sql` 필드를 추가합니다. (`source_uri`가 `.sql`이면 `sql`, 아니면 `storage`로 설정)
 
-- **Example usage in a test file**:
-  ```python
-  # Example for tests/settings/test_settings.py
-  def test_load_specific_recipe(fixture_recipes_path):
-      recipe_path = fixture_recipes_path / "local_classification_test.yaml"
-      settings = load_settings_by_file(str(recipe_path))
-      assert settings.recipe.name == "local_classification_test"
-  ```
+---
 
-## 5. Expected Benefits
+#### **Phase 2: 사용자 경험(UX) 향상**
 
--   **Production Code Purity**: `src/` and `recipes/` will contain only production code and data.
--   **Self-Contained Tests**: The `tests/` directory can be copied and run anywhere, producing identical results.
--   **Clear Structure**: Files are clearly separated by their purpose and role.
--   **Safe Deployment**: Packaging becomes safer by simply excluding the `tests/` directory, preventing any test-related files from being accidentally deployed.
+시스템의 동작 과정을 사용자에게 명확하게 전달하여 "블랙박스"처럼 느껴지는 구간을 해소합니다.
 
-## 6. Test Strategy by Module
+##### **과제 2.1: 하이퍼파라미터 튜닝 우선순위 로깅**
 
-This section will be iteratively updated to define the testing strategy for each core module, ensuring comprehensive coverage and robustness.
+*   **목표**: 하이퍼파라미터 튜닝 실행 여부가 어떤 설정에 의해 결정되었는지 명확한 로그를 남겨 사용자의 혼란을 방지합니다.
+*   **주요 변경 파일**: `src/components/_trainer/_trainer.py`
 
-### 6.1. Settings Module (`tests/settings/test_settings.py`)
+*   **상세 개발 절차**:
+    1.  **`Trainer` 클래스의 `train` 메서드 초입부를 수정합니다.**
+    2.  실제 학습 로직에 들어가기 전, `settings.hyperparameter_tuning.enabled` 값과 `settings.recipe.model.hyperparameter_tuning.enabled` 값을 비교하는 조건문을 추가합니다.
+    3.  만약 전역 설정(`config`)에 의해 튜닝이 비활성화되었다면, `logger.info("전역 설정(config)에 따라 하이퍼파라미터 튜닝이 비활성화되었습니다.")` 와 같은 로그를 출력합니다.
+    4.  반대로 레시피 설정에 의해 비활성화되었다면, 그에 맞는 로그를 남깁니다.
 
-The test suite for the `settings` module must validate the full orchestration logic of `loaders.py`, not just a single happy path.
+---
 
-**✅ Current Status:**
-- One test `test_load_settings_by_file` exists, covering a single successful case for the `local` environment.
+##### **과제 2.2: Optuna 학습 과정 실시간 로깅**
 
-**🎯 Improvement Plan & Missing Test Cases:**
+*   **목표**: 장시간 소요될 수 있는 하이퍼파라미터 튜닝 과정의 진행 상태를 실시간으로 보여주어 사용자 경험을 개선합니다.
+*   **주요 변경 파일**:
+    *   `src/components/_trainer/_optimizer.py` (또는 `_trainer.py` 내 로직)
+    *   `src/utils/integrations/optuna_integration.py` (신규 생성 또는 수정)
 
--   **Refactor `test_settings.py`**: Separate the single large test into smaller, focused unit tests based on the functionality they verify.
--   **Environment Merging Logic**:
-    -   `test_dev_config_overrides_base`: Test that `dev.yaml` correctly overrides `base.yaml` when `APP_ENV=dev`.
-    -   `test_prod_config_overrides_base`: Test that `prod.yaml` correctly overrides `base.yaml` when `APP_ENV=prod`.
--   **Jinja Template Rendering**:
-    -   `test_jinja_rendering_with_context_params`: Test that a `.sql.j2` recipe is correctly rendered when `context_params` are provided.
-    -   `test_jinja_rendering_without_context_params_raises_error`: Test that rendering a `.sql.j2` file without required `context_params` raises a `jinja2.UndefinedError`.
--   **Error Handling and Validation**:
-    -   `test_loading_non_existent_recipe_raises_error`: Test that `load_settings_by_file` raises `FileNotFoundError` for a non-existent recipe.
-    -   `test_recipe_with_missing_required_fields_raises_error`: Test that a recipe missing top-level fields (e.g., `model`) raises a `ValueError`.
-    -   `test_recipe_with_invalid_type_raises_pydantic_error`: Test that a recipe with incorrect data types (e.g., `max_depth: "ten"`) raises a `pydantic.ValidationError`.
--   **Inference Settings Logic**:
-    -   `test_create_settings_for_inference`: Write a dedicated unit test to verify that `create_settings_for_inference` correctly injects a dummy recipe into the config data.
+*   **상세 개발 절차**:
+    1.  **콜백 함수 정의 (`optuna_integration.py`)**:
+        *   `study`와 `trial` 객체를 인자로 받는 콜백 함수 `logging_callback`을 정의합니다.
+        *   함수 내부에서는 `trial.number`, `trial.value`, `study.best_value` 등의 정보를 조합하여 `"Trial {}/{} 완료. 현재 점수: {:.4f}, 최고 점수: {:.4f}"` 와 같은 로그를 `logger`를 통해 출력합니다.
+    2.  **`Trainer`와 콜백 연동 (`_optimizer.py`)**:
+        *   `OptunaOptimizer`의 `optimize` 메서드 (또는 `Trainer`의 튜닝 실행 로직)를 수정합니다.
+        *   `study.optimize()` 메서드를 호출할 때, `callbacks=[logging_callback]` 인자를 전달하여 위에서 정의한 콜백 함수를 등록합니다.
 
-### 6.2. Engine Module (`tests/engine/`)
+---
 
-The Factory is the heart of the system's assembly line. Tests must ensure that it correctly creates all components based on the provided settings and handles environment-specific logic properly.
+#### **Phase 3: 시스템 견고성 및 완전한 재현성 확보**
 
-**✅ Current Status:**
-- A comprehensive test file `tests/components/test_factory.py` exists but is misplaced.
-- It covers dynamic model creation and environment-specific augmenter creation.
-- It contains outdated import paths (e.g., `from src.core...`).
+##### **과제 3.1: 레시피 사전 유효성 검증 강화**
 
-**🎯 Improvement Plan & Missing Test Cases:**
+*   **목표**: 데이터 로딩 등 무거운 작업을 시작하기 전에 레시피의 논리적 모순을 미리 발견하여 시간과 자원을 절약합니다.
+*   **주요 변경 파일**: `src/settings/_recipe_schema.py`
 
--   **Structural Improvement**:
-    -   **Move `tests/components/test_factory.py` to `tests/engine/test_factory.py`** to align the test structure with the source structure.
--   **Refactor Existing Tests**:
-    -   Update all outdated import paths to use the new public APIs (e.g., `from src.engine import Factory`).
-    -   Refactor tests to use fixtures from `conftest.py` (`local_settings`, `dev_settings`) instead of importing them directly.
--   **Component Creation Logic**:
-    -   `test_create_evaluator_for_all_task_types`: Create a parameterized test that iterates through all `task_type`s (`classification`, `regression`, `causal`, `clustering`) and verifies that the correct `Evaluator` class is instantiated for each.
--   **Artifact Creation Logic (`PyfuncWrapper`)**:
-    -   `test_create_pyfunc_wrapper_with_schema`: Verify that when `training_df` is provided to `create_pyfunc_wrapper`, the resulting artifact contains a non-null `signature` and `data_schema`.
-    -   `test_create_pyfunc_wrapper_without_schema`: Verify that when `training_df` is *not* provided, the `signature` and `data_schema` attributes of the artifact are `None`.
--   **Internal Helper Logic**:
-    -   `test_extract_hyperparameters`: Add a dedicated unit test for the `_extract_hyperparameters` method to ensure it correctly parses values from both `dict` and `HyperparametersSettings` objects.
+*   **상세 개발 절차**:
+    1.  **`RecipeSettings` 모델 수정 (`_recipe_schema.py`)**:
+        *   Pydantic의 `@root_validator` 또는 최신 버전의 `@model_validator` 데코레이터를 사용하여 모델 전체를 검증하는 메서드 `validate_recipe_consistency`를 추가하거나 강화합니다.
+        *   이 메서드 내부에, `task_type`과 `evaluation.metrics` 간의 호환성을 검증하는 로직을 추가합니다. (예: `if values.get('task_type') == 'classification' and 'mse' in values.get('evaluation_metrics'): raise ValueError(...)`)
+        *   이 검증 로직은 `load_settings_by_file` 함수에서 Pydantic 모델이 생성될 때 자동으로 호출되어, `train` 명령어 실행 초기에 오류를 발생시킵니다.
 
-### 6.3. Components Module (`tests/components/`)
+---
 
-Components are the core building blocks of the ML logic. Each component must be tested in isolation as a unit to ensure its correctness, including handling of various edge cases.
+##### **과제 3.2: 아티팩트에 패키지 의존성 내장**
 
-#### 6.3.1. Preprocessor (`tests/components/test_preprocessor.py`)
+*   **목표**: 모델 아티팩트가 자체적으로 실행 환경의 패키지 버전 정보를 포함하게 하여, 시간이 지나도 100% 동일한 환경에서 실행될 수 있도록 완전한 재현성을 확보합니다.
+*   **주요 변경 파일**:
+    *   `src/pipelines/train_pipeline.py`
+    *   `src/utils/system/environment_check.py` (신규 생성 가능)
 
-**✅ Current Status:**
-- A very well-structured and detailed test suite already exists.
-- It correctly tests the separation of `fit` and `transform` to prevent data leakage.
-- It has high coverage of edge cases, including unseen categories, empty dataframes, and all-numerical/all-categorical data.
+*   **상세 개발 절차**:
+    1.  **의존성 추출 함수 구현 (`environment_check.py`)**:
+        *   `subprocess` 모듈을 사용하여 `["uv", "pip", "freeze"]` 명령어를 실행하고, 그 결과를 문자열 리스트로 반환하는 `get_pip_requirements()` 함수를 구현합니다.
+    2.  **`run_training` 파이프라인 수정 (`train_pipeline.py`)**:
+        *   `mlflow.pyfunc.log_model` 함수를 호출하기 직전에, `pip_reqs = get_pip_requirements()`를 호출하여 현재 환경의 의존성 목록을 가져옵니다.
+        *   `mlflow.pyfunc.log_model`을 호출할 때 `pip_requirements=pip_reqs` 인자를 추가하여 의존성 목록을 아티팩트와 함께 저장합니다.
+    3.  이제 MLflow는 이 모델을 로드할 때, 저장된 패키지 버전 정보를 사용하여 가상 환경을 구성하거나 사용자에게 경고를 표시하여 재현성을 극대화합니다.
 
-**🎯 Improvement Plan & Missing Test Cases:**
+---
 
--   **Refactor Tests to Use Data Fixtures**:
-    -   Currently, test data is hardcoded inside test functions using `pd.DataFrame({...})`.
-    -   **Action**: Create reusable `pytest` fixtures in `conftest.py` that provide standardized sample DataFrames (e.g., `sample_train_df`, `sample_test_df_with_unseen_categories`). This will reduce code duplication and improve test readability.
--   **I/O Functionality**:
-    -   `test_preprocessor_save_and_load`: The `save()` and `load()` methods are currently untested. A test case should be added to verify that a fitted preprocessor can be saved to disk with `joblib` and then loaded back correctly, yielding the exact same transformation results.
+#### **Phase 4: 최종 시스템 완전성 강화**
 
-#### 6.3.2. Trainer (`tests/components/test_trainer.py`)
+이전 단계에서 완료된 개발 사항들을 최종 검토하고, 발견된 미구현 기능 및 설계 불일치를 해결하여 시스템의 완전성을 달성하는 데 집중합니다.
 
-**✅ Current Status:**
-- A detailed test suite exists, effectively using `unittest.mock.patch` to isolate the `Trainer`'s internal logic.
-- Core principles like conditional HPO (enabled/disabled) and data leakage prevention are well-tested.
-- The execution flow (`split` -> `augment` -> `fit` -> `transform`) is thoroughly verified.
+##### **과제 4.1: [최우선] 동적 하이퍼파라미터 유효성 검증 구현**
 
-**🎯 Improvement Plan & Missing Test Cases:**
+*   **목표**: 레시피에 정의된 하이퍼파라미터가 실제 모델 클래스에서 유효한지 설정 로딩 시점에 동적으로 검증하여, "fail fast" 원칙을 구현하고 시스템의 견고성을 극대화합니다.
+*   **주요 변경 파일**:
+    *   `src/settings/_recipe_schema.py`
 
--   **Refactor Existing Tests**:
-    -   Update outdated import paths (e.g., `from src.core...`) to use the new public APIs.
-    -   **Action**: Create a `pytest` fixture to encapsulate the complex `optuna.study` mock object setup, improving the readability of HPO-related tests.
--   **Task Type Coverage**:
-    -   The current tests implicitly focus on the `classification` task type.
-    -   `test_prepare_data_for_all_task_types`: Create a parameterized test that iterates through all task types (`classification`, `regression`, `causal`, `clustering`) to verify that the `_prepare_training_data` method correctly separates X, y, and additional data (like `treatment`) for each case.
-    -   `test_fit_model_for_all_task_types`: Create a parameterized test to ensure the `_fit_model` method calls the model's `fit` function with the correct arguments based on the `task_type`.
--   **Error Handling**:
-    -   Add a test case to verify that an appropriate error is raised if an unsupported `task_type` is provided in the recipe.
+*   **상세 개발 절차**:
+    1.  **`ModelSettings` 스키마 수정 (`_recipe_schema.py`)**:
+        *   `ModelSettings` Pydantic 모델 내에 `@model_validator(mode='after')` 데코레이터를 사용한 `validate_hyperparameters` 메서드를 추가합니다.
+        *   이 메서드는 `model.class_path`를 동적으로 `import`하고, 파이썬의 `inspect.signature`를 사용하여 모델 클래스의 `__init__` 메서드가 허용하는 파라미터 목록을 추출합니다.
+        *   레시피의 `hyperparameters` 딕셔너리에 있는 모든 키가 추출된 유효 파라미터 목록에 포함되어 있는지 검사합니다.
+        *   만약 유효하지 않은 파라미터가 발견되면, 사용 가능한 파라미터 목록과 함께 명확한 `ValueError`를 발생시킵니다.
 
-### 6.4. Pipelines Module (`tests/pipelines/`)
+---
 
-Pipeline tests are crucial for ensuring that all the unit-tested components work together correctly in an end-to-end flow. These are integration tests that should minimize mocking of the internal logic.
+##### **과제 4.2: [차선] Evaluator 생성 로직 리팩토링**
 
-#### 6.4.1. Train Pipeline (`tests/pipelines/test_train_pipeline.py`)
+*   **목표**: `Evaluator` 생성 책임을 `Trainer`에서 `train_pipeline.py`로 이동시켜, 시스템의 모든 핵심 컴포넌트가 동일한 의존성 주입(DI) 패턴을 따르도록 설계 일관성을 확보합니다.
+*   **주요 변경 파일**:
+    *   `src/pipelines/train_pipeline.py`
+    *   `src/components/_trainer/_trainer.py`
 
-**✅ Current Status:**
-- A detailed end-to-end test suite exists, marked with `@pytest.mark.e2e`.
-- It correctly implements test isolation by creating and cleaning up a temporary MLflow tracking URI.
-- It thoroughly validates the completeness of the logged `PyfuncWrapper` artifact, including metadata for data leakage prevention, HPO results, and logic snapshots.
+*   **상세 개발 절차**:
+    1.  **`Trainer` 클래스 수정 (`_trainer.py`)**:
+        *   `train` 메서드 내의 `self._create_evaluator()` 호출 부분을 제거합니다.
+        *   대신 `evaluator: BaseEvaluator`를 `train` 메서드의 새로운 인자로 추가합니다.
+        *   `evaluate`를 호출할 때, `self.evaluator` 대신 인자로 받은 `evaluator`를 사용하도록 수정합니다.
+    2.  **`train_pipeline` 수정 (`train_pipeline.py`)**:
+        *   `Trainer`를 생성하기 전에, `factory.create_evaluator()`를 호출하여 `Evaluator` 인스턴스를 생성합니다.
+        *   `trainer.train(...)` 메서드를 호출할 때, 새로 생성한 `evaluator` 인스턴스를 인자로 전달합니다.
 
-**🎯 Improvement Plan & Missing Test Cases:**
+---
 
--   **Decouple Tests from Source Code**:
-    -   **Problem**: Currently, `train_pipeline.py` contains temporary mocking logic (`is_e2e_test_run`) to generate a mock DataFrame for tests. This pollutes the production code.
-    -   **Action**: Remove the mocking logic from `train_pipeline.py`. In the test file, use `unittest.mock.patch` to mock the `DataAdapter.read` method directly, making it return a sample DataFrame. This achieves complete separation between source and test code.
--   **Refactor Existing Tests**:
-    -   Update outdated import paths (e.g., `from src.core...`) to use the new public APIs.
-    -   Create a `pytest` fixture in `conftest.py` to manage the temporary MLflow tracking URI, reducing code duplication across E2E tests.
--   **Expand E2E Scenarios**:
-    -   Currently, the E2E test only covers the `local` environment scenario.
-    -   `test_train_pipeline_e2e_in_dev_env`: Add a new E2E test that runs the training pipeline using `dev_settings`. This test will specifically verify that the real `Augmenter` (which uses the `FeatureStore`) is correctly integrated and executed, which is a critical difference from the `local` environment.
+#### **Phase 5: 문서 최신화 및 사용자 가이드 강화**
 
-#### 6.4.2. Inference Pipeline (`tests/pipelines/test_inference_pipeline.py`)
+최근 완료된 모든 기능 개선 및 리팩토링 사항을 공식 문서에 반영하여, 사용자가 시스템의 현재 상태와 모든 기능을 정확히 이해하고 활용할 수 있도록 합니다.
 
-**✅ Current Status:**
-- An efficient E2E test suite exists that cleverly uses a `module-scoped fixture` to run training once and use the resulting artifact for all inference tests in the module.
-- It thoroughly validates the inference output, MLflow logging, and the consistency of the used artifact.
+##### **과제 5.1: `README.md` 최신화**
 
-**🎯 Improvement Plan & Missing Test Cases:**
+*   **목표**: 프로젝트의 첫인상인 `README.md`를 최신 기능 중심으로 업데이트하여, 신규 사용자가 시스템의 강력함을 즉시 인지하고 모범적인 사용 흐름을 따르도록 유도합니다.
+*   **주요 변경 파일**:
+    *   `README.md`
 
--   **Decouple Tests from Source Code**:
-    -   **Problem**: Similar to the training pipeline, `inference_pipeline.py` contains temporary logic to mock data loading for E2E tests.
-    -   **Action**: Remove this mocking logic. The test fixture that runs the initial training should use a recipe pointing to a small, real data file within `tests/fixtures/data`. The inference pipeline test can then `patch` the `DataAdapter.read` method if specific inference data is needed.
--   **Refactor Helper Functions**:
-    -   The helper function `_is_jinja_template` is currently located inside `inference_pipeline.py`.
-    -   **Action**: Move `_is_jinja_template` to `src/utils/system/templating_utils.py` to consolidate all templating-related logic in one place.
--   **Expand E2E Scenarios**:
-    -   `test_inference_with_jinja_template`: Add an E2E test where the initial training uses a `.sql.j2` recipe. The inference test should then provide `context_params` to verify that dynamic SQL rendering works correctly during batch inference.
-    -   `test_inference_raises_error_on_schema_drift`: Add a negative test case. It should run inference with input data that has a deliberately altered schema (e.g., missing a column, different data type) and verify that the `SchemaConsistencyValidator` catches the drift and raises a `ValueError`.
+*   **상세 개발 절차**:
+    1.  **"빠른 시작" 섹션 개편**:
+        *   "3. 첫 번째 모델 학습" 단계의 첫 번째 명령어로 `uv run python main.py guide sklearn.ensemble.RandomForestClassifier > recipes/my_first_model.yaml`을 제시합니다.
+        *   `guide` 명령어를 통해 사용자가 레시피의 구조와 유효한 하이퍼파라미터를 학습하고, 이를 기반으로 파일을 수정하는 과정을 자연스럽게 안내합니다. (예: "생성된 `my_first_model.yaml` 파일을 열어 `target_column` 등을 수정하세요.")
+        *   수정된 파일을 `validate`하고 `train`하는 후속 단계를 명확히 연결합니다.
+    2.  **"기본 사용법" 섹션 업데이트**:
+        *   "CLI 명령어 전체 목록"에 `guide` 명령어에 대한 설명을 추가합니다. (`레시피 가이드` 소제목 사용)
+        *   "Recipe 파일 작성법"의 YAML 예시 코드 블록 내 `loader` 섹션에 `adapter: storage` 필드를 추가하여 최신 스키마를 반영합니다.
+    3.  **"추가 문서" 섹션 설명 개선**:
+        *   `Blueprint` 링크의 설명을 "시스템의 핵심 설계 원칙과 실제 코드 구현을 연결한 기술 청사진"으로 수정하여 문서의 가치를 정확히 전달합니다.
 
-### 6.5. Serving Module (`tests/serving/`)
+---
 
-The serving module is the final delivery point of the model. Tests must ensure the API server starts correctly, handles requests robustly, and interacts with the online feature store as expected.
+##### **과제 5.2: `docs/DEVELOPER_GUIDE.md` 심화 내용 보강**
 
-#### 6.5.1. API Server (`tests/serving/test_api.py`)
+*   **목표**: 고급 사용자와 기여자를 위해, `README.md`에서 깊게 다루지 않는 신규 기능의 상세한 원리와 사용법을 제공하여 시스템 활용도를 극대화합니다.
+*   **주요 변경 파일**:
+    *   `docs/DEVELOPER_GUIDE.md`
 
-**✅ Current Status:**
-- A very detailed test suite exists, covering E2E scenarios using a fixture-trained model.
-- All self-describing metadata endpoints (`/model/metadata`, `/model/schema`, etc.) are thoroughly validated.
-- Basic error handling for invalid inputs (`422`), paths (`404`), and methods (`405`) is covered.
-
-**🎯 Improvement Plan & Missing Test Cases:**
-
--   **Restructure Test File**:
-    -   **Problem**: The `test_api.py` file is monolithic, containing E2E tests, mocked unit tests, and compatibility tests together.
-    -   **Action**: Split `test_api.py` into smaller, more focused files like `test_api_e2e.py` (for tests requiring a real trained model) and `test_api_endpoints.py` (for mocked unit tests of individual endpoints) to improve clarity and maintainability.
--   **Online Feature Store Integration**:
-    -   `test_predict_endpoint_uses_online_features`: The current `/predict` test only checks for a successful response. It doesn't verify that the online feature store was actually used.
-    -   **Action**: Add a test that `patch`es the `FeastAdapter.get_online_features` method and asserts that it was called with the correct primary key(s) from the request during a `/predict` call.
--   **Real-time Schema Validation**:
-    -   `test_predict_endpoint_raises_error_on_schema_drift`: There is no test to verify that the API rejects requests that don't match the trained artifact's schema.
-    -   **Action**: Add a negative test case that sends a JSON payload with a deliberately altered schema to the `/predict` endpoint and verifies that the API correctly returns a `400 Bad Request` status code.
+*   **상세 개발 절차**:
+    1.  **"핵심 컨셉: 동적 레시피 가이드 및 검증" 섹션 신설**:
+        *   **가이드 (`guide`)**: `guide` 명령어의 상세한 사용법, 다양한 모델 클래스 경로(`xgboost`, `lightgbm` 등)에 대한 출력 예시, 그리고 "왜 이 기능이 강력한가"(모델 인트로스펙션 원리)에 대해 간략히 설명합니다.
+        *   **자동 검증 (Validation)**: 시스템이 설정 로딩 시점에 수행하는 두 가지 핵심 유효성 검증(태스크-지표 호환성, 모델-하이퍼파라미터 호환성)에 대해 상세히 기술합니다. 각 검증 실패 시 발생하는 오류 메시지 예시와 해결 방법을 제시하여 사용자가 문제를 쉽게 해결할 수 있도록 돕습니다.
+    2.  **문서 전반의 레시피 예시 최신화**:
+        *   `grep` 또는 유사 도구를 사용하여 문서 내 모든 `loader:` YAML 코드 블록을 찾습니다.
+        *   각 `loader` 섹션에 `source_uri`의 종류에 맞춰 `adapter: sql` 또는 `adapter: storage` 필드를 빠짐없이 추가합니다.

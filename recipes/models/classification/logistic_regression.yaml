@@ -9,11 +9,12 @@ model:
   
   # Phase 1: Point-in-Time 정합성 스키마
   loader:
-    name: "customer_churn_loader"
-    source_uri: "recipes/sql/loaders/customer_behavior_features.sql"
+    name: "titanic_survival_loader"
+    source_uri: "data/titanic.csv"
+    adapter: storage
     entity_schema:
-      entity_columns: ["customer_id"]     # 고객 ID
-      timestamp_column: "activity_date"   # 활동 날짜
+      entity_columns: ["PassengerId"]
+      timestamp_column: "timestamp"
   
   # 기존: ML 작업별 세부 설정 (Classification 전용)
   data_interface:

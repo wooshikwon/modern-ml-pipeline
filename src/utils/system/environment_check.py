@@ -210,3 +210,33 @@ def check_environment() -> bool:
 # 모듈 import 시 자동 검증 (개발 환경에서만)
 if __name__ == "__main__":
     check_environment() 
+
+"""
+실행 환경을 확인하고 캡처하는 함수 모음.
+"""
+import subprocess
+from typing import List
+from src.utils.system.logger import logger
+
+def get_pip_requirements() -> List[str]:
+    """
+    'uv pip freeze'를 사용하여 현재 환경의 의존성을 캡처합니다.
+    ['pandas==2.0.0', 'scikit-learn==1.3.0']와 같은 문자열 리스트를 반환합니다.
+    """
+    try:
+        result = subprocess.run(
+            ["uv", "pip", "freeze"],
+            capture_output=True,
+            text=True,
+            check=True,
+            encoding='utf-8'
+        )
+        requirements = result.stdout.strip().split('\n')
+        logger.info(f"현재 환경에서 {len(requirements)}개의 패키지 의존성을 캡처했습니다.")
+        return requirements
+    except FileNotFoundError:
+        logger.warning("'uv' 명령어를 찾을 수 없어 pip 의존성을 캡처할 수 없습니다. 모델 아티팩트에 포함되지 않습니다.")
+        return []
+    except subprocess.CalledProcessError as e:
+        logger.error(f"pip 의존성 캡처 중 오류 발생: {e.stderr}")
+        return [] 

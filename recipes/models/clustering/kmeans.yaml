@@ -7,13 +7,14 @@ model:
   # Scikit-learn K-Means 직접 동적 import
   class_path: "sklearn.cluster.KMeans"
   
-  # Phase 1: Point-in-Time 정합성 스키마
+  # Phase 1: 데이터 로딩 설정 (엔티티 스키마 포함)
   loader:
-    name: "customer_segmentation_loader"
-    source_uri: "recipes/sql/loaders/customer_analytics_features.sql"
+    name: "user_profiling_loader"
+    source_uri: "data/user_behavior_for_clustering.csv"
+    adapter: storage
     entity_schema:
-      entity_columns: ["customer_id"]        # 고객 ID
-      timestamp_column: "analysis_date"      # 분석 기준일
+      entity_columns: ["user_id"]
+      timestamp_column: "last_active_date"
   
   # 기존: ML 작업별 세부 설정 (Clustering 전용)
   data_interface:

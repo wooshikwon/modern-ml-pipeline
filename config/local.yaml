@@ -49,7 +49,6 @@ feature_store:
 
 # 📁 데이터 어댑터 - 로컬 파일 시스템
 data_adapters:
-  default_loader: "storage"    # 파일 기반 데이터 로딩
   default_storage: "storage"   # 로컬 스토리지 사용
   
   adapters:

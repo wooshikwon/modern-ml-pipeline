@@ -9,11 +9,12 @@ model:
   
   # Phase 1: Point-in-Time 정합성 스키마
   loader:
-    name: "user_churn_prediction_loader"
-    source_uri: "recipes/sql/loaders/churn_prediction_features.sql"
+    name: "customer_churn_loader"
+    source_uri: "recipes/sql/loaders/customer_churn_features.sql"
+    adapter: sql
     entity_schema:
-      entity_columns: ["user_id", "subscription_tier"]  # 사용자-구독등급 페어
-      timestamp_column: "feature_extraction_date"       # 피처 추출 기준일
+      entity_columns: ["customer_id"]
+      timestamp_column: "snapshot_date"
   
   # 기존: ML 작업별 세부 설정 (Classification 전용)
   data_interface:

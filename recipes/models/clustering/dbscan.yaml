@@ -7,13 +7,14 @@ model:
   # Scikit-learn DBSCAN 직접 동적 import
   class_path: "sklearn.cluster.DBSCAN"
   
-  # Phase 1: Point-in-Time 정합성 스키마
+  # Phase 1: 데이터 로딩 설정 (엔티티 스키마 포함)
   loader:
-    name: "customer_behavior_clustering_loader"
-    source_uri: "recipes/sql/loaders/customer_behavior_features.sql"
+    name: "anomaly_detection_loader"
+    source_uri: "data/sensor_data_for_anomaly.csv"
+    adapter: storage
     entity_schema:
-      entity_columns: ["customer_id", "behavior_period"]   # 고객-행동기간 페어
-      timestamp_column: "analysis_date"                    # 분석 기준일
+      entity_columns: ["sensor_id", "timestamp"]
+      timestamp_column: "timestamp"
   
   # 기존: ML 작업별 세부 설정 (Clustering 전용)
   data_interface:

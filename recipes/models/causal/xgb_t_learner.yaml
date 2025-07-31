@@ -9,11 +9,12 @@ model:
   
   # Phase 1: Point-in-Time 정합성 스키마
   loader:
-    name: "product_recommendation_loader"
-    source_uri: "recipes/sql/loaders/recommendation_features.sql"
+    name: "online_course_effectiveness_loader"
+    source_uri: "recipes/sql/loaders/online_course_causal_features.sql"
+    adapter: sql
     entity_schema:
-      entity_columns: ["user_id", "product_id"]    # 사용자-제품 페어
-      timestamp_column: "interaction_timestamp"    # 상호작용 시점
+      entity_columns: ["student_id"]
+      timestamp_column: "enrollment_date"
   
   # 기존: ML 작업별 세부 설정 (Causal 전용)
   data_interface:

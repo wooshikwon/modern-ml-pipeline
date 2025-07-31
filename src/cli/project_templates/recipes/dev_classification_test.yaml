@@ -13,11 +13,11 @@ model:
     n_jobs: 4
   
   loader:
-    name: "default_loader"
-    source_uri: "recipes/sql/loaders/e2e_mock_data.sql"
+    name: "e2e_sessions_spine"
+    source_uri: "recipes/sql/loaders/e2e_sessions_spine.sql"
+    adapter: sql
     entity_schema:
-      entity_columns:
-        - "user_id"
+      entity_columns: ["user_id"]
       timestamp_column: "event_timestamp"
   data_interface:
     task_type: "classification"

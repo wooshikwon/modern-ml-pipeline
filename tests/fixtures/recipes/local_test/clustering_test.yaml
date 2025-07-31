@@ -9,10 +9,11 @@ model:
   
   # Phase 1: Point-in-Time 정합성 스키마
   loader:
-    name: "local_csv_loader"
-    source_uri: "data/local_test_clustering.csv"
+    name: "local_test_data_loader"
+    source_uri: "tests/fixtures/data/local_clustering_test_data.csv"
+    adapter: storage
     entity_schema:
-      entity_columns: ["user_id", "segment_id"]
+      entity_columns: ["user_id"]
       timestamp_column: "event_timestamp"
   
   # ML 작업별 세부 설정 (Clustering 전용)

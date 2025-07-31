@@ -9,11 +9,12 @@ model:
   
   # Phase 1: Point-in-Time 정합성 스키마
   loader:
-    name: "product_recommendation_loader"
-    source_uri: "recipes/sql/loaders/product_similarity_features.sql"
+    name: "wine_quality_loader"
+    source_uri: "data/wine_quality.csv"
+    adapter: storage
     entity_schema:
-      entity_columns: ["user_id", "product_category"]    # 사용자-상품카테고리 페어
-      timestamp_column: "interaction_time"               # 상호작용 시점
+      entity_columns: ["fixed_acidity", "volatile_acidity", "citric_acid", "residual_sugar", "chlorides", "free_sulfur_dioxide", "total_sulfur_dioxide", "density", "pH", "sulphates", "alcohol"]
+      timestamp_column: "timestamp"
   
   # 기존: ML 작업별 세부 설정 (Classification 전용)
   data_interface:

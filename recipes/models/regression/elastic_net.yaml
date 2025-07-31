@@ -9,11 +9,12 @@ model:
   
   # Phase 1: Point-in-Time 정합성 스키마
   loader:
-    name: "sales_forecasting_loader"
-    source_uri: "recipes/sql/loaders/sales_prediction_features.sql"
+    name: "real_estate_price_loader"
+    source_uri: "recipes/sql/loaders/real_estate_features.sql"
+    adapter: sql
     entity_schema:
-      entity_columns: ["product_id", "store_id"]        # 제품-매장 페어
-      timestamp_column: "forecast_date"                 # 예측 기준일
+      entity_columns: ["property_id"]
+      timestamp_column: "sale_date"
   
   # 기존: ML 작업별 세부 설정 (Regression 전용)
   data_interface:

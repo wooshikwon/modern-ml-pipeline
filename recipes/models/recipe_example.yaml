@@ -9,11 +9,12 @@ model:
   
   # Phase 1: Point-in-Time 정합성 스키마
   loader:
-    name: "comprehensive_ml_loader"
-    source_uri: "recipes/sql/loaders/comprehensive_features.sql"
+    name: "example_loader"
+    source_uri: "data/example_data.csv"
+    adapter: storage
     entity_schema:
-      entity_columns: ["user_id", "product_id", "session_id"]  # Primary Key 조합
-      timestamp_column: "event_timestamp"                      # Point-in-Time 기준
+      entity_columns: ["user_id"]
+      timestamp_column: "event_timestamp"
   
   # 기존: ML 작업별 세부 설정 (완전히 보존)
   data_interface:

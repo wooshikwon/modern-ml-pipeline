@@ -9,11 +9,12 @@ model:
   
   # Phase 1: Point-in-Time 정합성 스키마
   loader:
-    name: "sentiment_analysis_loader"
-    source_uri: "recipes/sql/loaders/customer_feedback_features.sql"
+    name: "sms_spam_loader"
+    source_uri: "data/sms_spam.csv"
+    adapter: storage
     entity_schema:
-      entity_columns: ["feedback_id", "customer_id"]    # 피드백-고객 페어
-      timestamp_column: "feedback_date"                 # 피드백 날짜
+      entity_columns: ["message"]
+      timestamp_column: "timestamp"
   
   # 기존: ML 작업별 세부 설정 (Classification 전용)
   data_interface:

@@ -9,11 +9,12 @@ model:
   
   # Phase 1: Point-in-Time 정합성 스키마
   loader:
-    name: "document_classification_loader"
-    source_uri: "recipes/sql/loaders/document_features.sql"
+    name: "iris_dataset_loader"
+    source_uri: "data/iris.csv"
+    adapter: storage
     entity_schema:
-      entity_columns: ["document_id", "author_id"]     # 문서-작성자 페어
-      timestamp_column: "created_datetime"             # 문서 작성 시점
+      entity_columns: ["sepal_length", "sepal_width", "petal_length", "petal_width"]
+      timestamp_column: "timestamp"
   
   # 기존: ML 작업별 세부 설정 (Classification 전용)
   data_interface:
