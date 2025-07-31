@@ -45,20 +45,30 @@ ls config/    # base.yaml, data_adapters.yaml
 ls recipes/   # example_recipe.yaml
 ```
 
-### 3. 첫 번째 모델 학습
+### 3. 첫 번째 레시피 생성 (`guide` 명령어)
 
 ```bash
-# 설정 검증
-uv run python main.py validate --recipe-file recipes/example_recipe.yaml
+# sklearn의 RandomForestClassifier에 대한 레시피 템플릿을 생성합니다.
+uv run python main.py guide sklearn.ensemble.RandomForestClassifier > recipes/my_first_model.yaml
 
-# 모델 학습 실행
-uv run python main.py train --recipe-file recipes/example_recipe.yaml
-
-# 학습 결과 확인 (MLflow UI)
-open http://localhost:5000  # MLflow 대시보드
+# 생성된 파일을 열어 source_uri, target_column 등을 당신의 데이터에 맞게 수정하세요.
 ```
 
-### 4. 모델 배포 및 추론
+### 4. 모델 검증 및 학습
+
+```bash
+# 수정된 레시피 파일의 유효성을 검증합니다.
+uv run python main.py validate --recipe-file recipes/my_first_model.yaml
+
+# 모델 학습을 실행합니다.
+uv run python main.py train --recipe-file recipes/my_first_model.yaml
+
+# 학습 결과 확인 (MLflow UI)
+# (mmp-local-dev 환경의 docker-compose up -d가 실행되어 있어야 합니다)
+open http://127.0.0.1:5002
+```
+
+### 5. 모델 배포 및 추론
 
 ```bash
 # 학습에서 나온 run-id 사용 (예: abc123def456)
@@ -82,6 +92,9 @@ uv run python main.py serve-api --run-id $RUN_ID
 # 프로젝트 관리
 uv run python main.py init [--dir ./my-project]     # 새 프로젝트 초기화
 uv run python main.py validate --recipe-file <path> # 설정 파일 검증
+
+# 레시피 가이드
+uv run python main.py guide <model_class_path>       # 모델에 맞는 레시피 템플릿 생성
 
 # 모델 개발
 uv run python main.py train --recipe-file <path>    # 모델 학습
@@ -114,6 +127,7 @@ model:
   loader:
     name: "default_loader"
     source_uri: "data/my_dataset.parquet"  # 파일 경로 또는 SQL
+    adapter: storage
   
   # 데이터 전처리
   preprocessor:
@@ -295,7 +309,7 @@ tail -f logs/modern_ml_pipeline.log
 
 - **[개발자 가이드](docs/DEVELOPER_GUIDE.md)**: 심화 사용법 및 커스터마이징
 - **[인프라 가이드](docs/INFRASTRUCTURE_STACKS.md)**: 환경별 인프라 설정
-- **[Blueprint](blueprint.md)**: 시스템 설계 철학 및 아키텍처
+- **[Blueprint](blueprint.md)**: 시스템의 핵심 설계 원칙과 실제 코드 구현을 연결한 기술 청사진
 
 ---
 

@@ -5,7 +5,7 @@ from sklearn.model_selection import train_test_split
 
 from src.settings import Settings
 from src.utils.system.logger import logger
-from src.interface import BaseTrainer, BaseModel
+from src.interface import BaseTrainer, BaseModel, BaseAugmenter, BasePreprocessor, BaseEvaluator
 from src.utils.system.schema_utils import validate_schema
 from ._data_handler import split_data, prepare_training_data
 from ._optimizer import OptunaOptimizer
@@ -21,92 +21,63 @@ class Trainer(BaseTrainer):
     def __init__(self, settings: Settings):
         self.settings = settings
         logger.info("Trainer가 초기화되었습니다.")
+        self.training_results = {}
 
-    def train(self, df, model, augmenter, preprocessor, context_params=None):
-        """
-        학습 진입점. HPO 활성화 여부에 따라 경로를 분기합니다.
-        """
-        tuning_config = self.settings.recipe.model.hyperparameter_tuning
-        if tuning_config and tuning_config.enabled:
-            return self._train_with_hpo(df, augmenter, preprocessor, context_params)
+    def train(
+        self,
+        df: pd.DataFrame,
+        model: Any,
+        augmenter: BaseAugmenter,
+        preprocessor: BasePreprocessor,
+        evaluator: BaseEvaluator,
+        context_params: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[Any, BasePreprocessor, Dict[str, float], Dict[str, Any]]:
+        
+        data_handler = DataHandler(self.settings, augmenter, preprocessor)
+        X_train, X_test, y_train, y_test = data_handler.split_and_preprocess_data(df, context_params)
+
+        # 하이퍼파라미터 최적화 또는 직접 학습
+        global_tuning_enabled = self.settings.hyperparameter_tuning.enabled
+        recipe_tuning_config = self.settings.recipe.model.hyperparameter_tuning
+        is_tuning_enabled_in_recipe = recipe_tuning_config and recipe_tuning_config.enabled
+
+        use_tuning = global_tuning_enabled and is_tuning_enabled_in_recipe
+
+        # 최종 튜닝 실행 여부에 대한 명확한 로그 추가
+        if use_tuning:
+            logger.info("하이퍼파라미터 최적화를 시작합니다. (전역 및 레시피 설정 모두에서 활성화됨)")
+            optimizer = OptunaOptimizer(settings=self.settings)
+            best_model, best_params, best_score, trials_df = optimizer.optimize(model, X_train, y_train)
+            
+            # 튜닝 결과 저장
+            self.training_results['hyperparameter_optimization'] = {
+                'enabled': True,
+                'best_params': best_params,
+                'best_score': best_score,
+                'total_trials': len(trials_df),
+                'trials_dataframe': trials_df.to_dict('records')
+            }
+            trained_model = best_model
         else:
-            return self._train_with_fixed_params(df, model, augmenter, preprocessor, context_params)
-
-    def _train_with_hpo(self, df, augmenter, preprocessor, context_params):
-        """하이퍼파라미터 최적화(HPO)를 사용하여 모델을 학습시킵니다."""
-        train_df, test_df = split_data(df, self.settings)
-        
-        if augmenter:
-            train_df = augmenter.augment(train_df, run_mode="batch", context_params=context_params)
-            test_df = augmenter.augment(test_df, run_mode="batch", context_params=context_params)
-
-        optimizer = OptunaOptimizer(self.settings)
-        hpo_results = optimizer.optimize(train_df, self._single_training_iteration)
-        
-        # 최적 파라미터로 최종 모델 학습
-        final_result = self._single_training_iteration(train_df, hpo_results['best_params'], seed=42)
-        trained_model = final_result['model']
-        trained_preprocessor = final_result['preprocessor']
-
-        # 최종 평가
-        from src.engine import Factory
-        factory = Factory(self.settings)
-        evaluator = factory.create_evaluator()
-        X_test, y_test, _ = prepare_training_data(test_df, self.settings)
-        X_test_processed = trained_preprocessor.transform(X_test) if trained_preprocessor else X_test
-        final_metrics = evaluator.evaluate(trained_model, X_test_processed, y_test, test_df)
-        
-        training_results = {
-            'hyperparameter_optimization': hpo_results,
-            'training_methodology': self._get_training_methodology()
-        }
-        return trained_model, trained_preprocessor, final_metrics, training_results
-
-    def _train_with_fixed_params(self, df, model, augmenter, preprocessor, context_params):
-        """고정된 하이퍼파라미터를 사용하여 모델을 학습시킵니다."""
-        train_df, test_df = split_data(df, self.settings)
-        
-        if augmenter:
-            train_df = augmenter.augment(train_df, run_mode="batch", context_params=context_params)
-            test_df = augmenter.augment(test_df, run_mode="batch", context_params=context_params)
-        
-        if getattr(model, 'handles_own_preprocessing', False):
-            logger.info(f"모델 '{type(model).__name__}'이(가) 내장된 전처리 로직을 사용합니다.")
-            target_col = self.settings.recipe.model.data_interface.target_column
-            model.fit(train_df.drop(columns=[target_col]), train_df[target_col])
-            trained_preprocessor = None # 메인 preprocessor는 사용되지 않음
-        else:
-            logger.info("파이프라인의 선언적 Preprocessor를 사용합니다.")
-            X_train, y_train, additional_data = prepare_training_data(train_df, self.settings)
+            if not global_tuning_enabled:
+                logger.info("하이퍼파라미터 튜닝을 건너뜁니다. 이유: 전역 설정(config)에서 비활성화되었습니다.")
+            elif not is_tuning_enabled_in_recipe:
+                logger.info("하이퍼파라미터 튜닝을 건너뜁니다. 이유: 레시피(recipe)에서 비활성화되었거나 설정이 없습니다.")
+            logger.info("고정된 하이퍼파라미터로 모델을 학습합니다.")
             
-            if preprocessor:
-                preprocessor.fit(X_train)
-                X_train_processed = preprocessor.transform(X_train)
-            else:
-                X_train_processed = X_train
-            
-            self._fit_model(model, X_train_processed, y_train, additional_data)
-            trained_preprocessor = preprocessor
+            # 고정 파라미터로 직접 학습
+            model.fit(X_train, y_train)
+            trained_model = model
+            self.training_results['hyperparameter_optimization'] = {'enabled': False}
 
-        # 평가 로직 (공통)
-        from src.engine import Factory
-        factory = Factory(self.settings)
-        evaluator = factory.create_evaluator()
+        # 4. 모델 평가
+        y_pred = trained_model.predict(X_test)
+        metrics = evaluator.evaluate(trained_model, X_test, y_test, y_pred=y_pred)
+        self.training_results['evaluation_metrics'] = metrics
         
-        X_test, y_test, _ = prepare_training_data(test_df, self.settings)
-        # 모델 타입에 따라 평가에 사용할 X_test 결정
-        if trained_preprocessor:
-            X_test_processed = trained_preprocessor.transform(X_test)
-        else: # 자체 전처리 모델의 경우, predict 메서드가 전처리를 내장하고 있음
-            X_test_processed = test_df # 원본에 가까운 데이터 전달
-            
-        metrics = evaluator.evaluate(model, X_test_processed, y_test, test_df)
+        logger.info(f"모델 평가 완료. 주요 지표: {metrics}")
         
-        training_results = {
-            'hyperparameter_optimization': {'enabled': False},
-            'training_methodology': self._get_training_methodology()
-        }
-        return model, trained_preprocessor, metrics, training_results
+        return trained_model, preprocessor, metrics, self.training_results
 
     def _single_training_iteration(self, train_df, params, seed):
         """Data Leakage 방지를 보장하는 단일 학습/검증 사이클."""

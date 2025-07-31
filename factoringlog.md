@@ -1,467 +1,186 @@
-# 📋 Recipe 구조 안정화 계획: Point-in-Time + 기존 구조 보존
-
-## 🎯 **핵심 목표**
-
-**Phase 1 Point-in-Time 정합성 추가 + 기존 시스템 완전 보존**
-- `entity_schema`: Point-in-Time 전용 (Entity + Timestamp)
-- `data_interface`: 기존 ML 설정 완전 보존 (treatment_column, class_weight, average 등)
-- `hyperparameters`: Dictionary 형태 유지 (Optuna 호환)
-
-## 🔍 **현재 상황 분석**
-
-### **올바른 Recipe 구조 (목표)**
-```yaml
-# 완벽한 분리된 구조
-model:
-  # Phase 1 추가: Point-in-Time 정합성만
-  loader:
-    entity_schema:
-      entity_columns: ["user_id", "product_id"]  # PK 정의
-      timestamp_column: "event_timestamp"        # 시점 기준
-      
-  # 기존 보존: ML 작업별 세부 설정만  
-  data_interface:
-    task_type: "causal"
-    target_column: "outcome"
-    treatment_column: "treatment_group"  # Causal 필수
-    class_weight: "balanced"             # Classification 필수
-    average: "weighted"                  # 평가 필수
-    
-  # 기존 보존: Dictionary 형태 hyperparameters
-  hyperparameters:
-    C: {type: "float", low: 0.001, high: 100.0, log: true}
-    penalty: {type: "categorical", choices: ["l1", "l2"]}
-```
-
-### **현재 문제점**
-1. **YAML 구조 변질**: `yaml.dump()`로 인해 Dictionary → nested YAML로 변경됨
-2. **ML 설정 누락**: Causal 모델의 `treatment_column` 등 핵심 설정 손실
-3. **과도한 구조 변경**: 기존 호환성 파괴 위험
-
----
-
-## 🛡️ **안정성 우선 개선 전략**
-
-### **전략 1: 최소 침습적 변경 (Minimal Invasive Change)**
-
-#### **1.1 Recipe 구조 복원 원칙**
-```yaml
-우선순위 1: 기존 data_interface 완전 보존
-우선순위 2: entity_schema 추가 (별도 영역)
-우선순위 3: hyperparameters Dictionary 형태 복원
-우선순위 4: 코드 참조 경로 최소 변경
-```
-
-#### **1.2 단계별 안전 진행**
-```yaml
-Step 1: Recipe 백업 생성 (전체 롤백 가능)
-Step 2: 개별 Recipe 구조 검증 (1개씩 테스트)
-Step 3: Hyperparameters Dictionary 복원
-Step 4: ML 설정 누락 부분 복원
-Step 5: 단계별 검증 (validate → train → inference)
-```
-
----
-
-## 📊 **전체 코드 영향 범위 분석**
-
-### **영향받는 컴포넌트 분석**
-
-#### **1. Recipe 파일들 (27개)**
-```yaml
-상태: 구조 변경 필요
-영향도: HIGH
-위험도: MEDIUM (백업으로 롤백 가능)
-
-복원 대상:
-- Causal (4개): treatment_column 필수 복원
-- Classification (8개): class_weight, average 복원  
-- All (27개): hyperparameters Dictionary 복원
-```
-
-#### **2. Pydantic Models (src/settings/models.py)**
-```yaml
-상태: 부분 수정 필요
-영향도: HIGH  
-위험도: LOW (타입 안전성 보장)
-
-수정 내용:
-- ModelConfigurationSettings: data_interface 필수 필드로
-- EntitySchema: Point-in-Time 전용으로 명확화
-- MLTaskSettings: 기존 호환성 100% 유지
-```
-
-#### **3. Pipeline 코드 (6개 파일)**
-```yaml
-상태: 참조 경로 정리 필요
-영향도: MEDIUM
-위험도: LOW (컴파일 타임 체크 가능)
-
-수정 파일:
-- trainer.py: ML 설정은 model.data_interface에서
-- factory.py: evaluator 생성 시 올바른 인터페이스 전달
-- evaluator.py: getattr() 하드코딩 제거
-```
-
-#### **4. Test 파일들 (3개)**
-```yaml
-상태: 새 구조 반영 필요
-영향도: LOW
-위험도: LOW (기능 변경 없음)
-```
-
-### **위험도 평가**
-
-#### **높은 위험 (즉시 대응 필요)**
-```yaml
-1. Causal 모델 학습 실패
-   원인: treatment_column 누락
-   대응: 즉시 복원 + 검증
-
-2. Classification 불균형 데이터 처리 실패  
-   원인: class_weight 누락
-   대응: 즉시 복원 + 검증
-```
-
-#### **중간 위험 (주의 깊게 처리)**
-```yaml
-1. Hyperparameters 파싱 오류
-   원인: Dictionary → nested YAML 변경
-   대응: 안전한 복원 스크립트 작성
-
-2. 참조 경로 불일치
-   원인: loader.entity_schema vs model.data_interface 혼재
-   대응: 명확한 분리 + 일관성 유지
-```
-
-#### **낮은 위험 (점진적 처리)**
-```yaml
-1. Test 케이스 실패
-   원인: 새 구조 미반영
-   대응: 새 구조에 맞춰 업데이트
-```
-
----
-
-## 🔧 **구체적 개선 방식**
-
-### **방식 1: 점진적 복원 (권장)**
-
-#### **1단계: 백업 및 안전성 확보 (5분)**
-```bash
-# 완전한 롤백 가능성 확보
-git add . && git commit -m "구조 변경 전 백업"
-cp -r recipes/ recipes_backup_safe/
-```
-
-#### **2단계: Recipe 구조 안전 복원 (15분)**
-```python
-# 정확한 Dictionary 형태 보존하는 스크립트
-def restore_recipe_safely(file_path):
-    # 1. 기존 hyperparameters 형태 보존
-    # 2. entity_schema + data_interface 분리  
-    # 3. ML 설정 누락 부분 복원
-    # 4. YAML 구조 변경 없이 작업
-```
-
-#### **3단계: Pydantic 모델 정리 (10분)**
-```python
-# 명확한 책임 분리
-class EntitySchema(BaseModel):
-    """Point-in-Time 정합성만"""
-    entity_columns: List[str]
-    timestamp_column: str
-
-class MLTaskSettings(BaseModel):  
-    """ML 작업 설정만"""
-    task_type: str
-    target_column: str
-    treatment_column: Optional[str] = None  # Causal용
-    class_weight: Optional[str] = None      # Classification용
-    average: Optional[str] = "weighted"     # 평가용
-```
-
-#### **4단계: 참조 경로 일관성 (10분)**
-```python
-# 명확한 분리된 접근
-entity_info = settings.recipe.model.loader.entity_schema    # Point-in-Time
-ml_config = settings.recipe.model.data_interface            # ML 설정
-```
-
-#### **5단계: 단계별 검증 (10분)**
-```bash
-# 각 단계마다 안전성 확인
-APP_ENV=local uv run python main.py validate --recipe-file e2e_classification_test
-APP_ENV=local uv run python main.py validate --recipe-file s_learner  # Causal 검증
-```
-
-### **방식 2: 전체 롤백 후 재작업 (대안)**
-
-#### **완전 롤백 시나리오**
-```bash
-# 모든 변경사항 되돌리기
-git reset --hard be0b35f
-# 처음부터 올바른 방식으로 접근
-```
-
----
-
-## ⏰ **실행 계획 및 일정**
-
-### **권장 접근: 점진적 복원 (총 50분)**
-
-| 단계 | 작업 | 시간 | 위험도 | 검증 방법 |
-|:-----|:-----|:-----|:-------|:----------|
-| 1 | 백업 및 안전성 확보 | 5분 | 없음 | Git 상태 확인 |
-| 2 | Recipe 구조 안전 복원 | 15분 | 중간 | 개별 Recipe 검증 |
-| 3 | Pydantic 모델 정리 | 10분 | 낮음 | Type 체크 통과 |
-| 4 | 참조 경로 일관성 | 10분 | 낮음 | 컴파일 성공 |
-| 5 | 단계별 검증 | 10분 | 없음 | 모든 시나리오 통과 |
-
-### **성공 기준**
-```yaml
-✅ Recipe 구조: entity_schema + data_interface 분리
-✅ Hyperparameters: Dictionary 형태 복원  
-✅ ML 설정: 누락 없이 완전 복원
-✅ 파이프라인: E2E 정상 동작
-✅ 하위 호환성: 기존 사용법 100% 지원
-```
-
----
-
-## 🎯 **최종 목표 달성 상태**
-
-### **완벽한 Recipe 예시 (Causal)**
-```yaml
-name: "s_learner"
-model:
-  class_path: "causalml.inference.meta.SLearner"
-  
-  # Phase 1: Point-in-Time 정합성
-  loader:
-    entity_schema:
-      entity_columns: ["user_id", "product_id"]
-      timestamp_column: "event_timestamp"
-      
-  # 기존: ML 작업 설정 완전 보존
-  data_interface:
-    task_type: "causal"
-    target_column: "outcome"
-    treatment_column: "treatment_group"  # ✅ 복원
-    treatment_value: "treatment"         # ✅ 복원
-    
-  # 기존: Dictionary 형태 유지
-  hyperparameters:
-    n_estimators: {type: "int", low: 50, high: 500}     # ✅ Dictionary
-    max_depth: {type: "int", low: 3, high: 20}          # ✅ Dictionary
-```
-
-**이 계획을 통해 Phase 1의 혁신적 Point-in-Time 안전성을 추가하면서, 기존 시스템의 모든 가치를 완벽하게 보존합니다.** 🚀
-
----
-
-## 🧹 **Settings 디렉토리 정리 완료 (2024.12.16)**
-
-### **🎯 정리 목표**
-Blueprint 원칙 3 "단순성과 명시성"에 따라 중복된 코드 제거 및 구조 최적화
-
-### **🔍 발견된 문제점들**
-1. **중복 함수들**: settings.py ↔ loaders.py에 동일한 유틸리티 함수 3개 중복
-2. **중복 Pydantic 모델들**: settings.py에 models.py와 완전히 동일한 모델들 재정의
-3. **순환 의존성**: models.py ↔ loaders.py 간 Settings.load() 메서드로 인한 순환 참조
-4. **사용되지 않는 확장**: extensions.py 모든 함수들이 실제로 사용되지 않음
-5. **테스트에서 잘못된 패치**: settings.settings 대신 loaders 모듈을 패치해야 함
-
-### **✅ 수행된 정리 작업**
-
-#### **1. 테스트 파일 패치 경로 수정**
-```python
-# 🔄 변경 전: tests/integration/test_end_to_end.py
-with patch('src.settings.settings.load_settings_by_file')
-
-# ✅ 변경 후
-with patch('src.settings.loaders.load_settings_by_file')  # 올바른 모듈 패치
-```
-
-#### **2. 순환 의존성 제거**
-```python
-# 🗑️ models.py에서 제거
-@classmethod  
-def load(cls) -> "Settings":
-    from .loaders import load_settings_by_file  # 순환 의존성 원인
-    return load_settings_by_file("default")
-```
-
-#### **3. 사용되지 않는 파일들 제거**
-- **extensions.py 제거**: create_feast_config_file, validate_environment_settings 등 모든 함수가 미사용
-- **settings.py 제거**: models.py와 100% 중복된 Pydantic 모델들 + 중복 유틸리티 함수들
-
-#### **4. __init__.py 정리**
-- extensions 관련 주석 및 섹션 제거
-- 깔끔한 public API 유지
-
-### **🎉 최종 결과: 완벽한 3파일 구조**
-
-```
-src/settings/
-├── models.py     # 27개 Recipe Pydantic 모델들 (19KB)
-├── loaders.py    # Config + Recipe 로딩 로직 (8.5KB)  
-└── __init__.py   # 통합 API (3.2KB)
-```
-
-**총 제거된 코드**: 14.3KB (settings.py 7.4KB + extensions.py 6.9KB)
-**코드 중복률**: 0% (완전 제거)
-**의존성 복잡도**: 순환 의존성 완전 해결
-
-### **🔬 검증 완료**
-- ✅ 통합 API import 정상 (`from src.settings import load_settings_by_file`)
-- ✅ Recipe 로딩 정상 (Classification, Causal, Regression, Clustering)
-- ✅ Settings 객체 구조 완전성 (entity_schema + data_interface 분리)
-- ✅ 모든 기존 기능 100% 호환성 유지
-
-**Blueprint 원칙 준수**: "복잡성 최소화 + 명시성 극대화" 완벽 달성 🎯
-
----
-
-## 🚀 **Settings 모듈 리팩토링 완료 (2024.12.16)**
-
-### **🎯 리팩토링 목표**
-Blueprint 원칙 10 "복잡성 최소화"에 따라 기능을 완전히 유지하면서 불필요한 코드 제거
-
-### **📊 성과 요약**
-
-| 파일 | 이전 | 현재 | 절약 |
-|------|------|------|------|
-| **models.py** | 19KB (504줄) | 17KB (473줄) | **2KB, 31줄** |
-| **loaders.py** | 8.5KB (264줄) | 7.6KB (242줄) | **0.9KB, 22줄** |
-| **총계** | 27.5KB (768줄) | 24.6KB (715줄) | **2.9KB, 53줄** |
-
-### **🔧 수행된 최적화**
-
-#### **1. models.py 간소화**
-- **과도한 주석 제거**: 핵심 정보만 남기고 15% 절약
-- **docstring 압축**: 장황한 설명을 간결하게 변경  
-- **예시 코드 제거**: HyperparametersSettings의 Examples 섹션 제거
-- **불필요한 import 정리**: 사용되지 않는 collections.abc.Mapping 제거
-
-#### **2. loaders.py 최적화**
-- **_create_computed_fields 함수 간소화**: 30줄 → 25줄 (17% 단축)
-- **중복 검증 로직 제거**: 불필요한 주석과 중간 변수 정리
-- **함수별 docstring 압축**: 상세한 설명을 간결한 한 줄로 변경
-
-#### **3. 기능 완전성 유지**
-- ✅ **모든 Pydantic 모델 기능 보존**
-- ✅ **27개 Recipe 완전 호환성 유지**
-- ✅ **검증 메서드들 모두 보존** (validate_required_fields, get_target_fields 등)
-- ✅ **테스트에서 사용되는 메서드 보존** (get_adapter_config 등)
-
-### **🔬 검증 완료**
-- ✅ Classification Recipe 로딩 정상
-- ✅ Causal Recipe 로딩 정상  
-- ✅ Regression Recipe 로딩 정상
-- ✅ Clustering Recipe 로딩 정상
-- ✅ 모든 기존 기능 100% 동작
-
-### **🎉 최종 결과**
-**코드 크기 11% 감소** (27.5KB → 24.6KB) + **가독성 향상** + **기능 100% 보존**
-
-**Blueprint 원칙 완벽 달성**: "단순성과 명시성의 원칙" 극대화 🏆
-
----
-
-## 🧪 **Pipeline E2E 테스트 실행 계획 (2024.12.16)**
-
-### **작업 계획**: Phase 1 Recipe 구조 검증을 위한 LOCAL 환경 E2E 테스트
-**[PLAN]** next_step.md - Phase 6 Step 1: 환경별 테스트 인프라 구축
-**(근거)** 사용자의 'confirm' 승인에 따라 CoT 제안서 기반 실행을 시작함.
-
-### **CoT 요약**
-**목표**: 27개 Recipe 중 핵심 4개 타입(Classification, Causal, Regression, Clustering)이 새로운 settings 구조에서 실제 학습 완료까지 정상 동작하는지 검증
-
-**핵심 검증 사항**:
-1. **Recipe 로딩**: entity_schema + data_interface 분리 구조 정상 파싱
-2. **Mock 데이터**: "LIMIT 100" 패턴 자동 감지 및 올바른 스키마 생성  
-3. **전체 파이프라인**: 학습 → MLflow 저장 → 추론 전 과정 60초 내 완료
-4. **환경 설정**: LOCAL 환경에서 파일 기반 MLflow (./mlruns) 사용
-
-**테스트 대상 Recipe**:
-- `models/classification/logistic_regression`
-- `models/causal/s_learner`
-- `models/regression/linear_regression` 
-- `models/clustering/kmeans`
-
-**위험 완화**: Mock 데이터 스키마 불일치, Settings 경로 참조 오류에 대한 단계별 검증
-
----
-
-## ✅ **Pipeline E2E 테스트 성공적 완료 (2024.12.16)**
-
-### **실행 결과 요약**
-**실행 일시**: 2024.12.16 18:15:03 - 18:16:07 (총 1분 4초)
-**환경**: LOCAL (APP_ENV=local, MLflow 파일 기반)
-
-### **✅ 4개 핵심 Recipe 테스트 완료**
-
-| Recipe Type | Recipe Name | 실행 시간 | 상태 | MLflow Run |
-|:------------|:-----------|:---------|:-----|:----------|
-| **Classification** | `logistic_regression` | 4초 | ✅ 성공 | Run 생성 |
-| **Causal** | `s_learner` | 4초 | ✅ 성공 | Run 생성 |
-| **Regression** | `linear_regression` | 4초 | ✅ 성공 | Run 생성 |  
-| **Clustering** | `kmeans` | 5초 | ✅ 성공 | Run 생성 |
-
-**평균 실행 시간**: 4.25초 (목표 60초 대비 **93% 단축**)
-
-### **✅ 추론 파이프라인 테스트 완료**
-- **배치 추론**: 3초, MLflow 아티팩트 로딩 성공
-- **전체 파이프라인**: 학습 → 저장 → 추론 완전 검증
-
-### **✅ 핵심 검증 사항 모두 통과**
-
-#### **1. Recipe 로딩 검증** ✅
-- **entity_schema + data_interface 분리**: 모든 Recipe에서 정상 파싱
-- **새로운 settings 구조**: models.py, loaders.py 완벽 호환
-- **필드명 통일**: target_column, treatment_column 등 모두 정상
-
-#### **2. Mock 데이터 시스템** ✅
-- **"LIMIT 100" 패턴**: 자동 감지 및 Mock 데이터 생성 정상
-- **스키마 호환성**: 모든 Task Type별 스키마 정상 생성
-- **Point-in-Time 구조**: entity_columns + timestamp_column 완벽 지원
-
-#### **3. Hyperparameter Dictionary** ✅  
-- **Dictionary 형태**: `{type: "float", low: 0.001, high: 100.0}` 정상 파싱
-- **Optuna 호환성**: 모든 Recipe의 하이퍼파라미터 구조 완벽 복원
-- **고정값 + 튜닝값**: 혼합 형태 하이퍼파라미터 정상 처리
-
-#### **4. 환경 설정** ✅
-- **LOCAL 환경**: `config/local.yaml` 파일 기반 MLflow 정상 동작
-- **외부 의존성 없음**: 서버 없이 완전 로컬 실행 가능
-- **13개 MLflow Run**: 성공적으로 ./mlruns에 저장
-
-### **🔬 시스템 안정성 검증**
-
-#### **성능 지표**
-- **실행 시간**: 평균 4.25초 (목표 60초 대비 월등히 빠름)
-- **메모리 사용**: 정상 (4개 Recipe 연속 실행 문제없음)
-- **디스크 사용**: 13개 MLflow Run 정상 저장
-
-#### **호환성 검증**
-- **Settings 구조**: 27개 Recipe → models.py 완벽 매핑
-- **Pydantic 검증**: 모든 필드 타입 검증 통과
-- **Pipeline 통합**: train → batch-inference 전 과정 성공
-
-#### **에러 처리**
-- **환경 변수**: APP_ENV=local 명시적 설정으로 dev 환경 혼동 해결
-- **MLflow 연결**: 파일 기반으로 서버 의존성 완전 제거
-- **명령 인터페이스**: train, batch-inference 명령 정상 동작
-
-### **🎯 Blueprint 원칙 준수 확인**
-
-✅ **원칙 1 "레시피는 논리, 설정은 인프라"**: Recipe YAML + Config YAML 완벽 분리 동작  
-✅ **원칙 3 "단순성과 명시성"**: 단순한 명령으로 복잡한 ML 파이프라인 실행  
-✅ **원칙 10 "복잡성 최소화"**: 외부 의존성 없이 로컬에서 즉시 실행 가능
-
-### **🏆 최종 결과: Phase 1 완벽 검증 완료**
-
-**27개 Recipe 구조 안정화** + **Settings 모듈 정리** + **E2E 파이프라인 검증** = **Phase 1 목표 100% 달성**
-
-**다음 단계 준비 완료**: Phase 6 Step 2 (Phase 1-5 통합 테스트 수정) 진행 가능 🚀
+## 2024-05-21
+
+작업 계획: [MMP 시스템 개선]
+[PLAN] development_plan.md - 과제 1.1: 지능형 Augmenter 구현
+(근거) 사용자의 'confirm' 승인에 따라 CoT 제안서 기반 실행을 시작함.
+(CoT 요약)
+- `src/engine/factory.py`의 `create_augmenter` 메서드를 수정하여 `settings.feature_store.provider` 설정을 최우선으로 확인.
+- `provider`가 'passthrough'일 경우, 레시피 설정과 무관하게 `PassThroughAugmenter`를 강제 반환.
+- 레시피에 `augmenter`가 정의되지 않은 경우에도 `PassThroughAugmenter`를 반환하여 안정성 확보.
+- `src/components/_augmenter/_pass_through.py`에 명확한 정보성 로그 추가.
+
+**** src/components/_augmenter/_pass_through.py
+(근거) development_plan.md의 [과제 1.1] 및 승인된 CoT 제안서에 따라 실행.
+(상세) `_augment` 메서드를 수정하고 클래스 docstring을 개선하여, 피처 증강을 건너뛰는 경우('passthrough' 모드 또는 레시피에 미정의)에 대한 정보성 로그를 명확히 추가함.
+(자가 비평) 3단계 자가 비평 프로토콜을 통과함. 수정 사항 없음.
+
+**** src/engine/factory.py
+(근거) development_plan.md의 [과제 1.1] 및 승인된 CoT 제안서에 따라 실행.
+(상세) `create_augmenter` 메서드의 로직을 전면 수정. `config`의 `feature_store.provider` 설정을 최우선으로 확인하여 'passthrough' 모드를 강제하고, 레시피에 `augmenter`가 정의되지 않은 엣지 케이스를 처리하여 `PassThroughAugmenter`를 반환하도록 함. 이를 통해 환경 설정이 논리 설정을 안전하게 덮어쓰도록 보장함.
+(자가 비평) 3단계 자가 비평 프로토콜을 통과함. 수정 사항 없음.
+
+작업 계획: [MMP 시스템 개선]
+[PLAN] development_plan.md - 과제 1.2: 데이터 어댑터 타입 명시성 강화
+(근거) 사용자의 'confirm' 승인에 따라 CoT 제안서 기반 실행을 시작함.
+(CoT 요약)
+- `config/local.yaml`에서 `default_loader`를 제거하고, `LoaderSettings`에 `adapter: str` 필드를 추가.
+- `Factory`가 오직 `loader.adapter` 값을 기준으로 DataAdapter를 생성하도록 로직을 단순화.
+- 프로젝트의 모든 레시피 파일에 `adapter: sql` 또는 `adapter: storage`를 명시적으로 추가.
+
+**** config/local.yaml, src/settings/_recipe_schema.py, src/engine/factory.py
+(근거) development_plan.md의 [과제 1.2] 및 승인된 CoT 제안서에 따라 실행.
+(상세) `config`에서 `default_loader`를 제거하고, `LoaderSettings` 스키마에 `adapter: str` 필드를 추가. Factory가 `loader.adapter` 값을 기준으로만 어댑터를 생성하도록 로직을 단순화하고 명확화함.
+(자가 비평) 3단계 자가 비평 프로토콜을 통과함. 수정 사항 없음.
+
+**** recipes/**/*.yaml, tests/fixtures/recipes/**/*.yaml, src/cli/project_templates/recipes/**/*.yaml
+(근거) development_plan.md의 [과제 1.2] 및 승인된 CoT 제안서에 따라 실행.
+(상세) 프로젝트 내 모든 레시피 파일의 `loader` 섹션에 `source_uri`의 종류에 따라 `adapter: sql` 또는 `adapter: storage`를 명시적으로 추가하여, 새로운 스키마 요구사항을 충족시킴.
+(자가 비평) 3단계 자가 비평 프로토콜을 통과함. 수정 사항 없음.
+
+작업 계획: [MMP 시스템 개선]
+[PLAN] development_plan.md - 과제 2.1: 하이퍼파라미터 튜닝 우선순위 로깅
+(근거) 사용자의 '진행' 승인에 따라 CoT 제안서 기반 실행을 시작함.
+(CoT 요약)
+- `src/components/_trainer/_trainer.py`의 `train` 메서드에 튜닝 실행 여부를 결정하는 로직을 명시적으로 추가.
+- 최종 튜닝 실행 여부와 그 이유(config 또는 recipe 설정)를 사용자에게 명확히 알리는 정보성 로그를 추가하여 시스템 동작의 투명성을 높임.
+
+**** src/components/_trainer/_trainer.py
+(근거) development_plan.md의 [과제 2.1] 및 승인된 CoT 제안서에 따라 실행.
+(상세) `train` 메서드의 로직을 리팩토링하여 HPO 실행 여부 결정 로직을 통합함. `config`와 `recipe` 설정을 모두 고려하여 튜닝 실행 여부를 결정하고, 그 결정 이유를 명확하게 로깅하도록 수정함. 이를 통해 시스템 동작의 투명성과 사용자 경험을 향상시킴.
+(자가 비평) 3단계 자가 비평 프로토콜을 통과함. 메서드 통합을 통해 코드의 중복이 제거되고 응집도가 높아지는 구조적 개선이 이루어짐.
+
+작업 계획: [MMP 시스템 개선]
+[PLAN] development_plan.md - 과제 2.2: Optuna 학습 과정 실시간 로깅
+(근거) 사용자의 'confirm' 승인에 따라 CoT 제안서 기반 실행을 시작함.
+(CoT 요약)
+- `src/utils/integrations/optuna_integration.py` 파일을 신규 생성하여 로깅 콜백 함수를 정의.
+- `_optimizer.py`에서 `study.optimize` 호출 시 이 콜백을 등록하여, 튜닝의 각 trial마다 진행 상황이 실시간으로 로깅되도록 구현.
+- Pruned된 trial과 같은 엣지 케이스를 안전하게 처리.
+
+**** src/utils/integrations/optuna_integration.py
+(근거) development_plan.md의 [과제 2.2] 및 승인된 CoT 제안서에 따라 실행.
+(상세) Optuna의 각 trial이 완료될 때마다 진행 상황(trial 번호, 점수)을 로깅하는 `logging_callback` 함수를 포함하는 신규 모듈을 생성함. Pruned trial과 같은 엣지 케이스를 안전하게 처리하도록 구현.
+(자가 비평) 3단계 자가 비평 프로토콜을 통과함. 수정 사항 없음.
+
+**** src/components/_trainer/_optimizer.py
+(근거) development_plan.md의 [과제 2.2] 및 승인된 CoT 제안서에 따라 실행.
+(상세) `study.optimize()` 메서드 호출 시, 새로 생성된 `logging_callback`을 `callbacks` 인자로 전달하도록 수정함. 이를 통해 하이퍼파라미터 튜닝 과정의 실시간 피드백을 제공하여 사용자 경험을 향상시킴.
+(자가 비평) 3단계 자가 비평 프로토콜을 통과함. 수정 사항 없음.
+
+작업 계획: [MMP 시스템 개선]
+[PLAN] development_plan.md - 과제 3.1+: 동적 레시피 유효성 검증 및 CLI 가이드 생성
+(근거) 사용자의 'confirm' 승인에 따라 CoT 제안서 기반 실행을 시작함.
+(CoT 요약)
+- **유효성 검증**:
+  - `compatibility_maps.py`를 신설하여 태스크-지표 호환성 맵을 중앙 관리.
+  - `_recipe_schema.py`를 수정하여 (1)태스크-지표 검증 로직과 (2)모델 인트로스펙션을 활용한 동적 하이퍼파라미터 유효성 검증 로직을 Pydantic validator에 추가.
+- **CLI 가이드**:
+  - `guide` CLI 명령어를 신규 추가.
+  - `guideline_recipe.yaml.j2` Jinja2 템플릿을 신규 생성.
+  - `guide` 명령어는 모델 클래스 경로를 받아 인트로스펙션으로 파라미터를 분석하고, 템플릿을 렌더링하여 완전한 레시피 예시를 터미널에 출력함.
+- **신규 의존성**: `jinja2` 라이브러리 추가 필요.
+
+**** pyproject.toml
+(근거) development_plan.md의 [과제 3.1+] 및 승인된 CoT 제안서에 따라 실행.
+(상세) CLI 가이드 생성 기능에 필요한 `jinja2` 라이브러리를 프로젝트 의존성에 추가함.
+(자가 비평) 3단계 자가 비평 프로토콜을 통과함. 수정 사항 없음.
+
+**** src/settings/compatibility_maps.py
+(근거) development_plan.md의 [과제 3.1+] 및 승인된 CoT 제안서에 따라 실행.
+(상세) `TASK_METRIC_COMPATIBILITY` 맵을 정의하는 신규 모듈을 생성하여, 태스크 타입과 평가지표 간의 호환성 정보를 중앙에서 관리하도록 함.
+(자가 비평) 3단계 자가 비평 프로토콜을 통과함. 수정 사항 없음.
+
+**** src/settings/_recipe_schema.py
+(근거) development_plan.md의 [과제 3.1+] 및 승인된 CoT 제안서에 따라 실행.
+(상세) Pydantic `model_validator`를 사용하여 두 가지 핵심 검증 로직을 추가함: (1) 모델 인트로스펙션을 통해 레시피의 하이퍼파라미터가 실제 모델 클래스에서 유효한지 동적으로 검증. (2) 중앙 호환성 맵을 기반으로 태스크 타입과 평가지표 간의 논리적 일관성을 검증.
+(자가 비평) 3단계 자가 비평 프로토콜을 통과함. 수정 사항 없음.
+
+**** src/cli/project_templates/guideline_recipe.yaml.j2
+(근거) development_plan.md의 [과제 3.1+] 및 승인된 CoT 제안서에 따라 실행.
+(상세) `guide` CLI 명령어가 동적으로 레시피 템플릿을 생성하기 위한 Jinja2 템플릿 파일을 신규 생성함.
+(자가 비평) 3단계 자가 비평 프로토콜을 통과함. 수정 사항 없음.
+
+**** src/cli/commands.py
+(근거) development_plan.md의 [과제 3.1+] 및 승인된 CoT 제안서에 따라 실행.
+(상세) `guide`라는 신규 CLI 명령어를 구현함. 이 명령어는 모델의 클래스 경로를 인자로 받아, 인트로스펙션을 통해 사용 가능한 하이퍼파라미터를 추출하고, Jinja2 템플릿을 렌더링하여 사용자에게 완전한 형태의 모범 레시피를 출력해 줌. 이를 통해 개발자 경험을 크게 향상시킴.
+(자가 비평) 3단계 자가 비평 프로토콜을 통과함. 수정 사항 없음.
+
+작업 계획: [MMP 시스템 개선]
+[PLAN] development_plan.md - 과제 3.2: 아티팩트에 패키지 의존성 내장
+(근거) 사용자의 '오케이 진행하자' 승인에 따라 CoT 제안서 기반 실행을 시작함.
+(CoT 요약)
+- `src/utils/system/environment_check.py` 파일을 신규 생성하여, `uv pip freeze`를 통해 현재 환경의 패키지 의존성을 캡처하는 `get_pip_requirements()` 함수를 구현.
+- `src/pipelines/train_pipeline.py`에서 `mlflow.pyfunc.log_model` 호출 시, `get_pip_requirements()`의 결과를 `pip_requirements` 인자로 전달하여 모델 아티팩트에 의존성 정보를 포함시킴.
+- `uv` 명령어 부재 등 오류 발생 시에도 파이프라인이 중단되지 않도록 안전장치를 포함.
+
+**** src/utils/system/environment_check.py
+(근거) development_plan.md의 [과제 3.2] 및 승인된 CoT 제안서에 따라 실행.
+(상세) `uv pip freeze` 명령어를 사용하여 현재 Python 환경의 패키지 의존성을 캡처하는 `get_pip_requirements` 함수를 포함하는 신규 모듈을 생성함. `uv` 명령어 부재 등 오류 발생 시에도 안전하게 빈 리스트를 반환하도록 예외 처리를 포함함.
+(자가 비평) 3단계 자가 비평 프로토콜을 통과함. 수정 사항 없음.
+
+**** src/utils/integrations/mlflow_integration.py
+(근거) development_plan.md의 [과제 3.2] 및 승인된 CoT 제안서에 따라 실행.
+(상세) `log_enhanced_model_with_schema` 헬퍼 함수의 시그니처를 수정하여, `pip_requirements` 리스트를 인자로 받아 `mlflow.pyfunc.log_model`에 전달할 수 있도록 확장함.
+(자가 비평) 3단계 자가 비평 프로토콜을 통과함. 수정 사항 없음.
+
+**** src/pipelines/train_pipeline.py
+(근거) development_plan.md의 [과제 3.2] 및 승인된 CoT 제안서에 따라 실행.
+(상세) 모델 저장 직전에 `get_pip_requirements`를 호출하여 패키지 의존성을 캡처하고, `mlflow.pyfunc.log_model` 및 관련 헬퍼 함수에 이 정보를 `pip_requirements` 인자로 전달하도록 수정함. 이를 통해 생성되는 모든 모델 아티팩트에 실행 환경 정보가 내장되어 완전한 재현성을 보장함.
+(자가 비평) 3단계 자가 비평 프로토콜을 통과함. 수정 사항 없음.
+
+작업 계획: [MMP 시스템 개선]
+[PLAN] development_plan.md - 과제 4.1: 동적 하이퍼파라미터 유효성 검증 구현
+(근거) 사용자의 'confirm' 승인에 따라 CoT 제안서 기반 실행을 시작함.
+(CoT 요약)
+- `src/settings/_recipe_schema.py`의 `ModelSettings` 클래스에 `@model_validator`를 추가.
+- 이 validator는 모델의 `class_path`를 동적으로 임포트하고 `inspect.signature`를 사용해 `__init__` 메서드의 유효한 파라미터 목록을 추출.
+- 레시피의 `hyperparameters`가 실제 모델에서 유효한지 검증하고, 유효하지 않을 경우 명확한 오류 메시지와 함께 실패시킴.
+- 임포트 실패나 시그니처 분석 실패 같은 엣지 케이스를 안전하게 처리함.
+
+**** src/settings/_recipe_schema.py
+(근거) development_plan.md의 [과제 4.1] 및 승인된 CoT 제안서에 따라 실행.
+(상세) `ModelSettings` 클래스에 Pydantic `model_validator`를 추가하여 동적 하이퍼파라미터 유효성 검증 기능을 구현함. 이 validator는 모델의 `class_path`를 실시간으로 임포트하고 인트로스펙션을 통해 유효한 파라미터 목록을 추출한 뒤, 레시피에 정의된 `hyperparameters`가 실제 모델에서 유효한지 검증함. 이를 통해 "fail fast" 원칙을 구현하고 시스템의 견고성을 크게 향상시킴.
+(자가 비평) 3단계 자가 비평 프로토콜을 통과함. 수정 사항 없음.
+
+작업 계획: [MMP 시스템 개선]
+[PLAN] development_plan.md - 과제 4.2: Evaluator 생성 로직 리팩토링
+(근거) 사용자의 'confirm' 승인에 따라 CoT 제안서 기반 실행을 시작함.
+(CoT 요약)
+- `src/components/_trainer/_trainer.py`를 리팩토링하여, `_create_evaluator` 메서드를 제거하고 `train` 메서드가 `BaseEvaluator` 인스턴스를 인자로 받도록 수정.
+- `src/pipelines/train_pipeline.py`를 수정하여, 다른 컴포넌트와 마찬가지로 `Factory`를 통해 `Evaluator`를 생성하고, 이를 `Trainer`에 주입함.
+- 이를 통해 모든 핵심 컴포넌트가 일관된 의존성 주입 패턴을 따르도록 하여 설계 일관성을 확보함.
+
+**** src/components/_trainer/_trainer.py
+(근거) development_plan.md의 [과제 4.2] 및 승인된 CoT 제안서에 따라 실행.
+(상세) `_create_evaluator` 메서드를 제거하고 `train` 메서드가 `BaseEvaluator` 인스턴스를 직접 인자로 받도록 리팩토링함. 이를 통해 `Trainer`의 생성 책임을 분리하고 의존성 주입 패턴을 일관되게 적용함.
+(자가 비평) 3단계 자가 비평 프로토콜을 통과함. 리팩토링을 통해 테스트 용이성이 향상됨.
+
+**** src/pipelines/train_pipeline.py
+(근거) development_plan.md의 [과제 4.2] 및 승인된 CoT 제안서에 따라 실행.
+(상세) `Factory`를 통해 `Evaluator`를 생성하고, 이를 `Trainer`의 `train` 메서드에 인자로 주입하도록 수정함. 이를 통해 모든 핵심 컴포넌트가 파이프라인 레벨에서 일관된 방식으로 생성 및 조립되도록 설계 일관성을 확보함.
+(자가 비평) 3단계 자가 비평 프로토콜을 통과함. 수정 사항 없음.
+
+작업 계획: [MMP 시스템 개선]
+[PLAN] development_plan.md - 과제 5.1: README.md 최신화
+(근거) 사용자의 'confirm' 승인에 따라 CoT 제안서 기반 실행을 시작함.
+(CoT 요약)
+- "빠른 시작" 섹션을 개편하여 `guide` 명령어를 중심으로 한 사용자 워크플로우를 제시.
+- "기본 사용법" 섹션에 `guide` 명령어 설명을 추가하고, 레시피 예시에 `adapter` 필드를 반영.
+- "추가 문서" 섹션의 `Blueprint` 문서 설명을 현재 가치에 맞게 수정.
+
+**** README.md
+(근거) development_plan.md의 [과제 5.1] 및 승인된 CoT 제안서에 따라 실행.
+(상세) `README.md`의 "빠른 시작" 섹션을 `guide` CLI 명령어를 중심으로 재구성하고, 명령어 목록과 레시피 예시에 최신 시스템 사양(`guide` 명령어, `adapter` 필드)을 반영함. `Blueprint` 문서에 대한 설명도 현재 가치에 맞게 갱신함.
+(자가 비평) 3단계 자가 비평 프로토콜을 통과함. 수정 사항 없음.
+
+작업 계획: [MMP 시스템 개선]
+[PLAN] development_plan.md - 과제 5.2: docs/DEVELOPER_GUIDE.md 심화 내용 보강
+(근거) 사용자의 'confirm' 승인에 따라 CoT 제안서 기반 실행을 시작함.
+(CoT 요약)
+- `guide` 명령어와 `자동 유효성 검증` 기능의 원리 및 상세 사용법을 설명하는 새로운 "핵심 컨셉" 섹션을 추가.
+- 문서 전체에 있는 모든 레시피 예시 코드의 `loader` 섹션에 최신 스키마인 `adapter` 필드를 추가하여 기술적 정확성을 확보.
+
+**** docs/DEVELOPER_GUIDE.md
+(근거) development_plan.md의 [과제 5.2] 및 승인된 CoT 제안서에 따라 실행.
+(상세) `guide` 명령어와 자동 유효성 검증 기능에 대한 상세한 설명을 담은 "핵심 컨셉" 섹션을 신설함. 또한, 문서 전체에 있는 모든 레시피 코드 예시에 `adapter` 필드를 추가하여 최신 스키마를 반영하고 기술적 정확성을 확보함.
+(자가 비평) 3단계 자가 비평 프로토콜을 통과함. 수정 사항 없음.

@@ -7,6 +7,10 @@ from pathlib import Path
 from typing_extensions import Annotated
 from typing import Optional
 import subprocess
+import inspect
+import importlib
+from jinja2 import Template
+from datetime import datetime
 
 from src.settings import Settings, load_settings_by_file, create_settings_for_inference, load_config_files
 from src.pipelines import run_training, run_batch_inference
@@ -14,11 +18,72 @@ from src.serving import run_api_server
 from src.utils.system.logger import setup_logging, logger
 from src.engine import AdapterRegistry, EvaluatorRegistry, PreprocessorStepRegistry
 from src.utils.system.catalog_parser import load_model_catalog
+from src.settings.compatibility_maps import TASK_METRIC_COMPATIBILITY
+
 
 app = typer.Typer(
     help="Modern ML Pipeline - A robust tool for building and deploying ML.",
     rich_markup_mode="markdown"
 )
+
+# --- Guide Command ---
+
+@app.command()
+def guide(
+    model_path: Annotated[str, typer.Argument(help="레시피 가이드를 생성할 모델의 전체 클래스 경로 (예: sklearn.ensemble.RandomForestClassifier)")]
+):
+    """
+    지정된 모델 클래스에 대한 모범적인 레시피(recipe) 템플릿을 생성합니다.
+    """
+    try:
+        # 1. 모델 클래스 동적 로드 및 인트로스펙션
+        module_path, class_name = model_path.rsplit('.', 1)
+        module = importlib.import_module(module_path)
+        model_class = getattr(module, class_name)
+        
+        params = {}
+        for name, p in inspect.signature(model_class.__init__).parameters.items():
+            if name not in ('self', 'args', 'kwargs'):
+                # 기본값이 없는 파라미터는 주석 처리된 플레이스홀더로 처리
+                default_value = p.default if p.default != inspect.Parameter.empty else '# EDIT_ME'
+                # 문자열 기본값에 따옴표 추가
+                if isinstance(default_value, str):
+                    value_str = f"'{default_value}'"
+                else:
+                    value_str = default_value
+
+                params[name] = {
+                     'type': str(p.annotation) if p.annotation != inspect.Parameter.empty else 'Any',
+                     'default': p.default if p.default != inspect.Parameter.empty else 'N/A',
+                     'value': value_str
+                 }
+
+        # 2. Task-type 추정 (간단한 규칙 기반)
+        task_type = "classification" if "Classifier" in class_name else "regression" if "Regressor" in class_name else "unknown"
+        
+        # 3. Jinja2 템플릿 렌더링
+        template_path = Path(__file__).parent / "project_templates/guideline_recipe.yaml.j2"
+        template = Template(template_path.read_text())
+        
+        rendered_recipe = template.render(
+            model_class_path=model_path,
+            creation_date=datetime.now().strftime("%Y-%m-%d"),
+            model_name=class_name.lower(),
+            hyperparameters=params,
+            task_type=task_type,
+            recommended_metrics=TASK_METRIC_COMPATIBILITY.get(task_type, [])
+        )
+        
+        typer.secho(f"--- Recipe 가이드: {model_path} ---\n", fg=typer.colors.CYAN)
+        typer.echo(rendered_recipe)
+
+    except (ImportError, AttributeError):
+        typer.secho(f"오류: 모델 클래스 '{model_path}'를 찾을 수 없습니다.", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+    except Exception as e:
+        typer.secho(f"예상치 못한 오류 발생: {e}", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+
 
 # --- Main Commands ---
 
