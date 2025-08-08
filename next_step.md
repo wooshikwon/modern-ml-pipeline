@@ -1,99 +1,203 @@
-훌륭한 접근입니다. 이제 명확하게 정의된 최신 `blueprint.md`를 '설계상의 목표'로 삼고, 현재 시스템의 구현 상태를 비교 분석하여 잠재적인 문제점과 보완 필요 사항을 체계적으로 탐색해 보겠습니다.
+### 목적
+- 청사진(`blueprint.md`)과 구현 간 괴리를 해소하고, 런타임 버그/정책/보안을 바로잡으며, 재현성과 테스트 구조를 단단히 하기 위한 “파일 단위·수정 단위” 리팩토링 플랜.
 
-이전 논의에서 제기했던 내용들을 포함하여, 청사진의 원칙을 기준으로 더욱 심층적인 분석을 진행하겠습니다.
+### 핵심 근거(청사진 인용)
+- Augmenter 선택 정책과 서빙 금지 요건:
+```148:155:blueprint.md
+* **Augmenter 선택 정책(요약)**
+  - 입력 신호: `environment.app_env`, `feature_store.provider`, `serving.enabled`, `run_mode(train|batch|serving)`, `recipe.model.augmenter(및 fallback)`
+  - 규칙:
+    1) `local` 또는 `provider=none` 또는 `augmenter.type=pass_through` → `PassThroughAugmenter`
+    2) `augmenter.type=feature_store` ∧ `provider in {feast, mock}` ∧ 헬스체크 성공 → `FeatureStoreAugmenter`
+    3) (train/batch 전용) 2 실패 ∧ 레시피에 `fallback.sql` 명시 → `SqlJoinAugmenter`
+    4) serving에서는 1·3 금지(진입 차단). 실패 시 명확한 에러 반환
+```
+- Augmenter→Preprocessor 순서:
+```203:207:blueprint.md
+* **정합성/정책**
+  - 서빙은 Feature Store 기반 Augmenter만 허용(폴백/패스스루 금지)
+  - 학습/배치는 레시피에 **명시된 경우에 한해** SQL 폴백 허용(자동 폴백 없음)
+  - Preprocessor는 Augmenter 이후에 적용되어 훈련-서빙 일관성 유지
+```
+- 추론 파이프라인 핵심:
+```125:134:blueprint.md
+4. **예측 호출**: `model.predict(... params={run_mode: "serving"|"batch"})`
+   - serving: 온라인 Feature Store 조회(PIT), 폴백/패스스루 금지
+   - batch: 오프라인 Feature Store 기본, 레시피 명시 시 SQL 폴백 허용
+서버 시작 시 `pass_through`/`sql_fallback` 서빙 진입 차단
+```
+- 보안/신뢰성:
+```257:264:blueprint.md
+- 안전한 템플릿/쿼리: allowlist, 금칙어 차단, 타임아웃, LIMIT 가드
+- FS 헬스체크, PIT 검증, 운영 로그, 직렬화 안정성
+```
+- 테스트 원칙:
+```267:277:blueprint.md
+- Settings 로더/스키마, Factory/Registry(Augmenter 정책), Augmenter 단위,
+- 파이프라인 E2E, Serving API 차단, MLflow 스냅샷/시그니처 저장
+```
 
----
+### 리팩토링/개발 플랜(파일별 “무엇을 어떻게”)
 
-### **Blueprint 기준 시스템 보완점 분석**
+#### 1) 치명적 런타임 버그 제거
 
-새로운 청사진은 시스템의 이상적인 상태를 명확히 정의합니다. 이 이상과 현실 사이의 간극을 메우기 위한 몇 가지 구체적인 보완점을 제안합니다.
+- `src/engine/factory.py`
+  - `create_data_adapter(self)` → `create_data_adapter(self, adapter_type: str | None = None)`로 변경. 기본은 레시피의 `model.loader.adapter` 사용, 명시 인자 우선. `tests/pipelines/train_pipeline.py` 호출과 합치.
+  - `create_evaluator`: `evaluator_type` 미정의 버그 수정 → `return EvaluatorRegistry.create(task_type, settings=self.settings)`.
+  - `create_augmenter` 전면 재구현(정책 반영):
+    - 입력: `run_mode`(옵션), 내부에서 `settings.environment.app_env`, `settings.feature_store.provider in {"none","feast","mock"}`, `settings.serving.enabled`, `recipe.model.augmenter` 판단.
+    - 분기: 청사진 3.1 정책(위 인용) 충실 구현. 헬스체크 실패 시 train/batch는 레시피 명시된 `sql_fallback`만 허용, serving은 즉시 차단.
+    - 생성 시그니처 정합화: Feature Store Augmenter는 `(settings, factory)` 주입.
+  - `create_feature_store_adapter`: 헬스체크 수행(FeastAdapter 초기화 실패 시 명확 에러).
+  - `create_pyfunc_wrapper`: 현 로직 유지(Preprocessor→Model→Signature/Schema 추출 OK).
 
-#### **카테고리 1: 철학-구현 간의 잠재적 충돌 해소**
+- `src/components/_augmenter/`
+  - `__init__.py` 추가: `from ._augmenter import FeatureStoreAugmenter`(기존 `Augmenter`를 `FeatureStoreAugmenter`로 명명 명확화), `from ._pass_through import PassThroughAugmenter`.
+  - `src/components/_augmenter/_augmenter.py`
+    - 클래스명 `Augmenter` → `FeatureStoreAugmenter`로 변경(의도 명시).
+    - 생성자 `(settings, factory)` 유지. `augment(df, run_mode)`에서:
+      - run_mode="train"/"batch" → `FeastAdapter.get_historical_features_with_validation(...)`
+      - run_mode="serving" → `FeastAdapter.get_online_features(...)`
+    - Entity+Timestamp 검증 파라미터 구성(`data_interface_config`)은 Factory가 이미 `PyfuncWrapper`에 포함하므로 사용 가능.
+  - `src/components/_augmenter/_sql_fallback.py` 신설:
+    - Loader `entity_df` 기준 Left Join 수행. `templating_utils.render_template_from_file/string` 사용.
+    - `SqlAdapter.read(sql)`로 피처 조회 후 키(`entity + timestamp`) 기반 merge(left).
+    - run_mode가 train/batch일 때만 사용 가능. serving 시 사용 시도 시 예외.
+  - `AugmenterRegistry` 구현 위치 명확화:
+    - `src/engine/_registry.py`에 `AugmenterRegistry` 추가하거나, `Factory.create_augmenter`가 타입→클래스 직접 매핑(dict) 사용. 권고: 엔진 레벨에 `AugmenterRegistry` 추가하여 `"feature_store" | "pass_through" | "sql_fallback"` 등록.
 
-Blueprint에 명시된 핵심 철학이 특정 시나리오에서 오작동하거나 모순을 일으킬 수 있는 지점들입니다.
+- `src/components/_preprocessor/_preprocessor.py`
+  - `transform`에서 학습 여부 체크 들여쓰기/조건 수정(이미 수정된 형태 확인됨). 예외 메시지 유지.
+  - 레시피 스키마 정합성: 현재 구현은 `column_transforms` 기반이므로 스키마도 해당 키 경로를 1급 지원. `steps`는 옵션으로 유지하되 현재 코어 경로는 `column_transforms`.
+  - 빈 DF/전열 NaN/타입 혼합 케이스 대비: `fit` 시 ColumnTransformer가 빈 변환 목록이면 경고 후 no-op 파이프라인 구성.
 
-##### **1.1. '환경별 역할 분담' 원칙의 충돌**
+- `src/pipelines/train_pipeline.py`
+  - 어댑터 생성 호출부를 `factory.create_data_adapter()`로 교체(레시피 기반) 또는 `create_data_adapter(settings.data_adapters.default_loader)`를 유지하려면 Factory 인자 수용(위에서 수용).
+  - 나머지 흐름 유지(MLflow 시그니처/스키마 저장 OK).
 
-*   **현상**:
-    *   **Recipe (논리)**: `recipes/.../random_forest_classifier.yaml`는 `augmenter.type: feature_store`를 통해 "피처 스토어 사용"이라는 **논리적 요구사항**을 명시합니다.
-    *   **Config (인프라)**: `config/local.yaml`은 `feature_store.provider: passthrough`를 통해 "피처 스토어 비활성화"라는 **인프라 제약**을 설정합니다.
+- `src/pipelines/inference_pipeline.py`
+  - 미정의 함수 교정:
+    - `_is_jinja_template(sql)` 간단 구현(`'{{' in sql and '}}' in sql`).
+    - 렌더 함수 호출을 `templating_utils.render_template_from_string`로 수정(함수명 일치).
+  - 결과 저장 완결:
+    - `storage_adapter = factory.create_data_adapter("storage")`
+    - `target_uri = settings.artifact_stores["prediction_results"].base_uri + f"/preds_{run.info.run_id}.parquet"`
+    - `storage_adapter.write(predictions_df, target_uri)`
+  - run_mode="batch"로 `model.predict` 호출.
 
-*   **Blueprint 원칙과의 관계**: 이는 "환경별 역할 분담" 철학의 핵심적인 시나리오이지만, 현재 구조에서는 두 설정이 충돌하여 파이프라인 실패로 이어질 가능성이 높습니다. 청사진은 "환경에 따라 차등적으로 동작"해야 한다고 말하지만, 현재는 '동작'이 아닌 '충돌'이 발생합니다.
+- `src/serving/router.py`
+  - pass_through 외에 `SqlFallbackAugmenter`도 서빙 차단:
+    - `if isinstance(wrapped_model.trained_augmenter, (PassThroughAugmenter, SqlFallbackAugmenter)): raise TypeError(...)`
+  - 온라인 조회 강제: 필요 시 `wrapped_model.trained_augmenter`가 FeatureStoreAugmenter인지 확인하고, 온라인 엔드포인트 접근 가능성 헬스체크가 실패하면 기동 중단.
 
-*   **잠재적 문제점**: 로컬 환경에서 피처 스토어를 사용하는 레시피를 실행하면, `Augmenter`가 피처를 가져오지 못해 오류가 발생합니다. 개발자는 매번 로컬 테스트를 위해 레시피의 `augmenter` 섹션을 수동으로 주석 처리해야 하는 불편함이 생깁니다.
+#### 2) 정책/보안/청사진 정합화
 
-*   **보완 제안 (지능형 Augmenter)**:
-    1.  `Augmenter` 컴포넌트(`src/components/_augmenter/`)를 수정하여, **실행 시점의 `config` 설정을 우선**하도록 만듭니다.
-    2.  만약 `config`의 `provider`가 `passthrough`이면, 레시피에 `augmenter` 설정이 있더라도 이를 무시하고, "로컬 환경 설정에 따라 피처 증강을 건너뜁니다." 라는 경고(warning) 로그만 남긴 후 원본 데이터를 그대로 반환하도록 로직을 변경합니다.
-    3.  이를 통해 레시피 수정 없이도 모든 환경에서 코드가 오류 없이 '의도대로' 차등적으로 동작하게 됩니다.
+- `src/settings/loaders.py`
+  - `.sql` 경로 처리 보완:
+    - 상대 경로면 프로젝트 루트 기준으로 확정 경로로 변환 후 존재성 검사.
+    - 존재하면 `prevent_select_star` 호출(SELECT * 차단). 존재하지 않으면 명확한 에러.
+  - Jinja 변수를 recipe 명세(`jinja_variables`) allowlist로 검증 후 렌더.
 
-##### **1.2. '선언적 파이프라인'의 모호함**
+- `src/utils/adapters/sql_adapter.py`
+  - 실행 전 보안 가드:
+    - `prevent_select_star(sql_query)`
+    - 금칙어 검사(DML/DDL 키워드), LIMIT 가드(대용량 보호)
+  - 엔진 타임아웃/statement timeout 적용(가능한 DB별 옵션 처리 주석과 함께).
+  - 에러 메시지 개선(쿼리 앞 200자 포함).
 
-*   **현상**:
-    *   **Recipe**: `source_uri`에 `my_query.sql` 파일을 지정하여 SQL 기반 데이터 로딩을 선언합니다.
-    *   **Config**: `config/local.yaml`은 `data_adapters.default_loader`를 `storage`로 지정합니다.
+- `src/utils/system/templating_utils.py`
+  - 함수명 표준화: `render_template_from_string`/`render_template_from_file`를 공식명으로 유지. 호출부 정합화.
+  - `_validate_context_params` allowlist 강화(청사진 보안 규정 부합).
 
-*   **Blueprint 원칙과의 관계**: "선언적 파이프라인" 원칙은 사용자가 선언만 하면 시스템이 알아서 동작해야 함을 의미합니다. 하지만 현재는 `Factory`가 `SQLAdapter`와 `StorageAdapter` 중 무엇을 선택할지에 대한 규칙이 코드 내부에 숨겨져 있어 명시적이지 않습니다.
+#### 3) 재현성/튜닝
 
-*   **잠재적 문제점**: 개발자는 `default_loader` 설정이 우선인지, `source_uri`의 확장자가 우선인지 알기 어렵습니다. 이러한 '암묵적인 마법'은 예측 불가능한 동작과 디버깅의 어려움을 초래할 수 있습니다.
+- `src/utils/system/reproducibility.py` 신설
+  - `set_global_seeds(seed: int)`에서 `random`, `numpy`, `torch(옵션)`, `sklearn` 시드 설정.
+- `src/pipelines/train_pipeline.py`, `src/pipelines/inference_pipeline.py`
+  - 시작 시 `set_global_seeds(settings.recipe.model.computed.get("seed", 42))` 호출 및 로그.
+- `src/utils/integrations/optuna_integration.py`
+  - `OptunaIntegration` 클래스 구현:
+    - 생성자에 `tuning_config`, `seed`, `timeout`, `n_jobs`, pruning 설정.
+    - `optimize(objective)`에서 타임박스, 실패/중단 로깅, best_params/best_score/total_trials/optimization_history 반환.
+  - Factory에서 `create_optuna_integration`가 실제 클래스를 반환하도록 수정.
 
-*   **보완 제안 (명시성 강화)**:
-    1.  `config/local.yaml`의 `default_loader` 설정을 제거합니다.
-    2.  대신, 레시피의 `loader` 섹션에 `adapter_type: sql` 또는 `adapter_type: storage` 와 같이 **어댑터 타입을 명시적으로 선언**하도록 구조를 변경합니다.
-    3.  `Factory`는 이 `adapter_type`을 유일한 기준으로 삼아 어댑터를 생성하도록 단순화합니다. 이를 통해 모호함이 사라지고 레시피만 봐도 데이터 로딩 방식이 명확히 이해됩니다.
+#### 4) 서빙 스키마/UX
 
-#### **카테고리 2: 사용자 경험 및 명확성 강화**
+- `src/serving/schemas.py`
+  - `PredictionResponse` 일반화:
+    - 기본 필드 `prediction: Any`, `model_uri: str`
+    - uplift/특수 태스크는 선택 필드(옵셔널)로 확장.
+  - Dynamic Request Model:
+    - 현재 Jinja 변수 기반에서 `entity_schema` 기반으로 전환 권장. 단, 현 구현은 loader SQL snapshot에서 PK 파싱을 하므로, 단계적으로 `PyfuncWrapper`의 `entity_schema_snapshot` 혹은 `data_schema` 활용으로 개선(차후 단계).
 
-시스템은 동작하지만, 사용자 입장에서 혼란스럽거나 불편할 수 있는 지점들입니다.
+- `src/serving/_lifespan.py`
+  - 동적 입력 스키마 생성 시 `parse_select_columns` 대신, 가능하다면 `wrapped_model.data_schema['entity_columns']` 우선 사용(백필: 기존 방식 fallback).
 
-##### **2.1. 하이퍼파라미터 설정의 우선순위 불분명**
+#### 5) 도커/문서 일관화
 
-*   **현상**: 튜닝 관련 설정(`enabled`, `timeout` 등)이 `config`와 `recipe` 양쪽에 존재합니다.
+- Python 버전 통일: 3.11 권장
+  - `pyproject.toml`: `requires-python = ">=3.11,<3.12"`
+  - `README.md` 뱃지 “3.11+”로 수정
+  - `src/utils/system/environment_check.py`: 3.11 권장/3.12 경고 유지
+  - `Dockerfile`: `FROM python:3.11-slim`
+- Dockerfile 정리
+  - uv.lock 사용: `COPY uv.lock requirements-dev.lock ./` → `uv pip sync --python /opt/venv/bin/python uv.lock ...`
+  - `COPY --chown=app:app recipes/ recipes/` (오타 수정)
+  - serve 엔트리포인트: `ENTRYPOINT ["/opt/venv/bin/python", "main.py", "serve-api"]`는 동일, `CMD ["--run-id", "YOUR_RUN_ID"]`로 인자 일치
+- docker-compose.yml
+  - 존재하는 이미지로 교체 또는 `docker/mlflow/Dockerfile` 추가. 로컬 MLflow 포트/볼륨 일치 확인.
 
-*   **Blueprint 원칙과의 관계**: 이는 "설정과 논리의 분리" 철학을 잘 따르는 훌륭한 설계이지만, 두 설정이 충돌할 경우 어떤 것이 우선되는지에 대한 규칙이 사용자에게 명확히 전달되지 않습니다.
+#### 6) 테스트 구조(Unit/Integration) 재설계
 
-*   **잠재적 문제점**: 사용자가 레시피에 `hyperparameter_tuning.enabled: true`를 설정하고도 `config` 설정 때문에 튜닝이 실행되지 않는 이유를 파악하기 어렵습니다.
+- `pytest.ini`
+  - markers 추가: `unit`, `integration`
+- 디렉토리 재배치
+  - `tests/unit/` 신설: settings/engine/components/utils/serving 단위 테스트
+  - `tests/integration/` 유지: pipelines/serving/feature_store/contracts/infra
+- 신규/보강 테스트(요지)
+  - Settings: 로더 에러·Jinja·SELECT * 차단
+  - Factory: Augmenter 정책 파라미터라이즈(env/provider/run_mode/fallback), Evaluator 생성
+  - Augmenter: PassThrough 동일성, FeatureStore 오프라인/온라인 헬스체크 실패/성공, SqlFallback Left Join 키 정합성
+  - Inference: 템플릿 렌더 성공/정적 SQL+context_params 실패/결과 저장
+  - Serving: pass_through/sql_fallback 차단, 동적 스키마 생성
+  - 재현성: 고정 시드로 동일 예측 재현, pip freeze 캡처 여부
+  - MLflow: 시그니처/데이터 스키마/스냅샷 저장 유무
 
-*   **보완 제안 (실행 시점 로그 강화)**:
-    1.  `Trainer` 컴포넌트(`src/components/_trainer/_trainer.py`)의 시작 부분에, 설정 병합 결과를 명시적으로 알려주는 로그를 추가합니다.
-    2.  예: `INFO: 'config/local.yaml' 설정에 따라 하이퍼파라미터 튜닝이 비활성화되었습니다.` 와 같은 메시지를 출력하여, 최종적으로 적용되는 동작을 사용자가 명확히 인지할 수 있게 합니다.
+### 구현 순서(권장)
+1) Factory/Augmenter 시그니처·정책·등록(Registry) 정비
+2) Preprocessor 안정화 및 Settings 로더 SQL 검증 보완
+3) Inference 파이프라인 완결(템플릿/저장)
+4) Serving 정책 보강 및 스키마 일반화
+5) 재현성/Optuna 통합
+6) Docker/문서 버전 통일
+7) 테스트 재구성 + 최소 신규 유닛/통합 추가 → CI에서 unit/integration 분리 실행
 
-##### **2.2. 학습 과정의 불투명성**
+### 완료 기준(수용 테스트)
+- local(dev off)에서 PassThrough 이외 서빙 기동 차단 확인, dev/prod에서 FS 헬스체크 실패 시 명확 에러 및 train/batch에서만 SQL 폴백 동작
+- train/batch/serving 모두 Augmenter→Preprocessor→Model 순서 일관
+- 정적 SQL에 SELECT * 포함 시 로딩 단계에서 차단 로그/예외
+- 배치 추론 결과가 `artifact_stores.prediction_results`에 저장
+- 동일 레시피+시드로 동일 예측 재현 확인
+- CI: unit 전부 green, integration 주요 시나리오 green
 
-*   **현상**: `Optuna`를 이용한 하이퍼파라미터 튜닝이 시작되면, 수십 분 동안 터미널에 아무런 로그가 남지 않을 수 있습니다.
+- 중요한 변경 파일 목록
+  - `src/engine/factory.py`(핵심 정책·시그니처)
+  - `src/engine/_registry.py`(AugmenterRegistry 추가)
+  - `src/components/_augmenter/{__init__.py,_augmenter.py,_sql_fallback.py,_pass_through.py}`
+  - `src/components/_preprocessor/_preprocessor.py`
+  - `src/settings/{loaders.py,_recipe_schema.py}`(필요 시 경로 처리/유효성 강화)
+  - `src/utils/adapters/sql_adapter.py`, `src/utils/system/templating_utils.py`
+  - `src/pipelines/{train_pipeline.py,inference_pipeline.py}`
+  - `src/serving/{router.py,_lifespan.py,schemas.py}`
+  - `src/utils/integrations/optuna_integration.py`(클래스화)
+  - 도커/문서: `Dockerfile`, `docker-compose.yml`, `pyproject.toml`, `README.md`
+  - 테스트: `tests/unit/**`, `tests/integration/**`, `pytest.ini`
 
-*   **Blueprint 원칙과의 관계**: 청사진은 개발자 경험을 강조하지만, 긴 시간 동안 피드백이 없는 것은 좋은 경험이 아닙니다.
+- 청사진 매핑 요약
+  - Augmenter 정책/서빙 차단: 3.1, 2.3 인용 라인 적용
+  - Augmenter→Preprocessor 순서: 3.6(라인 206)
+  - 추론 플로우: 2.3, 8.2 Mermaid
+  - 보안/검증: 5절(라인 257-264)
+  - 테스트 원칙: 6절(라인 267-277)
 
-*   **잠재적 문제점**: 사용자는 시스템이 정상 동작하는지, 멈춘 것인지 알 수 없어 답답함을 느끼고 프로세스를 강제 종료할 수 있습니다.
-
-*   **보완 제안 (Optuna 콜백 연동)**:
-    1.  `Optuna`는 `study.optimize` 메서드에 `callbacks` 인자를 전달할 수 있습니다.
-    2.  매 trial이 끝날 때마다 "Trial 5/50 완료. 점수: 0.85. 최고 점수: 0.87" 과 같은 로그를 출력하는 간단한 콜백 함수를 구현하여 `Trainer`에 추가합니다. 이를 통해 사용자는 진행 상황을 실시간으로 파악할 수 있습니다.
-
-#### **카테고리 3: 시스템 견고성 및 확장성**
-
-현재는 문제가 없지만, 시스템이 더 복잡해지고 성장함에 따라 문제가 될 수 있는 지점들입니다.
-
-##### **3.1. 레시피 유효성 검증 시점**
-
-*   **현상**: `validate` CLI 명령어가 있지만, 레시피의 논리적 모순까지는 검증하지 못할 수 있습니다. 대부분의 오류는 `train` 명령 실행 후, 실제 파이프라인이 동작하는 도중에 발견됩니다.
-
-*   **Blueprint 원칙과의 관계**: 견고한 시스템은 잘못된 실행을 최대한 빨리, 가벼운 단계에서 차단해야 합니다.
-
-*   **잠재적 문제점**: 간단한 레시피 오타나 논리적 비호환성(예: 회귀 모델에 분류 평가지표 사용)을 확인하기 위해 몇 분간 데이터 로딩과 전처리를 실행하는 것은 비효율적입니다.
-
-*   **보완 제안 (사전 검증 강화)**:
-    1.  `Settings` Pydantic 모델에 `cross-validation` 로직을 추가합니다. 예를 들어, `model.data_interface.task_type`이 `classification`이면, `evaluation.metrics`에 `roc_auc`은 올 수 있지만 `mse`는 올 수 없다는 규칙을 검증 로직으로 구현합니다.
-    2.  이 검증 로직은 `load_settings_by_file` 함수 가장 마지막에 수행되어, `train` 실행 초기에 논리적 오류를 즉시 발견하고 실패시키도록 합니다.
-
-##### **3.2. 아티팩트의 환경 종속성**
-
-*   **현상**: `PyfuncWrapper`는 '순수 로직의 캡슐'이지만, 이 로직을 실행하는 패키지(sklearn, pandas 등)의 버전은 아티팩트 외부에, 즉 실행 환경에 의존합니다.
-
-*   **Blueprint 원칙과의 관계**: "완전한 재현성"을 추구하는 청사진의 목표에 도달하기 위한 마지막 퍼즐입니다.
-
-*   **잠재적 문제점**: 모델을 학습시킨 환경과 서빙하는 환경의 `scikit-learn` 버전이 다를 경우, `pickle` 로딩 오류나 미묘한 예측 결과 차이가 발생할 수 있습니다.
-
-*   **보완 제안 (MLflow 내장 기능 활용)**:
-    1.  `mlflow.pyfunc.log_model` 함수는 `conda_env`나 `pip_requirements` 인자를 통해 아티팩트와 함께 패키지 의존성을 함께 저장하는 강력한 기능을 제공합니다.
-    2.  `run_training` 파이프라인 마지막에, 현재 `uv.lock` 파일의 내용을 기반으로 `pip_requirements.txt`를 동적으로 생성하여 이 인자에 전달하는 로직을 추가합니다. MLflow는 이 정보를 모델 아티팩트 내에 저장하여, 추후 이 모델을 로드할 때 정확한 버전의 환경을 재구성하도록 도와줍니다.
+작업 착수 가능. 위 순서대로 적용 후, unit→integration 단계별 녹색 확인까지 진행하겠습니다.
