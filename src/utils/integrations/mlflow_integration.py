@@ -5,6 +5,7 @@ from contextlib import contextmanager
 import pandas as pd
 from mlflow.models.signature import ModelSignature
 from mlflow.types import Schema, ColSpec, ParamSpec, ParamSchema
+from typing import Optional, List
 
 # 순환 참조를 피하기 위해 타입 힌트만 임포트
 from typing import TYPE_CHECKING

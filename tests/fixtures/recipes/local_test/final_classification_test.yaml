@@ -55,7 +55,7 @@ model:
     
 # 평가 설정 (RecipeSettings.validate_recipe_consistency에서 검증)
 evaluation:
-  metrics: ["accuracy", "precision", "recall", "f1_score"]  # Pydantic 검증된 메트릭들
+  metrics: ["accuracy", "precision_weighted", "recall_weighted", "f1_weighted"]  # Pydantic 검증된 메트릭들
   validation:
     method: "train_test_split"
     test_size: 0.2

@@ -6,8 +6,8 @@
 
 우리 파이프라인의 가장 중요한 설계 철학은 **"모델의 모든 논리적 정의는 YAML 레시피 파일 안에서 완결된다"**는 것입니다.
 
-*   **당신의 핵심 작업 공간:** 대부분의 경우, 당신은 레시피 YAML 파일과 관련 SQL 파일만 생성하거나 수정하게 될 것입니다.
-*   **수정할 필요 없는 엔진:** `src/` 디렉토리의 코드는 파이프라인의 "엔진"입니다. 새로운 모델을 추가하기 위해 **코드 수정이나 팩토리 등록이 전혀 필요 없습니다.**
+- **당신의 핵심 작업 공간**: 대부분의 경우, 당신은 레시피 YAML 파일과 관련 SQL 파일만 생성하거나 수정하게 될 것입니다.
+- **수정할 필요 없는 엔진**: `src/` 디렉토리의 코드는 파이프라인의 "엔진"입니다. 새로운 모델을 추가하기 위해 **코드 수정이나 팩토리 등록이 전혀 필요 없습니다.**
 
 ---
 
@@ -52,7 +52,7 @@ evaluation:
     - "r2"
 # ...
 ```
-**원리**: 이 기능은 파이썬의 `inspect` 모듈을 사용해 모델 클래스의 `__init__` 시그니처를 실시간으로 분석하여 동작합니다. 따라서 새로운 모델이 추가되어도 별도의 설정 없이 이 기능을 즉시 사용할 수 있습니다.
+**원리**: 이 기능은 파이썬의 `inspect` 모듈을 사용해 모델 클래스의 `__init__` 시그니처를 실시간으로 분석하여 동작합니다.
 
 ### 1.5.2. 실패-조기(Fail-Fast) 자동 검증
 
@@ -62,9 +62,9 @@ evaluation:
 
 **자동 검증 항목**
 1.  **모델-하이퍼파라미터 호환성 검증**: 레시피에 정의된 `hyperparameters`가 `model.class_path`에 명시된 실제 모델이 수용할 수 있는 유효한 파라미터인지 검증합니다.
-    *   **오류 예시**: `ValueError: 잘못된 하이퍼파라미터: 'invalid_param'은(는) ... 유효한 파라미터가 아닙니다. 사용 가능한 파라미터: [...]`
+    - **오류 예시**: `ValueError: 잘못된 하이퍼파라미터: 'invalid_param'은(는) ... 유효한 파라미터가 아닙니다. 사용 가능한 파라미터: [...]`
 2.  **태스크-평가지표 호환성 검증**: `data_interface.task_type`과 `evaluation.metrics`에 명시된 평가지표가 서로 호환되는지 검증합니다.
-    *   **오류 예시**: `ValueError: 평가 지표 'roc_auc'은(는) 'regression' 태스크 타입과 호환되지 않습니다. 'regression'에 사용 가능한 지표: ['mse', 'rmse', ...]`
+    - **오류 예시**: `ValueError: 평가 지표 'roc_auc'은(는) 'regression' 태스크 타입과 호환되지 않습니다. 'regression'에 사용 가능한 지표: ['mse', 'rmse', ...]`
 
 **원리**: 이 기능은 `Pydantic`의 `model_validator`를 활용하여 구현되었습니다. 시스템은 설정을 단순한 딕셔너리가 아닌, 자체 검증 로직을 가진 똑똑한 `Settings` 객체로 로드하기 때문에 이러한 강력한 사전 검증이 가능합니다.
 
@@ -102,13 +102,13 @@ APP_ENV=dev uv run python main.py train --recipe-file recipes/my_model.yaml
 특징:
 ✅ 완전한 Feature Store (PostgreSQL + Redis)
 ✅ 팀 공유 MLflow 서버
-✅ API 서빙 지원
+✅ API 서빙 지원 (serving.enabled: true 필요)
 ✅ 실제 운영과 동일한 아키텍처
 ```
 
 ### 2.3. PROD 환경: 확장성과 안정성의 정점
 
-**철학**: "성능, 안정성, 관측 가능성의 완벽한 삼위일체"
+**철학**: "성능, 안정성, 관측 가능성의 삼위일체"
 
 ```bash
 # PROD 환경에서 실행
@@ -141,26 +141,29 @@ model:
     max_depth: {type: "int", low: 3, high: 20}     # 자동 최적화 범위
     min_samples_split: {type: "int", low: 2, high: 10}
     
-  # 3. 데이터 로딩 설정
+  # 3. 데이터 로딩 설정 (Point-in-Time 스키마 필수)
   loader:
     name: "default_loader"
     source_uri: "data/classification_dataset.parquet"
     adapter: storage
+    entity_schema:
+      entity_columns: ["user_id"]
+      timestamp_column: "event_ts"
     
   # 4. 피처 증강 설정 (선택사항)
   augmenter:
     type: "pass_through"  # LOCAL: pass_through, DEV/PROD: feature_store
     
-  # 5. 전처리 설정
+  # 5. 전처리 설정 (예시)
   preprocessor:
     name: "default_preprocessor"
     params:
-      exclude_cols: ["user_id", "event_timestamp", "target"]
+      exclude_cols: ["user_id", "event_ts", "target"]
       
   # 6. 모델 인터페이스 설정
   data_interface:
     task_type: "classification"
-    target_col: "target"
+    target_column: "target"
 
 # 7. 자동 하이퍼파라미터 최적화 (선택사항)
 hyperparameter_tuning:
@@ -181,67 +184,28 @@ evaluation:
 
 ### 3.2. 지원하는 모델 클래스
 
-**Scikit-learn 모델**
-```yaml
-# 분류
-class_path: "sklearn.ensemble.RandomForestClassifier"
-class_path: "sklearn.linear_model.LogisticRegression"
-class_path: "sklearn.svm.SVC"
-class_path: "sklearn.naive_bayes.GaussianNB"
-
-# 회귀
-class_path: "sklearn.ensemble.RandomForestRegressor"
-class_path: "sklearn.linear_model.LinearRegression"
-class_path: "sklearn.linear_model.Ridge"
-class_path: "sklearn.linear_model.Lasso"
-```
-
-**Gradient Boosting 모델**
-```yaml
-# XGBoost
-class_path: "xgboost.XGBClassifier"
-class_path: "xgboost.XGBRegressor"
-
-# LightGBM
-class_path: "lightgbm.LGBMClassifier"
-class_path: "lightgbm.LGBMRegressor"
-
-# CatBoost
-class_path: "catboost.CatBoostClassifier"
-class_path: "catboost.CatBoostRegressor"
-```
-
-**인과추론 모델 (CausalML)**
-```yaml
-class_path: "causalml.inference.meta.XGBTRegressor"
-class_path: "causalml.inference.meta.TRegressor"
-class_path: "causalml.inference.meta.SRegressor"
-```
+- Scikit-learn, XGBoost, LightGBM, CatBoost, CausalML 등 주요 라이브러리를 직접 `class_path`로 임포트하여 사용합니다.
 
 ---
 
-## 4. 동적 SQL 템플릿 (Jinja2) 완전 가이드
+## 4. 동적 SQL 템플릿 (Jinja2) 가이드
 
 ### 4.1. Jinja 템플릿 기본 사용법
+
+허용된 컨텍스트 키만 사용할 수 있습니다: `start_date`, `end_date`, `target_date`, `period`, `include_target`.
 
 **템플릿 파일 작성**
 ```sql
 -- recipes/sql/user_behavior_spine.sql.j2
 SELECT 
     user_id,
-    session_id,
     event_timestamp,
-    '{{ target_date }}' as snapshot_date,
     CASE 
-        WHEN total_spent > {{ high_value_threshold | default(1000) }}
-        THEN 1 ELSE 0 
-    END as target
+        WHEN total_spent > 1000 THEN 1 ELSE 0 
+    END as include_flag,
+    '{{ target_date }}' as snapshot_date
 FROM user_events 
 WHERE event_date BETWEEN '{{ start_date }}' AND '{{ end_date }}'
-    AND event_type = '{{ event_type | default("purchase") }}'
-{% if limit is defined %}
-LIMIT {{ limit }}
-{% endif %}
 ```
 
 **Recipe에서 템플릿 사용**
@@ -252,61 +216,24 @@ model:
     name: "default_loader"
     source_uri: "recipes/sql/user_behavior_spine.sql.j2"  # .j2 확장자
     adapter: sql
+    entity_schema:
+      entity_columns: ["user_id"]
+      timestamp_column: "event_timestamp"
 
 # CLI에서 파라미터 전달
 # uv run python main.py train \
 #   --recipe-file recipes/models/classification/templated_model.yaml \
-#   --context-params '{"target_date": "2024-01-01", "start_date": "2023-12-01", "end_date": "2024-01-01", "high_value_threshold": 500, "limit": 10000}'
+#   --context-params '{"target_date": "2024-01-01", "start_date": "2023-12-01", "end_date": "2024-01-01"}'
 ```
 
-### 4.2. Jinja 템플릿 고급 기능
+### 4.2. Jinja 템플릿 보안 규칙
 
-**조건부 로직**
-```sql
--- recipes/sql/conditional_spine.sql.j2
-SELECT user_id, session_id, event_timestamp
-{% if include_features %}
-    , feature1, feature2, feature3
-{% endif %}
-{% if task_type == "classification" %}
-    , CASE WHEN conversion = 1 THEN 1 ELSE 0 END as target
-{% elif task_type == "regression" %}
-    , revenue as target
-{% endif %}
-FROM events
-WHERE date = '{{ target_date }}'
-```
-
-**반복문과 리스트 처리**
-```sql
--- recipes/sql/multi_feature_spine.sql.j2
-SELECT 
-    user_id,
-    event_timestamp,
-{% for feature in features %}
-    {{ feature }}{{ "," if not loop.last }}
-{% endfor %}
-FROM feature_table
-WHERE user_id IN (
-{% for user_id in user_ids %}
-    '{{ user_id }}'{{ "," if not loop.last }}
-{% endfor %}
-)
-```
-
-**Context 파라미터 사용 예시**
-```bash
-# 복잡한 파라미터 전달
-uv run python main.py train \
-  --recipe-file recipes/templated_advanced.yaml \
-  --context-params '{
-    "target_date": "2024-01-01",
-    "task_type": "classification", 
-    "include_features": true,
-    "features": ["age", "income", "purchase_history"],
-    "user_ids": ["user1", "user2", "user3"]
-  }'
-```
+- 템플릿 렌더링은 `render_template_from_file|string`을 통해 수행됩니다.
+- 컨텍스트 파라미터 화이트리스트를 엄격히 적용합니다.
+- 렌더링 결과 SQL에 대해 다음을 검증합니다:
+  - SELECT \* 금지
+  - DDL/DML 금칙어 차단: DROP/DELETE/UPDATE/INSERT/ALTER/…
+  - LIMIT 미존재 경고(정보성)
 
 ---
 
@@ -314,14 +241,9 @@ uv run python main.py train \
 
 ### 5.1. SqlAdapter: 모든 SQL 데이터베이스 통합
 
-**지원 데이터베이스**
-- PostgreSQL
-- BigQuery  
-- Snowflake
-- MySQL
-- SQLite
+- 지원 DB: PostgreSQL, BigQuery, Snowflake, MySQL, SQLite
+- 실행 전 보안 가드 적용: `SELECT *` 금지, DDL/DML 금칙어 차단, LIMIT 경고
 
-**설정 예시**
 ```yaml
 # config/base.yaml
 data_adapters:
@@ -330,225 +252,57 @@ data_adapters:
       class_name: SqlAdapter
       config:
         connection_uri: "postgresql://user:pass@localhost:5432/db"
-        # 또는: "bigquery://project-id/dataset"
-        # 또는: "snowflake://user:pass@account/db/schema"
 ```
 
 ### 5.2. StorageAdapter: 통합 파일 시스템
 
-**지원 스토리지**
-- 로컬 파일 시스템
-- Google Cloud Storage (GCS)
-- Amazon S3
-- Azure Blob Storage
+- 지원 스토리지: 로컬, GCS, S3, Azure Blob (fsspec 스킴 기반)
 
-**설정 예시**
 ```yaml
-# config/base.yaml
-data_adapters:
-  adapters:
-    storage:
-      class_name: StorageAdapter
-      config:
-        # fsspec이 URI 스킴으로 자동 판단
-        # "file://", "gs://", "s3://", "abfs://" 모두 지원
-```
-
-**사용 예시**
-```yaml
-# Recipe에서 다양한 스토리지 사용
 model:
   loader:
-    name: "storage_loader_example" # name is optional
-    source_uri: "file://data/local_file.parquet"           # 로컬
+    source_uri: "file://data/local_file.parquet"
     adapter: storage
-    # source_uri: "gs://my-bucket/data/file.parquet"       # GCS
-    # source_uri: "s3://my-bucket/data/file.parquet"       # S3
 ```
 
 ### 5.3. FeastAdapter: Feature Store 통합
 
-**Feast 기반 피처 증강**
 ```yaml
-# recipes/feature_store_model.yaml
 model:
   augmenter:
     type: "feature_store"
     features:
-      # 사용자 인구통계 피처
       - feature_namespace: "user_demographics"
         features: ["age", "gender", "country", "city"]
-        
-      # 사용자 행동 피처  
       - feature_namespace: "user_behavior"
         features: ["total_purchases", "avg_session_time", "last_login"]
-        
-      # 상품 피처
-      - feature_namespace: "product_features"
-        features: ["price", "category", "brand", "rating"]
-```
-
-**환경별 Feature Store 설정**
-```yaml
-# config/base.yaml - LOCAL
-feature_store:
-  feast_config:
-    offline_store:
-      type: "file"
-    online_store:
-      type: "sqlite"
-
-# config/dev.yaml - DEV  
-feature_store:
-  feast_config:
-    offline_store:
-      type: "postgresql"
-    online_store:
-      type: "redis"
-      
-# config/prod.yaml - PROD
-feature_store:
-  feast_config:
-    offline_store:
-      type: "bigquery"
-    online_store:
-      type: "redis"
 ```
 
 ---
 
 ## 6. 자동 하이퍼파라미터 최적화 (HPO)
 
-### 6.1. 기본 HPO 설정
+- 레시피에서 탐색 공간을 정의하고, 설정에서 시간/병렬화를 제어합니다.
+- 내부적으로 `OptunaIntegration`을 사용해 `create_study`와 `suggest_hyperparameters`를 수행합니다.
 
-**Recipe 레벨 설정 (실험 논리)**
 ```yaml
-# recipes/hpo_model.yaml
 model:
   hyperparameters:
-    # Optuna 탐색 범위 정의
     n_estimators: {type: "int", low: 50, high: 1000}
-    max_depth: {type: "int", low: 3, high: 20}
     learning_rate: {type: "float", low: 0.01, high: 0.3, log: true}
-    subsample: {type: "float", low: 0.5, high: 1.0}
 
 hyperparameter_tuning:
   enabled: true
-  n_trials: 100           # "이 실험은 100번 시도할 가치가 있다"
-  metric: "roc_auc"       # 최적화할 메트릭
-  direction: "maximize"   # 방향 (maximize/minimize)
-```
-
-**Config 레벨 설정 (인프라 제약)**
-```yaml
-# config/dev.yaml - 개발 환경
-hyperparameter_tuning:
-  enabled: true
-  timeout: 600          # 10분 제한 (개발 환경 자원 보호)
-  
-# config/prod.yaml - 운영 환경
-hyperparameter_tuning:
-  enabled: true  
-  timeout: 7200         # 2시간까지 허용 (운영 환경 자원 활용)
-  parallelization:
-    n_jobs: 8           # 병렬 처리
-```
-
-### 6.2. HPO 결과 추적 및 분석
-
-**MLflow에서 확인 가능한 정보**
-```python
-# 자동 로깅되는 HPO 관련 메트릭
-- best_score: 0.945          # 달성한 최고 점수
-- total_trials: 50           # 수행된 총 trial 수  
-- optimization_time: 1847    # 총 최적화 시간 (초)
-- pruned_trials: 12          # 조기 중단된 trial 수
-
-# 자동 로깅되는 하이퍼파라미터
-- n_estimators: 847          # 최적 파라미터들
-- max_depth: 12
-- learning_rate: 0.0847
-```
-
-**PyfuncWrapper에 저장되는 완전한 HPO 결과**
-```python
-wrapper.hyperparameter_optimization = {
-    "enabled": True,
-    "engine": "optuna",
-    "best_params": {"n_estimators": 847, "max_depth": 12},
-    "best_score": 0.945,
-    "optimization_history": [...],  # 전체 탐색 과정
-    "total_trials": 50,
-    "pruned_trials": 12,
-    "optimization_time": 1847
-}
+  n_trials: 100
+  metric: "roc_auc"
+  direction: "maximize"
 ```
 
 ---
 
 ## 7. 고급 Recipe 패턴
 
-### 7.1. 멀티 태스크 모델
-
-```yaml
-# recipes/multi_task_model.yaml
-model:
-  class_path: "sklearn.multioutput.MultiOutputRegressor"
-  hyperparameters:
-    estimator:
-      class_path: "xgboost.XGBRegressor"
-      hyperparameters:
-        n_estimators: {type: "int", low: 100, high: 500}
-        
-  data_interface:
-    task_type: "regression"
-    target_col: ["target1", "target2", "target3"]  # 다중 타겟
-```
-
-### 7.2. 커스텀 전처리 파이프라인
-
-```yaml
-# recipes/custom_preprocessing.yaml
-model:
-  preprocessor:
-    name: "custom_preprocessor"
-    params:
-      # 범주형 변수 처리
-      categorical_features: ["category", "brand", "region"]
-      categorical_strategy: "onehot"  # onehot, label, target
-      
-      # 수치형 변수 처리  
-      numerical_features: ["price", "rating", "reviews"]
-      numerical_strategy: "standard"  # standard, minmax, robust
-      
-      # 결측치 처리
-      missing_strategy: "median"      # mean, median, mode, drop
-      
-      # 이상치 처리
-      outlier_detection: true
-      outlier_method: "iqr"          # iqr, zscore, isolation_forest
-```
-
-### 7.3. 앙상블 모델
-
-```yaml
-# recipes/ensemble_model.yaml
-model:
-  class_path: "sklearn.ensemble.VotingClassifier"
-  hyperparameters:
-    estimators:
-      - name: "rf"
-        estimator:
-          class_path: "sklearn.ensemble.RandomForestClassifier"
-          hyperparameters:
-            n_estimators: {type: "int", low: 50, high: 200}
-      - name: "xgb"  
-        estimator:
-          class_path: "xgboost.XGBClassifier"
-          hyperparameters:
-            n_estimators: {type: "int", low: 50, high: 200}
-    voting: "soft"
-```
+- 멀티 태스크, 커스텀 전처리, 앙상블 구성은 표준 레시피 문법으로 표현할 수 있습니다.
 
 ---
 
@@ -556,7 +310,6 @@ model:
 
 ### 8.1. 모델 배포 전략
 
-**단계별 배포**
 ```bash
 # 1. LOCAL에서 프로토타입
 APP_ENV=local uv run python main.py train --recipe-file recipes/my_model.yaml
@@ -566,30 +319,23 @@ APP_ENV=dev uv run python main.py train --recipe-file recipes/my_model.yaml
 
 # 3. PROD에서 운영 배포
 APP_ENV=prod uv run python main.py train --recipe-file recipes/my_model.yaml
-RUN_ID="prod-run-id"
 
-# 4. API 서빙 시작
-APP_ENV=prod uv run python main.py serve-api --run-id $RUN_ID
+# 4. API 서빙 시작 (DEV/PROD)
+RUN_ID="<your-run-id>"
+uv run python main.py serve-api --run-id $RUN_ID
 ```
 
-### 8.2. 모델 성능 모니터링
+### 8.2. API 스키마와 응답
 
-**배치 추론으로 정기 평가**
+- `/predict` 응답은 `MinimalPredictionResponse` 스키마를 따릅니다.
+- 필드: `prediction`, `model_uri`
+
+예시
 ```bash
-# 주간 모델 성능 평가
-RUN_ID="latest-model"
-uv run python main.py batch-inference \
-  --run-id $RUN_ID \
-  --context-params '{"evaluation_date": "2024-01-07"}'
-```
-
-**A/B 테스트**
-```bash
-# 모델 A (기존)
-uv run python main.py serve-api --run-id $MODEL_A_RUN_ID --port 8000
-
-# 모델 B (신규)  
-uv run python main.py serve-api --run-id $MODEL_B_RUN_ID --port 8001
+curl -s http://localhost:8000/predict \
+  -H 'Content-Type: application/json' \
+  -d '{"user_id": 1, "event_ts": "2024-01-01T00:00:00"}'
+# {"prediction": 0.87, "model_uri": "runs:/<run-id>/model"}
 ```
 
 ---
@@ -598,46 +344,30 @@ uv run python main.py serve-api --run-id $MODEL_B_RUN_ID --port 8001
 
 ### 9.1. 학습 관련 문제
 
-**하이퍼파라미터 최적화 실패**
 ```bash
 # 로그 레벨 상승으로 상세 정보 확인
 export LOG_LEVEL=DEBUG
 uv run python main.py train --recipe-file recipes/my_model.yaml
-
-# Optuna 데이터베이스 확인
-ls ~/.optuna/  # 기본 SQLite 저장 위치
 ```
 
-**메모리 부족 오류**
+**메모리 부족**
 ```yaml
-# Recipe에서 데이터 크기 제한
 model:
   loader:
-    source_uri: "SELECT * FROM large_table LIMIT 10000"  # 샘플링
+    # 샘플링 예시 (SELECT * 금지)
+    source_uri: |
+      SELECT user_id, event_ts, feature_1
+      FROM large_table
+      LIMIT 10000
     adapter: sql
-    
-hyperparameter_tuning:
-  n_trials: 10  # trial 수 감소
 ```
 
 ### 9.2. Feature Store 관련 문제
 
-**Feast 초기화 실패**
-```bash
-# Feast 설정 확인
-feast version
-feast repo-config
-
-# Redis 연결 확인
-redis-cli ping
-
-# PostgreSQL 연결 확인
-psql -h localhost -p 5432 -U mlpipeline_user -d mlpipeline_db -c "SELECT 1;"
-```
+- Feast/Redis/PostgreSQL 연결 상태를 우선 확인하세요.
 
 ### 9.3. API 서빙 관련 문제
 
-**모델 로딩 실패**
 ```bash
 # MLflow run 존재 확인
 mlflow runs describe --run-id $RUN_ID
@@ -646,113 +376,47 @@ mlflow runs describe --run-id $RUN_ID
 ls mlruns/0/$RUN_ID/artifacts/model/
 ```
 
-**동적 스키마 생성 실패**
-```python
-# SQL 파싱 직접 테스트
-from src.utils.system.sql_utils import parse_select_columns
-
-sql = "SELECT user_id, product_id FROM table"
-columns = parse_select_columns(sql)
-print(columns)  # ['user_id', 'product_id']
-```
-
 ---
 
 ## 10. 성능 최적화 가이드
 
 ### 10.1. 학습 성능 최적화
 
-**데이터 로딩 최적화**
 ```yaml
-# Parquet 형식 사용 (CSV 대비 10x 빠름)
+# Parquet 형식 권장
 model:
   loader:
-    source_uri: "data/dataset.parquet"  # ✅ 권장
+    source_uri: "data/dataset.parquet"
     adapter: storage
-    # source_uri: "data/dataset.csv"   # ❌ 느림
 ```
 
-**하이퍼파라미터 최적화 효율화**
 ```yaml
+# Pruning 사용 예시
 hyperparameter_tuning:
   enabled: true
   n_trials: 100
-  
-  # Pruning으로 비효율적 trial 조기 중단
   pruning:
     enabled: true
-    algorithm: "MedianPruner"
-    n_startup_trials: 5
-    n_warmup_steps: 10
 ```
 
 ### 10.2. 추론 성능 최적화
 
-**배치 추론 최적화**
 ```bash
-# 병렬 처리로 배치 크기 조정
-export BATCH_SIZE=1000
+# 배치 추론
 uv run python main.py batch-inference --run-id $RUN_ID
 ```
 
-**API 서빙 최적화**
 ```bash
-# Gunicorn으로 다중 워커 실행
-gunicorn serving.api:app -w 4 -k uvicorn.workers.UvicornWorker
+# API 서빙 (멀티 워커 예시)
+# gunicorn serving.api:app -w 4 -k uvicorn.workers.UvicornWorker
 ```
 
 ---
 
 ## 11. 고급 확장 가이드
 
-### 11.1. 커스텀 어댑터 추가
-
-```python
-# src/utils/adapters/custom_adapter.py
-from src.interface.base_adapter import BaseAdapter
-
-class CustomAdapter(BaseAdapter):
-    def __init__(self, settings, **kwargs):
-        self.settings = settings
-        
-    def read(self, query, **kwargs):
-        # 커스텀 데이터 소스에서 읽기
-        pass
-        
-    def write(self, df, destination, **kwargs):
-        # 커스텀 데이터 소스에 쓰기
-        pass
-```
-
-```python
-# src/engine/registry.py에 등록
-def register_all_adapters():
-    # ... 기존 어댑터들 ...
-    
-    try:
-        from src.utils.adapters.custom_adapter import CustomAdapter
-        AdapterRegistry.register("custom", CustomAdapter)
-    except ImportError:
-        logger.warning("CustomAdapter not available")
-```
-
-### 11.2. 커스텀 평가 메트릭 추가
-
-```python
-# src/components/evaluator.py 확장
-class CustomEvaluator(BaseEvaluator):
-    def evaluate(self, y_true, y_pred, **kwargs):
-        metrics = super().evaluate(y_true, y_pred, **kwargs)
-        
-        # 커스텀 메트릭 추가
-        metrics["custom_metric"] = self._calculate_custom_metric(y_true, y_pred)
-        return metrics
-        
-    def _calculate_custom_metric(self, y_true, y_pred):
-        # 커스텀 계산 로직
-        return custom_score
-```
+- 커스텀 어댑터/평가자/전처리 스텝은 레지스트리 패턴에 따라 확장 가능합니다.
 
 ---
 
-이 가이드를 통해 Modern ML Pipeline의 모든 고급 기능을 활용하여 강력하고 확장 가능한 ML 시스템을 구축할 수 있습니다. 추가 질문이나 도움이 필요하시면 언제든 문의해 주세요!
+이 가이드를 통해 Modern ML Pipeline의 기능을 활용하여 확장 가능한 ML 시스템을 구축할 수 있습니다.

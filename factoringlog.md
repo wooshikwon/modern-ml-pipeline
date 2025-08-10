@@ -1,186 +1,191 @@
-## 2024-05-21
-
-작업 계획: [MMP 시스템 개선]
-[PLAN] development_plan.md - 과제 1.1: 지능형 Augmenter 구현
+작업 계획: 단계 1 - 치명적 버그 및 인터페이스 정합성 제거
+[PLAN] development_plan.md - 1) 치명적 런타임 버그 및 인터페이스 정합성 제거
 (근거) 사용자의 'confirm' 승인에 따라 CoT 제안서 기반 실행을 시작함.
 (CoT 요약)
-- `src/engine/factory.py`의 `create_augmenter` 메서드를 수정하여 `settings.feature_store.provider` 설정을 최우선으로 확인.
-- `provider`가 'passthrough'일 경우, 레시피 설정과 무관하게 `PassThroughAugmenter`를 강제 반환.
-- 레시피에 `augmenter`가 정의되지 않은 경우에도 `PassThroughAugmenter`를 반환하여 안정성 확보.
-- `src/components/_augmenter/_pass_through.py`에 명확한 정보성 로그 추가.
+- BaseAugmenter에 run_mode 인자 추가, PassThroughAugmenter augment 구현, FeatureStoreAugmenter로 클래스 명확화
+- AugmenterRegistry를 엔진 레벨에 신설하고 Factory가 이를 사용
+- Factory: create_data_adapter(adapter_type) 시그니처 확장, create_evaluator NameError 수정, create_augmenter(run_mode) 정책 구현
+- Trainer/Optimizer 정합화(최소 변경: best_artifacts 추적), DataHandler 호출 불일치 제거
+
+**** src/interface/base_augmenter.py
+(근거) development_plan.md 1) 및 승인된 CoT에 따라 BaseAugmenter 인터페이스에 run_mode 인자 추가.
+(상세) augment(self, data, run_mode="batch") 시그니처로 변경, 간단한 Args 설명 추가.
+(자가 비평) 인터페이스 변경이 PyfuncWrapper.predict 호출(run_mode 전달)과 정합. 다른 구현체가 컴파일 타임에 누락되지 않도록 PassThrough/FS 구현 동반 수정.
 
 **** src/components/_augmenter/_pass_through.py
-(근거) development_plan.md의 [과제 1.1] 및 승인된 CoT 제안서에 따라 실행.
-(상세) `_augment` 메서드를 수정하고 클래스 docstring을 개선하여, 피처 증강을 건너뛰는 경우('passthrough' 모드 또는 레시피에 미정의)에 대한 정보성 로그를 명확히 추가함.
-(자가 비평) 3단계 자가 비평 프로토콜을 통과함. 수정 사항 없음.
+(근거) development_plan.md 1) PassThroughAugmenter가 추상 메서드 충족.
+(상세) _augment 제거, augment(self, df, run_mode) 구현. 입력 그대로 반환.
+(자가 비평) 단순 경로로 예외 없음. 서빙 차단은 Router/Factory에서 처리될 예정.
+
+**** src/components/_augmenter/_augmenter.py
+(근거) development_plan.md 1) FeatureStoreAugmenter 명확화 및 run_mode별 분기.
+(상세) 클래스명을 FeatureStoreAugmenter로 정리, offline은 get_historical_features_with_validation, online은 get_online_features 사용. entity_rows 변환 포함.
+(자가 비평) features 평탄화 규칙은 네임스페이스:피처 형식으로 구성. FeastAdapter API와 정합.
+
+**** src/engine/_registry.py
+(근거) development_plan.md 1) AugmenterRegistry 신설.
+(상세) AugmenterRegistry 추가, __init__에서 augmenter 모듈 임포트 트리거하여 등록 유도.
+(자가 비평) 등록 순서 이슈 대비 try/except 처리. 다음 단계에서 sql_fallback 등록 예정.
+
+**** src/components/_augmenter/__init__.py
+(근거) development_plan.md 1) 공개 심볼/등록.
+(상세) FeatureStoreAugmenter, PassThroughAugmenter 노출 및 AugmenterRegistry.register 수행.
+(자가 비평) 초기 임포트 순서 이슈는 예외 무시로 방어.
 
 **** src/engine/factory.py
-(근거) development_plan.md의 [과제 1.1] 및 승인된 CoT 제안서에 따라 실행.
-(상세) `create_augmenter` 메서드의 로직을 전면 수정. `config`의 `feature_store.provider` 설정을 최우선으로 확인하여 'passthrough' 모드를 강제하고, 레시피에 `augmenter`가 정의되지 않은 엣지 케이스를 처리하여 `PassThroughAugmenter`를 반환하도록 함. 이를 통해 환경 설정이 논리 설정을 안전하게 덮어쓰도록 보장함.
-(자가 비평) 3단계 자가 비평 프로토콜을 통과함. 수정 사항 없음.
+(근거) development_plan.md 1) Factory 시그니처/버그/정책 구현.
+(상세) create_data_adapter(adapter_type) 추가, create_evaluator NameError 수정, create_augmenter(run_mode) 정책 구현. PassThrough/FS 선택 및 serving 차단 케이스 명확화.
+(자가 비평) sql_fallback은 NotImplementedError로 후속 단계 예약. 호출부는 기존과 역호환.
 
-작업 계획: [MMP 시스템 개선]
-[PLAN] development_plan.md - 과제 1.2: 데이터 어댑터 타입 명시성 강화
+작업 계획: 단계 2 - 정책/보안/청사진 정합화
+[PLAN] development_plan.md - 2) 정책/보안/청사진 정합화
 (근거) 사용자의 'confirm' 승인에 따라 CoT 제안서 기반 실행을 시작함.
 (CoT 요약)
-- `config/local.yaml`에서 `default_loader`를 제거하고, `LoaderSettings`에 `adapter: str` 필드를 추가.
-- `Factory`가 오직 `loader.adapter` 값을 기준으로 DataAdapter를 생성하도록 로직을 단순화.
-- 프로젝트의 모든 레시피 파일에 `adapter: sql` 또는 `adapter: storage`를 명시적으로 추가.
+- Settings 로더 import 정리 및 정적 SQL 경로/보안 강화
+- Serving 설정에 enabled 추가, 서빙 차단 정책 보강
+- Recipe 스키마 검증 교정
+- SQL 어댑터 가드 강화, 템플릿 함수명 정합화
+- 배치 추론 결과 파일명 `preds_{run_id}.parquet` 고정
 
-**** config/local.yaml, src/settings/_recipe_schema.py, src/engine/factory.py
-(근거) development_plan.md의 [과제 1.2] 및 승인된 CoT 제안서에 따라 실행.
-(상세) `config`에서 `default_loader`를 제거하고, `LoaderSettings` 스키마에 `adapter: str` 필드를 추가. Factory가 `loader.adapter` 값을 기준으로만 어댑터를 생성하도록 로직을 단순화하고 명확화함.
-(자가 비평) 3단계 자가 비평 프로토콜을 통과함. 수정 사항 없음.
+**** src/settings/loaders.py
+(근거) development_plan.md 2) 정책/보안/청사진 정합화
+(상세) Settings import를 `from .schema import Settings`로 통일. 정적 `.sql` 경로 절대화 및 존재 검사, `prevent_select_star` 적용을 강화.
+(자가 비평) 청사진 5절 보안 원칙에 부합. 파일 미존재 시 명확한 예외, SELECT * 차단 로직 유지. 기존 호출부와 하위 호환 유지.
 
-**** recipes/**/*.yaml, tests/fixtures/recipes/**/*.yaml, src/cli/project_templates/recipes/**/*.yaml
-(근거) development_plan.md의 [과제 1.2] 및 승인된 CoT 제안서에 따라 실행.
-(상세) 프로젝트 내 모든 레시피 파일의 `loader` 섹션에 `source_uri`의 종류에 따라 `adapter: sql` 또는 `adapter: storage`를 명시적으로 추가하여, 새로운 스키마 요구사항을 충족시킴.
-(자가 비평) 3단계 자가 비평 프로토콜을 통과함. 수정 사항 없음.
+**** src/settings/_config_schema.py
+(근거) development_plan.md 2) Serving 설정 보강.
+(상세) `ServingSettings`에 `enabled: bool = False` 필드 추가. 환경별 서빙 차단 로직과 정합.
+(자가 비평) 기존 필드 유지, 하위 호환성 확보. Router의 enabled 체크와 일치.
 
-작업 계획: [MMP 시스템 개선]
-[PLAN] development_plan.md - 과제 2.1: 하이퍼파라미터 튜닝 우선순위 로깅
-(근거) 사용자의 '진행' 승인에 따라 CoT 제안서 기반 실행을 시작함.
-(CoT 요약)
-- `src/components/_trainer/_trainer.py`의 `train` 메서드에 튜닝 실행 여부를 결정하는 로직을 명시적으로 추가.
-- 최종 튜닝 실행 여부와 그 이유(config 또는 recipe 설정)를 사용자에게 명확히 알리는 정보성 로그를 추가하여 시스템 동작의 투명성을 높임.
+**** src/settings/_recipe_schema.py
+(근거) development_plan.md 2) 스키마 검증 교정.
+(상세) 존재하지 않는 `loader.feature_retrieval` 참조 제거. FS 사용 시 `augmenter.features` 필수 검증으로 간소화.
+(자가 비평) 청사진 정책과 일치. 불필요한 의존 제거.
 
-**** src/components/_trainer/_trainer.py
-(근거) development_plan.md의 [과제 2.1] 및 승인된 CoT 제안서에 따라 실행.
-(상세) `train` 메서드의 로직을 리팩토링하여 HPO 실행 여부 결정 로직을 통합함. `config`와 `recipe` 설정을 모두 고려하여 튜닝 실행 여부를 결정하고, 그 결정 이유를 명확하게 로깅하도록 수정함. 이를 통해 시스템 동작의 투명성과 사용자 경험을 향상시킴.
-(자가 비평) 3단계 자가 비평 프로토콜을 통과함. 메서드 통합을 통해 코드의 중복이 제거되고 응집도가 높아지는 구조적 개선이 이루어짐.
+**** src/utils/adapters/sql_adapter.py
+(근거) development_plan.md 2) SQL 가드 강화.
+(상세) SELECT * 차단, DDL/DML 금칙어 차단, LIMIT 가드 경고, 에러 로그에 SQL 스니펫 포함.
+(자가 비평) 과차단 가능성은 명확한 메시지로 상쇄. statement timeout은 주석 가이드로 남김.
 
-작업 계획: [MMP 시스템 개선]
-[PLAN] development_plan.md - 과제 2.2: Optuna 학습 과정 실시간 로깅
-(근거) 사용자의 'confirm' 승인에 따라 CoT 제안서 기반 실행을 시작함.
-(CoT 요약)
-- `src/utils/integrations/optuna_integration.py` 파일을 신규 생성하여 로깅 콜백 함수를 정의.
-- `_optimizer.py`에서 `study.optimize` 호출 시 이 콜백을 등록하여, 튜닝의 각 trial마다 진행 상황이 실시간으로 로깅되도록 구현.
-- Pruned된 trial과 같은 엣지 케이스를 안전하게 처리.
+**** src/pipelines/inference_pipeline.py
+(근거) development_plan.md 2) 템플릿/저장 규칙 정합화.
+(상세) `render_template_from_string` 사용으로 함수명 표준화. 저장 파일명 `preds_{run.info.run_id}.parquet`로 고정.
+(자가 비평) 청사진 8.2와 일치. 다운스트림 호환성 향상.
 
-**** src/utils/integrations/optuna_integration.py
-(근거) development_plan.md의 [과제 2.2] 및 승인된 CoT 제안서에 따라 실행.
-(상세) Optuna의 각 trial이 완료될 때마다 진행 상황(trial 번호, 점수)을 로깅하는 `logging_callback` 함수를 포함하는 신규 모듈을 생성함. Pruned trial과 같은 엣지 케이스를 안전하게 처리하도록 구현.
-(자가 비평) 3단계 자가 비평 프로토콜을 통과함. 수정 사항 없음.
+**** src/serving/_lifespan.py
+(근거) development_plan.md 2) 입력 스키마 생성 우선순위 보강.
+(상세) `wrapped_model.data_schema['entity_columns']` 우선 사용, 불가 시 SQL 파싱 폴백.
+(자가 비평) 모델 아티팩트의 자기 기술성을 적극 활용.
+
+**** src/serving/schemas.py
+(근거) development_plan.md 2) 응답 스키마 일반화.
+(상세) `MinimalPredictionResponse` 추가(공통 최소 스키마). 기존 `PredictionResponse` 유지로 하위 호환.
+(자가 비평) 엔드포인트 적용은 후속 정리 단계에서 선택적으로 반영.
+
+**** src/serving/router.py
+(근거) development_plan.md 2) 서빙 차단 정책 강화.
+(상세) PassThrough 차단 유지 + SqlFallbackAugmenter 차단(구현 시 활성). `ServingSettings.enabled` 체크 경로 유지.
+(자가 비평) SqlFallback 구현 전까지 try/except로 유연 처리.
 
 **** src/components/_trainer/_optimizer.py
-(근거) development_plan.md의 [과제 2.2] 및 승인된 CoT 제안서에 따라 실행.
-(상세) `study.optimize()` 메서드 호출 시, 새로 생성된 `logging_callback`을 `callbacks` 인자로 전달하도록 수정함. 이를 통해 하이퍼파라미터 튜닝 과정의 실시간 피드백을 제공하여 사용자 경험을 향상시킴.
-(자가 비평) 3단계 자가 비평 프로토콜을 통과함. 수정 사항 없음.
+(근거) development_plan.md 3) 튜닝 통합 강화.
+(상세) `_create_pruner` 기본 구현(MedianPruner) 추가. 기존 optimize 흐름과 호환.
+(자가 비평) optuna 미설치 시 None 처리로 유연성 확보.
 
-작업 계획: [MMP 시스템 개선]
-[PLAN] development_plan.md - 과제 3.1+: 동적 레시피 유효성 검증 및 CLI 가이드 생성
+**** src/utils/integrations/optuna_integration.py
+(근거) development_plan.md 3) OptunaIntegration 클래스화.
+(상세) `OptunaIntegration`에 `create_study`/`suggest_hyperparameters` 구현. 기존 `Factory.create_optuna_integration()`과 시그니처 정합.
+(자가 비평) recipe 하이퍼파라미터 dict 혼재(고정/탐색) 처리.
+
+**** src/utils/system/reproducibility.py
+(근거) development_plan.md 3) 재현성 유틸 도입.
+(상세) `set_global_seeds(seed)` 구현: random/numpy/torch 시드, cudnn 결정적 설정, 로그.
+(자가 비평) torch 미설치/미사용 환경 고려 try/except 방어.
+
+**** src/pipelines/train_pipeline.py
+(근거) development_plan.md 3) 재현성 일관화.
+(상세) `run_training` 시작부에 `set_global_seeds(seed)` 호출 추가(레시피 computed.seed 우선, 기본 42).
+(자가 비평) 실행 경로 영향 최소. 로그로 추적 가능.
+
+**** src/pipelines/inference_pipeline.py
+(근거) development_plan.md 3) 재현성 일관화.
+(상세) `run_batch_inference` 시작부에 `set_global_seeds(seed)` 호출 추가.
+(자가 비평) 배치 추론의 난수 사용 경로에 대비.
+
+작업 계획: 단계 4 - 서빙 스키마/UX
+[PLAN] development_plan.md - 4) 서빙 스키마/UX
 (근거) 사용자의 'confirm' 승인에 따라 CoT 제안서 기반 실행을 시작함.
 (CoT 요약)
-- **유효성 검증**:
-  - `compatibility_maps.py`를 신설하여 태스크-지표 호환성 맵을 중앙 관리.
-  - `_recipe_schema.py`를 수정하여 (1)태스크-지표 검증 로직과 (2)모델 인트로스펙션을 활용한 동적 하이퍼파라미터 유효성 검증 로직을 Pydantic validator에 추가.
-- **CLI 가이드**:
-  - `guide` CLI 명령어를 신규 추가.
-  - `guideline_recipe.yaml.j2` Jinja2 템플릿을 신규 생성.
-  - `guide` 명령어는 모델 클래스 경로를 받아 인트로스펙션으로 파라미터를 분석하고, 템플릿을 렌더링하여 완전한 레시피 예시를 터미널에 출력함.
-- **신규 의존성**: `jinja2` 라이브러리 추가 필요.
+- `_endpoints.py` 단일 예측 경로에서 run_mode="serving" 전달 및 최소 응답 스키마로 정리
+- `router.py` `/predict`의 response_model을 `MinimalPredictionResponse`로 전환, 차단 정책 유지
+- 배치 경로/기타 메타데이터 엔드포인트는 변경하지 않음
+
+**** src/serving/_endpoints.py
+(근거) development_plan.md 4) 서빙 스키마/UX
+(상세) 단일 예측 경로에서 `params={run_mode:"serving"}`로 강제하고, 최소 응답 스키마 payload로 변환(`{"prediction", "model_uri"}`).
+(자가 비평) PyfuncWrapper 경로와 정합. 예측 결과 컬럼 유연 처리.
+
+**** src/serving/router.py
+(근거) development_plan.md 4) 서빙 스키마/UX
+(상세) `/predict`의 `response_model`을 `MinimalPredictionResponse`로 전환. PassThrough/SqlFallback 차단 유지.
+(자가 비평) 테스트 영향 가능성은 최소. 필요 시 호환 엔드포인트 추가 여지.
 
 **** pyproject.toml
-(근거) development_plan.md의 [과제 3.1+] 및 승인된 CoT 제안서에 따라 실행.
-(상세) CLI 가이드 생성 기능에 필요한 `jinja2` 라이브러리를 프로젝트 의존성에 추가함.
-(자가 비평) 3단계 자가 비평 프로토콜을 통과함. 수정 사항 없음.
+(근거) development_plan.md 5) 도커/문서 일관화.
+(상세) `requires-python`을 `>=3.11,<3.12`로 상향 고정.
+(자가 비평) 청사진 환경 권고와 일치. 로컬/CI 파이썬 버전 주의 필요.
 
-**** src/settings/compatibility_maps.py
-(근거) development_plan.md의 [과제 3.1+] 및 승인된 CoT 제안서에 따라 실행.
-(상세) `TASK_METRIC_COMPATIBILITY` 맵을 정의하는 신규 모듈을 생성하여, 태스크 타입과 평가지표 간의 호환성 정보를 중앙에서 관리하도록 함.
-(자가 비평) 3단계 자가 비평 프로토콜을 통과함. 수정 사항 없음.
-
-**** src/settings/_recipe_schema.py
-(근거) development_plan.md의 [과제 3.1+] 및 승인된 CoT 제안서에 따라 실행.
-(상세) Pydantic `model_validator`를 사용하여 두 가지 핵심 검증 로직을 추가함: (1) 모델 인트로스펙션을 통해 레시피의 하이퍼파라미터가 실제 모델 클래스에서 유효한지 동적으로 검증. (2) 중앙 호환성 맵을 기반으로 태스크 타입과 평가지표 간의 논리적 일관성을 검증.
-(자가 비평) 3단계 자가 비평 프로토콜을 통과함. 수정 사항 없음.
-
-**** src/cli/project_templates/guideline_recipe.yaml.j2
-(근거) development_plan.md의 [과제 3.1+] 및 승인된 CoT 제안서에 따라 실행.
-(상세) `guide` CLI 명령어가 동적으로 레시피 템플릿을 생성하기 위한 Jinja2 템플릿 파일을 신규 생성함.
-(자가 비평) 3단계 자가 비평 프로토콜을 통과함. 수정 사항 없음.
-
-**** src/cli/commands.py
-(근거) development_plan.md의 [과제 3.1+] 및 승인된 CoT 제안서에 따라 실행.
-(상세) `guide`라는 신규 CLI 명령어를 구현함. 이 명령어는 모델의 클래스 경로를 인자로 받아, 인트로스펙션을 통해 사용 가능한 하이퍼파라미터를 추출하고, Jinja2 템플릿을 렌더링하여 사용자에게 완전한 형태의 모범 레시피를 출력해 줌. 이를 통해 개발자 경험을 크게 향상시킴.
-(자가 비평) 3단계 자가 비평 프로토콜을 통과함. 수정 사항 없음.
-
-작업 계획: [MMP 시스템 개선]
-[PLAN] development_plan.md - 과제 3.2: 아티팩트에 패키지 의존성 내장
-(근거) 사용자의 '오케이 진행하자' 승인에 따라 CoT 제안서 기반 실행을 시작함.
-(CoT 요약)
-- `src/utils/system/environment_check.py` 파일을 신규 생성하여, `uv pip freeze`를 통해 현재 환경의 패키지 의존성을 캡처하는 `get_pip_requirements()` 함수를 구현.
-- `src/pipelines/train_pipeline.py`에서 `mlflow.pyfunc.log_model` 호출 시, `get_pip_requirements()`의 결과를 `pip_requirements` 인자로 전달하여 모델 아티팩트에 의존성 정보를 포함시킴.
-- `uv` 명령어 부재 등 오류 발생 시에도 파이프라인이 중단되지 않도록 안전장치를 포함.
-
-**** src/utils/system/environment_check.py
-(근거) development_plan.md의 [과제 3.2] 및 승인된 CoT 제안서에 따라 실행.
-(상세) `uv pip freeze` 명령어를 사용하여 현재 Python 환경의 패키지 의존성을 캡처하는 `get_pip_requirements` 함수를 포함하는 신규 모듈을 생성함. `uv` 명령어 부재 등 오류 발생 시에도 안전하게 빈 리스트를 반환하도록 예외 처리를 포함함.
-(자가 비평) 3단계 자가 비평 프로토콜을 통과함. 수정 사항 없음.
-
-**** src/utils/integrations/mlflow_integration.py
-(근거) development_plan.md의 [과제 3.2] 및 승인된 CoT 제안서에 따라 실행.
-(상세) `log_enhanced_model_with_schema` 헬퍼 함수의 시그니처를 수정하여, `pip_requirements` 리스트를 인자로 받아 `mlflow.pyfunc.log_model`에 전달할 수 있도록 확장함.
-(자가 비평) 3단계 자가 비평 프로토콜을 통과함. 수정 사항 없음.
-
-**** src/pipelines/train_pipeline.py
-(근거) development_plan.md의 [과제 3.2] 및 승인된 CoT 제안서에 따라 실행.
-(상세) 모델 저장 직전에 `get_pip_requirements`를 호출하여 패키지 의존성을 캡처하고, `mlflow.pyfunc.log_model` 및 관련 헬퍼 함수에 이 정보를 `pip_requirements` 인자로 전달하도록 수정함. 이를 통해 생성되는 모든 모델 아티팩트에 실행 환경 정보가 내장되어 완전한 재현성을 보장함.
-(자가 비평) 3단계 자가 비평 프로토콜을 통과함. 수정 사항 없음.
-
-작업 계획: [MMP 시스템 개선]
-[PLAN] development_plan.md - 과제 4.1: 동적 하이퍼파라미터 유효성 검증 구현
-(근거) 사용자의 'confirm' 승인에 따라 CoT 제안서 기반 실행을 시작함.
-(CoT 요약)
-- `src/settings/_recipe_schema.py`의 `ModelSettings` 클래스에 `@model_validator`를 추가.
-- 이 validator는 모델의 `class_path`를 동적으로 임포트하고 `inspect.signature`를 사용해 `__init__` 메서드의 유효한 파라미터 목록을 추출.
-- 레시피의 `hyperparameters`가 실제 모델에서 유효한지 검증하고, 유효하지 않을 경우 명확한 오류 메시지와 함께 실패시킴.
-- 임포트 실패나 시그니처 분석 실패 같은 엣지 케이스를 안전하게 처리함.
-
-**** src/settings/_recipe_schema.py
-(근거) development_plan.md의 [과제 4.1] 및 승인된 CoT 제안서에 따라 실행.
-(상세) `ModelSettings` 클래스에 Pydantic `model_validator`를 추가하여 동적 하이퍼파라미터 유효성 검증 기능을 구현함. 이 validator는 모델의 `class_path`를 실시간으로 임포트하고 인트로스펙션을 통해 유효한 파라미터 목록을 추출한 뒤, 레시피에 정의된 `hyperparameters`가 실제 모델에서 유효한지 검증함. 이를 통해 "fail fast" 원칙을 구현하고 시스템의 견고성을 크게 향상시킴.
-(자가 비평) 3단계 자가 비평 프로토콜을 통과함. 수정 사항 없음.
-
-작업 계획: [MMP 시스템 개선]
-[PLAN] development_plan.md - 과제 4.2: Evaluator 생성 로직 리팩토링
-(근거) 사용자의 'confirm' 승인에 따라 CoT 제안서 기반 실행을 시작함.
-(CoT 요약)
-- `src/components/_trainer/_trainer.py`를 리팩토링하여, `_create_evaluator` 메서드를 제거하고 `train` 메서드가 `BaseEvaluator` 인스턴스를 인자로 받도록 수정.
-- `src/pipelines/train_pipeline.py`를 수정하여, 다른 컴포넌트와 마찬가지로 `Factory`를 통해 `Evaluator`를 생성하고, 이를 `Trainer`에 주입함.
-- 이를 통해 모든 핵심 컴포넌트가 일관된 의존성 주입 패턴을 따르도록 하여 설계 일관성을 확보함.
-
-**** src/components/_trainer/_trainer.py
-(근거) development_plan.md의 [과제 4.2] 및 승인된 CoT 제안서에 따라 실행.
-(상세) `_create_evaluator` 메서드를 제거하고 `train` 메서드가 `BaseEvaluator` 인스턴스를 직접 인자로 받도록 리팩토링함. 이를 통해 `Trainer`의 생성 책임을 분리하고 의존성 주입 패턴을 일관되게 적용함.
-(자가 비평) 3단계 자가 비평 프로토콜을 통과함. 리팩토링을 통해 테스트 용이성이 향상됨.
-
-**** src/pipelines/train_pipeline.py
-(근거) development_plan.md의 [과제 4.2] 및 승인된 CoT 제안서에 따라 실행.
-(상세) `Factory`를 통해 `Evaluator`를 생성하고, 이를 `Trainer`의 `train` 메서드에 인자로 주입하도록 수정함. 이를 통해 모든 핵심 컴포넌트가 파이프라인 레벨에서 일관된 방식으로 생성 및 조립되도록 설계 일관성을 확보함.
-(자가 비평) 3단계 자가 비평 프로토콜을 통과함. 수정 사항 없음.
-
-작업 계획: [MMP 시스템 개선]
-[PLAN] development_plan.md - 과제 5.1: README.md 최신화
-(근거) 사용자의 'confirm' 승인에 따라 CoT 제안서 기반 실행을 시작함.
-(CoT 요약)
-- "빠른 시작" 섹션을 개편하여 `guide` 명령어를 중심으로 한 사용자 워크플로우를 제시.
-- "기본 사용법" 섹션에 `guide` 명령어 설명을 추가하고, 레시피 예시에 `adapter` 필드를 반영.
-- "추가 문서" 섹션의 `Blueprint` 문서 설명을 현재 가치에 맞게 수정.
+**** Dockerfile
+(근거) development_plan.md 5) 도커/문서 일관화.
+(상세) 베이스 이미지를 `python:3.11-slim`으로 교체, 빌드 도구 설치, `recipes/` 경로 교정, serve 엔트리포인트/기본 CMD를 `--run-id`로 정합화. train 타깃 기본 CMD를 레시피 파일로 조정.
+(자가 비평) uv 기반 설치 유지. pip 폴백은 필요 시 후속 반영 가능.
 
 **** README.md
-(근거) development_plan.md의 [과제 5.1] 및 승인된 CoT 제안서에 따라 실행.
-(상세) `README.md`의 "빠른 시작" 섹션을 `guide` CLI 명령어를 중심으로 재구성하고, 명령어 목록과 레시피 예시에 최신 시스템 사양(`guide` 명령어, `adapter` 필드)을 반영함. `Blueprint` 문서에 대한 설명도 현재 가치에 맞게 갱신함.
-(자가 비평) 3단계 자가 비평 프로토콜을 통과함. 수정 사항 없음.
+(근거) development_plan.md 5) 도커/문서 일관화.
+(상세) Python 배지를 3.11+로 변경, Docker 빌드/실행 예제 추가, API 테스트 예제를 스키마에 맞게 정정.
+(자가 비평) 문서/명령이 CLI 및 Dockerfile과 일치.
 
-작업 계획: [MMP 시스템 개선]
-[PLAN] development_plan.md - 과제 5.2: docs/DEVELOPER_GUIDE.md 심화 내용 보강
-(근거) 사용자의 'confirm' 승인에 따라 CoT 제안서 기반 실행을 시작함.
+작업 계획: 단계 5 - 문서 정합화 (docs/* 최신화)
+[PLAN] next_step.md / development_plan.md의 Stage 5-6 범위 중 문서 정비 항목 실행
+(근거) 사용자의 최신 구조 반영 지시 및 버전/히스토리 제거 요구에 따른 일괄 업데이트
 (CoT 요약)
-- `guide` 명령어와 `자동 유효성 검증` 기능의 원리 및 상세 사용법을 설명하는 새로운 "핵심 컨셉" 섹션을 추가.
-- 문서 전체에 있는 모든 레시피 예시 코드의 `loader` 섹션에 최신 스키마인 `adapter` 필드를 추가하여 기술적 정확성을 확보.
+- 버전/히스토리 표기 제거(v17.0 등)
+- 스키마 키 정합화: `data_interface.target_column`, `entity_schema`, `augmenter.type`
+- 서빙 정책: `serving.enabled` 플래그, PassThrough/SqlFallback 차단, MinimalPredictionResponse 응답
+- 템플릿/보안: `render_template_from_{file|string}` 함수명, 허용 키 화이트리스트, SELECT * 금지/DDL·DML 금칙어/LIMIT 가드
+- Docker 타깃 실행 예제 추가(serve/train)
 
 **** docs/DEVELOPER_GUIDE.md
-(근거) development_plan.md의 [과제 5.2] 및 승인된 CoT 제안서에 따라 실행.
-(상세) `guide` 명령어와 자동 유효성 검증 기능에 대한 상세한 설명을 담은 "핵심 컨셉" 섹션을 신설함. 또한, 문서 전체에 있는 모든 레시피 코드 예시에 `adapter` 필드를 추가하여 최신 스키마를 반영하고 기술적 정확성을 확보함.
-(자가 비평) 3단계 자가 비평 프로토콜을 통과함. 수정 사항 없음.
+(상세)
+- 레시피 예제 전면 정리: `target_column` 키로 일치, `entity_schema` 포함, SELECT * 예 제거
+- 템플릿 보안 규칙/허용 키 명시, 저장 규칙(`preds_{run_id}.parquet`) 및 CLI 예시 갱신
+- API 응답을 MinimalPredictionResponse 기준으로 간단화
+(자가 비평) 개발자 가이드의 범위를 유지하며 불필요한 장황 예제 축소. 실제 코드와 완전 정합.
+
+**** docs/INFRASTRUCTURE_STACKS.md
+(상세)
+- LOCAL/DEV/PROD 서빙 정책과 Feature Store 전제 명시, ServingSettings.enabled 언급
+- 보안/쿼리 예시에서 SELECT * 제거, LIMIT/파티션 필터 예시로 교정
+- Docker 타깃(build/run) 예시 추가
+(자가 비평) 환경별 차이를 간결 표기. 실무 적용성 강화.
+
+**** docs/MMP_LOCAL_DEV_INTEGRATION.md
+(상세)
+- run_id 기반 서빙/배치 예시, dev-contract 기반 연동, 포트 변경 시 설정 동기화 예시 정리
+- 불필요한 장문 예시 축소, 최신 CLI와 일치
+(자가 비평) 핵심 운영 흐름에 집중하도록 간소화.
+
+**** docs/MODEL_CATALOG.md
+(상세)
+- 버전 문구/트라이얼 횟수 제거, 실제 레시피 경로/클래스/권장 메트릭 중심으로 정리
+- 사용법 요약(학습/배치/서빙)과 최소 응답 스키마 예시 추가
+(자가 비평) 카탈로그 성격을 보존하면서 최신 정책과 충돌 요소 제거.
+
+작업 계획: 전역 임포트/의존성 아키텍처 안정화
+[PLAN] development_plan.md - Stage 6 테스트 정비 선행 과제: 순환 임포트 근본 해결 및 선택 의존성 임포트 정책 확립
+(근거) 사용자의 'confirm' 승인에 따라 CoT 제안서 기반으로 임포트 그래프(DAG) 정비와 퍼블릭 API 표준화를 우선 적용함.
+(CoT 요약)
+- 임포트 계층(DAG) 고정: L0(utils) → L1(interface) → L2(settings) → L3(components) → L4(engine) → L5(pipelines/serving/cli)
+- 타입 의존은 TYPE_CHECKING/Protocol로 분리, 런타임 임포트는 단방향 유지
+- 선택 의존성(optuna) 최상위 임포트 금지, 기능 On 시 지연 임포트 + 명시적 ImportError, uv 환경에서 필수 의존성은 pyproject로 강건 설치
+- 퍼블릭 API는 패키지 단위 __all__로 노출, 내부 모듈 직접 임포트 금지

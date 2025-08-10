@@ -126,12 +126,14 @@ class ValidationMethodSettings(BaseModel):
     random_state: Optional[int] = 42
     cv_folds: Optional[int] = 5
     
-    @validator('method')
-    def validate_method_config(cls, v, values):
-        if v == "train_test_split" and (values.get('test_size') is None or not (0.0 < values.get('test_size', 0) < 1.0)):
-            raise ValueError("train_test_split에는 0과 1 사이의 test_size가 필요합니다.")
-        if v == "cross_validation" and (values.get('cv_folds') is None or values.get('cv_folds', 0) < 2):
-            raise ValueError("cross_validation에는 2 이상의 cv_folds가 필요합니다.")
+    @model_validator(mode='after')
+    def validate_method_config(cls, v: "ValidationMethodSettings") -> "ValidationMethodSettings":
+        if v.method == "train_test_split":
+            if v.test_size is None or not (0.0 < float(v.test_size) < 1.0):
+                raise ValueError("train_test_split에는 0과 1 사이의 test_size가 필요합니다.")
+        if v.method == "cross_validation":
+            if v.cv_folds is None or int(v.cv_folds) < 2:
+                raise ValueError("cross_validation에는 2 이상의 cv_folds가 필요합니다.")
         return v
 
 class EvaluationSettings(BaseModel):
@@ -251,11 +253,10 @@ class RecipeSettings(BaseModel):
                         f"'{task_type}'에 사용 가능한 지표: {allowed_metrics}"
                     )
         
-        # 2. (기존) Augmenter-Feature Store 호환성 검증
+        # 2. Augmenter-Feature Store 호환성 검증(간소화)
         if v.model.augmenter and v.model.augmenter.type == "feature_store":
-            if not v.model.loader.feature_retrieval:
+            if not v.model.augmenter.features:
                 raise ValueError(
-                    "Augmenter 타입이 'feature_store'일 경우, "
-                    "loader.feature_retrieval 섹션이 반드시 필요합니다."
+                    "Augmenter 타입이 'feature_store'일 경우, augmenter.features 설정이 필요합니다."
                 )
         return v 

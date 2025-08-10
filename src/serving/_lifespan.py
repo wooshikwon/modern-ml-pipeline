@@ -20,9 +20,14 @@ def setup_api_context(run_id: str, settings: Settings):
         app_context.settings = settings
         
         wrapped_model = app_context.model.unwrap_python_model()
-        loader_sql = getattr(wrapped_model, 'loader_sql_snapshot', 'SELECT user_id FROM DUAL')
-        
-        pk_fields = parse_select_columns(loader_sql)
+
+        # 우선 data_schema에서 entity_columns 사용, 불가 시 loader_sql에서 파싱
+        data_schema = getattr(wrapped_model, 'data_schema', None)
+        if isinstance(data_schema, dict) and data_schema.get('entity_columns'):
+            pk_fields = list(data_schema.get('entity_columns') or [])
+        else:
+            loader_sql = getattr(wrapped_model, 'loader_sql_snapshot', 'SELECT user_id FROM DUAL')
+            pk_fields = parse_select_columns(loader_sql)
         
         app_context.PredictionRequest = create_dynamic_prediction_request(
             model_name="DynamicPredictionRequest", pk_fields=pk_fields

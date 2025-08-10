@@ -54,7 +54,7 @@ model:
     name: "causal_evaluator"
     
 evaluation:
-  metrics: ["treatment_effect"]  # Causal용 메트릭
+  metrics: ["uplift_at_k"]  # Causal용 메트릭
   validation:
     method: "train_test_split"
     test_size: 0.2

@@ -52,7 +52,7 @@ model:
     name: "classification_evaluator"
     
 evaluation:
-  metrics: ["accuracy", "precision", "recall", "f1"]
+  metrics: ["accuracy", "precision_weighted", "recall_weighted", "f1_weighted"]
   validation:
     method: "train_test_split"
     test_size: 0.2

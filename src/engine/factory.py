@@ -6,13 +6,12 @@ from typing import Optional, Dict, Any, TYPE_CHECKING
 import mlflow
 import pandas as pd
 
-from src.components._augmenter import Augmenter, PassThroughAugmenter, BaseAugmenter
+from src.components._augmenter import FeatureStoreAugmenter, PassThroughAugmenter
 from src.components._preprocessor import Preprocessor, BasePreprocessor
 from src.interface import BaseAdapter
 from src.settings import Settings
 from src.utils.system.logger import logger
-from src.engine._registry import AdapterRegistry, EvaluatorRegistry
-from src.components._augmenter._augmenter import AugmenterRegistry
+from src.engine._registry import AdapterRegistry, EvaluatorRegistry, AugmenterRegistry
 
 if TYPE_CHECKING:
     from src.engine._artifact import PyfuncWrapper
@@ -36,59 +35,54 @@ class Factory:
         """현재 모델 설정 반환 (현대화된 Recipe.model)"""
         return self.settings.recipe.model
 
-    def create_data_adapter(self) -> "BaseAdapter":
+    def create_data_adapter(self, adapter_type: Optional[str] = None) -> "BaseAdapter":
         """
-        레시피에 명시된 `adapter` 타입을 기반으로 데이터 어댑터를 생성합니다.
-        더 이상 `default_loader`나 파일 확장자와 같은 암묵적인 규칙에 의존하지 않고,
-        오직 레시피의 명시적인 선언만을 따릅니다.
+        데이터 어댑터 생성. 인자 우선, 미지정 시 레시피의 loader.adapter 사용.
         """
-        # 1. 레시피에서 명시적으로 선언된 어댑터 타입을 가져옴
-        adapter_type = self.settings.recipe.model.loader.adapter
-        logger.debug(f"레시피에 명시된 어댑터 타입 '{adapter_type}'으로 DataAdapter 생성을 시도합니다.")
-
-        # 2. 레지스트리를 사용하여 해당 타입의 어댑터 인스턴스를 생성
+        target_type = adapter_type or self.settings.recipe.model.loader.adapter
+        logger.debug(f"DataAdapter 생성: type='{target_type}'")
         try:
-            return AdapterRegistry.create(adapter_type, settings=self.settings)
-        except KeyError:
-            # 3. 요청된 타입이 레지스트리에 없으면 명확한 오류 발생
-            available = list(AdapterRegistry._adapters.keys())
+            return AdapterRegistry.create(target_type, settings=self.settings)
+        except Exception as e:
+            available = list(getattr(AdapterRegistry, "_adapters", {}).keys())
             raise ValueError(
-                f"지원하지 않는 DataAdapter 타입입니다: '{adapter_type}'. "
-                f"사용 가능한 어댑터: {available}"
-            )
+                f"지원하지 않는 DataAdapter 타입입니다: '{target_type}'. 사용 가능한 어댑터: {available}"
+            ) from e
     
-    def create_augmenter(self) -> BaseAugmenter:
+    def create_augmenter(self, run_mode: Optional[str] = None):
         """
-        설정(Settings)을 기반으로 적절한 Augmenter 인스턴스를 생성합니다.
-        
-        환경 설정(`settings.feature_store.provider`)이 레시피 설정보다 우선합니다.
-        만약 provider가 'passthrough'로 설정되어 있다면, 레시피의 augmenter 설정과
-        상관없이 PassThroughAugmenter를 반환합니다.
+        설정과 실행 모드에 따라 적절한 Augmenter 인스턴스를 생성합니다.
+        정책: blueprint.md 148-155 라인 참조.
         """
-        # 1. 환경의 인프라 제약(config)을 최우선으로 확인
-        feature_store_provider = self.settings.feature_store.provider
-        
-        if feature_store_provider == "passthrough":
-            logger.debug("환경 설정에 따라 'PassThroughAugmenter'를 생성합니다.")
-            return PassThroughAugmenter(settings=self.settings)
+        mode = (run_mode or "batch").lower()
+        env = self.settings.environment.app_env if hasattr(self.settings, "environment") else "local"
+        provider = (self.settings.feature_store.provider if getattr(self.settings, "feature_store", None) else "none")
+        aug_conf = getattr(self.settings.recipe.model, "augmenter", None)
+        aug_type = getattr(aug_conf, "type", None) if aug_conf else None
 
-        # 2. 'passthrough'가 아닐 경우, 레시피의 논리적 요구사항을 확인
-        if not self.settings.recipe.model.augmenter:
-            logger.debug("레시피에 Augmenter가 정의되지 않았으므로 'PassThroughAugmenter'를 생성합니다.")
-            return PassThroughAugmenter(settings=self.settings)
-            
-        augmenter_type = self.settings.recipe.model.augmenter.type
-        
-        # 3. 레지스트리에서 요청된 타입의 Augmenter 클래스를 찾아 생성
-        try:
-            augmenter_class = AugmenterRegistry.get_augmenter(augmenter_type)
-            logger.debug(f"레시피 설정에 따라 '{augmenter_class.__name__}'를 생성합니다.")
-            return augmenter_class(settings=self.settings)
-        except KeyError:
-            # 4. 요청된 타입이 레지스트리에 없으면 오류 발생
-            raise ValueError(f"지원하지 않는 Augmenter 타입입니다: {augmenter_type}")
+        # serving에서는 PassThrough/SqlFallback 금지
+        if mode == "serving":
+            if aug_type in (None, "pass_through") or provider in (None, "none"):
+                raise TypeError("Serving에서는 pass_through/feature_store 미구성 사용이 금지됩니다. Feature Store 연결이 필요합니다.")
 
-    def create_preprocessor(self) -> BasePreprocessor:
+        # local 또는 provider=none 또는 명시적 pass_through → PassThrough
+        if env == "local" or provider == "none" or aug_type == "pass_through" or not aug_conf:
+            return PassThroughAugmenter()
+
+        # Feature Store 요청 + provider OK → FeatureStoreAugmenter
+        if aug_type == "feature_store" and provider in {"feast", "mock"}:
+            return FeatureStoreAugmenter(settings=self.settings, factory=self)
+
+        # (train/batch 전용) 실패 + fallback.sql 명시 → SqlFallbackAugmenter (미구현 자리표시, 후속 단계에서 구현)
+        if mode in {"train", "batch"} and hasattr(aug_conf, "fallback") and getattr(aug_conf.fallback, "type", "") == "sql":
+            # 다음 단계에서 SqlFallbackAugmenter 구현 후 등록 예정
+            raise NotImplementedError("SqlFallbackAugmenter는 다음 단계에서 구현/등록됩니다.")
+
+        raise ValueError(
+            f"적절한 Augmenter를 선택할 수 없습니다. env={env}, provider={provider}, aug_type={aug_type}, mode={mode}"
+        )
+
+    def create_preprocessor(self) -> Optional[BasePreprocessor]:
         """전처리기 생성"""
         if not self.model_config.preprocessor: 
             return None
@@ -124,8 +118,7 @@ class Factory:
         """task_type에 따라 동적 evaluator 생성"""
         task_type = self.model_config.data_interface.task_type
         logger.info(f"Creating evaluator for task: {task_type}")
-        # 하드코딩된 맵 대신 Registry를 사용
-        return EvaluatorRegistry.create(evaluator_type, self.settings)
+        return EvaluatorRegistry.create(task_type, self.settings)
 
     def create_feature_store_adapter(self):
         """환경별 Feature Store 어댑터 생성"""
@@ -148,7 +141,7 @@ class Factory:
         self, 
         trained_model: Any, 
         trained_preprocessor: Optional[BasePreprocessor],
-        trained_augmenter: Optional[BaseAugmenter],
+        trained_augmenter: Optional['BaseAugmenter'],
         training_df: Optional[pd.DataFrame] = None,
         training_results: Optional[Dict[str, Any]] = None
     ) -> PyfuncWrapper:

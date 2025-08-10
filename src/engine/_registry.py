@@ -17,7 +17,7 @@ from typing import Dict, Type, TYPE_CHECKING
 from src.utils.system.logger import logger
 
 if TYPE_CHECKING:
-    from src.interface import BaseAdapter, BaseEvaluator, BasePreprocessor
+    from src.interface import BaseAdapter, BaseEvaluator, BasePreprocessor, BaseAugmenter
     from src.settings import Settings
 
 
@@ -111,6 +111,28 @@ class PreprocessorStepRegistry:
         return step_class(**kwargs)
 
 
+class AugmenterRegistry:
+    """Augmenter 타입 등록/생성 레지스트리."""
+    _augmenters: Dict[str, Type[BaseAugmenter]] = {}
+
+    @classmethod
+    def register(cls, augmenter_type: str, augmenter_class: Type[BaseAugmenter]):
+        from src.interface import BaseAugmenter
+        if not issubclass(augmenter_class, BaseAugmenter):
+            raise TypeError(f"{augmenter_class.__name__} must be a subclass of BaseAugmenter")
+        cls._augmenters[augmenter_type] = augmenter_class
+        logger.debug(f"Augmenter registered: {augmenter_type} -> {augmenter_class.__name__}")
+
+    @classmethod
+    def create(cls, augmenter_type: str, **kwargs) -> BaseAugmenter:
+        augmenter_class = cls._augmenters.get(augmenter_type)
+        if not augmenter_class:
+            available = list(cls._augmenters.keys())
+            raise ValueError(f"Unknown augmenter type: '{augmenter_type}'. Available types: {available}")
+        logger.debug(f"Creating augmenter instance: {augmenter_type}")
+        return augmenter_class(**kwargs)
+
+
 def register_all_components():
     """
     시스템의 모든 동적 컴포넌트(어댑터, 평가자 등)를 등록합니다.
@@ -118,9 +140,19 @@ def register_all_components():
     """
     # 각 컴포넌트 모듈을 임포트하여 자체 등록 로직을 트리거합니다.
     try:
-        from src.utils.adapters import sql_adapter, storage_adapter, feast_adapter
-        from src.components._evaluator import _evaluator
-        from src.components._preprocessor import _steps
+        import importlib
+        importlib.import_module('src.utils.adapters.sql_adapter')
+        importlib.import_module('src.utils.adapters.storage_adapter')
+        # feast는 선택 의존성
+        try:
+            importlib.import_module('src.utils.adapters.feast_adapter')
+        except Exception:
+            pass
+        importlib.import_module('src.components._evaluator._evaluator')
+        importlib.import_module('src.components._preprocessor._steps')
+        # Augmenters 등록 진입점은 각 모듈에서 AugmenterRegistry.register 호출로 처리(이곳에서는 임포트만 트리거)
+        importlib.import_module('src.components._augmenter._augmenter')
+        importlib.import_module('src.components._augmenter._pass_through')
     except ImportError as e:
         logger.warning(f"Could not import components for registration: {e}")
 

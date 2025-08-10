@@ -49,6 +49,7 @@ feature_store:
 
 # 📁 데이터 어댑터 - 로컬 파일 시스템
 data_adapters:
+  default_loader: "storage"
   default_storage: "storage"   # 로컬 스토리지 사용
   
   adapters:
@@ -62,6 +63,10 @@ data_adapters:
         # base_path: "./test_data"            # 테스트 데이터용  
         # base_path: "/Users/${USER}/ml_data" # 사용자별 데이터 경로
         # base_path: "./synthetic_data"       # 합성 데이터용
+    sql:
+      class_name: SqlAdapter
+      config:
+        connection_uri: "sqlite:///tests/fixtures/sql/mock.db"
 
 # ⚡ 하이퍼파라미터 튜닝 - 빠른 실험용 제한
 hyperparameter_tuning:

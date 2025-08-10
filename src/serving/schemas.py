@@ -48,9 +48,16 @@ def create_dynamic_prediction_request(
     return DynamicModel
 
 
+class MinimalPredictionResponse(BaseModel):
+    """일반 태스크에 공통적인 최소 예측 응답 스키마"""
+    prediction: Any = Field(..., description="모델 예측 결과")
+    model_uri: str = Field(..., description="예측에 사용된 모델의 MLflow URI")
+
+
 class PredictionResponse(BaseModel):
     """
     단일 예측 결과를 위한 응답 스키마입니다.
+    (기존 uplift 중심 필드 유지; 일반 태스크는 MinimalPredictionResponse 사용을 권장)
     """
     uplift_score: float = Field(..., json_schema_extra={"example": 0.123}, description="계산된 Uplift 점수")
     model_uri: str = Field(

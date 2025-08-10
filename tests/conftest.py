@@ -2,6 +2,7 @@ import pytest
 import os
 from pathlib import Path
 from unittest.mock import MagicMock
+import socket
 import pandas as pd
 
 from src.settings import Settings, load_settings_by_file
@@ -69,7 +70,6 @@ def fixture_recipes_path(tests_root: Path) -> Path:
 @pytest.fixture(scope="session")
 def test_settings(tests_root: Path) -> Settings:
     """테스트용 기본 Settings 객체를 로드합니다."""
-    # 이제 fixtures 디렉토리의 테스트 레시피를 사용하도록 경로를 수정합니다.
     recipe_path = tests_root / "fixtures" / "recipes" / "local_classification_test.yaml"
     return load_settings_by_file(str(recipe_path))
 
@@ -78,39 +78,52 @@ def setup_test_logging(test_settings: Settings):
     """모든 테스트 세션에 대해 로깅을 설정합니다."""
     setup_logging(test_settings)
 
+# 🆕 DEV 스택 자동 스킵 픽스처
 @pytest.fixture(scope="session")
-def local_test_settings() -> Settings:
+def ensure_dev_stack_or_skip():
+    """mmp-local-dev 스택(Postgres/Redis/MLflow)이 기동되지 않았으면 관련 테스트를 스킵합니다."""
+    def _is_open(host: str, port: int, timeout: float = 1.0) -> bool:
+        try:
+            with socket.create_connection((host, port), timeout=timeout):
+                return True
+        except Exception:
+            return False
+    services = [("localhost", 5432), ("localhost", 6379), ("localhost", 5002)]
+    all_up = all(_is_open(h, p) for h, p in services)
+    if not all_up:
+        pytest.skip("mmp-local-dev 스택이 기동되지 않아 DEV 통합 테스트를 스킵합니다.")
+
+@pytest.fixture(scope="session")
+def local_test_settings(tests_root: Path) -> Settings:
     """
     LOCAL 환경 테스트를 위한 표준 설정 객체(Settings)를 제공하는 Fixture.
     """
     os.environ['APP_ENV'] = 'local'
-    # E2E Recipe 사용으로 변경 (Mock 데이터 포함)
-    settings = load_settings_by_file('e2e_classification_test')
+    recipe_path = tests_root / "fixtures" / "recipes" / "e2e_classification_test.yaml"
+    settings = load_settings_by_file(str(recipe_path))
     setup_logging(settings)
     return settings
 
 @pytest.fixture(scope="session")
-def dev_test_settings() -> Settings:
+def dev_test_settings(tests_root: Path) -> Settings:
     """
     DEV 환경 테스트를 위한 표준 설정 객체(Settings)를 제공하는 Fixture.
     """
     os.environ['APP_ENV'] = 'dev'
-    # E2E Recipe 사용으로 변경
-    settings = load_settings_by_file('e2e_classification_test')
+    recipe_path = tests_root / "fixtures" / "recipes" / "e2e_classification_test.yaml"
+    settings = load_settings_by_file(str(recipe_path))
     setup_logging(settings)
     return settings
 
 @pytest.fixture(scope="session")
-def e2e_test_settings() -> Settings:
+def e2e_test_settings(tests_root: Path) -> Settings:
     """
     🆕 Phase 6: E2E 통합 테스트를 위한 설정
     Phase 1-5 통합 기능 검증용 Fixture
     """
-    # 환경에 따라 자동 설정
     env = os.getenv("APP_ENV", "local")
     os.environ['APP_ENV'] = env
-    
-    # E2E Recipe 사용 (Phase 1-5 통합 구조)
-    settings = load_settings_by_file('e2e_classification_test')
+    recipe_path = tests_root / "fixtures" / "recipes" / "e2e_classification_test.yaml"
+    settings = load_settings_by_file(str(recipe_path))
     setup_logging(settings)
     return settings

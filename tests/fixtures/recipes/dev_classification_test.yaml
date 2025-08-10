@@ -36,17 +36,9 @@ model:
       criterion_col: null
       exclude_cols: ["user_id", "event_timestamp"]
 
-  entity_schema:
+  data_interface:
     task_type: "classification"
-    target_col: "approved"
-    features:
-      # DEV 환경에서는 명시적 스키마 정의
-      age: "numeric"
-      income: "numeric"
-      education_level: "category"
-      region: "category"
-      credit_score: "numeric"
-      num_products: "numeric"
+    target_column: "approved"
 
   hyperparameter_tuning:
     enabled: true
@@ -57,9 +49,9 @@ model:
 evaluation:
   metrics:
     - "accuracy"
-    - "precision"
-    - "recall"
-    - "f1"
+    - "precision_weighted"
+    - "recall_weighted"
+    - "f1_weighted"
     - "roc_auc"
   
   validation:

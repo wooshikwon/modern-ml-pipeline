@@ -7,6 +7,7 @@ from src.utils.system.logger import logger
 from pathlib import Path
 from src.settings import Settings
 from src.engine import AdapterRegistry
+from src.utils.system.sql_utils import prevent_select_star
 
 if TYPE_CHECKING:
     from src.settings import Settings
@@ -29,6 +30,7 @@ class SqlAdapter(BaseAdapter):
             connection_uri = sql_adapter_config.config['connection_uri']
             
             logger.info(f"SQLAlchemy 엔진 생성. URI: {connection_uri}")
+            # statement timeout 등은 DB별로 접속 문자열 옵션을 통해 설정 가능(여기서는 주석으로 가이드)
             return sqlalchemy.create_engine(connection_uri)
         except KeyError as e:
             logger.error(f"SQL 어댑터 설정을 찾을 수 없습니다: {e}")
@@ -36,6 +38,26 @@ class SqlAdapter(BaseAdapter):
         except Exception as e:
             logger.error(f"SQLAlchemy 엔진 생성 실패: {e}", exc_info=True)
             raise
+
+    def _enforce_sql_guards(self, sql_query: str) -> None:
+        """보안/신뢰성 가드 적용: SELECT * 차단, DDL/DML 금칙어 차단, LIMIT 가드(옵션)."""
+        # 1) SELECT * 차단
+        prevent_select_star(sql_query)
+
+        # 2) DDL/DML 금칙어 차단(간단한 포함 검사)
+        DANGEROUS = [
+            "DROP ", "DELETE ", "UPDATE ", "INSERT ", "ALTER ", "TRUNCATE ",
+            "CREATE ", "EXEC ", "EXECUTE ", "MERGE ", "GRANT ", "REVOKE ",
+        ]
+        upper = sql_query.upper()
+        for token in DANGEROUS:
+            if token in upper:
+                raise ValueError(f"보안 위반: 금지된 SQL 키워드 포함({token.strip()}).")
+
+        # 3) LIMIT 가드(선택: 너무 큰 결과 방지). settings로 제어 가능하도록 확장 여지.
+        # 여기서는 강제하지 않고 경고만 남김.
+        if " LIMIT " not in upper:
+            logger.warning("SQL LIMIT 가드: LIMIT 절이 없습니다. 대용량 쿼리일 수 있습니다.")
 
     def read(self, sql_query: str, **kwargs) -> pd.DataFrame:
         """SQL 쿼리를 실행하여 결과를 DataFrame으로 반환합니다.
@@ -59,12 +81,16 @@ class SqlAdapter(BaseAdapter):
                 logger.error(f"SQL 파일을 찾을 수 없습니다: {sql_file_path}")
                 raise FileNotFoundError(f"SQL 파일을 찾을 수 없습니다: {sql_file_path}")
         
+        # 보안 가드 적용
+        self._enforce_sql_guards(sql_query)
+        
         logger.info(f"Executing SQL query:\n{sql_query[:200]}...")
         try:
-            with self.engine.connect() as connection:
-                return pd.read_sql(sql_query, connection, **kwargs)
+            # Pandas + SQLAlchemy 2.x 호환: 엔진 객체를 직접 전달
+            return pd.read_sql_query(sql_query, self.engine, **kwargs)
         except Exception as e:
-            logger.error(f"SQL read 작업 실패: {e}", exc_info=True)
+            snippet = sql_query[:200].replace('\n', ' ')
+            logger.error(f"SQL read 작업 실패: {e} | SQL(head): {snippet}", exc_info=True)
             raise
 
     def write(self, df: pd.DataFrame, table_name: str, **kwargs):

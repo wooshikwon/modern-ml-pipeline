@@ -122,12 +122,15 @@ def get_api_schema() -> Dict[str, Any]:
 def predict(request: Dict[str, Any]) -> Dict[str, Any]:
     request_df = pd.DataFrame([request])
     
-    # PyfuncWrapper.predict()가 내부적으로 자동 스키마 검증을 수행합니다.
-    predictions = app_context.model.predict(request_df)
-    
-    if hasattr(predictions, 'iloc'):
-        prediction_result = predictions.to_dict(orient="records")[0]
+    # 서빙 경로 강제
+    predictions_df = app_context.model.predict(request_df, params={"run_mode": "serving", "return_intermediate": False})
+
+    # 최소 응답 스키마로 변환
+    if hasattr(predictions_df, 'iloc') and 'prediction' in predictions_df.columns:
+        value = predictions_df.iloc[0]['prediction']
+    elif hasattr(predictions_df, 'iloc') and predictions_df.shape[1] >= 1:
+        value = predictions_df.iloc[0, 0]
     else:
-        prediction_result = {"prediction": predictions[0]}
-        
-    return {"predictions": [prediction_result], "model_uri": app_context.model_uri} 
+        value = predictions_df[0] if not hasattr(predictions_df, 'iloc') else None
+    
+    return {"prediction": value, "model_uri": app_context.model_uri} 

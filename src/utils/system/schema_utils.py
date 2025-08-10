@@ -1,10 +1,13 @@
 import pandas as pd
 from datetime import datetime
-from typing import Dict, List, Any
-from src.settings import Settings
+from typing import Dict, List, Any, TYPE_CHECKING
 from src.utils.system.logger import logger
 
-def validate_schema(df: pd.DataFrame, settings: Settings, for_training: bool = False):
+if TYPE_CHECKING:
+    from src.settings import Settings
+
+
+def validate_schema(df: pd.DataFrame, settings: "Settings", for_training: bool = False):
     """
     입력 데이터프레임이 Recipe 스키마와 일치하는지 검증합니다. (27개 Recipe 대응)
 

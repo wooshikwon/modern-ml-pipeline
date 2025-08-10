@@ -1,13 +1,15 @@
 # src/settings/_helpers.py
 
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any, List, TYPE_CHECKING
 from ._utils import _load_yaml_with_env, BASE_DIR
 from src.utils.system.logger import logger
 from ._recipe_schema import RecipeSettings, JinjaVariable
-from src.settings import Settings
 import pandas as pd
 from src.utils.system.sql_utils import prevent_select_star
+
+if TYPE_CHECKING:
+    from .schema import Settings
 
 
 def load_config_files() -> Dict[str, Any]:
@@ -134,7 +136,7 @@ def _validate_and_prepare_context_params(
     return prepared_params
 
 
-def _post_process_settings(settings: Settings) -> Settings:
+def _post_process_settings(settings: "Settings") -> "Settings":
     """생성된 Settings 객체에 대한 후처리 작업을 수행합니다."""
     # MLflow 경로 처리 (LOCAL 환경 안정성)
     if settings.environment.app_env == 'local' and settings.mlflow.tracking_uri.startswith("./"):

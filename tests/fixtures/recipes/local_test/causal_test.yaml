@@ -54,7 +54,7 @@ model:
     name: "causal_evaluator"
     
 evaluation:
-  metrics: ["ate", "att"]
+  metrics: ["uplift_at_k", "qini_auc_score"]
   validation:
     method: "train_test_split"
     test_size: 0.2

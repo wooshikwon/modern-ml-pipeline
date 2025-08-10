@@ -1,206 +1,114 @@
 ### 목적
-- `blueprint.md`와 `next_step.md`를 기준으로 6개 단계별 상세 개발 계획을 확정하고, 실제 구현에 바로 착수할 수 있도록 파일/함수 단위 수정 지침, 인자 호환성, Import 변경점, 시스템 맥락, 검토 체크리스트를 정리한다.
+- 본 문서는 “Stage 6: 전역 임포트/의존성 안정화 + 테스트 전면 정비” 실행 가이드입니다. 이미 완료된 부분은 제외하고, 남은 항목을 구현 단위로 제시합니다.
 
 ---
 
-#### 1) 치명적 런타임 버그 제거
+## 1) 전역 부트스트랩/의존성 검증(6-5)
 
-- 근거(blueprint.md)
-  - Augmenter 정책 및 서빙 금지 요건: 148-155
-  - Augmenter→Preprocessor 순서: 203-207
-
-- 관련 파일(열람 대상)
-  - `src/engine/factory.py`
-  - `src/engine/_registry.py`
-  - `src/components/_augmenter/_augmenter.py`
-  - `src/components/_augmenter/_pass_through.py`
-  - `src/components/_preprocessor/_preprocessor.py`
-  - `src/pipelines/train_pipeline.py`
-
-- 확정 수정 계획(인자/Import/맥락 포함)
-  1) Factory 시그니처/버그 수정
-     - `create_data_adapter(self)` → `create_data_adapter(self, adapter_type: str | None = None)`로 변경
-       - 우선순위: `adapter_type` 인자 > 레시피 `settings.recipe.model.loader.adapter`
-       - 기존 호출부인 `train_pipeline`의 `create_data_adapter(settings.data_adapters.default_loader)`와 레시피 기반 호출 모두 허용
-     - `create_evaluator()`에서 미정의 변수 수정: `return EvaluatorRegistry.create(task_type, settings=self.settings)`
-  2) Augmenter 패키지/클래스 정비
-     - `src/components/_augmenter/__init__.py` 신설: `FeatureStoreAugmenter`, `PassThroughAugmenter` 노출
-     - `src/components/_augmenter/_augmenter.py`
-       - 클래스명 `Augmenter` → `FeatureStoreAugmenter`로 명확화
-       - 생성자 시그니처 유지: `(settings, factory)`
-       - `augment(df, run_mode)`에서 run_mode별 분기만 남기고, 실제 FS 조회는 Adapter에 위임
-     - `src/components/_augmenter/_pass_through.py`
-       - `augment(self, df)` 메서드 구현(현재 `_augment`만 존재) → `BaseAugmenter`의 추상 인터페이스 충족
-  3) Augmenter 생성 정책(Factory)
-     - 입력 신호: `settings.environment.app_env`, `settings.feature_store.provider in {"none","feast","mock"}`, `settings.serving.enabled`, `recipe.model.augmenter`, `run_mode`
-     - 정책(blueprint 148-155):
-       - local 또는 provider=none 또는 `augmenter.type=pass_through` → PassThrough
-       - `augmenter.type=feature_store` ∧ provider∈{feast,mock} ∧ 헬스체크 성공 → FeatureStore
-       - (train/batch 한정) 위 실패 ∧ 레시피에 `fallback.sql` 명시 → SqlFallback
-       - serving에서는 PassThrough/SqlFallback 금지(진입 차단)
-     - 구현: `AugmenterRegistry` 사용 또는 Factory 내 dict 매핑(권장: Registry)
-  4) Registry 확장
-     - `src/engine/_registry.py`에 `AugmenterRegistry` 추가: `register(type, cls)`, `create(type, **kwargs)`
-     - 부트 시점 등록: `feature_store`, `pass_through`, `sql_fallback`
-  5) Train Pipeline 호출 정합화
-     - `train_pipeline.py`의 어댑터 생성은 `create_data_adapter()`(레시피 기반) 또는 현 호출 유지(Factory가 인자 수용하므로 둘 다 동작)
-
-- 검토 체크리스트
-  - [ ] Factory 어댑터/평가자/증강기 생성 모두 예외 없이 동작
-  - [ ] PassThroughAugmenter가 `augment` 구현(추상 메서드 충족)
-  - [ ] FeatureStoreAugmenter 생성자에 `factory` 주입됨
-  - [ ] Evaluator 생성 시 task_type 전달
-  - [ ] 기존 테스트 실행 시 즉시 발생하던 NameError/TypeError 제거
+- 작업
+  - `src/utils/system/dependencies.py` 신설
+    - `validate_dependencies(settings)` 구현
+      - 기능별 필수 패키지 집합 구성 후 import 시도, 실패 시 `ImportError(패키지명)` 즉시 발생
+      - 예시 규칙
+        - recipe.loader.adapter == storage && parquet 사용 → `pyarrow`
+        - recipe.loader.adapter == sql → `sqlalchemy`
+        - feature_store.provider == feast → `feast`
+        - hyperparameter_tuning.enabled → `optuna`
+        - serving.enabled → `fastapi`, `uvicorn`
+  - `src/engine/__init__.py::bootstrap(settings)`에서 `register_all_components()` 후 `validate_dependencies(settings)` 호출
+- 수용 기준
+  - 활성 기능에 필요한 패키지가 없으면 ImportError로 즉시 실패(패키지명 포함)
 
 ---
 
-#### 2) 정책/보안/청사진 정합화
+## 2) Factory 엄격화(6-6)
 
-- 근거(blueprint.md)
-  - 보안/신뢰성: 257-264
-  - 테스트 원칙: 267-277
-
-- 관련 파일(열람 대상)
-  - `src/settings/loaders.py`
-  - `src/utils/adapters/sql_adapter.py`
-  - `src/utils/system/templating_utils.py`
-  - `src/pipelines/inference_pipeline.py`
-
-- 확정 수정 계획(인자/Import/맥락 포함)
-  1) Settings 로더 SQL 검증 보완
-     - `.sql` 경로가 상대경로이면 프로젝트 루트 기준 절대경로로 변환 후 존재 검사
-     - 존재 시 `prevent_select_star` 실행, 미존재 시 명확한 `FileNotFoundError`
-     - Jinja 컨텍스트는 레시피의 `jinja_variables` allowlist로 검증 후 렌더
-  2) SQL 어댑터 보안 가드
-     - 쿼리 실행 전: `prevent_select_star` + 금칙어(DDL/DML) + LIMIT 가드
-     - DB별 타임아웃 옵션 주석/적용(가능 시 statement timeout)
-     - 에러 메시지에 쿼리 앞 200자 포함(디버깅 용이)
-  3) 템플릿 유틸 함수명 표준화
-     - 공식 함수명: `render_template_from_string`, `render_template_from_file`
-     - 호출부(`inference_pipeline.py`) 함수명 정합화
-
-- 검토 체크리스트
-  - [ ] 정적 SQL의 `SELECT *`가 로딩 단계에서 차단
-  - [ ] 금칙어/타임아웃/LIMIT 가드 동작
-  - [ ] 템플릿 렌더 함수명 불일치 제거
-  - [ ] 에러 메시지가 맥락 포함(파일/쿼리 요약)
+- 작업
+  - `src/engine/factory.py`에서 AdapterRegistry가 비어있을 때 내부에서 `register_all_components()`를 호출하는 fallback 제거
+  - 부트스트랩 호출 누락 시 명확히 실패하도록 유지
+- 수용 기준
+  - 부트스트랩 미호출 시 어댑터 생성이 실패하며, 메시지에 가용 어댑터 목록만 노출
 
 ---
 
-#### 3) 재현성/튜닝
+## 3) 데이터 분할 stratify 가드(6-7)
 
-- 근거(blueprint.md)
-  - 완전한 재현성: 168-180, 121-134(예측 경로 일관성)
-
-- 관련 파일(열람 대상)
-  - `src/utils/system/reproducibility.py`(신설)
-  - `src/pipelines/train_pipeline.py`
-  - `src/pipelines/inference_pipeline.py`
-  - `src/utils/integrations/optuna_integration.py`
-  - `src/engine/factory.py`
-
-- 확정 수정 계획(인자/Import/맥락 포함)
-  1) 전역 시드 설정 유틸 추가
-     - `set_global_seeds(seed: int)`에 `random`, `numpy`, `torch(옵션)`, `sklearn` 시드 설정
-     - `train_pipeline.py`/`inference_pipeline.py` 시작부에서 호출, 기본 42 또는 레시피 `computed.seed`
-  2) Optuna 통합 클래스화
-     - `OptunaIntegration` 구현: `__init__(tuning_config, seed, timeout, n_jobs, pruning)`
-     - `optimize(objective)`에서 타임박스/중단/로깅, `best_params/best_score/total_trials/history` 반환
-     - Factory `create_optuna_integration()`가 실제 클래스를 반환하도록 수정
-
-- 검토 체크리스트
-  - [ ] 동일 레시피+시드로 동일 결과 재현(E2E 허용 오차 내)
-  - [ ] Optuna 실패/중단 시 명확 로깅/반환 구조 일관
+- 작업
+  - `src/components/_trainer/_data_handler.py::split_data`
+    - stratify 적용 전 조건 검사 추가
+      - 타깃/처치 컬럼 존재 && 최소 각 클래스/그룹 빈도 ≥ 2 && 표본 크기 충분 시에만 stratify 적용
+      - 조건 미충족 시 `stratify=None`로 분할
+- 수용 기준
+  - 소표본/불균형 CSV로도 분할이 안정적으로 수행됨(파이프라인 테스트 green)
 
 ---
 
-#### 4) 서빙 스키마/UX
+## 4) Serving 초기화에 부트스트랩 보장(6-8)
 
-- 근거(blueprint.md)
-  - 2.3 서빙 플로우/차단 요건: 125-135
-
-- 관련 파일(열람 대상)
-  - `src/serving/router.py`
-  - `src/serving/_lifespan.py`
-  - `src/serving/schemas.py`
-  - `src/serving/_endpoints.py`
-
-- 확정 수정 계획(인자/Import/맥락 포함)
-  1) 서빙 차단 정책 강화
-     - Router 기동 시 `PassThroughAugmenter`뿐 아니라 `SqlFallbackAugmenter`도 차단
-     - 온라인 FS 조회 가능성(헬스체크) 실패 시 기동 중단
-  2) 입력/응답 스키마 정리
-     - `PredictionResponse` 일반화: 기본 `prediction`, `model_uri` + 태스크별 선택 필드(옵셔널)
-     - 동적 입력 모델 생성은 가능하면 `wrapped_model.data_schema['entity_columns']` 기반, 불가 시 기존 `parse_select_columns`로 폴백
-
-- 검토 체크리스트
-  - [ ] pass_through/sql_fallback 서빙 차단
-  - [ ] 온라인 조회 강제 및 실패 시 명확 에러
-  - [ ] 응답 스키마가 일반 분류/회귀 시나리오와 호환
+- 작업
+  - `src/serving/_lifespan.py` 또는 `router.setup_api_context` 초기에 `bootstrap(settings)` 호출 보장
+- 수용 기준
+  - LOCAL에서 서빙 차단 정책 유지, DEV에서 의존성/레지스트리 만족 시 정상 동작
 
 ---
 
-#### 5) 도커/문서 일관화
+## 5) Import-linter 계약 추가(6-9)
 
-- 근거(blueprint.md)
-  - 실행 환경/이식성: 168-173, 216-226
-
-- 관련 파일(열람 대상)
-  - `pyproject.toml`
-  - `README.md`
-  - `Dockerfile`
-  - `docker-compose.yml`
-
-- 확정 수정 계획(인자/Import/맥락 포함)
-  1) Python 버전 통일(3.11 권장)
-     - `pyproject.toml` → `requires-python = ">=3.11,<3.12"`
-     - `README.md` 배지 3.11+
-     - `Dockerfile` 베이스 이미지를 `python:3.11-slim`으로 변경
-  2) uv 기반 의존성 설치로 통일
-     - `Dockerfile`에서 `uv.lock`/`requirements-dev.lock` 사용
-     - 잘못된 경로/디렉토리 교정: `recipes/`(오타 수정), MLflow 포트/URI와 문서/설정 일치
-  3) docker-compose 정합화
-     - 존재하는 MLflow 이미지 사용 또는 로컬 도커파일 추가
-     - 포트/볼륨/환경변수 값이 `config/*.yaml`과 모순 없도록 조정
-
-- 검토 체크리스트
-  - [ ] 로컬/CI에서 동일 Python/의존성 트리에 대해 동일 결과
-  - [ ] 컨테이너 빌드/서빙 커맨드가 README와 일치
+- 작업
+  - `pyproject.toml`에 계약 추가(예시)
+    - components → engine/settings 상향 의존 금지
+    - engine → components 허용(팩토리/레지스트리)
+    - serving → pipelines 직접 의존 금지
+  - CI에서 계약 위반 시 실패하도록 설정(추가 PR로 분리 가능)
+- 수용 기준
+  - 계약 위반 없음(기본 규칙으로 시작 후 점진 강화)
 
 ---
 
-#### 6) 테스트 구조(Unit/Integration) 재설계
+## 6) 테스트/픽스처 정비(6-10, 6-11)
 
-- 근거(blueprint.md)
-  - 테스트 원칙: 267-277
-
-- 관련 파일(열람 대상)
-  - `tests/**`, `pytest.ini`, `tests/conftest.py`
-
-- 확정 수정 계획(인자/Import/맥락 포함)
-  1) 마커/구조 재정의
-     - `pytest.ini`에 `markers = unit: Unit tests; integration: Integration tests`
-     - `tests/unit/**` 신설: settings/engine/components/utils/serving의 순수 로직 테스트 이동
-     - `tests/integration/**` 유지: pipelines/serving/feature_store/contracts/infra
-  2) 신규/보강 테스트
-     - Settings: 로더 에러·Jinja·SELECT * 차단
-     - Factory: Augmenter 정책 파라미터라이즈(env/provider/run_mode/fallback), Evaluator 생성
-     - Augmenter: PassThrough 동등성, FeatureStore(오프라인/온라인), SqlFallback Left Join 키 정합성
-     - Inference: 템플릿 렌더 성공/정적 SQL+context 실패, 결과 저장
-     - Serving: 차단 정책/동적 스키마
-     - 재현성: 고정 시드 동일 결과, pip freeze 캡처
-     - MLflow: 시그니처/데이터 스키마/스냅샷 저장
-
-- 검토 체크리스트
-  - [ ] `pytest -m unit` 전부 green, 평균 < 1s/파일
-  - [ ] `pytest -m integration` 핵심 시나리오 green, flaky 없음
+- 작업
+  - 유닛/파이프라인 테스트
+    - storage + CSV/Parquet로만 데이터 로딩
+    - `tests/fixtures/data/*`에 50+행, 타깃 클래스 최소 10+ 보장하는 데이터셋 추가/대체
+    - 파이프라인 테스트는 파일명 규칙/최소 메타만 검증(반환 오브젝트 의존 최소화)
+  - SQL/Feast 관련 테스트
+    - `@pytest.mark.requires_dev_stack` 마커 부착
+    - 유닛에서는 SQL 가드/경로 존재만, 쿼리 실행은 통합 환경에서만
+- 수용 기준
+  - `tests/pipelines/*` 및 `tests/utils/*` green
+  - DEV 스택 미기동 시 `@requires_dev_stack` 자동 스킵
 
 ---
 
-### 단계 진행 규칙(반복)
-1) 본 문서의 각 단계 제목을 확인하고, 위 “관련 파일(열람 대상)”을 우선 열람한다.
-2) 인자 호환성, Import 변경점, 시스템 맥락을 본 문서의 “확정 수정 계획”에 맞춰 구현한다.
-3) 로컬 단위 테스트 실행 → 통합 테스트 실행(필요 시 docker-compose) 순으로 검증한다.
-4) 체크리스트 충족 시 다음 단계로 진행한다.
+## 7) 불필요한 예외/우회 로직 제거(6-12)
+
+- 작업
+  - `src/engine/factory.py`의 레지스트리 지연등록 제거(2와 중복이지만 문서상 명시)
+  - 테스트에서 임시 sqlite 연결/강제 SQL 경로 설정 제거(유닛은 storage 고정)
+  - 과도한 try/except 제거(환경 미준비 시 명시적 실패 유지)
+- 수용 기준
+  - 우회 없이 선명한 실패/성공 경로. 실패 시 메시지로 원인(패키지/부트스트랩/경로)을 즉시 파악 가능
+
+---
+
+## 8) 실행 순서
+1) 의존성 검증 유틸 추가 및 `bootstrap` 연동(6-5)
+2) Factory fallback 제거(6-6)
+3) 분할 stratify 가드(6-7)
+4) 테스트 픽스처 보강 및 파이프라인 테스트 안정화(6-10)
+5) 서빙 부트스트랩 보장(6-8)
+6) Import-linter 계약 추가(6-9)
+7) SQL/Feast 통합 테스트 경계 정리(6-11)
+8) 불필요 예외/우회 제거 마무리(6-12)
+
+---
+
+## 9) 최종 수용 기준(전체)
+- LOCAL: 유닛+파이프라인 green, 작은 데이터에서도 분할 실패 없음
+- 의존성 검증: 미설치 패키지 시 ImportError 즉시 실패(패키지명 포함)
+- 부트스트랩 규율: Factory 내부 fallback 제거로 누락 즉시 실패
+- Import-linter: 계약 위반 없음
+- 픽스처: storage 기반 데이터로 파이프라인 테스트 안정 통과
 
 

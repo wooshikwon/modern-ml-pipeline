@@ -6,8 +6,8 @@ Settings Loaders - Public API
 
 from typing import Dict, Any, Optional
 
-from .models import Settings
-from ._recipe_schema import RecipeSettings
+from .schema import Settings
+from ._recipe_schema import RecipeSettings, JinjaVariable
 from src.utils.system.logger import logger
 from ._builder import (
     load_config_files,
@@ -18,8 +18,6 @@ from ._builder import (
     _post_process_settings,
     _validate_and_prepare_context_params,
 )
-from ._recipe_schema import JinjaVariable
-from src.settings import Settings
 from src.utils.system.sql_utils import prevent_select_star
 from pathlib import Path
 from ._utils import BASE_DIR
@@ -59,20 +57,20 @@ def load_settings_by_file(recipe_file: str, context_params: Optional[Dict[str, A
             logger.warning("`context_params`가 제공되었지만, 레시피에 `jinja_variables` 명세가 없습니다.")
             recipe_data = _render_recipe_templates(recipe_data, context_params)
 
-    # 4. 정적 SQL에 대한 SELECT * 검증
+    # 4. 정적 SQL에 대한 SELECT * 검증 및 경로 해석 강화
     loader_config = recipe_data.get("model", {}).get("loader", {})
     source_uri = loader_config.get("source_uri")
     if source_uri and source_uri.endswith(".sql"):
         sql_path = Path(source_uri)
         if not sql_path.is_absolute():
             sql_path = BASE_DIR / sql_path
-        if sql_path.exists():
-            prevent_select_star(sql_path.read_text())
+        if not sql_path.exists():
+            raise FileNotFoundError(f"SQL 파일을 찾을 수 없습니다: {sql_path}")
+        prevent_select_star(sql_path.read_text(encoding="utf-8"))
 
     # 5. Pydantic 모델로 변환 및 검증
     try:
         recipe_settings = RecipeSettings(**recipe_data)
-        recipe_settings.validate_recipe_consistency()
     except Exception as e:
         raise ValueError(f"Recipe 검증 실패: {e}\n데이터: {recipe_data}")
     

@@ -52,7 +52,7 @@ model:
     name: "clustering_evaluator"
     
 evaluation:
-  metrics: ["silhouette", "calinski_harabasz"]
+  metrics: ["silhouette_score", "calinski_harabasz_score"]
   validation:
     method: "train_test_split"
     test_size: 0.2
