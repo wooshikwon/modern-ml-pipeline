@@ -9,11 +9,14 @@ from src.utils.system.logger import logger
 from src.serving._context import app_context
 from src.serving.schemas import create_dynamic_prediction_request, create_batch_prediction_request
 from src.utils.system.sql_utils import parse_select_columns
+from src.engine import bootstrap
 
 
 def setup_api_context(run_id: str, settings: Settings):
     """서버 시작 시 API 컨텍스트를 설정하는 함수"""
     try:
+        # 부트스트랩: 레지스트리/의존성 검증 보장
+        bootstrap(settings)
         model_uri = f"runs:/{run_id}/model"
         app_context.model = mlflow.pyfunc.load_model(model_uri)
         app_context.model_uri = model_uri

@@ -35,6 +35,10 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
         """입력 데이터프레임의 스키마를 검증합니다."""
         if self.data_schema:
             try:
+                # Timestamp 컬럼이 문자열로 들어오는 단순 배치 입력을 대비해 사전 변환 시도
+                ts_col = self.data_schema.get('timestamp_column') if isinstance(self.data_schema, dict) else None
+                if ts_col and ts_col in df.columns and not pd.api.types.is_datetime64_any_dtype(df[ts_col]):
+                    df[ts_col] = pd.to_datetime(df[ts_col], errors='coerce')
                 from src.utils.system.schema_utils import SchemaConsistencyValidator
                 validator = SchemaConsistencyValidator(self.data_schema)
                 validator.validate_inference_consistency(df)

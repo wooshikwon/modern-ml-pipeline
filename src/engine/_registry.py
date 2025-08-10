@@ -148,9 +148,27 @@ def register_all_components():
             importlib.import_module('src.utils.adapters.feast_adapter')
         except Exception:
             pass
-        importlib.import_module('src.components._evaluator._evaluator')
-        importlib.import_module('src.components._preprocessor._steps')
-        # Augmenters 등록 진입점은 각 모듈에서 AugmenterRegistry.register 호출로 처리(이곳에서는 임포트만 트리거)
+        # Evaluators: 명시적 등록
+        from src.components._evaluator import (
+            ClassificationEvaluator,
+            RegressionEvaluator,
+            ClusteringEvaluator,
+            CausalEvaluator,
+        )
+        EvaluatorRegistry.register("classification", ClassificationEvaluator)
+        EvaluatorRegistry.register("regression", RegressionEvaluator)
+        EvaluatorRegistry.register("clustering", ClusteringEvaluator)
+        EvaluatorRegistry.register("causal", CausalEvaluator)
+
+        # Preprocessor steps: 명시적 등록을 위한 모듈 임포트 (각 모듈에서 로컬 레지스트리에 등록됨)
+        importlib.import_module('src.components._preprocessor._steps._encoder')
+        importlib.import_module('src.components._preprocessor._steps._discretizer')
+        importlib.import_module('src.components._preprocessor._steps._imputer')
+        importlib.import_module('src.components._preprocessor._steps._missing')
+        importlib.import_module('src.components._preprocessor._steps._feature_generator')
+        importlib.import_module('src.components._preprocessor._steps._scaler')
+
+        # Augmenters: 생성은 Factory에서 직접 클래스 사용
         importlib.import_module('src.components._augmenter._augmenter')
         importlib.import_module('src.components._augmenter._pass_through')
     except ImportError as e:

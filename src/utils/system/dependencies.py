@@ -46,7 +46,8 @@ def validate_dependencies(settings: Settings) -> None:
         recipe_tuning = bool(getattr(settings.recipe.model.hyperparameter_tuning, "enabled", False))
     except Exception:
         recipe_tuning = False
-    if global_tuning or recipe_tuning:
+    # Require optuna only when BOTH global and recipe toggles are enabled
+    if global_tuning and recipe_tuning:
         required.add("optuna")
 
     # Serving

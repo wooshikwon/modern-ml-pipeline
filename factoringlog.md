@@ -189,3 +189,108 @@
 - 타입 의존은 TYPE_CHECKING/Protocol로 분리, 런타임 임포트는 단방향 유지
 - 선택 의존성(optuna) 최상위 임포트 금지, 기능 On 시 지연 임포트 + 명시적 ImportError, uv 환경에서 필수 의존성은 pyproject로 강건 설치
 - 퍼블릭 API는 패키지 단위 __all__로 노출, 내부 모듈 직접 임포트 금지
+
+작업 실행(소급 기재): 전역 임포트/의존성 아키텍처 안정화 - Stage 6 (6-5/6-6/6-7/6-8/6-10)
+(근거) development_plan.md Stage 6 및 승인된 CoT 제안서에 따라 소급 실행 기록을 남깁니다.
+
+**** src/utils/system/dependencies.py
+(근거) Stage 6-5 의존성 검증 유틸 도입
+(상세) `validate_dependencies(settings)` 구현. 활성 기능 기준으로 필수 패키지 계산(storage+parquet→pyarrow, sql→sqlalchemy, feast→feast, 튜닝 AND 조건→optuna, serving→fastapi/uvicorn). 누락 시 ImportError 즉시 발생.
+(자가 비평) Trainer의 튜닝 활성 조건(전역 AND 레시피)과 로직 일치. uv 전제 하에 명확한 실패 경로 제공.
+
+**** src/engine/__init__.py
+(근거) Stage 6-5 부트스트랩 연동
+(상세) `bootstrap(settings)`에서 `register_all_components()` 후 `validate_dependencies(settings)` 호출.
+(자가 비평) 멱등/집중 초기화 지점 확립. 모든 엔트리에서 호출하도록 표준화.
+
+**** src/engine/factory.py
+(근거) Stage 6-6 Factory 엄격화, 평가자 주입 교정, 스키마 일관성 보강
+(상세) (1) 레지스트리 비어있을 때 내부 `register_all_components()` 호출 우회 제거(부트스트랩 강제). (2) Evaluator 생성 시 `data_interface`를 인자로 전달. (3) Enhanced Signature 생성 직전, 학습 DF의 timestamp 컬럼을 datetime으로 변환해 스키마 일관성 보장.
+(자가 비평) 부트스트랩 누락 시 즉시 실패하여 원인 파악 용이. 평가자 average 접근 오류 해소. 학습/추론 간 timestamp dtype 불일치 근본 해결.
+
+**** src/components/_trainer/_data_handler.py
+(근거) Stage 6-7/6-10 데이터 분할/입력 보강
+(상세) (1) stratify 가드: 소표본/불균형 시 stratify 비활성. (2) 엔티티/타임스탬프/레시피 exclude_cols를 입력 피처에서 제거. (3) 숫자형 컬럼만 모델 입력으로 사용.
+(자가 비평) 소표본 stratify 오류와 string→float 변환 오류를 시스템적으로 차단.
+
+**** src/components/_trainer/_trainer.py
+(근거) Stage 6-10 전처리/메타데이터 반영
+(상세) 전처리기를 학습/적용하도록 수정하고, evaluator 호출 시그니처 정합화. `training_methodology`를 결과에 포함.
+(자가 비평) 테스트 계약(`preprocessing_fit_scope == 'train_only'`)을 충족하고, 파이프라인 가독성/일관성 향상.
+
+**** src/utils/integrations/mlflow_integration.py
+(근거) Stage 6-10 테스트 트래킹 URI/메타 저장 정합화
+(상세) `start_run`에서 외부 `tracking_uri`를 존중(테스트 디렉토리 사용), 실험명만 설정. `json` 임포트 추가. Enhanced 모델 저장 시 확장 메타데이터 기록.
+(자가 비평) 테스트/로컬 모두 동일 패턴으로 동작. 부수효과 제거.
+
+**** src/engine/_artifact.py
+(근거) Stage 6-10 추론 시 스키마 검증 안정화
+(상세) 스키마 검증 직전 timestamp 컬럼을 datetime으로 강제 변환.
+(자가 비평) 학습 시점 변환과 합쳐 dtype 불일치 경보를 제거.
+
+**** src/pipelines/train_pipeline.py
+(근거) Stage 6-10 테스트 계약 보강
+(상세) `run_training`이 `SimpleNamespace(run_id, model_uri)`를 반환하도록 수정.
+(자가 비평) 실행 가시성 향상. 기존 호출과 충돌 없음.
+
+**** src/utils/adapters/sql_adapter.py
+(근거) SQLAlchemy 2.x/Pandas 호환
+(상세) `pd.read_sql_query(sql, engine)` 사용으로 커서 관련 예외 제거.
+(자가 비평) 2.x 호환성 확보. 로깅 스니펫 유지로 디버깅 용이.
+
+**** src/utils/adapters/storage_adapter.py
+(근거) Stage 6-3 스토리지 CSV 지원
+(상세) 파일 확장자에 따라 CSV/Parquet 자동 처리. 로컬 파일 경로 생성 보강.
+(자가 비평) 유닛/파이프라인 테스트의 안정적 I/O 확보.
+
+**** tests/fixtures/recipes/e2e_classification_test.yaml
+(근거) Stage 6-10 테스트 정합화
+(상세) loader를 `storage` + CSV 경로로 교체.
+(자가 비평) SQL 실행은 통합 테스트로 이관.
+
+**** tests/fixtures/data/e2e_mock_data.csv
+(근거) Stage 6-10 픽스처 보강
+(상세) 60행/양측 클래스 균형 데이터로 확장.
+(자가 비평) stratify/학습 안정성 확보.
+
+**** src/serving/_lifespan.py
+(근거) development_plan.md Stage 6-8 서빙 초기화 부트스트랩 보장
+(상세) `setup_api_context` 초기에 `bootstrap(settings)` 호출로 레지스트리/의존성 검증 강제.
+(자가 비평) 멱등 호출. 서빙 경로에서도 전역 초기화 일관성 확보.
+
+**** src/serving/router.py
+(근거) 서빙 정책 준수 및 테스트 정합화
+(상세) 정적 `/predict` 엔드포인트 추가(딕셔너리 입력→`MinimalPredictionResponse`). `pass_through` Augmenter 감지 시 503 반환. 정책 위반의 `HTTPException`은 500으로 덮지 않고 그대로 전달.
+(자가 비평) 블루프린트의 서빙 정책과 일치. 로컬 정책 테스트에서 안정 동작.
+
+**** src/utils/integrations/mlflow_integration.py
+(근거) 서빙 최소 입력 계약 반영
+(상세) Enhanced Signature 생성 시 입력 스키마를 `inference_columns`(엔티티 중심) 기준으로 생성하도록 수정. timestamp 타입 일치화 포함.
+(자가 비평) 서빙 입력 최소화 정책과 정합. 학습/추론 스키마 간 불일치 완화.
+
+**** src/utils/system/schema_utils.py
+(근거) 서빙 최소 입력 계약 명확화
+(상세) `generate_training_schema_metadata`의 `inference_columns`를 엔티티 컬럼으로 제한.
+(자가 비평) 최소 입력 정책에 부합. Feature Store 증강 전제 환경과도 충돌 없음.
+
+**** src/components/_preprocessor/_preprocessor.py
+(근거) 서빙 실패(누락 컬럼) 방지 임시 가드
+(상세) `transform`에서 전처리 정의 컬럼이 입력에 없으면 기본값 0으로 생성 후 변환 수행.
+(자가 비평) 정책상 서빙은 FS 증강이 선행되어야 하므로, dev FS 경로가 안정화되면 본 가드는 제거 대상.
+
+**** tests/serving/test_router_api_policy_local.py
+(근거) 테스트 층위/정책 분리
+(상세) 로컬 정책 테스트 신설: pass_through 서빙 시 `/predict` 503 기대. 학습/컨텍스트/호출 일련 검사.
+(자가 비평) 로컬에서는 정책 차단만 검증. 정상 200 경로는 `@requires_dev_stack` 테스트로 분리 예정.
+
+**** pyproject.toml
+(근거) import-linter 계약 추가
+(상세) dev 의존성에 `import-linter` 추가. 기본 계약: components→engine/settings 상향 의존 금지, serving→pipelines 직접 의존 금지.
+(자가 비평) 계층 규율 강제의 시작점. CI 통합은 후속 단계에 반영.
+
+작업 계획: Stage 6-11 - Dev Feature Store 서빙 정상 경로 테스트 추가
+[PLAN] development_plan.md - 6-11 SQL/Feast 통합 테스트 분리 및 dev 스택 서빙 200 경로 검증
+(근거) 사용자의 'confirm' 승인에 따라 CoT 제안서 기반으로 dev 스택 서빙 정상 경로 테스트를 추가함. 로컬 정책(503)과 dev 정상(200)을 분리 검증.
+(CoT 요약)
+- tests/serving/test_router_api_fs.py 신설(@requires_dev_stack): /health 200, /predict 200
+- conftest의 dev_test_settings/스킵 로직 활용, 환경 미기동 시 자동 스킵

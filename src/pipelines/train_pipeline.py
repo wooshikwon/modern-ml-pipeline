@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 from typing import Optional, Dict, Any
+from types import SimpleNamespace
 
 import mlflow
 import pandas as pd
@@ -54,7 +55,7 @@ def run_training(settings: Settings, context_params: Optional[Dict[str, Any]] = 
         evaluator = factory.create_evaluator()
 
         # 3. 모델 학습
-        trainer = Trainer(settings=settings)
+        trainer = Trainer(settings=settings, factory_provider=lambda: factory)
         trained_model, trained_preprocessor, metrics, training_results = trainer.train(
             df=df,
             model=model,
@@ -145,3 +146,6 @@ def run_training(settings: Settings, context_params: Optional[Dict[str, Any]] = 
         with metadata_path.open('w', encoding='utf-8') as f:
             json.dump(metadata, f, indent=4, default=str)
         mlflow.log_artifact(str(metadata_path), "metadata")
+
+        # 8. 결과 객체 반환(run_id 및 model_uri 포함)
+        return SimpleNamespace(run_id=run_id, model_uri=f"runs:/{run_id}/model")

@@ -1,6 +1,6 @@
 from __future__ import annotations
 import pandas as pd
-from typing import Dict, Any, Tuple, Optional, TYPE_CHECKING
+from typing import Dict, Any, Tuple, Optional, TYPE_CHECKING, Callable
 from sklearn.model_selection import train_test_split
 
 from src.settings import Settings
@@ -11,17 +11,22 @@ from ._data_handler import split_data, prepare_training_data
 from ._optimizer import OptunaOptimizer
 
 if TYPE_CHECKING:
-    from src.components._augmenter import BaseAugmenter
-    from src.components._preprocessor import BasePreprocessor
+    pass
 
 class Trainer(BaseTrainer):
     """
     모델 학습 및 평가 전체 과정을 관장하는 오케스트레이터 클래스.
     """
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings, factory_provider: Optional[Callable[[], Any]] = None):
         self.settings = settings
+        self.factory_provider = factory_provider
         logger.info("Trainer가 초기화되었습니다.")
         self.training_results = {}
+
+    def _get_factory(self):
+        if self.factory_provider is None:
+            raise RuntimeError("Factory provider가 주입되지 않았습니다. 엔진 의존성은 외부에서 주입되어야 합니다.")
+        return self.factory_provider()
 
     def train(
         self,
@@ -38,6 +43,12 @@ class Trainer(BaseTrainer):
         X_train, y_train, _ = prepare_training_data(train_df, self.settings)
         X_test, y_test, _ = prepare_training_data(test_df, self.settings)
 
+        # 전처리 적용
+        if preprocessor:
+            preprocessor.fit(X_train)
+            X_train = preprocessor.transform(X_train)
+            X_test = preprocessor.transform(X_test)
+
         # 하이퍼파라미터 최적화 또는 직접 학습
         global_tuning_enabled = self.settings.hyperparameter_tuning.enabled
         recipe_tuning_config = self.settings.recipe.model.hyperparameter_tuning
@@ -47,7 +58,7 @@ class Trainer(BaseTrainer):
 
         if use_tuning:
             logger.info("하이퍼파라미터 최적화를 시작합니다. (전역 및 레시피 설정 모두에서 활성화됨)")
-            optimizer = OptunaOptimizer(settings=self.settings)
+            optimizer = OptunaOptimizer(settings=self.settings, factory_provider=self._get_factory)
             best = optimizer.optimize(train_df, self._single_training_iteration)
             self.training_results['hyperparameter_optimization'] = best
             trained_model = best['model']
@@ -62,9 +73,11 @@ class Trainer(BaseTrainer):
             self.training_results['hyperparameter_optimization'] = {'enabled': False}
 
         # 4. 모델 평가
-        y_pred = trained_model.predict(X_test)
-        metrics = evaluator.evaluate(trained_model, X_test, y_test, y_pred=y_pred)
+        metrics = evaluator.evaluate(trained_model, X_test, y_test)
         self.training_results['evaluation_metrics'] = metrics
+
+        # 5. 학습 방법론 메타데이터 저장
+        self.training_results['training_methodology'] = self._get_training_methodology()
         
         logger.info(f"모델 평가 완료. 주요 지표: {metrics}")
         
@@ -79,8 +92,7 @@ class Trainer(BaseTrainer):
         X_train, y_train, additional_data = prepare_training_data(train_data, self.settings)
         X_val, y_val, _ = prepare_training_data(val_data, self.settings)
         
-        from src.engine import Factory
-        factory = Factory(self.settings)
+        factory = self._get_factory()
         preprocessor = factory.create_preprocessor()
         
         if preprocessor:

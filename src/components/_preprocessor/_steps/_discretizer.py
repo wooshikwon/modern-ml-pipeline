@@ -2,7 +2,7 @@
 from sklearn.preprocessing import KBinsDiscretizer
 from sklearn.base import BaseEstimator, TransformerMixin
 from typing import List
-from src.engine import PreprocessorStepRegistry
+from .._registry import PreprocessorStepRegistry
 
 class KBinsDiscretizerWrapper(BaseEstimator, TransformerMixin):
     """

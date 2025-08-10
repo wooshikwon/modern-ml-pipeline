@@ -278,8 +278,9 @@ def generate_training_schema_metadata(training_df: pd.DataFrame, data_interface_
     """
     target_column = data_interface_config.get('target_column')
     
-    # Inference에 필요한 컬럼들 (target 제외)
-    inference_columns = [col for col in training_df.columns if col != target_column]
+    # Inference에 필요한 컬럼들: 엔티티만(서빙 최소 입력을 허용)
+    entity_cols = list(data_interface_config.get('entity_columns', []))
+    inference_columns = entity_cols
     
     schema_metadata = {
         # Phase 1 EntitySchema 정보 활용

@@ -52,6 +52,7 @@ dependencies = [
     "category-encoders>=2.6.3",
     "rtdl_revisiting_models>=0.0.2",
     "torch>=2.0.0",
+    "setuptools>=68",
 ]
 
 [project.optional-dependencies]
@@ -63,6 +64,7 @@ dev = [
     "mypy",
     "ipykernel",
     "httpx",
+    "import-linter",
 ]
 
 [project.urls]
@@ -71,4 +73,27 @@ Issues = "https://github.com/your-username/modern-ml-pipeline/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src"]
+
+[tool.importlinter]
+root_package = "src"
+
+[[tool.importlinter.contracts]]
+name = "Components must not import engine (upward dependency forbidden)"
+type = "forbidden"
+source_modules = [
+  "src.components"
+]
+forbidden_modules = [
+  "src.engine",
+]
+
+[[tool.importlinter.contracts]]
+name = "Serving must not import pipelines directly"
+type = "forbidden"
+source_modules = [
+  "src.serving"
+]
+forbidden_modules = [
+  "src.pipelines",
+]
 
