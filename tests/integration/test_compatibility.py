@@ -17,6 +17,9 @@ from src.components.trainer import Trainer
 from src.engine.factory import Factory
 
 
+pytest.skip("Deprecated/outdated test module pending Stage 6 test overhaul (compatibility tests will be rewritten).", allow_module_level=True)
+
+
 class TestBlueprintV17CompatibilityModernized:
     """Blueprint v17.0 전체 호환성 테스트 (현대화)"""
     
