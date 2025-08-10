@@ -3,7 +3,7 @@ from sklearn.impute import MissingIndicator
 from sklearn.base import BaseEstimator, TransformerMixin
 from typing import List
 import numpy as np
-from src.engine import PreprocessorStepRegistry
+from .._registry import PreprocessorStepRegistry
 
 class MissingIndicatorWrapper(BaseEstimator, TransformerMixin):
     """

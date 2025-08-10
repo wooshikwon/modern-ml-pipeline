@@ -1,6 +1,7 @@
 # src/utils/system/mlflow_utils.py
 
 import mlflow
+import json
 from contextlib import contextmanager
 import pandas as pd
 from mlflow.models.signature import ModelSignature
@@ -34,8 +35,7 @@ def start_run(settings: "Settings", run_name: str) -> "Run":
     MLflow 실행을 시작하고 관리하는 컨텍스트 매니저.
     외부 환경 변수의 영향을 받지 않도록 tracking_uri를 명시적으로 설정합니다.
     """
-    # setup_mlflow(settings) # 더 이상 전역 설정에 의존하지 않음
-    mlflow.set_tracking_uri(settings.mlflow.tracking_uri)
+    # 외부에서 지정된 tracking_uri(예: 테스트)가 있다면 존중하고, 실험명만 설정
     mlflow.set_experiment(settings.mlflow.experiment_name)
     with mlflow.start_run(run_name=run_name) as run:
         logger.info(f"MLflow Run started: {run.info.run_id} ({run_name}) for experiment '{settings.mlflow.experiment_name}'")
@@ -257,18 +257,25 @@ def create_enhanced_model_signature_with_schema(
         tuple[ModelSignature, dict]: Enhanced Signature와 완전한 스키마 메타데이터
     """
     
-    # 1. 기존 create_model_signature 로직 활용 (검증된 기능 보존)
-    logger.info("🔄 기존 MLflow Signature 생성 로직 활용 중...")
-    
-    # 예측 결과 샘플 생성 (기존 로직 재사용)
-    sample_output = pd.DataFrame({'prediction': [0.0] * len(training_df.head(5))})
-    signature = create_model_signature(training_df.head(5), sample_output)
-    
-    # 2. 🆕 Phase 4 generate_training_schema_metadata 활용
-    logger.info("🆕 Phase 4 스키마 메타데이터 생성 함수 활용 중...")
+    # 1. 입력 스키마는 'inference_columns'(entity + timestamp) 기준으로 생성
+    logger.info("🔄 Inference 입력 스키마(엔티티+타임스탬프) 기준으로 MLflow Signature 생성...")
     from src.utils.system.schema_utils import generate_training_schema_metadata
+    provisional_schema = generate_training_schema_metadata(training_df, data_interface_config)
+    inference_cols = list(provisional_schema.get('inference_columns') or [])
+    input_example = training_df.head(5).copy()
+    # 타입 일치: timestamp를 datetime으로
+    ts_col = provisional_schema.get('timestamp_column')
+    if ts_col and ts_col in input_example.columns:
+        try:
+            input_example[ts_col] = pd.to_datetime(input_example[ts_col], errors='coerce')
+        except Exception:
+            pass
+    input_example = input_example[inference_cols] if inference_cols else input_example
+    sample_output = pd.DataFrame({'prediction': [0.0] * len(input_example)})
+    signature = create_model_signature(input_example, sample_output)
     
-    data_schema = generate_training_schema_metadata(training_df, data_interface_config)
+    # 2. 완전한 스키마 메타데이터 생성
+    data_schema = provisional_schema
     
     # 3. 🆕 Phase 5 특화: MLflow 및 통합 정보 추가
     data_schema.update({

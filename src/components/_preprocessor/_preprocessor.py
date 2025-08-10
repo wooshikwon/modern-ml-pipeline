@@ -8,7 +8,7 @@ from sklearn.compose import ColumnTransformer
 
 from src.interface import BasePreprocessor
 from src.utils.system.logger import logger
-from src.engine._registry import PreprocessorStepRegistry
+from ._registry import PreprocessorStepRegistry
 
 if TYPE_CHECKING:
     from src.settings import Settings
@@ -46,6 +46,17 @@ class Preprocessor(BasePreprocessor):
         if self.pipeline is None:
             raise RuntimeError("Preprocessor가 아직 학습되지 않았습니다. 'fit'을 먼저 호출하세요.")
         
+        # 구성에 정의된 컬럼이 입력에 없으면 기본값(0)으로 생성하여 변환 파이프라인이 실패하지 않도록 함
+        try:
+            required_columns = []
+            for name, conf in self.config.column_transforms.items():
+                required_columns.extend(list(conf.columns or []))
+            for col in set(required_columns):
+                if col not in X.columns:
+                    X[col] = 0
+        except Exception:
+            pass
+
         X_transformed = self.pipeline.transform(X)
         
         try:

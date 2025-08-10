@@ -7,8 +7,9 @@ from src.utils.system.logger import logger
 from src.utils.integrations.optuna_integration import logging_callback
 
 class OptunaOptimizer:
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings, factory_provider: Callable[[], Any]):
         self.settings = settings
+        self.factory_provider = factory_provider
         self.pruner = self._create_pruner()
 
     def _create_pruner(self):
@@ -23,8 +24,7 @@ class OptunaOptimizer:
         """Optuna를 사용하여 하이퍼파라미터 최적화를 수행합니다."""
         logger.info("🚀 하이퍼파라미터 자동 최적화 모드 시작")
         
-        from src.engine import Factory
-        factory = Factory(self.settings)
+        factory = self.factory_provider()
         optuna_integration = factory.create_optuna_integration()
 
         study = optuna_integration.create_study(

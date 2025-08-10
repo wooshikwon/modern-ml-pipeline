@@ -35,6 +35,31 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+def _register_dynamic_routes_if_needed():
+    """Setup 후 동적 라우트를 보장한다(/predict)."""
+    # 이미 등록되었는지 확인
+    if any(getattr(r, "path", None) == "/predict" for r in app.router.routes):
+        return
+    PredictionRequest = app_context.PredictionRequest
+    if PredictionRequest is None:
+        return
+
+    def predict(request: PredictionRequest) -> MinimalPredictionResponse:
+        try:
+            prediction_result = handlers.predict(request.model_dump())
+            return MinimalPredictionResponse(**prediction_result)
+        except Exception as e:
+            logger.error(f"단일 예측 중 오류 발생: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e))
+
+    app.add_api_route(
+        "/predict",
+        predict,
+        response_model=MinimalPredictionResponse,
+        methods=["POST"],
+        tags=["Prediction"],
+    )
+
 @app.get("/", tags=["General"])
 def root() -> Dict[str, str]:
     return {
@@ -51,14 +76,27 @@ def health_check() -> HealthCheckResponse:
         logger.error(f"Health check 중 오류 발생: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/predict_batch", response_model=BatchPredictionResponse, tags=["Prediction"])
-def predict_batch(request: BaseModel) -> BatchPredictionResponse:
+@app.post("/predict", response_model=MinimalPredictionResponse, tags=["Prediction"])
+def predict_generic(request: Dict[str, Any]) -> MinimalPredictionResponse:
     if not app_context.model or not app_context.settings:
         raise HTTPException(status_code=503, detail="모델이 준비되지 않았습니다.")
     try:
-        return handlers.predict_batch(request.model_dump())
+        # 서빙 정책: pass_through/폴백 차단
+        try:
+            wrapped_model = app_context.model.unwrap_python_model()
+            if isinstance(wrapped_model.trained_augmenter, PassThroughAugmenter):
+                raise HTTPException(status_code=503, detail="Serving with 'pass_through' augmenter is not allowed.")
+        except HTTPException:
+            raise
+        except Exception:
+            pass
+        prediction_result = handlers.predict(request)
+        return MinimalPredictionResponse(**prediction_result)
+    except HTTPException as he:
+        # 정책 위반 등은 원래 상태코드로 전달
+        raise he
     except Exception as e:
-        logger.error(f"배치 예측 중 오류 발생: {e}", exc_info=True)
+        logger.error(f"단일 예측 중 오류 발생: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 # 🆕 Blueprint v17.0: 모델 메타데이터 자기 기술 엔드포인트들
@@ -124,17 +162,6 @@ def run_api_server(settings: Settings, run_id: str, host: str = "0.0.0.0", port:
     except Exception:
         # 아직 미구현인 경우 검사 생략
         pass
-    
-    # 동적 라우트 생성
-    PredictionRequest = app_context.PredictionRequest
-    
-    @app.post("/predict", response_model=MinimalPredictionResponse, tags=["Prediction"])
-    def predict(request: PredictionRequest) -> MinimalPredictionResponse:
-        try:
-            prediction_result = handlers.predict(request.model_dump())
-            return MinimalPredictionResponse(**prediction_result)
-        except Exception as e:
-            logger.error(f"단일 예측 중 오류 발생: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=str(e))
+    # 정적 predict 엔드포인트 사용
 
     uvicorn.run(app, host=host, port=port)

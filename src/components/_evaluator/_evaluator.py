@@ -20,7 +20,6 @@ from sklearn.metrics import (
 )
 
 from src.interface import BaseEvaluator
-from src.engine import EvaluatorRegistry
 from src.utils.system.logger import logger
 
 from ._classification import ClassificationEvaluator
@@ -28,8 +27,10 @@ from ._regression import RegressionEvaluator
 from ._clustering import ClusteringEvaluator
 from ._causal import CausalEvaluator
 
-# 각 Evaluator를 task_type에 따라 레지스트리에 자동 등록
-EvaluatorRegistry.register("classification", ClassificationEvaluator)
-EvaluatorRegistry.register("regression", RegressionEvaluator)
-EvaluatorRegistry.register("clustering", ClusteringEvaluator)
-EvaluatorRegistry.register("causal", CausalEvaluator) 
+__all__ = [
+    "BaseEvaluator",
+    "ClassificationEvaluator",
+    "RegressionEvaluator",
+    "ClusteringEvaluator",
+    "CausalEvaluator",
+] 

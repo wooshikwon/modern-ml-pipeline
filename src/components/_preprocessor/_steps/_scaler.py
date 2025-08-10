@@ -2,7 +2,7 @@
 from sklearn.preprocessing import StandardScaler, RobustScaler, MinMaxScaler
 from sklearn.base import BaseEstimator, TransformerMixin
 from typing import List
-from src.engine import PreprocessorStepRegistry
+from .._registry import PreprocessorStepRegistry
 
 class StandardScalerWrapper(BaseEstimator, TransformerMixin):
     def __init__(self, columns: List[str] = None):

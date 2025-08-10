@@ -118,7 +118,7 @@ class Factory:
         """task_type에 따라 동적 evaluator 생성"""
         task_type = self.model_config.data_interface.task_type
         logger.info(f"Creating evaluator for task: {task_type}")
-        return EvaluatorRegistry.create(task_type, self.settings)
+        return EvaluatorRegistry.create(task_type, self.model_config.data_interface)
 
     def create_feature_store_adapter(self):
         """환경별 Feature Store 어댑터 생성"""
@@ -157,6 +157,17 @@ class Factory:
             entity_schema = self.model_config.loader.entity_schema
             data_interface = self.model_config.data_interface
             
+            # 학습 시점에 timestamp 컬럼을 datetime으로 변환하여 스키마 일관성 확보
+            try:
+                ts_col = entity_schema.timestamp_column
+                if ts_col and ts_col in training_df.columns:
+                    import pandas as pd
+                    if not pd.api.types.is_datetime64_any_dtype(training_df[ts_col]):
+                        training_df = training_df.copy()
+                        training_df[ts_col] = pd.to_datetime(training_df[ts_col], errors='coerce')
+            except Exception:
+                pass
+
             data_interface_config = {
                 'entity_columns': entity_schema.entity_columns,
                 'timestamp_column': entity_schema.timestamp_column,

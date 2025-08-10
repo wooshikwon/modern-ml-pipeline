@@ -6,7 +6,6 @@ from src.utils.system.logger import logger
 
 if TYPE_CHECKING:
     from src.settings import Settings
-    from src.engine import Factory
 
 
 class FeatureStoreAugmenter(BaseAugmenter):
@@ -14,7 +13,7 @@ class FeatureStoreAugmenter(BaseAugmenter):
     Feature Store(Feast)를 사용하여 피처를 증강하는 Augmenter.
     DEV/PROD 환경에서 사용됩니다.
     """
-    def __init__(self, settings: Settings, factory: Factory):
+    def __init__(self, settings: Settings, factory: Any):
         self.settings = settings
         self.factory = factory
         self.feature_store_adapter = self.factory.create_feature_store_adapter()
