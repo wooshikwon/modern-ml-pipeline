@@ -2,7 +2,7 @@
 
 **차세대 MLOps 플랫폼 - 학습부터 배포까지 자동화된 머신러닝 파이프라인**
 
-[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![uv](https://img.shields.io/badge/dependency-uv-green.svg)](https://github.com/astral-sh/uv)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -79,7 +79,23 @@ uv run python main.py batch-inference --run-id $RUN_ID
 
 # 실시간 API 서빙
 uv run python main.py serve-api --run-id $RUN_ID
-# API 테스트: curl http://localhost:8000/predict -X POST -d '{"feature1": 1.0}'
+# API 테스트: curl http://localhost:8000/predict -X POST -H 'Content-Type: application/json' -d '{"user_id": 1, "event_ts": "2024-01-01T00:00:00"}'
+```
+
+### 6. Docker 이미지로 실행
+
+```bash
+# 이미지 빌드 (서빙용)
+docker build -t mmp-api --target serve .
+
+# 모델 서빙 (포트 8000 노출)
+docker run --rm -p 8000:8000 mmp-api --run-id $RUN_ID
+
+# 이미지 빌드 (학습용)
+docker build -t mmp-train --target train .
+
+# 학습 실행 (레시피 파일 경로 지정)
+docker run --rm mmp-train --recipe-file recipes/recipe_example.yaml
 ```
 
 ---

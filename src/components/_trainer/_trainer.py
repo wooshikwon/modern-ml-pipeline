@@ -33,8 +33,10 @@ class Trainer(BaseTrainer):
         context_params: Optional[Dict[str, Any]] = None,
     ) -> Tuple[Any, BasePreprocessor, Dict[str, float], Dict[str, Any]]:
         
-        data_handler = DataHandler(self.settings, augmenter, preprocessor)
-        X_train, X_test, y_train, y_test = data_handler.split_and_preprocess_data(df, context_params)
+        # 데이터 분할 및 전처리
+        train_df, test_df = split_data(df, self.settings)
+        X_train, y_train, _ = prepare_training_data(train_df, self.settings)
+        X_test, y_test, _ = prepare_training_data(test_df, self.settings)
 
         # 하이퍼파라미터 최적화 또는 직접 학습
         global_tuning_enabled = self.settings.hyperparameter_tuning.enabled
@@ -43,29 +45,18 @@ class Trainer(BaseTrainer):
 
         use_tuning = global_tuning_enabled and is_tuning_enabled_in_recipe
 
-        # 최종 튜닝 실행 여부에 대한 명확한 로그 추가
         if use_tuning:
             logger.info("하이퍼파라미터 최적화를 시작합니다. (전역 및 레시피 설정 모두에서 활성화됨)")
             optimizer = OptunaOptimizer(settings=self.settings)
-            best_model, best_params, best_score, trials_df = optimizer.optimize(model, X_train, y_train)
-            
-            # 튜닝 결과 저장
-            self.training_results['hyperparameter_optimization'] = {
-                'enabled': True,
-                'best_params': best_params,
-                'best_score': best_score,
-                'total_trials': len(trials_df),
-                'trials_dataframe': trials_df.to_dict('records')
-            }
-            trained_model = best_model
+            best = optimizer.optimize(train_df, self._single_training_iteration)
+            self.training_results['hyperparameter_optimization'] = best
+            trained_model = best['model']
         else:
             if not global_tuning_enabled:
                 logger.info("하이퍼파라미터 튜닝을 건너뜁니다. 이유: 전역 설정(config)에서 비활성화되었습니다.")
             elif not is_tuning_enabled_in_recipe:
                 logger.info("하이퍼파라미터 튜닝을 건너뜁니다. 이유: 레시피(recipe)에서 비활성화되었거나 설정이 없습니다.")
             logger.info("고정된 하이퍼파라미터로 모델을 학습합니다.")
-            
-            # 고정 파라미터로 직접 학습
             model.fit(X_train, y_train)
             trained_model = model
             self.training_results['hyperparameter_optimization'] = {'enabled': False}
@@ -113,7 +104,6 @@ class Trainer(BaseTrainer):
     def _fit_model(self, model, X, y, additional_data):
         """task_type에 따라 모델을 학습시킵니다."""
         if not isinstance(model, BaseModel):
-            # scikit-learn과 같은 외부 라이브러리 모델들을 위한 임시 래퍼
             from sklearn.base import is_classifier, is_regressor
             if not (is_classifier(model) or is_regressor(model) or hasattr(model, 'fit')):
                  raise TypeError(f"전달된 모델 객체는 BaseModel 인터페이스를 따르거나 scikit-learn 호환 모델이어야 합니다.")

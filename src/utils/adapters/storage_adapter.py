@@ -33,6 +33,9 @@ class StorageAdapter(BaseAdapter):
     def read(self, uri: str, **kwargs) -> pd.DataFrame:
         """URI로부터 데이터를 읽어 DataFrame으로 반환합니다."""
         logger.info(f"StorageAdapter read from: {uri}")
+        lower = uri.lower()
+        if lower.endswith('.csv'):
+            return pd.read_csv(uri, storage_options=self.storage_options, **kwargs)
         return pd.read_parquet(uri, storage_options=self.storage_options, **kwargs)
 
     def write(self, df: pd.DataFrame, uri: str, **kwargs):
@@ -43,7 +46,11 @@ class StorageAdapter(BaseAdapter):
         if "://" not in uri or uri.startswith("file://"):
             path = Path(uri.replace("file://", ""))
             path.parent.mkdir(parents=True, exist_ok=True)
-            
-        df.to_parquet(uri, storage_options=self.storage_options, **kwargs) 
+        
+        lower = uri.lower()
+        if lower.endswith('.csv'):
+            df.to_csv(uri, index=False)
+        else:
+            df.to_parquet(uri, storage_options=self.storage_options, **kwargs) 
 
 AdapterRegistry.register("storage", StorageAdapter) 

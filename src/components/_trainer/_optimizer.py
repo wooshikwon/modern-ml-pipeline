@@ -11,6 +11,14 @@ class OptunaOptimizer:
         self.settings = settings
         self.pruner = self._create_pruner()
 
+    def _create_pruner(self):
+        """기본 Pruner 생성 (필요시 settings로 확장 가능)"""
+        try:
+            import optuna
+            return optuna.pruners.MedianPruner()
+        except Exception:
+            return None
+
     def optimize(self, train_df: pd.DataFrame, training_callback: Callable) -> Dict[str, Any]:
         """Optuna를 사용하여 하이퍼파라미터 최적화를 수행합니다."""
         logger.info("🚀 하이퍼파라미터 자동 최적화 모드 시작")

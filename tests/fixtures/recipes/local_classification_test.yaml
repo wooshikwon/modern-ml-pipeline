@@ -29,9 +29,9 @@ model:
       criterion_col: null
       exclude_cols: ["user_id", "event_timestamp"]
 
-  entity_schema:
+  data_interface:
     task_type: "classification"
-    target_col: "approved"
+    target_column: "approved"
 
   hyperparameter_tuning:
     enabled: false
@@ -39,9 +39,9 @@ model:
 evaluation:
   metrics:
     - "accuracy"
-    - "precision"
-    - "recall"
-    - "f1"
+    - "precision_weighted"
+    - "recall_weighted"
+    - "f1_weighted"
     - "roc_auc"
   
   validation:

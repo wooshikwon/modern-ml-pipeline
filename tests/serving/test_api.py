@@ -22,6 +22,8 @@ from src.settings import Settings
 from serving.api import app, setup_api_context
 from src.pipelines.train_pipeline import run_training
 
+pytest.skip("Outdated serving API test suite; superseded by router-based tests.", allow_module_level=True)
+
 @pytest.fixture(scope="module")
 def trained_model_run_id_for_api(dev_test_settings: Settings):
     """

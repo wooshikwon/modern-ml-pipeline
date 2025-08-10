@@ -24,6 +24,7 @@ from src.serving.schemas import (
     OptimizationHistoryResponse,
     HyperparameterOptimizationInfo,
     TrainingMethodologyInfo,
+    MinimalPredictionResponse,
 )
 
 # 테스트와 실제 서빙 모두에서 사용될 수 있는 최상위 app 객체
@@ -115,15 +116,23 @@ def run_api_server(settings: Settings, run_id: str, host: str = "0.0.0.0", port:
             "API serving is not supported when the augmenter is 'pass_through'. "
             "A feature store connection is required."
         )
+    # SqlFallbackAugmenter 차단(구현 후 클래스 임포트하여 검사)
+    try:
+        from src.components._augmenter._sql_fallback import SqlFallbackAugmenter  # noqa
+        if isinstance(wrapped_model.trained_augmenter, SqlFallbackAugmenter):
+            raise TypeError("API serving is not supported with 'sql_fallback' augmenter. A feature store is required.")
+    except Exception:
+        # 아직 미구현인 경우 검사 생략
+        pass
     
     # 동적 라우트 생성
     PredictionRequest = app_context.PredictionRequest
     
-    @app.post("/predict", response_model=PredictionResponse, tags=["Prediction"])
-    def predict(request: PredictionRequest) -> PredictionResponse:
+    @app.post("/predict", response_model=MinimalPredictionResponse, tags=["Prediction"])
+    def predict(request: PredictionRequest) -> MinimalPredictionResponse:
         try:
             prediction_result = handlers.predict(request.model_dump())
-            return PredictionResponse(**prediction_result)
+            return MinimalPredictionResponse(**prediction_result)
         except Exception as e:
             logger.error(f"단일 예측 중 오류 발생: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e))

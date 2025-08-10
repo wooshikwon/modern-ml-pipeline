@@ -6,10 +6,11 @@ import mlflow
 from datetime import datetime
 from typing import Dict, Any, Optional
 
-from src.engine import Factory
+from src.engine import Factory, bootstrap
 from src.utils.integrations.mlflow_integration import start_run
 from src.utils.system.logger import logger
 from src.settings import Settings
+from src.utils.system.reproducibility import set_global_seeds
 
 
 def run_batch_inference(settings: Settings, run_id: str, context_params: dict = None):
@@ -17,6 +18,11 @@ def run_batch_inference(settings: Settings, run_id: str, context_params: dict = 
     지정된 Run ID의 모델을 사용하여 배치 추론을 실행합니다.
     """
     context_params = context_params or {}
+
+    # 재현성을 위한 전역 시드 설정 (레시피 시드가 없으면 42)
+    bootstrap(settings)
+    seed = getattr(settings.recipe.model, 'computed', {}).get('seed', 42)
+    set_global_seeds(seed)
 
     # 1. MLflow 실행 컨텍스트 시작
     with start_run(settings, run_name=f"batch_inference_{run_id}") as run:
@@ -36,9 +42,9 @@ def run_batch_inference(settings: Settings, run_id: str, context_params: dict = 
         # 🆕 Phase 3: Template SQL 보안 렌더링
         if _is_jinja_template(loader_sql_template) and context_params:
             # Jinja template + context_params → 보안 강화 동적 렌더링
-            from src.utils.system.templating_utils import render_sql_from_string_safe
+            from src.utils.system.templating_utils import render_template_from_string
             try:
-                rendered_sql = render_sql_from_string_safe(loader_sql_template, context_params)
+                rendered_sql = render_template_from_string(loader_sql_template, context_params)
                 logger.info("✅ 동적 SQL 렌더링 성공 (보안 검증 완료)")
             except ValueError as e:
                 # 보안 위반 또는 잘못된 파라미터 → 명확한 에러
@@ -55,7 +61,7 @@ def run_batch_inference(settings: Settings, run_id: str, context_params: dict = 
             # 정적 SQL + context_params 없음 → 정상 처리
             rendered_sql = loader_sql_template
         
-        data_adapter = factory.create_data_adapter(settings.data_adapters.default_loader)
+        data_adapter = factory.create_data_adapter(factory.model_config.loader.adapter)
         df = data_adapter.read(rendered_sql)
         
         # 4. 예측 실행 (PyfuncWrapper가 내부적으로 스키마 검증을 수행)
@@ -68,8 +74,7 @@ def run_batch_inference(settings: Settings, run_id: str, context_params: dict = 
         
         # 6. 결과 저장
         storage_adapter = factory.create_data_adapter("storage")
-        # 올바른 접근 방식 적용: dict['키'].속성
-        target_path = f"{settings.artifact_stores['prediction_results'].base_uri}/{run.info.run_name}.parquet"
+        target_path = f"{settings.artifact_stores['prediction_results'].base_uri}/preds_{run.info.run_id}.parquet"
         storage_adapter.write(predictions_df, target_path)
 
         # 7. PostgreSQL 저장 (설정이 활성화된 경우)

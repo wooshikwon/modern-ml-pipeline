@@ -53,6 +53,7 @@ class RealtimeFeatureStoreSettings(BaseModel):
 
 class ServingSettings(BaseModel):
     """API 서빙 설정"""
+    enabled: bool = False
     model_stage: str
     realtime_feature_store: RealtimeFeatureStoreSettings
 

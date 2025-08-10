@@ -8,10 +8,12 @@ from contextlib import contextmanager
 
 from src.settings import Settings
 from src.engine import Factory
+from src.engine import bootstrap
 from src.components._trainer import Trainer
 from src.utils.system.logger import logger
 from src.utils.integrations import mlflow_integration as mlflow_utils
 from src.utils.system.environment_check import get_pip_requirements
+from src.utils.system.reproducibility import set_global_seeds
 
 
 def run_training(settings: Settings, context_params: Optional[Dict[str, Any]] = None):
@@ -20,6 +22,12 @@ def run_training(settings: Settings, context_params: Optional[Dict[str, Any]] = 
     Factory를 통해 데이터 어댑터와 모든 컴포넌트를 생성하고, 최종적으로
     순수 로직 PyfuncWrapper를 생성하여 MLflow에 저장합니다.
     """
+    # 부트스트랩(레지스트리 등록)
+    bootstrap(settings)
+    # 재현성을 위한 전역 시드 설정
+    seed = getattr(settings.recipe.model, 'computed', {}).get('seed', 42)
+    set_global_seeds(seed)
+
     logger.info(f"['{settings.recipe.model.computed['run_name']}'] 모델 학습 파이프라인 시작")
     logger.info(f"MLflow Tracking URI (from settings): {settings.mlflow.tracking_uri}") # 경로 검증 로그 추가
     context_params = context_params or {}
@@ -32,7 +40,8 @@ def run_training(settings: Settings, context_params: Optional[Dict[str, Any]] = 
         factory = Factory(settings)
 
         # 1. 데이터 어댑터를 사용하여 데이터 로딩
-        data_adapter = factory.create_data_adapter(settings.data_adapters.default_loader)
+        # 레시피의 loader.adapter를 우선 사용
+        data_adapter = factory.create_data_adapter(factory.model_config.loader.adapter)
         df = data_adapter.read(settings.recipe.model.loader.source_uri)
 
         mlflow.log_metric("row_count", len(df))

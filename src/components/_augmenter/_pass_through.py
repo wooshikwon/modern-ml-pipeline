@@ -11,7 +11,7 @@ class PassThroughAugmenter(BaseAugmenter):
     로컬 환경이나 피처 증강이 필요 없는 시나리오에서 사용됩니다.
     """
 
-    def _augment(self, df: pd.DataFrame) -> pd.DataFrame:
+    def augment(self, df: pd.DataFrame, run_mode: str = "batch") -> pd.DataFrame:
         """
         'passthrough' 모드가 활성화되었거나 레시피에 augmenter가 정의되지 않았음을
         알리는 로그를 남기고, 입력 DataFrame을 수정 없이 그대로 반환합니다.

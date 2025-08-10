@@ -1,11 +1,11 @@
-# Dockerfile for Modern ML Pipeline (v3.0 - uv)
+# Dockerfile for Modern ML Pipeline (v3.1 - uv, py311)
 # -----------------------------------------------------------------------------
 # Multi-stage build optimized for speed and security using uv.
 # -----------------------------------------------------------------------------
 
 # --- Stage 1: `base` ---
 # Purpose: A common base layer with Python and uv installed.
-FROM python:3.10-slim as base
+FROM python:3.11-slim as base
 
 # Set environment variables
 # ARG to allow overriding the environment at build time (e.g., --build-arg APP_ENV=dev)
@@ -13,6 +13,11 @@ ARG APP_ENV=prod
 ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=off \
     APP_ENV=$APP_ENV
+
+# Install system deps needed for building wheels (psycopg2 etc.)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential gcc git \
+ && rm -rf /var/lib/apt/lists/*
 
 # Install uv, the high-performance Python package installer
 RUN pip install --no-cache-dir "uv==0.7.20"
@@ -53,14 +58,14 @@ COPY --chown=app:app src/ src/
 COPY --chown=app:app serving/ serving/
 COPY --chown=app:app main.py .
 COPY --chown=app:app config/ config/
-COPY --chown=app:app recipe/ recipe/
+COPY --chown=app:app recipes/ recipes/
 
 # Activate the virtual environment and define the entrypoint
 ENTRYPOINT ["/opt/venv/bin/python", "main.py", "serve-api"]
 
 # Expose the port and set the default command
 EXPOSE 8000
-CMD ["--model-name", "xgboost_x_learner"]
+CMD ["--run-id", "YOUR_RUN_ID"]
 
 
 # --- Stage 4: `train` (Final Training Image) ---
@@ -81,4 +86,4 @@ COPY --chown=app:app . .
 ENTRYPOINT ["/opt/venv/bin/python", "main.py", "train"]
 
 # Default command, can be overridden
-CMD ["--model-name", "xgboost_x_learner"]
+CMD ["--recipe-file", "recipes/recipe_example.yaml"]

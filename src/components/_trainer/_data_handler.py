@@ -4,13 +4,29 @@ from typing import Dict, Any, Tuple
 from sklearn.model_selection import train_test_split
 from src.settings import Settings
 
+
 def split_data(df: pd.DataFrame, settings: Settings) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """Train/Test 분할 (stratify 지원)"""
+    """Train/Test 분할 (조건부 stratify)"""
     data_interface = settings.recipe.model.data_interface
-    stratify_data = _get_stratify_column_data(df, data_interface)
-    
+    test_size = 0.2
+
+    stratify_series = None
+    if data_interface.task_type == "classification":
+        target_col = data_interface.target_column
+        if target_col in df.columns:
+            counts = df[target_col].value_counts()
+            # 각 클래스 최소 2개, 테스트 셋에 최소 1개 이상 들어갈 수 있는지 확인
+            if len(counts) >= 2 and counts.min() >= 2 and int(len(df) * test_size) >= 1:
+                stratify_series = df[target_col]
+    elif data_interface.task_type == "causal":
+        treatment_col = data_interface.treatment_column
+        if treatment_col in df.columns:
+            counts = df[treatment_col].value_counts()
+            if len(counts) >= 2 and counts.min() >= 2 and int(len(df) * test_size) >= 1:
+                stratify_series = df[treatment_col]
+
     train_df, test_df = train_test_split(
-        df, test_size=0.2, random_state=42, stratify=stratify_data
+        df, test_size=test_size, random_state=42, stratify=stratify_series
     )
     return train_df, test_df
 
