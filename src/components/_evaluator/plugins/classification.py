@@ -2,6 +2,7 @@
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from src.interface import BaseEvaluator
 from src.settings._recipe_schema import MLTaskSettings
+from src.engine import EvaluatorRegistry
 
 class ClassificationEvaluator(BaseEvaluator):
     def __init__(self, data_interface_settings: MLTaskSettings):
@@ -18,3 +19,6 @@ class ClassificationEvaluator(BaseEvaluator):
             "f1_score": f1_score(y, predictions, average=self.settings.average),
         }
         return metrics
+
+# Register plugin
+EvaluatorRegistry.register("classification", ClassificationEvaluator)

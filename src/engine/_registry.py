@@ -148,17 +148,11 @@ def register_all_components():
             importlib.import_module('src.utils.adapters.feast_adapter')
         except Exception:
             pass
-        # Evaluators: 명시적 등록
-        from src.components._evaluator import (
-            ClassificationEvaluator,
-            RegressionEvaluator,
-            ClusteringEvaluator,
-            CausalEvaluator,
-        )
-        EvaluatorRegistry.register("classification", ClassificationEvaluator)
-        EvaluatorRegistry.register("regression", RegressionEvaluator)
-        EvaluatorRegistry.register("clustering", ClusteringEvaluator)
-        EvaluatorRegistry.register("causal", CausalEvaluator)
+        # Evaluators: 플러그인 모듈 import 시 자체 등록
+        importlib.import_module('src.components._evaluator.plugins.classification')
+        importlib.import_module('src.components._evaluator.plugins.regression')
+        importlib.import_module('src.components._evaluator.plugins.clustering')
+        importlib.import_module('src.components._evaluator.plugins.causal')
 
         # Preprocessor steps: 명시적 등록을 위한 모듈 임포트 (각 모듈에서 로컬 레지스트리에 등록됨)
         importlib.import_module('src.components._preprocessor.plugins.encoder')
@@ -173,6 +167,3 @@ def register_all_components():
         importlib.import_module('src.components._augmenter.plugins.pass_through')
     except ImportError as e:
         logger.warning(f"Could not import components for registration: {e}")
-
-# 모듈 로드 시 모든 컴포넌트를 등록합니다.
-register_all_components() 
