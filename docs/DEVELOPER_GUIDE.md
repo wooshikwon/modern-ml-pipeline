@@ -11,6 +11,69 @@
 
 ---
 
+## 1.4. 컴포넌트 구조 일관화(plugins/composite)
+
+이번 릴리스에서 `components/` 구조가 일관화되었습니다.
+
+- 공통 원칙
+  - `plugins/`: 원자 구현(플러그인)들이 위치합니다. 각 파일은 모듈 임포트 시 자체적으로 레지스트리에 등록합니다.
+  - `composite.py`: 여러 플러그인을 조합해 수명주기를 관리하는 조립기(있는 컴포넌트에만 존재).
+
+- 디렉토리 구조
+  - `src/components/_augmenter/`
+    - `plugins/` (예: `feature_store.py`, `pass_through.py`)
+    - `__init__.py` (공개 API 재노출)
+  - `src/components/_evaluator/`
+    - `plugins/` (예: `classification.py`, `regression.py`, `clustering.py`, `causal.py`)
+    - `__init__.py`
+  - `src/components/_preprocessor/`
+    - `plugins/` (예: `encoder.py`, `imputer.py`, `missing.py`, `scaler.py`, `discretizer.py`, `feature_generator.py`)
+    - `composite.py` (전처리 조립기: `Preprocessor`)
+    - `__init__.py`
+
+- 등록 방식
+  - Preprocessor 스텝: 각 `plugins/*.py` 파일 하단에서 `PreprocessorStepRegistry.register("<type>", <Class>)`로 등록
+  - Evaluator: 각 `plugins/*.py` 파일 하단에서 `EvaluatorRegistry.register("<task_type>", <Class>)`로 등록
+  - Augmenter: 엔진 `Factory.create_augmenter`가 환경/정책에 따라 클래스를 선택 (레지스트리 키 미사용)
+
+- 부트스트랩 단일화
+  - 모듈 임포트 시 자동 등록을 제거하고, 진입점에서만 `bootstrap(settings)`를 호출합니다.
+  - `bootstrap`은 내부적으로 `register_all_components()`와 의존성 검증을 수행합니다.
+
+예시: 레시피에서 전처리 스텝 선언
+
+```yaml
+model:
+  preprocessor:
+    column_transforms:
+      ohe_basic:
+        type: one_hot_encoder
+        columns: ["country", "device"]
+        params:
+          handle_unknown: "ignore"
+          sparse_output: false
+
+      impute_num:
+        type: simple_imputer
+        columns: ["age", "income"]
+        params:
+          strategy: "mean"
+
+      scale_cont:
+        type: standard_scaler
+        columns: ["age", "income"]
+        params: {}
+
+      kbins_age:
+        type: kbins_discretizer
+        columns: ["age"]
+        params:
+          n_bins: 5
+          encode: "ordinal"
+          strategy: "quantile"
+```
+
+
 ## 1.5. 핵심 컨셉: 동적 레시피 가이드 및 자동 검증
 
 우리 파이프라인은 개발자의 실수를 줄이고 생산성을 극대화하기 위한 두 가지 강력한 지능형 기능을 내장하고 있습니다.
