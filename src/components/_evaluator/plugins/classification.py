@@ -1,4 +1,4 @@
-# src/components/_evaluator/_classification.py
+# src/components/_evaluator/_steps/classification.py
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from src.interface import BaseEvaluator
 from src.settings._recipe_schema import MLTaskSettings

@@ -161,16 +161,16 @@ def register_all_components():
         EvaluatorRegistry.register("causal", CausalEvaluator)
 
         # Preprocessor steps: 명시적 등록을 위한 모듈 임포트 (각 모듈에서 로컬 레지스트리에 등록됨)
-        importlib.import_module('src.components._preprocessor._steps._encoder')
-        importlib.import_module('src.components._preprocessor._steps._discretizer')
-        importlib.import_module('src.components._preprocessor._steps._imputer')
-        importlib.import_module('src.components._preprocessor._steps._missing')
-        importlib.import_module('src.components._preprocessor._steps._feature_generator')
-        importlib.import_module('src.components._preprocessor._steps._scaler')
+        importlib.import_module('src.components._preprocessor.plugins.encoder')
+        importlib.import_module('src.components._preprocessor.plugins.discretizer')
+        importlib.import_module('src.components._preprocessor.plugins.imputer')
+        importlib.import_module('src.components._preprocessor.plugins.missing')
+        importlib.import_module('src.components._preprocessor.plugins.feature_generator')
+        importlib.import_module('src.components._preprocessor.plugins.scaler')
 
-        # Augmenters: 생성은 Factory에서 직접 클래스 사용
-        importlib.import_module('src.components._augmenter._augmenter')
-        importlib.import_module('src.components._augmenter._pass_through')
+        # Augmenters: implementations live under plugins
+        importlib.import_module('src.components._augmenter.plugins.feature_store')
+        importlib.import_module('src.components._augmenter.plugins.pass_through')
     except ImportError as e:
         logger.warning(f"Could not import components for registration: {e}")
 

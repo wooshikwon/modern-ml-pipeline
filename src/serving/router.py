@@ -12,7 +12,7 @@ from src.utils.system.logger import logger
 from src.serving._context import app_context
 from src.serving._lifespan import lifespan, setup_api_context
 from src.serving import _endpoints as handlers
-from src.components._augmenter._pass_through import PassThroughAugmenter
+from src.components._augmenter import PassThroughAugmenter
 from src.serving.schemas import (
     get_pk_from_loader_sql,
     create_dynamic_prediction_request,

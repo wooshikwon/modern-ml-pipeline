@@ -1,9 +1,9 @@
-# src/components/_preprocessor/_steps/_encoder.py
+# src/components/_preprocessor/plugins/_encoder.py
 from sklearn.base import BaseEstimator, TransformerMixin
 from category_encoders import CatBoostEncoder
 from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder
 from typing import List
-from .._registry import PreprocessorStepRegistry
+from src.engine import PreprocessorStepRegistry
 
 class OneHotEncoderWrapper(BaseEstimator, TransformerMixin):
     """scikit-learn의 OneHotEncoder를 위한 래퍼입니다."""
@@ -65,4 +65,4 @@ class CatBoostEncoderWrapper(BaseEstimator, TransformerMixin):
 
 PreprocessorStepRegistry.register("one_hot_encoder", OneHotEncoderWrapper)
 PreprocessorStepRegistry.register("ordinal_encoder", OrdinalEncoderWrapper)
-PreprocessorStepRegistry.register("catboost_encoder", CatBoostEncoderWrapper) 
+PreprocessorStepRegistry.register("catboost_encoder", CatBoostEncoderWrapper)

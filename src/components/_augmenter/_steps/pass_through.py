@@ -1,4 +1,4 @@
-# src/components/_augmenter/_pass_through.py
+# src/components/_augmenter/_steps/pass_through.py
 import pandas as pd
 
 from src.interface import BaseAugmenter
@@ -17,4 +17,4 @@ class PassThroughAugmenter(BaseAugmenter):
         알리는 로그를 남기고, 입력 DataFrame을 수정 없이 그대로 반환합니다.
         """
         logger.info("피처 증강을 건너뜁니다. ('passthrough' 모드 또는 레시피에 augmenter 미정의)")
-        return df 
+        return df

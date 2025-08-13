@@ -1,9 +1,9 @@
-# src/components/_preprocessor/_steps/_missing.py
+# src/components/_preprocessor/plugins/_missing.py
 from sklearn.impute import MissingIndicator
 from sklearn.base import BaseEstimator, TransformerMixin
 from typing import List
 import numpy as np
-from .._registry import PreprocessorStepRegistry
+from src.engine import PreprocessorStepRegistry
 
 class MissingIndicatorWrapper(BaseEstimator, TransformerMixin):
     """
@@ -29,4 +29,4 @@ class MissingIndicatorWrapper(BaseEstimator, TransformerMixin):
         """변환 후의 피처 이름을 반환합니다."""
         return self.indicator.get_feature_names_out(input_features)
 
-PreprocessorStepRegistry.register("missing_indicator", MissingIndicatorWrapper) 
+PreprocessorStepRegistry.register("missing_indicator", MissingIndicatorWrapper)

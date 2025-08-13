@@ -1,14 +1,13 @@
 from __future__ import annotations
 import pandas as pd
 from typing import Dict, Any, Optional, List, TYPE_CHECKING
-import importlib
 
 from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer
 
 from src.interface import BasePreprocessor
 from src.utils.system.logger import logger
-from ._registry import PreprocessorStepRegistry
+from src.engine import PreprocessorStepRegistry
 
 if TYPE_CHECKING:
     from src.settings import Settings
@@ -72,4 +71,3 @@ class Preprocessor(BasePreprocessor):
     @classmethod
     def load(cls, file_path: str) -> 'Preprocessor':
         pass
-        
