@@ -1,4 +1,4 @@
-# src/components/_preprocessor/plugins/_encoder.py
+# src/components/_preprocessor/plugins/encoder.py
 from sklearn.base import BaseEstimator, TransformerMixin
 from category_encoders import CatBoostEncoder
 from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder

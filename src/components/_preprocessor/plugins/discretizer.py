@@ -1,4 +1,4 @@
-# src/components/_preprocessor/plugins/_discretizer.py
+# src/components/_preprocessor/plugins/discretizer.py
 from sklearn.preprocessing import KBinsDiscretizer
 from sklearn.base import BaseEstimator, TransformerMixin
 from typing import List
