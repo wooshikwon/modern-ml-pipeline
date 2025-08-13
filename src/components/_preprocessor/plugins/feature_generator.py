@@ -1,4 +1,4 @@
-# src/components/_preprocessor/plugins/_feature_generator.py
+# src/components/_preprocessor/plugins/feature_generator.py
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import OneHotEncoder, PolynomialFeatures

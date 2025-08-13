@@ -1,4 +1,4 @@
-# src/components/_preprocessor/plugins/_missing.py
+# src/components/_preprocessor/plugins/missing.py
 from sklearn.impute import MissingIndicator
 from sklearn.base import BaseEstimator, TransformerMixin
 from typing import List

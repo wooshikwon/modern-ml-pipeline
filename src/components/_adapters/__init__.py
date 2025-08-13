@@ -1,7 +1,10 @@
-"""
-Internal adapters package for pipeline components.
-Registration occurs on plugin module import; no public API is exported here.
-"""
+"""Backward-compat imports for adapters (moved to src/components/_adapters/plugins)."""
 
-__all__ = []
+from src.components._adapters.plugins.sql_adapter import SqlAdapter  # noqa: F401
+from src.components._adapters.plugins.storage_adapter import StorageAdapter  # noqa: F401
+try:
+    from src.components._adapters.plugins.feast_adapter import FeastAdapter  # noqa: F401
+except Exception:
+    FeastAdapter = None
 
+__all__ = ["SqlAdapter", "StorageAdapter", "FeastAdapter"]

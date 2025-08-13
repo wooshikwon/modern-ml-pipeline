@@ -1,4 +1,4 @@
-# src/components/_preprocessor/plugins/_imputer.py
+# src/components/_preprocessor/plugins/imputer.py
 from sklearn.impute import SimpleImputer
 from sklearn.base import BaseEstimator, TransformerMixin
 from typing import List
