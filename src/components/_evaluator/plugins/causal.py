@@ -1,6 +1,7 @@
 # src/components/_evaluator/_steps/causal.py
 from src.interface import BaseEvaluator
 from src.settings._recipe_schema import MLTaskSettings
+from src.engine import EvaluatorRegistry
 
 class CausalEvaluator(BaseEvaluator):
     def __init__(self, data_interface_settings: MLTaskSettings):
@@ -11,3 +12,6 @@ class CausalEvaluator(BaseEvaluator):
         # 이 부분은 예시이며, 실제 구현은 모델의 특성에 따라 달라집니다.
         # 예를 들어, uplift_score 등을 계산할 수 있습니다.
         return {"uplift_auc": 0.6}  # Placeholder
+
+# Register plugin
+EvaluatorRegistry.register("causal", CausalEvaluator)

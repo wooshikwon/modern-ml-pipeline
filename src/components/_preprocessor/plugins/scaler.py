@@ -1,4 +1,4 @@
-# src/components/_preprocessor/plugins/_scaler.py
+# src/components/_preprocessor/plugins/scaler.py
 from sklearn.preprocessing import StandardScaler, RobustScaler, MinMaxScaler
 from sklearn.base import BaseEstimator, TransformerMixin
 from typing import List
