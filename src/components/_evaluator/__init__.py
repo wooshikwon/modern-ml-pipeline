@@ -1,7 +1,7 @@
-from ._steps.classification import ClassificationEvaluator
-from ._steps.regression import RegressionEvaluator
-from ._steps.clustering import ClusteringEvaluator
-from ._steps.causal import CausalEvaluator
+from .plugins.classification import ClassificationEvaluator
+from .plugins.regression import RegressionEvaluator
+from .plugins.clustering import ClusteringEvaluator
+from .plugins.causal import CausalEvaluator
 
 __all__ = [
     "ClassificationEvaluator",

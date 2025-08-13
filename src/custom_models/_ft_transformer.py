@@ -1,4 +1,4 @@
-# src/models/_ft_transformer.py
+# src/custom_models/_ft_transformer.py
 import pandas as pd
 from typing import Any, List
 from rtdl_revisiting_models import FTTransformer
@@ -78,3 +78,4 @@ class FTTransformerRegressor(_FTTransformerWrapperBase):
         d_out = 1
         super()._initialize_and_fit(X, y, d_out)
         return self
+

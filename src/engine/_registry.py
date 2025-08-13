@@ -141,11 +141,11 @@ def register_all_components():
     # 각 컴포넌트 모듈을 임포트하여 자체 등록 로직을 트리거합니다.
     try:
         import importlib
-        importlib.import_module('src.utils.adapters.sql_adapter')
-        importlib.import_module('src.utils.adapters.storage_adapter')
+        importlib.import_module('src.components._adapters.plugins.sql_adapter')
+        importlib.import_module('src.components._adapters.plugins.storage_adapter')
         # feast는 선택 의존성
         try:
-            importlib.import_module('src.utils.adapters.feast_adapter')
+            importlib.import_module('src.components._adapters.plugins.feast_adapter')
         except Exception:
             pass
         # Evaluators: 플러그인 모듈 import 시 자체 등록
