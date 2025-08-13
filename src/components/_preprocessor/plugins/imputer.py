@@ -1,8 +1,8 @@
-# src/components/_preprocessor/_steps/_imputer.py
+# src/components/_preprocessor/plugins/_imputer.py
 from sklearn.impute import SimpleImputer
 from sklearn.base import BaseEstimator, TransformerMixin
 from typing import List
-from .._registry import PreprocessorStepRegistry
+from src.engine import PreprocessorStepRegistry
 
 class SimpleImputerWrapper(BaseEstimator, TransformerMixin):
     def __init__(self, strategy: str = 'mean', columns: List[str] = None):
@@ -20,4 +20,4 @@ class SimpleImputerWrapper(BaseEstimator, TransformerMixin):
     def transform(self, X):
         return self.imputer.transform(X)
 
-PreprocessorStepRegistry.register("simple_imputer", SimpleImputerWrapper) 
+PreprocessorStepRegistry.register("simple_imputer", SimpleImputerWrapper)

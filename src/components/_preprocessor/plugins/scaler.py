@@ -1,8 +1,8 @@
-# src/components/_preprocessor/_steps/_scaler.py
+# src/components/_preprocessor/plugins/_scaler.py
 from sklearn.preprocessing import StandardScaler, RobustScaler, MinMaxScaler
 from sklearn.base import BaseEstimator, TransformerMixin
 from typing import List
-from .._registry import PreprocessorStepRegistry
+from src.engine import PreprocessorStepRegistry
 
 class StandardScalerWrapper(BaseEstimator, TransformerMixin):
     def __init__(self, columns: List[str] = None):
@@ -48,4 +48,4 @@ class RobustScalerWrapper(BaseEstimator, TransformerMixin):
 
 PreprocessorStepRegistry.register("standard_scaler", StandardScalerWrapper)
 PreprocessorStepRegistry.register("min_max_scaler", MinMaxScalerWrapper)
-PreprocessorStepRegistry.register("robust_scaler", RobustScalerWrapper) 
+PreprocessorStepRegistry.register("robust_scaler", RobustScalerWrapper)

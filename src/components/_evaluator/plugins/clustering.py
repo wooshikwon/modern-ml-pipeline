@@ -1,4 +1,4 @@
-# src/components/_evaluator/_clustering.py
+# src/components/_evaluator/_steps/clustering.py
 from sklearn.metrics import silhouette_score
 from src.interface import BaseEvaluator
 from src.settings._recipe_schema import MLTaskSettings

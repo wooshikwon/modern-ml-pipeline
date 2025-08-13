@@ -1,8 +1,8 @@
-# src/components/_preprocessor/_steps/_discretizer.py
+# src/components/_preprocessor/plugins/_discretizer.py
 from sklearn.preprocessing import KBinsDiscretizer
 from sklearn.base import BaseEstimator, TransformerMixin
 from typing import List
-from .._registry import PreprocessorStepRegistry
+from src.engine import PreprocessorStepRegistry
 
 class KBinsDiscretizerWrapper(BaseEstimator, TransformerMixin):
     """
@@ -26,4 +26,4 @@ class KBinsDiscretizerWrapper(BaseEstimator, TransformerMixin):
         """학습된 Discretizer를 사용하여 데이터를 변환합니다."""
         return self.discretizer.transform(X)
 
-PreprocessorStepRegistry.register("kbins_discretizer", KBinsDiscretizerWrapper) 
+PreprocessorStepRegistry.register("kbins_discretizer", KBinsDiscretizerWrapper)

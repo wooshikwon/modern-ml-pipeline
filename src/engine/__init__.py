@@ -1,6 +1,12 @@
 """Engine Module Public API"""
 from .factory import Factory
-from ._registry import AdapterRegistry, EvaluatorRegistry, AugmenterRegistry, register_all_components
+from ._registry import (
+    AdapterRegistry,
+    EvaluatorRegistry,
+    AugmenterRegistry,
+    PreprocessorStepRegistry,
+    register_all_components,
+)
 
 
 from src.utils.system.dependencies import validate_dependencies
@@ -18,6 +24,7 @@ __all__ = [
     "AdapterRegistry",
     "EvaluatorRegistry",
     "AugmenterRegistry",
+    "PreprocessorStepRegistry",
     "register_all_components",
     "bootstrap",
 ] 

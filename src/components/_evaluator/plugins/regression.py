@@ -1,4 +1,4 @@
-# src/components/_evaluator/_regression.py
+# src/components/_evaluator/_steps/regression.py
 from sklearn.metrics import r2_score, mean_squared_error
 from src.interface import BaseEvaluator
 from src.settings._recipe_schema import MLTaskSettings

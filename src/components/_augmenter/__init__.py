@@ -1,5 +1,5 @@
-from ._augmenter import FeatureStoreAugmenter
-from ._pass_through import PassThroughAugmenter
+from ._steps.feature_store import FeatureStoreAugmenter
+from ._steps.pass_through import PassThroughAugmenter
 
 __all__ = [
     "FeatureStoreAugmenter",
