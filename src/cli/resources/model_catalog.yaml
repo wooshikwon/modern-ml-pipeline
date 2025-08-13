@@ -63,10 +63,10 @@ Regression:
     library: "pytorch-tabnet"
 
 Deep Learning (Tabular):
-  - class_path: "src.models.FTTransformerClassifier"
+  - class_path: "src.custom_models.FTTransformerClassifier"
     description: "FT-Transformer for classification tasks, with built-in preprocessing."
     library: "rtdl_revisiting_models"
-  - class_path: "src.models.FTTransformerRegressor"
+  - class_path: "src.custom_models.FTTransformerRegressor"
     description: "FT-Transformer for regression tasks, with built-in preprocessing."
     library: "rtdl_revisiting_models"
 
@@ -93,4 +93,5 @@ Causal:
     library: "causalml"
   - class_path: "causalml.inference.meta.TRegressor"
     description: "T-Learner (Two Models) for Causal Inference."
-    library: "causalml" 
+    library: "causalml"
+

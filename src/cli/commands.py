@@ -244,11 +244,11 @@ def list_preprocessors():
 
 @list_app.command("models")
 def list_models():
-    """src/models/catalog.yaml에 등록된 사용 가능한 모델 목록을 출력합니다."""
+    """모델 카탈로그(model_catalog.yaml)에 등록된 사용 가능한 모델 목록을 출력합니다."""
     typer.echo("✅ Available Models from Catalog:")
     model_catalog = load_model_catalog()
     if not model_catalog:
-        typer.secho("Error: src/models/catalog.yaml 파일을 찾을 수 없거나 내용이 비어있습니다.", fg="red")
+        typer.secho("Error: 모델 카탈로그 파일을 찾을 수 없거나 내용이 비어있습니다.", fg="red")
         raise typer.Exit(1)
     
     for category, models in model_catalog.items():
