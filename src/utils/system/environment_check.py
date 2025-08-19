@@ -9,13 +9,17 @@ Blueprint v17.0 - Architecture Excellence
 - 필수 패키지 호환성
 - 환경 변수 설정 확인
 - 기본 디렉토리 구조 검증
+
+실행 환경을 확인하고 캡처하는 함수 모음.
 """
 
 import sys
 import os
+import subprocess
+from typing import List
 import platform
 from pathlib import Path
-from typing import List, Tuple
+from typing import Tuple
 
 from src.utils.system.logger import logger
 
@@ -211,11 +215,6 @@ def check_environment() -> bool:
 if __name__ == "__main__":
     check_environment() 
 
-"""
-실행 환경을 확인하고 캡처하는 함수 모음.
-"""
-import subprocess
-from typing import List
 
 def get_pip_requirements() -> List[str]:
     """

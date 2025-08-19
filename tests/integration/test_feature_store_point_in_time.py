@@ -18,7 +18,7 @@ import psycopg2
 from datetime import datetime, timedelta
 
 from src.settings import Settings
-from src.core.factory import Factory
+from src.engine.factory import Factory
 
 # DEV 환경 Feature Store Point-in-time 테스트
 pytestmark = [
@@ -469,9 +469,8 @@ class TestFeatureStorePointInTimeAccuracy:
         
         # 결과 정확성 기본 확인
         if not large_features.empty:
-            data_leakage_count = 0
             for _, row in large_features.iterrows():
-                spine_time = row["event_timestamp"] 
+                row["event_timestamp"] 
                 # 원본 spine 시점과 비교하여 Data Leakage 체크는 복잡하므로 기본 검증만
                 if pd.notna(row.get("age")):
                     assert isinstance(row["age"], (int, float)), "Age 데이터 타입 오류"

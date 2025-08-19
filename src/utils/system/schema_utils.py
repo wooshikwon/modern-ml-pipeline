@@ -61,7 +61,7 @@ def validate_schema(df: pd.DataFrame, settings: "Settings", for_training: bool =
                 # 자동 변환 시도
                 pd.to_datetime(df[timestamp_col])
                 logger.info(f"Timestamp 컬럼 '{timestamp_col}' 자동 변환 가능")
-            except:
+            except Exception:
                 errors.append(f"- Timestamp 컬럼 '{timestamp_col}' 타입 오류: datetime 변환 불가")
 
     if errors:

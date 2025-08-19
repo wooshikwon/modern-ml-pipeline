@@ -20,7 +20,7 @@ import json
 
 from src.engine.factory import Factory
 from src.settings import Settings
-from src.utils.adapters.feature_store_adapter import FeatureStoreAdapter
+from src.utils.adapters.feast_adapter import FeastAdapter as FeatureStoreAdapter
 
 # DEV 환경 Feature Store 심층 테스트
 pytestmark = [

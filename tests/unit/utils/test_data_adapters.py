@@ -34,7 +34,7 @@ class TestSqlAdapterGuards:
 
 class TestStorageAdapterBasics:
     def test_parquet_rw_local(self, local_test_settings: Settings):
-        pyarrow = pytest.importorskip("pyarrow")
+        pytest.importorskip("pyarrow")
         adapter = StorageAdapter(local_test_settings)
         with tempfile.TemporaryDirectory() as tmp:
             df = pd.DataFrame({"id": [1, 2], "val": ["a", "b"]})

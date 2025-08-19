@@ -13,6 +13,7 @@ from src.engine._registry import AdapterRegistry, EvaluatorRegistry
 
 if TYPE_CHECKING:
     from src.engine._artifact import PyfuncWrapper
+    from src.interface import BaseAugmenter
 
 
 class Factory:

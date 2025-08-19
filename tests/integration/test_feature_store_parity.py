@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 from src.engine.factory import Factory
-from src.components.augmenter import Augmenter
+from src.components._augmenter._augmenter import FeatureStoreAugmenter as Augmenter
 from src.settings import Settings
 
 # DEV 환경 Feature Store 패리티 테스트
@@ -571,7 +571,7 @@ class TestFeatureStoreParityValidation:
                         successful_checks += 1
                     elif pd.isna(offline_val) or pd.isna(online_val):
                         feature_status["mismatches"] += 1
-                    elif type(offline_val) != type(online_val):
+                    elif type(offline_val) is not type(online_val):
                         feature_status["type_errors"] += 1
                     elif offline_val == online_val:
                         feature_status["matches"] += 1

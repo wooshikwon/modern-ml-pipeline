@@ -9,7 +9,6 @@ class ClassificationEvaluator(BaseEvaluator):
 
     def evaluate(self, model, X, y, source_df=None):
         predictions = model.predict(X)
-        pred_proba = model.predict_proba(X)[:, 1] if hasattr(model, "predict_proba") else None
         
         metrics = {
             "accuracy": accuracy_score(y, predictions),

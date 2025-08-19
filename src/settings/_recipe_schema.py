@@ -230,8 +230,6 @@ class RecipeSettings(BaseModel):
     evaluation: EvaluationSettings
     metadata: Optional[RecipeMetadataSettings] = None
     
-    def validate_recipe_consistency(self):
-        self.model.data_interface.validate_required_fields() 
 
     @model_validator(mode='after')
     def validate_recipe_consistency(cls, v: "RecipeSettings") -> "RecipeSettings":

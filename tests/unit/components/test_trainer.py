@@ -216,15 +216,19 @@ class TestTrainerBlueprintCompliance:
         X, y = pd.DataFrame({'feature': [1, 2, 3]}), pd.Series([0, 1, 0])
         additional_data = {'treatment': pd.Series([1, 0, 1])}
         
-        # Classification 모델 테스트
+        # Classification 모델 테스트 (scikit-learn 호환성 확보)
         clf_model = Mock()
         clf_model.fit = Mock()
+        # scikit-learn tags 인터페이스 Mock
+        clf_model.__sklearn_tags__ = Mock(return_value=Mock(estimator_type="classifier"))
         trainer._fit_model(clf_model, X, y, additional_data)
         clf_model.fit.assert_called_once_with(X, y)
         
-        # Clustering 모델 테스트 (y 불필요)
+        # Clustering 모델 테스트 (y 불필요, scikit-learn 호환성 확보)
         cluster_model = Mock()
         cluster_model.fit = Mock()
+        # scikit-learn tags 인터페이스 Mock
+        cluster_model.__sklearn_tags__ = Mock(return_value=Mock(estimator_type="clusterer"))
         # 클러스터링용 설정으로 일시 변경
         original_task = classification_settings.recipe.model.data_interface.task_type
         classification_settings.recipe.model.data_interface.task_type = "clustering"

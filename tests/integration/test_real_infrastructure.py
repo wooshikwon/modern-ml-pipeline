@@ -13,7 +13,7 @@ import pandas as pd
 import time
 import os
 from unittest.mock import patch
-from src.core.factory import Factory
+from src.engine.factory import Factory
 from src.pipelines.train_pipeline import run_training
 from src.pipelines.inference_pipeline import run_batch_inference
 
@@ -139,7 +139,7 @@ class TestRealInfrastructureIntegration:
         
         with patch('mlflow.set_tracking_uri') as mock_set_uri, \
              patch('mlflow.set_experiment') as mock_set_exp, \
-             patch('mlflow.start_run') as mock_start_run, \
+             patch('mlflow.start_run'), \
              patch('mlflow.pyfunc.log_model') as mock_log_model:
             
             # MLflow 연결 테스트
@@ -147,11 +147,10 @@ class TestRealInfrastructureIntegration:
             mlflow.set_experiment(experiment_name)
             
             # 모델 저장 테스트
-            with mlflow.start_run() as run:
+            with mlflow.start_run():
                 mock_model = MagicMock()
                 mlflow.pyfunc.log_model("model", python_model=mock_model)
                 
-                run_id = run.info.run_id
             
             # MLflow 연결 및 저장 검증
             mock_set_uri.assert_called_with(mlflow_uri)

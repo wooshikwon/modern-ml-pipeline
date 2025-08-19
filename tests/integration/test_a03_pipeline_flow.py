@@ -121,7 +121,7 @@ class TestPipelineFlow:
             
             with patch('mlflow.pyfunc.load_model') as mock_load_model, \
                  patch('src.pipelines.inference_pipeline.start_run') as mock_inference_start_run, \
-                 patch('src.pipelines.inference_pipeline.mlflow') as mock_inference_mlflow:
+                 patch('src.pipelines.inference_pipeline.mlflow'):
                 
                 # 학습된 모델 아티팩트 모킹
                 mock_wrapper = Mock()
@@ -246,7 +246,7 @@ class TestPipelineFlow:
             augmenter1 = factory1.create_augmenter()
             augmenter2 = factory2.create_augmenter()
             
-            assert type(augmenter1) == type(augmenter2), "Same settings should create same augmenter type"
+            assert type(augmenter1) is type(augmenter2), "Same settings should create same augmenter type"
             assert augmenter1.__class__.__name__ == augmenter2.__class__.__name__, "Augmenter types should be identical"
     
     def test_factory_component_interaction_in_pipeline(self):

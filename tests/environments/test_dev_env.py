@@ -17,18 +17,7 @@ from src.engine.factory import Factory
 from src.settings.loaders import load_settings_by_file
 
 
-def ensure_dev_stack_or_skip():
-    """DEV 스택 기동 상태 확인, 미기동 시 skip - BLUEPRINT 헬퍼 함수"""
-    try:
-        # 간단한 DEV 스택 체크 (MLflow, Redis 등)
-        # 실제로는 더 정교한 체크가 필요하지만 현재는 기본 체크
-        import requests
-        # MLflow 서버 체크 (기본 포트 5000)
-        response = requests.get("http://localhost:5000/health", timeout=2)
-        if response.status_code != 200:
-            raise Exception("MLflow not available")
-    except:
-        pytest.skip("DEV stack not available - skipping DEV environment tests")
+# ensure_dev_stack_or_skip 함수는 conftest.py의 fixture로 통합됨
 
 
 @pytest.mark.requires_dev_stack
@@ -42,7 +31,7 @@ class TestDevEnvironmentBlueprintCompliance:
             recipe_file="tests/fixtures/recipes/dev_classification_test.yaml"
         )
 
-    def test_dev_environment_settings_loaded(self, dev_settings):
+    def test_dev_environment_settings_loaded(self, ensure_dev_stack_or_skip, dev_settings):
         """DEV 환경 설정 로딩 - BLUEPRINT 원칙 1 (설정-논리 분리)"""
         assert dev_settings is not None
         # BLUEPRINT: Settings 객체 구조 검증
@@ -90,10 +79,8 @@ class TestDevEnvironmentBlueprintCompliance:
             assert "feature" in str(e).lower() or "store" in str(e).lower()
 
     @pytest.mark.requires_dev_stack
-    def test_dev_environment_with_dev_stack_integration(self, dev_settings):
+    def test_dev_environment_with_dev_stack_integration(self, ensure_dev_stack_or_skip, dev_settings):
         """DEV 환경 + DEV 스택 통합 - BLUEPRINT 환경별 차등 기능"""
-        # DEV 스택이 기동되어 있는 경우에만 실행
-        ensure_dev_stack_or_skip()
         
         factory = Factory(dev_settings)
         

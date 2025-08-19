@@ -56,7 +56,7 @@ class OptunaIntegration:
         for key, value in param_space.items():
             if isinstance(value, dict) and 'type' in value:
                 ptype = value.get('type')
-                optuna = _require_optuna()
+                _require_optuna()
                 if ptype == 'int':
                     suggested[key] = trial.suggest_int(key, int(value['low']), int(value['high']), log=bool(value.get('log', False)))
                 elif ptype == 'float':

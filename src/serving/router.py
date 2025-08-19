@@ -127,7 +127,6 @@ def run_api_server(settings: Settings, run_id: str, host: str = "0.0.0.0", port:
     FastAPI 서버를 실행하고, Lifespan 이벤트를 통해 모델을 로드합니다.
     """
     # Blueprint 원칙 9: 환경별 기능 분리 - API 서빙 시스템적 차단
-    serving_settings = getattr(settings, 'serving', None)
     if hasattr(settings, 'serving') and settings.serving and not getattr(settings.serving, 'enabled', True):
         logger.error(f"'{settings.environment.app_env}' 환경에서는 API 서빙이 비활성화되어 있습니다.")
         return
