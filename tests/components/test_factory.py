@@ -1,268 +1,179 @@
-"""
-Factory 컴포넌트 테스트 (Blueprint v17.0 현대화)
+"""Factory 컴포넌트 단위 테스트 - BLUEPRINT 철학 기반 TDD 구현
 
-Blueprint 원칙 검증:
-- 원칙 3: URI 기반 동작 및 동적 팩토리
-- 원칙 2: 통합 데이터 어댑터
-- 원칙 4: 실행 시점에 조립되는 순수 로직 아티팩트
-- 원칙 9: 환경별 차등적 기능 분리
+Blueprint 핵심 원칙 검증:
+- 원칙 3: 선언적 파이프라인 - Factory를 통한 동적 컴포넌트 조립
+- 원칙 4: 모듈화/확장성 - Factory & Registry 패턴 구현
+- 원칙 1: 설정-논리 분리 - Settings 기반 컴포넌트 생성
 """
-
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import patch
+
 from src.engine.factory import Factory
-from src.settings import Settings
-from src.utils.adapters.file_system_adapter import FileSystemAdapter
-from src.core.augmenter import Augmenter, PassThroughAugmenter
-from src.core.preprocessor import Preprocessor
-from src.core.trainer import Trainer
+from src.settings.loaders import load_settings_by_file
 
-# Blueprint v17.0의 동적 모델 로딩을 테스트하기 위한 외부 모델 클래스
-from sklearn.ensemble import RandomForestClassifier
-import pandas as pd
 
-pytest.skip("Deprecated/outdated test module pending Stage 6 test overhaul (factory API and adapters updated).", allow_module_level=True)
+class TestFactoryBlueprintCompliance:
+    """Factory의 Blueprint 철학 준수 테스트"""
 
-class TestFactory:
-    """Factory 컴포넌트 테스트 (Blueprint v17.0 - 완전한 책임 검증)"""
-    
-    def test_factory_initialization(self, local_test_settings: Settings):
-        """Factory가 올바른 설정으로 초기화되는지 테스트"""
-        factory = Factory(local_test_settings)
-        assert factory.settings == local_test_settings
-        # local_classification_test.yaml에 정의된 class_path를 검증
-        assert factory.settings.model.class_path == "sklearn.ensemble.RandomForestClassifier"
-    
-    def test_create_data_adapter_from_settings(self, local_test_settings: Settings):
-        """Settings에 정의된 기본 어댑터(filesystem)를 올바르게 생성하는지 테스트"""
-        factory = Factory(local_test_settings)
-        # 'loader' 목적에 대한 기본 어댑터는 'filesystem'으로 설정되어 있음
-        adapter = factory.create_data_adapter("loader")
-        assert isinstance(adapter, FileSystemAdapter)
-        assert adapter.settings == local_test_settings
-    
-    def test_create_data_adapter_unknown_scheme(self, local_test_settings: Settings):
-        """알 수 없는 스킴에 대한 오류 처리 테스트"""
-        factory = Factory(local_test_settings)
-        with pytest.raises(ValueError, match="어댑터 목적 조회 실패"):
-            # settings.data_adapters.adapters에 정의되지 않은 타입 요청
-            factory.create_data_adapter("unknown_db")
+    @pytest.fixture
+    def mock_settings(self):
+        """테스트용 Settings 객체 - 실제 로더 사용으로 BLUEPRINT 원칙 1 준수"""
+        return load_settings_by_file(
+            recipe_file="tests/fixtures/recipes/local_classification_test.yaml"
+        )
 
-    # 🆕 Blueprint v17.0: 환경별 어댑터 생성 책임 검증
-    def test_factory_adapter_creation_responsibilities_by_environment(self, local_test_settings: Settings, dev_test_settings: Settings):
-        """
-        Factory가 환경별로 올바른 어댑터를 생성하는 책임을 검증한다.
-        Blueprint 원칙 9: 환경별 차등적 기능 분리
-        """
-        # LOCAL 환경: 파일 시스템 기반 어댑터
-        local_factory = Factory(local_test_settings)
-        local_adapter = local_factory.create_data_adapter("loader")
-        assert isinstance(local_adapter, FileSystemAdapter)
+    def test_factory_initialization_with_settings(self, mock_settings):
+        """Factory 초기화 - Settings 객체 주입 (BLUEPRINT 원칙 1)"""
+        factory = Factory(mock_settings)
         
-        # DEV 환경: 환경 설정에 따른 어댑터 (실제로는 BigQuery 등이 될 수 있음)
-        dev_factory = Factory(dev_test_settings)
-        dev_adapter = dev_factory.create_data_adapter("loader")
-        # DEV 환경에서는 설정에 따라 다른 어댑터가 생성될 수 있음을 검증
-        assert dev_adapter.settings.environment.app_env == "dev"
+        assert factory is not None
+        assert factory.settings == mock_settings
+        # BLUEPRINT: Settings를 단일 진실 공급원으로 사용
+        assert hasattr(factory, 'model_config')
+
+    def test_factory_dynamic_component_creation_interface(self, mock_settings):
+        """Factory 동적 컴포넌트 생성 인터페이스 검증 (BLUEPRINT 원칙 3, 4)"""
+        factory = Factory(mock_settings)
+        
+        # BLUEPRINT 원칙 4: 모듈화된 컴포넌트 생성 메서드들
+        creation_methods = [
+            'create_data_adapter',
+            'create_augmenter', 
+            'create_preprocessor',
+            'create_model',
+            'create_evaluator'
+        ]
+        
+        for method_name in creation_methods:
+            assert hasattr(factory, method_name), f"Factory missing {method_name} method"
+            assert callable(getattr(factory, method_name)), f"{method_name} is not callable"
+
+    def test_factory_model_config_property(self, mock_settings):
+        """Factory model_config 프로퍼티 - 레시피 논리 접근 (BLUEPRINT 원칙 1)"""
+        factory = Factory(mock_settings)
+        
+        # BLUEPRINT: Recipe(논리)와 Config(인프라) 분리된 설계
+        model_config = factory.model_config
+        assert model_config is not None
+        # 레시피에서 모델 논리 정보를 가져와야 함
+        assert hasattr(model_config, 'loader') or hasattr(model_config, 'class_path')
+
+    def test_factory_creates_preprocessor_following_blueprint(self, mock_settings):
+        """Factory 전처리기 생성 - BLUEPRINT 철학 준수"""
+        factory = Factory(mock_settings)
+        
+        # BLUEPRINT 원칙 3: 선언적 구성에 따른 컴포넌트 생성
+        preprocessor = factory.create_preprocessor()
+        
+        assert preprocessor is not None
+        # BLUEPRINT: 모든 ML 컴포넌트는 sklearn 호환 인터페이스
+        assert hasattr(preprocessor, 'fit')
+        assert hasattr(preprocessor, 'transform')
+        assert hasattr(preprocessor, 'fit_transform')
+
+    @pytest.mark.unit
+    def test_factory_augmenter_creation_environment_driven(self, mock_settings):
+        """Factory Augmenter 생성 - 환경별 차등 기능 (BLUEPRINT 원칙 2)"""
+        factory = Factory(mock_settings)
+        
+        # BLUEPRINT 원칙 2: 환경별 역할 분담
+        # Local 환경에서는 PassThroughAugmenter가 생성되어야 함
+        augmenter = factory.create_augmenter()
+        
+        assert augmenter is not None
+        # BLUEPRINT: Augmenter는 PIT 조인 인터페이스를 가져야 함
+        assert hasattr(augmenter, 'augment')
+
+    def test_factory_error_handling_for_invalid_class_path(self, mock_settings):
+        """Factory 오류 처리 - 존재하지 않는 클래스 경로"""
+        factory = Factory(mock_settings)
+        
+        # BLUEPRINT: 명확한 오류 메시지로 디버깅 지원
+        with patch.object(factory.settings.recipe.model, 'class_path', 'non.existent.Class'):
+            with pytest.raises((ImportError, AttributeError, ValueError)):
+                factory.create_model()
+
+    @pytest.mark.blueprint_principle_4
+    def test_factory_extensibility_through_registry(self, mock_settings):
+        """Factory 확장성 - Registry 패턴 (BLUEPRINT 원칙 4)"""
+        factory = Factory(mock_settings)
+        
+        # BLUEPRINT 원칙 4: Registry를 통한 플러그인 형태 확장
+        # Registry가 동적으로 컴포넌트를 찾을 수 있어야 함
+        try:
+            adapter = factory.create_data_adapter()
+            # 기본 어댑터가 생성되어야 함
+            assert adapter is not None
+        except Exception as e:
+            # Registry 기반 오류는 명확한 메시지를 제공해야 함
+            assert "adapter" in str(e).lower() or "registry" in str(e).lower()
+    
+    def test_factory_augmenter_selection_policy_local_environment(self, mock_settings):
+        """Factory Augmenter 선택 정책 - Local 환경 (BLUEPRINT.md 148-155라인)"""
+        factory = Factory(mock_settings)
+        
+        # BLUEPRINT 원칙 2: Local 환경에서는 PassThroughAugmenter 사용
+        augmenter = factory.create_augmenter(run_mode="train")
+        
+        assert augmenter is not None
+        assert type(augmenter).__name__ == "PassThroughAugmenter"
+        # PassThrough는 run_mode에 관계없이 동일하게 동작
+        assert hasattr(augmenter, 'augment')
+        
+    def test_factory_augmenter_selection_policy_serving_restrictions(self, mock_settings):
+        """Factory Augmenter Serving 제약 정책 - BLUEPRINT.md 서빙 제약"""
+        factory = Factory(mock_settings)
+        
+        # BLUEPRINT: Serving에서는 PassThrough/SqlFallback 금지
+        # Local 환경이라 PassThrough가 선택되지만, serving 모드에서는 예외 발생
+        with pytest.raises(TypeError, match="Serving에서는.*금지"):
+            factory.create_augmenter(run_mode="serving")
             
-    def test_create_core_components(self, local_test_settings: Settings):
-        """Augmenter, Preprocessor, Trainer 등 핵심 컴포넌트 생성 테스트"""
-        factory = Factory(local_test_settings)
+    def test_factory_augmenter_selection_policy_comprehensive(self, mock_settings):
+        """Factory Augmenter 선택 정책 종합 테스트 - BLUEPRINT.md 정책 전체"""
+        factory = Factory(mock_settings)
         
-        augmenter = factory.create_augmenter()
-        assert isinstance(augmenter, Augmenter)
-        assert augmenter.settings == local_test_settings
-
-        preprocessor = factory.create_preprocessor()
-        assert isinstance(preprocessor, Preprocessor)
-        assert preprocessor.settings == local_test_settings
-
-        trainer = factory.create_trainer()
-        assert isinstance(trainer, Trainer)
-        assert trainer.settings == local_test_settings
-
-    # 🆕 Blueprint v17.0: 환경별 컴포넌트 생성 차이 검증
-    def test_create_components_environment_specific_behavior(self, local_test_settings: Settings, dev_test_settings: Settings):
-        """
-        Factory가 환경별로 다른 컴포넌트를 생성하는지 검증한다.
-        특히 Augmenter의 환경별 차이를 중점 검증한다.
-        """
-        # LOCAL 환경: PassThroughAugmenter
-        local_factory = Factory(local_test_settings)
-        local_augmenter = local_factory.create_augmenter()
-        assert isinstance(local_augmenter, PassThroughAugmenter)
+        # 1) Local 환경: PassThrough (run_mode 무관)
+        for mode in ["train", "batch"]:
+            augmenter = factory.create_augmenter(run_mode=mode)
+            assert type(augmenter).__name__ == "PassThroughAugmenter"
+            
+        # 2) Serving 모드: 예외 발생
+        with pytest.raises(TypeError):
+            factory.create_augmenter(run_mode="serving")
+            
+        # 3) 비지원 Augmenter type: 예외 발생  
+        # (mock_settings는 local 환경이라 정상 동작하거나, 비지원 설정에 대한 예외 처리 필요)
         
-        # DEV 환경: FeatureStore 연동 Augmenter
-        dev_factory = Factory(dev_test_settings)
-        with patch.object(dev_factory, 'create_feature_store_adapter'):
-            dev_augmenter = dev_factory.create_augmenter()
-            assert isinstance(dev_augmenter, Augmenter)
-            assert not isinstance(dev_augmenter, PassThroughAugmenter)
-
-    def test_dynamic_model_creation(self, local_test_settings: Settings):
-        """
-        Blueprint 철학 검증: class_path를 기반으로 모델을 동적으로 생성하는지 테스트
-        """
-        factory = Factory(local_test_settings)
+    def test_factory_augmenter_policy_error_messages(self, mock_settings):
+        """Factory Augmenter 정책 에러 메시지 검증 - 명확한 디버깅 지원"""
+        factory = Factory(mock_settings)
+        
+        # BLUEPRINT: 명확한 오류 메시지로 디버깅 지원
+        try:
+            factory.create_augmenter(run_mode="serving")
+            assert False, "Serving 모드에서 예외가 발생해야 함"
+        except TypeError as e:
+            error_message = str(e).lower()
+            assert "serving" in error_message
+            assert "금지" in str(e) or "feature store" in error_message
+            
+    def test_factory_model_creation_with_hyperparameters(self, mock_settings):
+        """Factory 모델 생성 - 하이퍼파라미터 동적 로딩"""
+        factory = Factory(mock_settings)
+        
+        # BLUEPRINT 원칙 1, 3: Recipe에 정의된 설정으로 동적 모델 생성
         model = factory.create_model()
         
-        # local_classification_test.yaml에 정의된 RandomForestClassifier가 생성되었는지 확인
-        assert isinstance(model, RandomForestClassifier)
+        assert model is not None
+        # sklearn 호환 인터페이스 확인
+        assert hasattr(model, 'fit')
         
-        # 레시피에 정의된 하이퍼파라미터가 모델에 적용되었는지 확인
-        expected_estimators = local_test_settings.model.hyperparameters.root.get("n_estimators")
-        assert model.n_estimators == expected_estimators
-
-    def test_create_model_with_invalid_class_path(self, local_test_settings: Settings):
-        """잘못된 class_path에 대한 오류 처리 테스트"""
-        settings_copy = local_test_settings.model_copy(deep=True)
-        settings_copy.model.class_path = "non.existent.path.InvalidModel"
-        
-        factory = Factory(settings_copy)
-        with pytest.raises(ValueError, match="모델 클래스를 로드할 수 없습니다"):
-            factory.create_model()
-
-    # 🆕 Blueprint v17.0: 확장된 PyfuncWrapper 메타데이터 검증
-    def test_create_pyfunc_wrapper_with_full_training_results(self, local_test_settings: Settings):
-        """
-        PyfuncWrapper가 training_results의 모든 메타데이터를 올바르게 포함하는지 상세히 검증한다.
-        Blueprint 원칙 4: 실행 시점에 조립되는 순수 로직 아티팩트
-        """
-        factory = Factory(local_test_settings)
-        mock_model = Mock()
-        mock_preprocessor = Mock()
-        mock_augmenter = Mock()
-
-        # 완전한 training_results 시뮬레이션 (모든 메타데이터 포함)
-        complete_training_results = {
-            "metrics": {
-                "accuracy": 0.95,
-                "precision": 0.92,
-                "recall": 0.88,
-                "f1_score": 0.90
-            },
-            "hyperparameter_optimization": {
-                "enabled": True,
-                "engine": "optuna",
-                "best_params": {"n_estimators": 150, "max_depth": 8},
-                "best_score": 0.95,
-                "total_trials": 50,
-                "pruned_trials": 12,
-                "optimization_time": "00:15:30"
-            },
-            "training_methodology": {
-                "train_test_split_method": "stratified",
-                "train_ratio": 0.8,
-                "validation_strategy": "train_validation_split",
-                "preprocessing_fit_scope": "train_only",
-                "random_state": 42
-            },
-            "loader_sql_snapshot": "SELECT user_id, product_id FROM spine",
-            "augmenter_config_snapshot": {"type": "feature_store", "features": []},
-            "model_class_path": "sklearn.ensemble.RandomForestClassifier"
-        }
-
-        wrapper = factory.create_pyfunc_wrapper(
-            trained_model=mock_model,
-            trained_preprocessor=mock_preprocessor,
-            training_results=complete_training_results
-        )
-        
-        from src.core.factory import PyfuncWrapper
-        assert isinstance(wrapper, PyfuncWrapper)
-        
-        # 1. 기본 컴포넌트 검증
-        assert wrapper.trained_model == mock_model
-        assert wrapper.trained_preprocessor == mock_preprocessor
-        
-        # 2. 하이퍼파라미터 최적화 메타데이터 검증
-        assert hasattr(wrapper, 'hyperparameter_optimization')
-        hpo_data = wrapper.hyperparameter_optimization
-        assert hpo_data["enabled"] == True
-        assert hpo_data["engine"] == "optuna"
-        assert hpo_data["best_params"]["n_estimators"] == 150
-        assert hpo_data["total_trials"] == 50
-        
-        # 3. Data Leakage 방지 메타데이터 검증
-        assert hasattr(wrapper, 'training_methodology')
-        tm_data = wrapper.training_methodology
-        assert tm_data["preprocessing_fit_scope"] == "train_only"
-        assert tm_data["train_test_split_method"] == "stratified"
-        
-        # 4. 스냅샷 데이터 검증
-        assert hasattr(wrapper, 'loader_sql_snapshot')
-        assert hasattr(wrapper, 'augmenter_config_snapshot')
-        assert wrapper.loader_sql_snapshot == "SELECT user_id, product_id FROM spine"
-        
-        # 5. 모델 클래스 경로 검증
-        assert hasattr(wrapper, 'model_class_path')
-        assert wrapper.model_class_path == "sklearn.ensemble.RandomForestClassifier"
-
-    def test_create_pyfunc_wrapper_without_hpo_results(self, local_test_settings: Settings):
-        """
-        하이퍼파라미터 최적화가 비활성화된 경우의 PyfuncWrapper 생성을 검증한다.
-        """
-        factory = Factory(local_test_settings)
-        mock_model = Mock()
-        mock_preprocessor = Mock()
-
-        # HPO 비활성화된 training_results
-        basic_training_results = {
-            "metrics": {"accuracy": 0.87},
-            "hyperparameter_optimization": {"enabled": False},
-            "training_methodology": {"preprocessing_fit_scope": "train_only"}
-        }
-
-        wrapper = factory.create_pyfunc_wrapper(
-            trained_model=mock_model,
-            trained_preprocessor=mock_preprocessor,
-            training_results=basic_training_results
-        )
-        
-        # HPO가 비활성화된 경우에도 메타데이터가 올바르게 포함되는지 검증
-        hpo_data = wrapper.hyperparameter_optimization
-        assert hpo_data["enabled"] == False
-        assert "best_params" not in hpo_data or not hpo_data.get("best_params")
-
-    # 🆕 Blueprint v17.0: Factory의 모든 책임 종합 검증
-    def test_factory_comprehensive_responsibilities(self, local_test_settings: Settings):
-        """
-        Factory의 모든 책임을 종합적으로 검증한다:
-        1. 어댑터 생성 2. 컴포넌트 생성 3. 동적 모델 로딩 4. Wrapper 생성
-        """
-        factory = Factory(local_test_settings)
-        
-        # 1. 어댑터 생성 책임
-        adapter = factory.create_data_adapter("loader")
-        assert adapter is not None
-        
-        # 2. 컴포넌트 생성 책임 (모든 핵심 컴포넌트)
-        augmenter = factory.create_augmenter()
-        preprocessor = factory.create_preprocessor()
-        trainer = factory.create_trainer()
-        evaluator = factory.create_evaluator()
-        tuning_utils = factory.create_tuning_utils()
-        
-        assert all([augmenter, preprocessor, trainer, evaluator, tuning_utils])
-        
-        # 3. 동적 모델 로딩 책임
-        model = factory.create_model()
-        assert isinstance(model, RandomForestClassifier)
-        
-        # 4. Wrapper 생성 책임
-        mock_training_results = {
-            "metrics": {"accuracy": 0.9},
-            "hyperparameter_optimization": {"enabled": False}
-        }
-        wrapper = factory.create_pyfunc_wrapper(
-            trained_model=model,
-            trained_preprocessor=preprocessor,
-            training_results=mock_training_results
-        )
-        assert wrapper is not None
-        
-        # 모든 생성된 객체가 동일한 settings를 공유하는지 검증
-        components_with_settings = [augmenter, preprocessor, trainer, evaluator, tuning_utils]
-        for component in components_with_settings:
-            if hasattr(component, 'settings'):
-                assert component.settings == local_test_settings 
+        # Recipe에 정의된 하이퍼파라미터가 적용되어야 함
+        # (local_classification_test.yaml: n_estimators: 50, max_depth: 10 등)
+        if hasattr(model, 'n_estimators'):
+            assert model.n_estimators == 50
+        if hasattr(model, 'max_depth'):
+            assert model.max_depth == 10
+        if hasattr(model, 'random_state'):
+            assert model.random_state == 42

@@ -1,16 +1,10 @@
 from __future__ import annotations
 import pandas as pd
-import fsspec
-from typing import TYPE_CHECKING, Dict, Any, Optional
-import os
 from pathlib import Path
 
 from src.interface.base_adapter import BaseAdapter
 from src.settings import Settings
 from src.utils.system.logger import logger
-from src.engine import AdapterRegistry
-
-
 class StorageAdapter(BaseAdapter):
     """
     fsspec 라이브러리를 기반으로 하는 통합 스토리지 어댑터.
@@ -52,5 +46,3 @@ class StorageAdapter(BaseAdapter):
             df.to_csv(uri, index=False)
         else:
             df.to_parquet(uri, storage_options=self.storage_options, **kwargs) 
-
-AdapterRegistry.register("storage", StorageAdapter) 

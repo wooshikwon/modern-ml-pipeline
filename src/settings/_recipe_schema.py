@@ -1,5 +1,5 @@
 # src/settings/_recipe_schema.py
-from pydantic import BaseModel, Field, RootModel, validator, model_validator
+from pydantic import BaseModel, RootModel, validator, model_validator
 from typing import Dict, Any, List, Optional, Union, Literal
 import importlib
 import inspect
@@ -96,9 +96,9 @@ class AugmenterSettings(BaseModel):
     source_uri: Optional[str] = None
     local_override_uri: Optional[str] = None
     
-    @validator('type')
-    def validate_augmenter_config(cls, v, values):
-        if v == "feature_store" and not values.get('features'):
+    @model_validator(mode='after')
+    def validate_augmenter_config(cls, v):
+        if v.type == "feature_store" and not v.features:
             raise ValueError("Feature Store 방식 Augmenter에는 features 설정이 필요합니다.")
         return v
 

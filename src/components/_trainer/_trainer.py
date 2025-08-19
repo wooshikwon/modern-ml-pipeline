@@ -6,7 +6,6 @@ from sklearn.model_selection import train_test_split
 from src.settings import Settings
 from src.utils.system.logger import logger
 from src.interface import BaseTrainer, BaseModel, BaseAugmenter, BasePreprocessor, BaseEvaluator
-from src.utils.system.schema_utils import validate_schema
 from ._data_handler import split_data, prepare_training_data
 from ._optimizer import OptunaOptimizer
 
@@ -118,7 +117,7 @@ class Trainer(BaseTrainer):
         if not isinstance(model, BaseModel):
             from sklearn.base import is_classifier, is_regressor
             if not (is_classifier(model) or is_regressor(model) or hasattr(model, 'fit')):
-                 raise TypeError(f"전달된 모델 객체는 BaseModel 인터페이스를 따르거나 scikit-learn 호환 모델이어야 합니다.")
+                 raise TypeError("전달된 모델 객체는 BaseModel 인터페이스를 따르거나 scikit-learn 호환 모델이어야 합니다.")
         
         task_type = self.settings.recipe.model.data_interface.task_type
         if task_type in ["classification", "regression"]: model.fit(X, y)

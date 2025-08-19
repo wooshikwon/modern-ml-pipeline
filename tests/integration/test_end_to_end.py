@@ -6,14 +6,12 @@ End-to-End 통합 테스트
 
 import pytest
 import pandas as pd
-import tempfile
-import os
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from src.engine.factory import Factory
-from src.components.trainer import Trainer
+from src.components._trainer._trainer import Trainer
 from src.pipelines.train_pipeline import run_training
-from src.pipelines.inference_pipeline import run_batch_inference
-from src.settings import Settings, load_settings
+from src.settings import Settings
+from src.settings.loaders import load_settings
 
 
 class TestEndToEndIntegration:

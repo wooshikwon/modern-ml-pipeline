@@ -16,13 +16,9 @@ import pytest
 import pandas as pd
 import psycopg2
 from datetime import datetime, timedelta
-from typing import Dict, Any, List
-import numpy as np
-from dateutil import parser
 
 from src.settings import Settings
 from src.core.factory import Factory
-from src.utils.adapters.feature_store_adapter import FeatureStoreAdapter
 
 # DEV 환경 Feature Store Point-in-time 테스트
 pytestmark = [
@@ -384,7 +380,7 @@ class TestFeatureStorePointInTimeAccuracy:
                         # 변화 전 시점에는 이전 값, 변화 후 시점에는 새 값이 나와야 함
                         print(f"  {user_id} 변화시점 {change_time}: {age_before} -> {age_after}")
         
-        print(f"✅ 피처 버전 관리 및 시점별 유효성 검증 완료")
+        print("✅ 피처 버전 관리 및 시점별 유효성 검증 완료")
 
     def test_boundary_conditions_and_edge_cases(self, dev_test_settings: Settings):
         """
@@ -436,7 +432,7 @@ class TestFeatureStorePointInTimeAccuracy:
         # Edge Case 3: 정확히 데이터 생성 시점과 동일한 시점
         # (이 경우는 실제 데이터 생성 시점을 알아야 하므로 생략)
         
-        print(f"✅ 경계 조건 및 엣지 케이스 검증 완료")
+        print("✅ 경계 조건 및 엣지 케이스 검증 완료")
 
     def test_point_in_time_performance_at_scale(self, dev_test_settings: Settings):
         """
@@ -480,6 +476,6 @@ class TestFeatureStorePointInTimeAccuracy:
                 if pd.notna(row.get("age")):
                     assert isinstance(row["age"], (int, float)), "Age 데이터 타입 오류"
         
-        print(f"✅ Point-in-time 대량 조회 성능 검증 완료")
+        print("✅ Point-in-time 대량 조회 성능 검증 완료")
         print(f"  조회 건수: {len(large_spine)}, 소요 시간: {execution_time:.2f}초")
         print(f"  응답 건수: {len(large_features)}, 초당 처리량: {len(large_spine)/execution_time:.1f} TPS") 

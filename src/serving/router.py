@@ -1,11 +1,6 @@
 import uvicorn
-import pandas as pd
-import mlflow
-import mlflow.pyfunc
-from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
-from typing import Dict, Any, List, Type
-from pydantic import BaseModel, create_model
+from typing import Dict, Any
 
 from src.settings import Settings
 from src.utils.system.logger import logger
@@ -14,16 +9,9 @@ from src.serving._lifespan import lifespan, setup_api_context
 from src.serving import _endpoints as handlers
 from src.components._augmenter._pass_through import PassThroughAugmenter
 from src.serving.schemas import (
-    get_pk_from_loader_sql,
-    create_dynamic_prediction_request,
-    create_batch_prediction_request,
-    PredictionResponse,
-    BatchPredictionResponse,
     HealthCheckResponse,
     ModelMetadataResponse,
     OptimizationHistoryResponse,
-    HyperparameterOptimizationInfo,
-    TrainingMethodologyInfo,
     MinimalPredictionResponse,
 )
 

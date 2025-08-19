@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Any
+from typing import Dict
 import pandas as pd
 
 from src.interface.types import MLTaskProtocol

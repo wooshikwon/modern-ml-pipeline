@@ -6,7 +6,7 @@ import pandas as pd
 from src.utils.system.logger import logger
 
 if TYPE_CHECKING:
-    from src.settings import Settings
+    pass
 
 def render_template_from_file(template_path: str, context: Dict[str, Any]) -> str:
     """

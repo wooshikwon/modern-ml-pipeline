@@ -96,3 +96,6 @@ pids
 /local/
 /data/
 /test_project/
+
+# Claude
+.claude/

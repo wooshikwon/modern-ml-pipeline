@@ -1,9 +1,7 @@
 from __future__ import annotations
 import importlib
-from pathlib import Path
 from typing import Optional, Dict, Any, TYPE_CHECKING
 
-import mlflow
 import pandas as pd
 
 from src.components._augmenter import FeatureStoreAugmenter, PassThroughAugmenter
@@ -11,7 +9,7 @@ from src.components._preprocessor import Preprocessor, BasePreprocessor
 from src.interface import BaseAdapter
 from src.settings import Settings
 from src.utils.system.logger import logger
-from src.engine._registry import AdapterRegistry, EvaluatorRegistry, AugmenterRegistry
+from src.engine._registry import AdapterRegistry, EvaluatorRegistry
 
 if TYPE_CHECKING:
     from src.engine._artifact import PyfuncWrapper
@@ -70,7 +68,7 @@ class Factory:
             return PassThroughAugmenter()
 
         # Feature Store 요청 + provider OK → FeatureStoreAugmenter
-        if aug_type == "feature_store" and provider in {"feast", "mock"}:
+        if aug_type == "feature_store" and provider in {"feast", "mock", "dynamic"}:
             return FeatureStoreAugmenter(settings=self.settings, factory=self)
 
         # (train/batch 전용) 실패 + fallback.sql 명시 → SqlFallbackAugmenter (미구현 자리표시, 후속 단계에서 구현)

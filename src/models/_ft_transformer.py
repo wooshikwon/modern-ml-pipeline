@@ -1,6 +1,6 @@
 # src/models/_ft_transformer.py
 import pandas as pd
-from typing import Any, List
+from typing import Any
 from rtdl_revisiting_models import FTTransformer
 
 from src.interface import BaseModel

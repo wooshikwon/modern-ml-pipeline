@@ -4,8 +4,6 @@ Settings 테스트
 설정 로딩, 검증, 환경별 설정 병합 테스트
 """
 
-import pytest
-import os
 from src.settings import Settings, load_settings_by_file
 
 def test_load_settings_by_file(fixture_recipes_path):

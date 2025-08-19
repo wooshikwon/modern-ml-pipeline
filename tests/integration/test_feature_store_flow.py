@@ -8,17 +8,19 @@ Phase 2: Feature Store 완전 테스트
 import pytest
 import pandas as pd
 from datetime import datetime
-from fastapi.testclient import TestClient
+try:
+    from fastapi.testclient import TestClient
+    _FASTAPI_AVAILABLE = True
+except ImportError:
+    _FASTAPI_AVAILABLE = False
+    TestClient = None
 import mlflow
 import shutil
 
 from src.engine.factory import Factory
 from src.components.augmenter import Augmenter
-from src.settings import load_settings_by_file
 from src.pipelines.train_pipeline import run_training
-from src.pipelines.inference_pipeline import run_batch_inference
 from serving.api import app, setup_api_context
-from src.utils.system.logger import setup_logging
 
 # DEV 환경 통합 테스트임을 명시
 pytestmark = [
@@ -74,6 +76,7 @@ class TestFeatureStoreFlow:
         assert user1001_first_event["user_total_purchase_amount_7d"] == 150.0, \
             "Point-in-time join이 과거 시점의 피처를 정확하게 가져오지 못했습니다."
 
+    @pytest.mark.skipif(not _FASTAPI_AVAILABLE, reason="FastAPI/httpx dependencies not available")
     def test_online_store_serving(self, trained_artifact_run_id, dev_test_settings):
         """
         [2단계: 온라인 저장소 검증]

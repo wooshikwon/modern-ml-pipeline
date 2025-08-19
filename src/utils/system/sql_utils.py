@@ -3,8 +3,7 @@ SQL 유틸리티 모듈
 - sqlparse를 사용하여 SQL 쿼리를 파싱합니다.
 """
 
-from pathlib import Path
-from typing import Dict, Any, Union, Optional, List
+from typing import List
 
 import sqlparse
 from sqlparse.sql import Identifier, IdentifierList

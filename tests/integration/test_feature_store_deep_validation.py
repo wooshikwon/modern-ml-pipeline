@@ -16,14 +16,10 @@ import pandas as pd
 import psycopg2
 import redis
 from datetime import datetime, timedelta
-from typing import Dict, Any, List
-import numpy as np
-from unittest.mock import patch
 import json
 
 from src.engine.factory import Factory
 from src.settings import Settings
-from src.components.augmenter import Augmenter
 from src.utils.adapters.feature_store_adapter import FeatureStoreAdapter
 
 # DEV 환경 Feature Store 심층 테스트
@@ -293,7 +289,7 @@ class TestFeatureStoreDataIngestionDeep:
         except Exception as e:
             pytest.fail(f"Redis 온라인 피처 조회 실패: {e}")
         
-        print(f"✅ Redis 온라인 스토어 무결성 검증 완료")
+        print("✅ Redis 온라인 스토어 무결성 검증 완료")
 
     def test_data_type_consistency_across_stores(self, dev_test_settings: Settings, source_data_snapshot):
         """
@@ -349,7 +345,7 @@ class TestFeatureStoreDataIngestionDeep:
                 
                 print(f"  ✅ {field} 타입 및 값 일관성 확인: {offline_val} ({type_name})")
         
-        print(f"✅ 데이터 타입 일관성 검증 완료")
+        print("✅ 데이터 타입 일관성 검증 완료")
 
     def test_completeness_and_no_data_loss(self, dev_test_settings: Settings, source_data_snapshot):
         """
@@ -448,6 +444,6 @@ class TestFeatureStoreDataIngestionDeep:
         assert len(offline_result) > 0, "오프라인 피처 조회 결과가 비어있습니다."
         assert len(online_result) > 0, "온라인 피처 조회 결과가 비어있습니다."
         
-        print(f"✅ 성능 기준 검증 완료")
+        print("✅ 성능 기준 검증 완료")
         print(f"  오프라인 조회 (100건): {offline_time:.2f}초")
         print(f"  온라인 조회 (10건): {online_time:.2f}초") 

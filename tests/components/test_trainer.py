@@ -1,370 +1,234 @@
+"""Trainer 컴포넌트 종합 테스트 - Blueprint 원칙 기반 TDD 구현
+
+이 테스트는 BLUEPRINT.md의 핵심 설계 철학을 검증합니다:
+- 원칙 1: 설정과 논리의 분리 (Settings 기반 동작)
+- 원칙 2: 환경별 역할 분담 (local 환경 제약)
+- 원칙 3: 선언적 파이프라인 (YAML 설정 기반)
+- 원칙 4: 모듈화와 확장성 (Factory 패턴 의존성 주입)
 """
-Trainer 컴포넌트 테스트 (Blueprint v17.0 현대화)
-
-학습 프로세스, 컴포넌트 조합, 메트릭 수집, HPO 로직 테스트
-
-Blueprint 원칙 검증:
-- 원칙 8: 자동화된 HPO + Data Leakage 완전 방지
-"""
-
 import pytest
 import pandas as pd
-from unittest.mock import Mock, patch, call
+import numpy as np
+from unittest.mock import Mock, patch
+from sklearn.ensemble import RandomForestClassifier
 
-pytest.skip("Deprecated/outdated test module pending Stage 6 test overhaul (trainer interface updated).", allow_module_level=True)
+from src.components._trainer import Trainer
+from src.settings.loaders import load_settings_by_file
+from src.interface import BaseAugmenter, BasePreprocessor, BaseEvaluator
 
-from src.components.trainer import Trainer
-from src.engine.factory import Factory
-from src.settings import Settings
-from src.components.augmenter import Augmenter, PassThroughAugmenter
-from src.components.preprocessor import Preprocessor
 
-class TestTrainerModernized:
-    """Trainer 컴포넌트 단위 테스트 (Blueprint v17.0, 완전 현대화)"""
+@pytest.mark.unit
+@pytest.mark.blueprint_principle_1
+@pytest.mark.blueprint_principle_4
+class TestTrainerBlueprintCompliance:
+    """Trainer Blueprint 원칙 준수 테스트"""
 
-    def test_trainer_initialization(self, local_test_settings: Settings):
-        """Trainer가 settings 객체로 올바르게 초기화되는지 테스트"""
-        trainer = Trainer(settings=local_test_settings)
-        assert trainer.settings == local_test_settings
-
-    @patch('src.core.trainer.mlflow')
-    def test_train_method_flow_in_local_env(self, mock_mlflow, local_test_settings: Settings):
-        """
-        LOCAL 환경에서 Trainer.train() 메소드의 실행 흐름을 검증한다.
-        (실제 학습은 Mocking)
-        """
-        trainer = Trainer(settings=local_test_settings)
-        
-        # Mock 컴포넌트 및 데이터
-        mock_model = Mock()
-        mock_model.fit.return_value = mock_model
-        
-        mock_preprocessor = Mock()
-        mock_preprocessor.fit_transform.return_value = pd.DataFrame({'f1': [0.1, 0.2]})
-        mock_preprocessor.transform.return_value = pd.DataFrame({'f1': [0.1, 0.2]})
-
-        mock_augmenter = PassThroughAugmenter(settings=local_test_settings)
-        
-        df = pd.DataFrame({
-            'user_id': ['u1', 'u2', 'u3', 'u4'],
-            'approved': [1, 0, 1, 0] # target_col for stratification
-        })
-
-        # train 메소드 실행
-        trained_preprocessor, trained_model, training_results = trainer.train(
-            df=df,
-            model=mock_model,
-            augmenter=mock_augmenter,
-            preprocessor=mock_preprocessor,
+    @pytest.fixture
+    def classification_settings(self):
+        """분류 작업용 Settings 객체 - 실제 로더 사용으로 일관성 보장"""
+        return load_settings_by_file(
+            recipe_file="tests/fixtures/recipes/local_classification_test.yaml"
         )
 
-        # 검증
-        assert trained_preprocessor is not None
-        assert trained_model is not None
-        assert "metrics" in training_results
-        
-        # Preprocessor가 train 데이터에 fit 되었는지 확인
-        assert mock_preprocessor.fit_transform.call_count == 1
-        # Model이 train 데이터에 fit 되었는지 확인
-        assert mock_model.fit.call_count == 1
-        
-        # MLflow 로깅이 호출되었는지 확인
-        mock_mlflow.log_metrics.assert_called_once()
-
-    # 🆕 Blueprint v17.0: 상세 실행 흐름 검증
-    @patch('src.core.trainer.mlflow')
-    @patch('src.core.trainer.train_test_split')
-    def test_trainer_execution_flow_detailed_verification(self, mock_split, mock_mlflow, local_test_settings: Settings):
-        """
-        Trainer.train() 메소드의 상세 실행 흐름을 순서대로 검증한다.
-        data_split → augment → preprocess → model.fit → evaluate → mlflow.log_metrics
-        """
-        trainer = Trainer(settings=local_test_settings)
-        
-        # Mock 설정
-        mock_model = Mock()
-        mock_preprocessor = Mock()
-        mock_augmenter = Mock()
-        
-        # mock_split 반환값 설정
-        train_df = pd.DataFrame({'user_id': ['u1', 'u2'], 'approved': [1, 0]})
-        test_df = pd.DataFrame({'user_id': ['u3', 'u4'], 'approved': [1, 0]})
-        mock_split.return_value = (train_df, test_df)
-        
-        # mock_augmenter 반환값 설정
-        mock_augmenter.augment.return_value = pd.DataFrame({'f1': [0.1, 0.2], 'approved': [1, 0]})
-        
-        # mock_preprocessor 반환값 설정
-        mock_preprocessor.fit.return_value = mock_preprocessor
-        mock_preprocessor.transform.return_value = pd.DataFrame({'f1': [0.1, 0.2]})
-        
-        df = pd.DataFrame({
-            'user_id': ['u1', 'u2', 'u3', 'u4'],
-            'approved': [1, 0, 1, 0]
-        })
-
-        # train 메소드 실행
-        trainer.train(
-            df=df,
-            model=mock_model,
-            augmenter=mock_augmenter,
-            preprocessor=mock_preprocessor,
-        )
-
-        # 1. Data Split이 호출되었는지
-        mock_split.assert_called_once()
-        
-        # 2. Augmenter가 train/test 데이터에 각각 호출되었는지
-        assert mock_augmenter.augment.call_count == 2
-        
-        # 3. Preprocessor가 train 데이터에 fit 호출되었는지 (Data Leakage 방지)
-        mock_preprocessor.fit.assert_called_once()
-        
-        # 4. Preprocessor가 train/test 데이터에 transform 호출되었는지
-        assert mock_preprocessor.transform.call_count == 2
-        
-        # 5. Model이 fit 호출되었는지
-        mock_model.fit.assert_called_once()
-        
-        # 6. MLflow 로깅이 호출되었는지
-        mock_mlflow.log_metrics.assert_called_once()
-
-    # 🆕 Blueprint v17.0: 하이퍼파라미터 최적화 비활성화 테스트
-    def test_trainer_with_hyperparameter_tuning_disabled(self, local_test_settings: Settings):
-        """
-        hyperparameter_tuning.enabled = False일 때 기존 방식으로 동작하는지 검증한다.
-        """
-        # 설정에서 HPO가 비활성화되어 있는지 확인
-        assert local_test_settings.model.hyperparameter_tuning is None or \
-               not local_test_settings.model.hyperparameter_tuning.enabled
-        
-        trainer = Trainer(settings=local_test_settings)
-        
-        # Mock 컴포넌트
-        mock_model = Mock()
-        mock_preprocessor = Mock()
-        mock_augmenter = PassThroughAugmenter(settings=local_test_settings)
-        
-        mock_preprocessor.fit.return_value = mock_preprocessor
-        mock_preprocessor.transform.return_value = pd.DataFrame({'f1': [0.1, 0.2]})
-        
-        df = pd.DataFrame({
-            'user_id': ['u1', 'u2', 'u3', 'u4'],
-            'approved': [1, 0, 1, 0]
-        })
-
-        with patch('src.core.trainer.mlflow'):
-            trained_preprocessor, trained_model, training_results = trainer.train(
-                df=df,
-                model=mock_model,
-                augmenter=mock_augmenter,
-                preprocessor=mock_preprocessor,
-            )
-
-        # HPO가 비활성화되어 있으므로 hyperparameter_optimization 메타데이터가 없거나 enabled=False
-        hpo_data = training_results.get('hyperparameter_optimization', {})
-        assert not hpo_data.get('enabled', False)
-
-    # 🆕 Blueprint v17.0: 하이퍼파라미터 최적화 활성화 테스트
-    @patch('src.core.trainer.mlflow')
-    def test_trainer_with_hyperparameter_tuning_enabled(self, mock_mlflow, dev_test_settings: Settings):
-        """
-        hyperparameter_tuning.enabled = True일 때 Optuna 관련 로직이 호출되는지 검증한다.
-        """
-        # HPO 활성화된 설정 생성
-        settings_with_hpo = dev_test_settings.model_copy(deep=True)
-        if not hasattr(settings_with_hpo.model, 'hyperparameter_tuning') or \
-           settings_with_hpo.model.hyperparameter_tuning is None:
-            # HPO 설정이 없다면 추가
-            from src.settings.models import HyperparameterTuningSettings
-            settings_with_hpo.model.hyperparameter_tuning = HyperparameterTuningSettings(
-                enabled=True,
-                n_trials=5,
-                metric="accuracy",
-                direction="maximize"
-            )
-        else:
-            settings_with_hpo.model.hyperparameter_tuning.enabled = True
-            settings_with_hpo.model.hyperparameter_tuning.n_trials = 5
-
-        trainer = Trainer(settings=settings_with_hpo)
-
-        # Optuna 관련 Mock
-        with patch('src.core.trainer.optuna') as mock_optuna:
-            mock_study = Mock()
-            mock_trial = Mock()
-            mock_trial.number = 1
-            mock_optuna.create_study.return_value = mock_study
-            mock_study.best_trial = mock_trial
-            mock_study.best_trial.value = 0.95
-            mock_study.best_trial.params = {"n_estimators": 100}
-            mock_study.trials = [mock_trial]
+    @pytest.fixture
+    def mock_factory_provider(self):
+        """Factory provider mock - 의존성 주입 패턴 테스트"""
+        def provider():
+            factory = Mock()
             
-            # Mock 컴포넌트
-            mock_model = Mock()
-            mock_preprocessor = Mock()
-            mock_augmenter = Mock()
+            # Mock 모델 생성
+            model = Mock(spec=RandomForestClassifier)
+            model.fit = Mock()
+            model.predict = Mock(return_value=np.array([0, 1, 0, 1]))
+            model.predict_proba = Mock(return_value=np.array([[0.8, 0.2], [0.3, 0.7], [0.9, 0.1], [0.2, 0.8]]))
+            model.set_params = Mock()
+            factory.create_model.return_value = model
             
-            mock_augmenter.augment.return_value = pd.DataFrame({'f1': [0.1, 0.2], 'approved': [1, 0]})
-            mock_preprocessor.fit.return_value = mock_preprocessor
-            mock_preprocessor.transform.return_value = pd.DataFrame({'f1': [0.1, 0.2]})
+            # Mock 전처리기 생성
+            preprocessor = Mock(spec=BasePreprocessor)
+            preprocessor.fit = Mock()
+            preprocessor.transform = Mock(side_effect=lambda x: x)  # 패스스루
+            factory.create_preprocessor.return_value = preprocessor
             
-            df = pd.DataFrame({
-                'user_id': ['u1', 'u2', 'u3', 'u4'],
-                'approved': [1, 0, 1, 0]
+            # Mock 평가기 생성
+            evaluator = Mock(spec=BaseEvaluator)
+            evaluator.evaluate = Mock(return_value={
+                'accuracy': 0.85,
+                'precision_weighted': 0.84,
+                'recall_weighted': 0.85,
+                'f1_weighted': 0.84
             })
-
-            trained_preprocessor, trained_model, training_results = trainer.train(
-                df=df,
-                model=mock_model,
-                augmenter=mock_augmenter,
-                preprocessor=mock_preprocessor,
-            )
-
-            # Optuna Study가 생성되었는지 검증
-            mock_optuna.create_study.assert_called_once()
+            factory.create_evaluator.return_value = evaluator
             
-            # HPO 결과가 training_results에 포함되었는지 검증
-            assert 'hyperparameter_optimization' in training_results
-            hpo_data = training_results['hyperparameter_optimization']
-            assert hpo_data['enabled'] == True
-            assert 'best_params' in hpo_data
-            assert 'best_score' in hpo_data
+            return factory
+        return provider
 
-    # 🆕 Blueprint v17.0: HPO와 Data Leakage 방지 조합 검증
-    @patch('src.core.trainer.mlflow')
-    @patch('src.core.trainer.train_test_split')
-    def test_trainer_hpo_with_data_leakage_prevention(self, mock_split, mock_mlflow, dev_test_settings: Settings):
-        """
-        HPO 과정에서도 Data Leakage 방지가 올바르게 작동하는지 검증한다.
-        각 trial마다 독립적인 train/validation split이 수행되어야 함.
-        """
-        # HPO 활성화된 설정
-        settings_with_hpo = dev_test_settings.model_copy(deep=True)
-        if not hasattr(settings_with_hpo.model, 'hyperparameter_tuning') or \
-           settings_with_hpo.model.hyperparameter_tuning is None:
-            from src.settings.models import HyperparameterTuningSettings
-            settings_with_hpo.model.hyperparameter_tuning = HyperparameterTuningSettings(
-                enabled=True,
-                n_trials=3,  # 적은 수로 테스트
-                metric="accuracy",
-                direction="maximize"
-            )
-        else:
-            settings_with_hpo.model.hyperparameter_tuning.enabled = True
-            settings_with_hpo.model.hyperparameter_tuning.n_trials = 3
-
-        trainer = Trainer(settings=settings_with_hpo)
-
-        # train_test_split Mock 설정
-        train_df = pd.DataFrame({'user_id': ['u1', 'u2'], 'approved': [1, 0]})
-        val_df = pd.DataFrame({'user_id': ['u3', 'u4'], 'approved': [1, 0]})
-        mock_split.return_value = (train_df, val_df)
-
-        with patch('src.core.trainer.optuna') as mock_optuna:
-            # Optuna Mock 설정
-            mock_study = Mock()
-            mock_trial = Mock()
-            mock_trial.number = 1
-            mock_trial.suggest_int.return_value = 100
-            mock_trial.suggest_float.return_value = 0.1
-            mock_optuna.create_study.return_value = mock_study
-            mock_study.optimize.side_effect = lambda objective, n_trials: [objective(mock_trial) for _ in range(n_trials)]
-            mock_study.best_trial = mock_trial
-            mock_study.best_trial.value = 0.95
-            mock_study.best_trial.params = {"n_estimators": 100}
-
-            # Mock 컴포넌트
-            mock_model = Mock()
-            mock_preprocessor = Mock()
-            mock_augmenter = Mock()
-            
-            mock_augmenter.augment.return_value = pd.DataFrame({'f1': [0.1, 0.2], 'approved': [1, 0]})
-            mock_preprocessor.fit.return_value = mock_preprocessor
-            mock_preprocessor.transform.return_value = pd.DataFrame({'f1': [0.1, 0.2]})
-            
-            df = pd.DataFrame({
-                'user_id': ['u1', 'u2', 'u3', 'u4'],
-                'approved': [1, 0, 1, 0]
-            })
-
-            trainer.train(
-                df=df,
-                model=mock_model,
-                augmenter=mock_augmenter,
-                preprocessor=mock_preprocessor,
-            )
-
-            # train_test_split이 호출되었는지 확인 (HPO든 일반이든 data split은 필수)
-            assert mock_split.call_count >= 1
-            
-            # Preprocessor가 fit 호출되었는지 확인 (Data Leakage 방지)
-            assert mock_preprocessor.fit.call_count >= 1
-
-    # 🆕 Blueprint v17.0: training_results 메타데이터 완성도 검증
-    @patch('src.core.trainer.mlflow')
-    def test_trainer_training_results_metadata_completeness(self, mock_mlflow, local_test_settings: Settings):
-        """
-        training_results에 모든 필요한 메타데이터가 포함되는지 검증한다.
-        """
-        trainer = Trainer(settings=local_test_settings)
+    @pytest.fixture
+    def sample_training_data(self):
+        """테스트용 학습 데이터 생성 - 결정론적 시드 사용"""
+        np.random.seed(42)
+        n_samples = 100
         
-        # Mock 컴포넌트
-        mock_model = Mock()
-        mock_preprocessor = Mock()
-        mock_augmenter = PassThroughAugmenter(settings=local_test_settings)
-        
-        mock_preprocessor.fit.return_value = mock_preprocessor
-        mock_preprocessor.transform.return_value = pd.DataFrame({'f1': [0.1, 0.2]})
-        
-        df = pd.DataFrame({
-            'user_id': ['u1', 'u2', 'u3', 'u4'],
-            'approved': [1, 0, 1, 0]
+        return pd.DataFrame({
+            'user_id': range(n_samples),
+            'event_timestamp': pd.date_range('2024-01-01', periods=n_samples, freq='h'),
+            'feature_1': np.random.normal(0, 1, n_samples),
+            'feature_2': np.random.normal(2, 1.5, n_samples),
+            'feature_3': np.random.randint(0, 5, n_samples),
+            'approved': np.random.choice([0, 1], n_samples, p=[0.6, 0.4])  # 불균형 데이터
         })
 
-        trained_preprocessor, trained_model, training_results = trainer.train(
-            df=df,
-            model=mock_model,
-            augmenter=mock_augmenter,
-            preprocessor=mock_preprocessor,
-        )
+    @pytest.fixture
+    def mock_components(self):
+        """모든 컴포넌트 Mock 객체"""
+        augmenter = Mock(spec=BaseAugmenter)
+        augmenter.augment = Mock(side_effect=lambda df, **kwargs: df)  # 패스스루
+        
+        preprocessor = Mock(spec=BasePreprocessor)
+        preprocessor.fit = Mock()
+        preprocessor.transform = Mock(side_effect=lambda x: x)
+        
+        evaluator = Mock(spec=BaseEvaluator)
+        evaluator.evaluate = Mock(return_value={
+            'accuracy': 0.85,
+            'precision_weighted': 0.84,
+            'recall_weighted': 0.85,
+            'f1_weighted': 0.84
+        })
+        
+        model = Mock(spec=RandomForestClassifier)
+        model.fit = Mock()
+        
+        return {
+            'augmenter': augmenter,
+            'preprocessor': preprocessor, 
+            'evaluator': evaluator,
+            'model': model
+        }
 
+    def test_trainer_initialization_follows_blueprint_principles(self, classification_settings, mock_factory_provider):
+        """Trainer 초기화가 Blueprint 원칙을 따르는지 검증"""
+        # Given: Settings와 Factory Provider가 주어졌을 때
+        trainer = Trainer(settings=classification_settings, factory_provider=mock_factory_provider)
+        
+        # Then: Blueprint 원칙에 맞는 초기화
+        assert trainer is not None
+        assert trainer.settings == classification_settings  # 원칙 1: 설정 기반 동작
+        assert trainer.factory_provider == mock_factory_provider  # 원칙 4: 의존성 주입
+        assert trainer.training_results == {}  # 초기 상태
+        
+    def test_trainer_factory_dependency_injection(self, classification_settings):
+        """Factory 의존성 주입 패턴 검증 - Blueprint 원칙 4"""
+        # Given: Factory provider 없이 초기화
+        trainer = Trainer(settings=classification_settings, factory_provider=None)
+        
+        # When: Factory가 필요한 작업 수행 시도
+        # Then: 명확한 에러 메시지와 함께 실패
+        with pytest.raises(RuntimeError, match="Factory provider가 주입되지 않았습니다"):
+            trainer._get_factory()
+
+    def test_trainer_train_method_blueprint_contract(self, classification_settings, mock_factory_provider, sample_training_data, mock_components):
+        """Trainer.train() 메서드가 Blueprint 계약을 준수하는지 검증"""
+        # Given: 모든 필수 컴포넌트가 준비됨
+        trainer = Trainer(settings=classification_settings, factory_provider=mock_factory_provider)
+        
+        # When: 학습 수행
+        trained_model, fitted_preprocessor, metrics, training_results = trainer.train(
+            df=sample_training_data,
+            model=mock_components['model'],
+            augmenter=mock_components['augmenter'],
+            preprocessor=mock_components['preprocessor'],
+            evaluator=mock_components['evaluator']
+        )
+        
+        # Then: Blueprint 계약 준수
+        assert trained_model is not None  # 학습된 모델 반환
+        assert fitted_preprocessor is not None  # 피팅된 전처리기 반환
+        assert isinstance(metrics, dict)  # 평가 지표 반환
+        assert isinstance(training_results, dict)  # 학습 결과 메타데이터 반환
+        
         # 필수 메타데이터 존재 검증
-        required_keys = ['metrics', 'training_methodology']
-        for key in required_keys:
-            assert key in training_results, f"training_results에 '{key}' 메타데이터가 누락되었습니다."
-        
-        # training_methodology의 Data Leakage 방지 메타데이터 검증
-        tm_data = training_results['training_methodology']
-        assert 'preprocessing_fit_scope' in tm_data
-        assert tm_data['preprocessing_fit_scope'] == 'train_only'
-        
-        # metrics 데이터 타입 검증
-        assert isinstance(training_results['metrics'], dict)
+        assert 'evaluation_metrics' in training_results
+        assert 'training_methodology' in training_results
+        assert 'hyperparameter_optimization' in training_results
 
-    # 🆕 Blueprint v17.0: 에러 처리 테스트
-    def test_trainer_handles_invalid_model_gracefully(self, local_test_settings: Settings):
-        """
-        잘못된 모델이 주입된 경우 적절히 처리하는지 검증한다.
-        """
-        trainer = Trainer(settings=local_test_settings)
+    def test_trainer_hyperparameter_tuning_disabled_behavior(self, classification_settings, mock_factory_provider, sample_training_data, mock_components):
+        """하이퍼파라미터 튜닝 비활성화 시 동작 검증 - Blueprint 원칙 2 (환경별 제약)"""
+        # Given: 하이퍼파라미터 튜닝이 비활성화된 설정
+        trainer = Trainer(settings=classification_settings, factory_provider=mock_factory_provider)
         
-        # 잘못된 모델 (fit 메서드가 없는 객체)
-        invalid_model = "This is not a model"
+        # When: 학습 수행
+        _, _, _, training_results = trainer.train(
+            df=sample_training_data,
+            model=mock_components['model'],
+            augmenter=mock_components['augmenter'], 
+            preprocessor=mock_components['preprocessor'],
+            evaluator=mock_components['evaluator']
+        )
         
-        mock_preprocessor = Mock()
-        mock_augmenter = PassThroughAugmenter(settings=local_test_settings)
-        
-        df = pd.DataFrame({
-            'user_id': ['u1', 'u2'],
-            'approved': [1, 0]
-        })
+        # Then: 하이퍼파라미터 튜닝이 건너뛰어짐
+        assert training_results['hyperparameter_optimization']['enabled'] is False
+        mock_components['model'].fit.assert_called_once()  # 직접 학습 호출 확인
 
-        # 적절한 오류가 발생하는지 검증
-        with pytest.raises(AttributeError):
-            trainer.train(
-                df=df,
-                model=invalid_model,
-                augmenter=mock_augmenter,
-                preprocessor=mock_preprocessor,
-            ) 
+    def test_trainer_data_split_methodology(self, classification_settings, mock_factory_provider, sample_training_data, mock_components):
+        """데이터 분할 방법론 검증 - Blueprint 일관성 원칙"""
+        # Given: 충분한 크기의 데이터셋
+        trainer = Trainer(settings=classification_settings, factory_provider=mock_factory_provider)
+        
+        # When: 학습 수행
+        with patch('src.components._trainer._trainer.split_data') as mock_split:
+            # 80:20 분할 시뮬레이션
+            train_size = int(len(sample_training_data) * 0.8)
+            mock_split.return_value = (
+                sample_training_data.iloc[:train_size],
+                sample_training_data.iloc[train_size:]
+            )
+            
+            _, _, _, training_results = trainer.train(
+                df=sample_training_data,
+                model=mock_components['model'],
+                augmenter=mock_components['augmenter'],
+                preprocessor=mock_components['preprocessor'],
+                evaluator=mock_components['evaluator']
+            )
+        
+        # Then: 분할 방법론 메타데이터 기록
+        methodology = training_results['training_methodology']
+        assert methodology['train_test_split_method'] == 'stratified'
+        assert methodology['train_ratio'] == 0.8
+        assert methodology['preprocessing_fit_scope'] == 'train_only'
+
+    def test_trainer_error_handling_invalid_model(self, classification_settings, mock_factory_provider, sample_training_data, mock_components):
+        """잘못된 모델 객체에 대한 에러 처리 검증"""
+        # Given: 잘못된 모델 객체
+        invalid_model = "not_a_model"  # 문자열은 fit 메서드가 없음
+        trainer = Trainer(settings=classification_settings, factory_provider=mock_factory_provider)
+        
+        # When & Then: 명확한 에러 메시지와 함께 실패
+        with pytest.raises(TypeError, match="BaseModel 인터페이스를 따르거나 scikit-learn 호환 모델이어야 합니다"):
+            trainer._fit_model(invalid_model, None, None, None)
+
+    def test_trainer_task_type_specific_training(self, classification_settings, mock_factory_provider):
+        """Task type별 모델 학습 방식 검증"""
+        trainer = Trainer(settings=classification_settings, factory_provider=mock_factory_provider)
+        
+        # Mock 데이터
+        X, y = pd.DataFrame({'feature': [1, 2, 3]}), pd.Series([0, 1, 0])
+        additional_data = {'treatment': pd.Series([1, 0, 1])}
+        
+        # Classification 모델 테스트
+        clf_model = Mock()
+        clf_model.fit = Mock()
+        trainer._fit_model(clf_model, X, y, additional_data)
+        clf_model.fit.assert_called_once_with(X, y)
+        
+        # Clustering 모델 테스트 (y 불필요)
+        cluster_model = Mock()
+        cluster_model.fit = Mock()
+        # 클러스터링용 설정으로 일시 변경
+        original_task = classification_settings.recipe.model.data_interface.task_type
+        classification_settings.recipe.model.data_interface.task_type = "clustering"
+        trainer._fit_model(cluster_model, X, y, additional_data)
+        cluster_model.fit.assert_called_once_with(X)
+        # 원복
+        classification_settings.recipe.model.data_interface.task_type = original_task

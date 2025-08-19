@@ -6,7 +6,6 @@ from src.interface.base_adapter import BaseAdapter
 from src.utils.system.logger import logger
 from pathlib import Path
 from src.settings import Settings
-from src.engine import AdapterRegistry
 from src.utils.system.sql_utils import prevent_select_star
 
 if TYPE_CHECKING:
@@ -102,5 +101,3 @@ class SqlAdapter(BaseAdapter):
         except Exception as e:
             logger.error(f"SQL write 작업 실패: {e}", exc_info=True)
             raise 
-
-AdapterRegistry.register("sql", SqlAdapter) 

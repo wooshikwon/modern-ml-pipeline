@@ -24,7 +24,7 @@ def setup_mlflow(settings: "Settings") -> None:
     mlflow.set_tracking_uri(settings.mlflow.tracking_uri)
     mlflow.set_experiment(settings.mlflow.experiment_name)
     
-    logger.info(f"MLflow 설정 완료:")
+    logger.info("MLflow 설정 완료:")
     logger.info(f"  - Tracking URI: {settings.mlflow.tracking_uri}")
     logger.info(f"  - Experiment: {settings.mlflow.experiment_name}")
     logger.info(f"  - Environment: {settings.environment.app_env}")
@@ -188,10 +188,10 @@ def create_model_signature(input_df: pd.DataFrame, output_df: pd.DataFrame, para
             params=params_schema
         )
         
-        logger.info(f"ModelSignature 생성 완료:")
+        logger.info("ModelSignature 생성 완료:")
         logger.info(f"  - 입력 컬럼: {len(input_schema.inputs)}개")
         logger.info(f"  - 출력 컬럼: {len(output_schema.inputs)}개")
-        logger.info(f"  - 파라미터: run_mode, return_intermediate")
+        logger.info("  - 파라미터: run_mode, return_intermediate")
         
         return signature
         
@@ -302,10 +302,10 @@ def create_enhanced_model_signature_with_schema(
         'reproduction_guaranteed': True
     })
     
-    logger.info(f"✅ Enhanced Model Signature + 완전한 스키마 메타데이터 생성 완료")
+    logger.info("✅ Enhanced Model Signature + 완전한 스키마 메타데이터 생성 완료")
     logger.info(f"   - 스키마 버전: {data_schema['schema_version']}")
     logger.info(f"   - Inference 컬럼: {len(data_schema['inference_columns'])}개")
-    logger.info(f"   - Phase 1-5 통합: 모든 혁신 기능 포함")
+    logger.info("   - Phase 1-5 통합: 모든 혁신 기능 포함")
     
     return signature, data_schema
 
