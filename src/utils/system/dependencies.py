@@ -22,9 +22,8 @@ def validate_dependencies(settings: Settings) -> None:
     # Adapter-based requirements
     try:
         adapter = settings.recipe.model.loader.adapter
-        source_uri = settings.recipe.model.loader.source_uri
     except Exception:
-        adapter, source_uri = None, ""
+        adapter = None
 
     if adapter == "storage":
         if _requires_pyarrow(settings):

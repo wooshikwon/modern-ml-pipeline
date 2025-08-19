@@ -22,6 +22,7 @@ class TestFactoryBlueprintCompliance:
             recipe_file="tests/fixtures/recipes/local_classification_test.yaml"
         )
 
+    @pytest.mark.blueprint_principle_1
     def test_factory_initialization_with_settings(self, mock_settings):
         """Factory 초기화 - Settings 객체 주입 (BLUEPRINT 원칙 1)"""
         factory = Factory(mock_settings)
@@ -31,6 +32,8 @@ class TestFactoryBlueprintCompliance:
         # BLUEPRINT: Settings를 단일 진실 공급원으로 사용
         assert hasattr(factory, 'model_config')
 
+    @pytest.mark.blueprint_principle_3
+    @pytest.mark.blueprint_principle_4
     def test_factory_dynamic_component_creation_interface(self, mock_settings):
         """Factory 동적 컴포넌트 생성 인터페이스 검증 (BLUEPRINT 원칙 3, 4)"""
         factory = Factory(mock_settings)
@@ -48,6 +51,7 @@ class TestFactoryBlueprintCompliance:
             assert hasattr(factory, method_name), f"Factory missing {method_name} method"
             assert callable(getattr(factory, method_name)), f"{method_name} is not callable"
 
+    @pytest.mark.blueprint_principle_1
     def test_factory_model_config_property(self, mock_settings):
         """Factory model_config 프로퍼티 - 레시피 논리 접근 (BLUEPRINT 원칙 1)"""
         factory = Factory(mock_settings)
@@ -93,6 +97,7 @@ class TestFactoryBlueprintCompliance:
             with pytest.raises((ImportError, AttributeError, ValueError)):
                 factory.create_model()
 
+    @pytest.mark.blueprint_principle_4
     @pytest.mark.blueprint_principle_4
     def test_factory_extensibility_through_registry(self, mock_settings):
         """Factory 확장성 - Registry 패턴 (BLUEPRINT 원칙 4)"""

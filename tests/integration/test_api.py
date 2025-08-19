@@ -79,7 +79,7 @@ class TestServingAPIBlueprintCompliance:
         # 환경별로 서빙 정책이 다름 (Local=False, DEV/PROD=True)
         env_type = mock_settings.environment.app_env
         if env_type == 'local':
-            assert mock_settings.serving.enabled == False
+            assert not mock_settings.serving.enabled
         elif env_type in ['dev', 'prod']:
             # DEV/PROD에서는 serving이 활성화될 수 있음
             assert isinstance(mock_settings.serving.enabled, bool)

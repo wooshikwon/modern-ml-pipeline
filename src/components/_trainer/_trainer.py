@@ -120,10 +120,14 @@ class Trainer(BaseTrainer):
                  raise TypeError("전달된 모델 객체는 BaseModel 인터페이스를 따르거나 scikit-learn 호환 모델이어야 합니다.")
         
         task_type = self.settings.recipe.model.data_interface.task_type
-        if task_type in ["classification", "regression"]: model.fit(X, y)
-        elif task_type == "clustering": model.fit(X)
-        elif task_type == "causal": model.fit(X, additional_data['treatment'], y)
-        else: raise ValueError(f"지원하지 않는 task_type: {task_type}")
+        if task_type in ["classification", "regression"]:
+            model.fit(X, y)
+        elif task_type == "clustering":
+            model.fit(X)
+        elif task_type == "causal":
+            model.fit(X, additional_data['treatment'], y)
+        else:
+            raise ValueError(f"지원하지 않는 task_type: {task_type}")
 
     def _get_training_methodology(self):
         return {

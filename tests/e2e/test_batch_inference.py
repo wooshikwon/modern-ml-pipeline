@@ -50,7 +50,7 @@ def test_inference_pipeline_saves_pred_file_with_expected_name(
     inference_run_id = inference_run.info.run_id
 
     # 예측 결과 파일 저장 규칙 검증: preds_{inference_run_id}.parquet
-    pred_dir = Path("./local/artifacts")
+    Path("./local/artifacts")
     # 저장은 settings.artifact_stores['prediction_results'].base_uri를 따름
     # 기본 경로를 settings에서 읽어와 절대경로로 확인
     base_uri = local_test_settings.artifact_stores['prediction_results'].base_uri

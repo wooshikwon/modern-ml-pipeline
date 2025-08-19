@@ -107,7 +107,6 @@ class TestMMP3LayerArchitectureCompatibility:
         # Settings의 선언적 정보가 실제 객체로 조립되는지 확인
         
         # 1. 모델 클래스 경로 → 실제 모델 객체
-        model_config = factory.model_config
         model = factory.create_model()
         assert model is not None, "선언적 모델 구성이 실제 객체로 변환되지 않음"
         

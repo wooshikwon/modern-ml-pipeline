@@ -18,9 +18,9 @@ import mlflow
 import shutil
 
 from src.engine.factory import Factory
-from src.components.augmenter import Augmenter
+from src.components._augmenter._augmenter import FeatureStoreAugmenter as Augmenter
 from src.pipelines.train_pipeline import run_training
-from serving.api import app, setup_api_context
+from src.serving.router import app, setup_api_context
 
 # DEV 환경 통합 테스트임을 명시
 pytestmark = [

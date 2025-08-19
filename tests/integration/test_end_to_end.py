@@ -101,11 +101,11 @@ class TestEndToEndIntegration:
         
         with patch.object(augmenter, '_augment_batch') as mock_batch:
             mock_batch.return_value = sample_data
-            result_batch = augmenter.augment(sample_data, run_mode="batch")
+            augmenter.augment(sample_data, run_mode="batch")
             
         with patch.object(augmenter, '_augment_realtime') as mock_realtime:
             mock_realtime.return_value = sample_data
-            result_realtime = augmenter.augment(
+            augmenter.augment(
                 sample_data, 
                 run_mode="realtime",
                 feature_store_config={}
@@ -122,7 +122,6 @@ class TestEndToEndIntegration:
         
         # 모델의 loader SQL을 기반으로 API 스키마가 생성되는지 확인
         # (실제 구현에서는 SQL 파싱을 통해 PK 추출)
-        mock_sql = "SELECT member_id, feature1, feature2 FROM table"
         
         with patch('src.utils.sql_utils.get_selected_columns') as mock_get_columns:
             mock_get_columns.return_value = ['member_id']
@@ -297,7 +296,7 @@ class TestEndToEndIntegration:
         
         # 3. 설정 파일 누락 시 처리
         try:
-            invalid_settings = load_settings("non_existent_model")
+            load_settings("non_existent_model")
             assert False, "Should have raised an exception"
         except Exception as e:
             # 적절한 오류 메시지 확인
@@ -405,7 +404,6 @@ def test_blueprint_v13_complete_workflow():
     train → batch-inference → serve-api 전체 플로우 검증
     """
     # 1. 학습 워크플로우 시뮬레이션
-    recipe_file = "test_experiment"
     
     # Mock settings 생성 (class_path 기반)
     with patch('src.settings.loaders.load_settings_by_file') as mock_load_settings:  # 🔄 수정: settings → loaders
@@ -472,7 +470,7 @@ def test_blueprint_v13_batch_inference_complete():
                 mock_wrapper.predict.assert_called_once()
                 call_args = mock_wrapper.predict.call_args
                 assert call_args[1]["params"]["run_mode"] == "batch"
-                assert call_args[1]["params"]["return_intermediate"] == True
+                assert call_args[1]["params"]["return_intermediate"]
                 
                 # 중간 산출물들이 모두 저장되었는지 확인
                 assert mock_save.call_count == 3  # augmented, preprocessed, final
@@ -505,7 +503,7 @@ def test_blueprint_v13_api_serving_dynamic_schema():
                     from serving.api import create_app
                     
                     # API 앱 생성
-                    app = create_app(run_id)
+                    create_app(run_id)
                     
                     # 올바른 run_id로 모델이 로드되었는지 확인
                     import mlflow.pyfunc

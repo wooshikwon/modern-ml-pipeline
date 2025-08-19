@@ -1,0 +1,151 @@
+name: "MMP Test Pipeline"
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  lint:
+    name: "📋 Code Quality & Architecture"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: |
+          uv sync --dev
+
+      - name: Run Ruff linting
+        run: |
+          uv run ruff check --output-format=github .
+
+      - name: Run import linter (Architecture validation)
+        run: |
+          uv run lint-imports
+
+  unit-tests:
+    name: "🧪 Unit Tests"
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: |
+          uv sync --dev
+
+      - name: Run unit tests
+        run: |
+          uv run pytest -m "unit and not requires_dev_stack" \
+            --tb=short \
+            --disable-warnings \
+            --maxfail=5 \
+            -v
+
+  integration-tests-basic:
+    name: "🔗 Integration Tests (No DEV Stack)"
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: |
+          uv sync --dev
+
+      - name: Run integration tests (basic)
+        run: |
+          uv run pytest -m "integration and not requires_dev_stack" \
+            --tb=short \
+            --disable-warnings \
+            --maxfail=3 \
+            -v
+
+  blueprint-validation:
+    name: "📐 Blueprint Principles Validation"
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: |
+          uv sync --dev
+
+      - name: Validate Blueprint Principle 1 (Recipe-Config Separation)
+        run: |
+          uv run pytest -m "blueprint_principle_1" --tb=short -v
+
+      - name: Validate Blueprint Principle 3 (Declarative Pipeline)
+        run: |
+          uv run pytest -m "blueprint_principle_3" --tb=short -v
+
+      - name: Validate Blueprint Principle 4 (Modularity & Extensibility)
+        run: |
+          uv run pytest -m "blueprint_principle_4" --tb=short -v
+
+  test-summary:
+    name: "📊 Test Summary"
+    runs-on: ubuntu-latest
+    needs: [lint, unit-tests, integration-tests-basic, blueprint-validation]
+    if: always()
+    steps:
+      - name: Test Results Summary
+        run: |
+          echo "## 🎯 Test Pipeline Results" >> $GITHUB_STEP_SUMMARY
+          echo "| Stage | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Code Quality & Architecture | ${{ needs.lint.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Unit Tests | ${{ needs.unit-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Integration Tests (Basic) | ${{ needs.integration-tests-basic.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Blueprint Validation | ${{ needs.blueprint-validation.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔍 Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "- For DEV stack tests: Run manually triggered workflow" >> $GITHUB_STEP_SUMMARY
+          echo "- For E2E tests: Use local development environment" >> $GITHUB_STEP_SUMMARY
