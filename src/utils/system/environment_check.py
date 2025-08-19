@@ -15,7 +15,7 @@ import sys
 import os
 import platform
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional
+from typing import List, Tuple
 
 from src.utils.system.logger import logger
 
@@ -216,7 +216,6 @@ if __name__ == "__main__":
 """
 import subprocess
 from typing import List
-from src.utils.system.logger import logger
 
 def get_pip_requirements() -> List[str]:
     """

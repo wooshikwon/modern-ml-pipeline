@@ -12,7 +12,7 @@ import importlib
 from jinja2 import Template
 from datetime import datetime
 
-from src.settings import Settings, load_settings_by_file, create_settings_for_inference, load_config_files
+from src.settings import load_settings_by_file, create_settings_for_inference, load_config_files
 from src.pipelines import run_training, run_batch_inference
 from src.serving import run_api_server
 from src.utils.system.logger import setup_logging, logger
@@ -185,9 +185,9 @@ def validate(
     typer.echo(f"'{recipe_file}' 설정 파일 검증을 시작합니다...")
     try:
         load_settings_by_file(recipe_file)
-        typer.secho(f"✅ 성공: 모든 설정 파일이 유효합니다.", fg=typer.colors.GREEN)
+        typer.secho("✅ 성공: 모든 설정 파일이 유효합니다.", fg=typer.colors.GREEN)
     except Exception as e:
-        typer.secho(f"❌ 오류: 설정 파일 검증에 실패했습니다.", fg=typer.colors.RED)
+        typer.secho("❌ 오류: 설정 파일 검증에 실패했습니다.", fg=typer.colors.RED)
         typer.echo(e)
         raise typer.Exit(code=1)
 

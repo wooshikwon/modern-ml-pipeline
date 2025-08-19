@@ -14,7 +14,6 @@ import time
 import os
 from unittest.mock import patch
 from src.core.factory import Factory
-from src.settings import load_settings_by_file
 from src.pipelines.train_pipeline import run_training
 from src.pipelines.inference_pipeline import run_batch_inference
 
@@ -132,7 +131,6 @@ class TestRealInfrastructureIntegration:
     def test_mlflow_real_connection(self):
         """MLflow 실제 연결 및 모델 저장/로드 테스트"""
         import mlflow
-        import tempfile
         from unittest.mock import MagicMock
         
         # MLflow 설정

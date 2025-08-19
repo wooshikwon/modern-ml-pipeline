@@ -1,9 +1,7 @@
 import pytest
 import os
 from pathlib import Path
-from unittest.mock import MagicMock
 import socket
-import pandas as pd
 
 from src.settings import Settings, load_settings_by_file
 from src.utils.system.logger import setup_logging

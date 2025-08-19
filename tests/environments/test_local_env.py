@@ -1,7 +1,6 @@
-"""
-LOCAL 환경 차등 기능 검증 테스트
+"""LOCAL 환경 차등 기능 검증 테스트 - BLUEPRINT 철학 기반
 
-Blueprint 원칙 9: 환경별 차등적 기능 분리
+Blueprint 원칙 2: 환경별 역할 분담
 "제약은 단순함을 낳고, 단순함은 집중을 낳는다"
 
 LOCAL 환경의 철학:
@@ -13,62 +12,118 @@ LOCAL 환경의 철학:
 """
 
 import pytest
-import typer
-from typer.testing import CliRunner
+import pandas as pd
 
-from src.core.factory import Factory
-from src.core.augmenter import PassThroughAugmenter
-from src.settings import Settings
-from main import app  # CLI app import
+from src.engine.factory import Factory
+from src.components._augmenter import PassThroughAugmenter
+from src.settings.loaders import load_settings_by_file
 
-runner = CliRunner()
-
-pytest.skip("Deprecated/outdated test module pending Stage 6 test overhaul (env & CLI paths updated).", allow_module_level=True)
 
 @pytest.mark.local_env
-class TestLocalEnvironment:
-    """
-    LOCAL 환경의 의도적 제약 기능들을 검증하는 통합 테스트.
-    Blueprint 원칙 9: "제약은 단순함을 낳고, 단순함은 집중을 낳는다"
-    """
+class TestLocalEnvironmentBlueprintCompliance:
+    """Local 환경의 BLUEPRINT 철학 준수 검증"""
 
-    def test_local_env_uses_passthrough_augmenter(self, local_test_settings: Settings):
-        """
-        LOCAL 환경에서는 Feature Store를 사용하지 않는
-        PassThroughAugmenter가 생성되는지 검증한다.
-        """
-        factory = Factory(local_test_settings)
+    @pytest.fixture
+    def local_settings(self):
+        """Local 환경 Settings - BLUEPRINT 원칙 2 검증용"""
+        return load_settings_by_file(
+            recipe_file="tests/fixtures/recipes/local_classification_test.yaml"
+        )
+
+    def test_local_environment_settings_loaded(self, local_settings):
+        """Local 환경 설정 로딩 - BLUEPRINT 원칙 1 (설정-논리 분리)"""
+        assert local_settings is not None
+        # BLUEPRINT: Settings 객체가 제대로 로드되어야 함
+        assert hasattr(local_settings, 'environment')
+        assert hasattr(local_settings, 'feature_store')
+        assert hasattr(local_settings, 'recipe')
+
+    def test_local_environment_factory_creates_passthrough_augmenter(self, local_settings):
+        """Local 환경에서 PassThrough Augmenter 생성 - BLUEPRINT 원칙 2"""
+        factory = Factory(local_settings)
+        
+        # BLUEPRINT 원칙 2: Local 환경에서는 PassThroughAugmenter 사용
         augmenter = factory.create_augmenter()
         
-        assert isinstance(augmenter, PassThroughAugmenter), \
-            "LOCAL 환경에서 PassThroughAugmenter가 사용되지 않았습니다."
+        assert augmenter is not None
+        # Local 환경에서는 PassThroughAugmenter가 생성되어야 함
+        assert isinstance(augmenter, PassThroughAugmenter)
 
-    def test_local_env_api_serving_is_blocked(self):
-        """
-        LOCAL 환경에서 `serve-api` CLI 명령어가 시스템적으로 차단되는지 검증한다.
-        """
-        result = runner.invoke(app, ["serve-api", "--run-id", "test-run"])
+    def test_local_environment_feature_store_configuration(self, local_settings):
+        """Local 환경 Feature Store 설정 - BLUEPRINT 원칙 2"""
+        # BLUEPRINT: Settings에 feature_store 설정이 있어야 함
+        assert hasattr(local_settings, 'feature_store')
+        assert hasattr(local_settings.feature_store, 'provider')
         
-        # typer.Exit(code=1)이 호출되었는지 확인
-        assert result.exit_code == 1
-        # 에러 메시지가 올바르게 출력되는지 확인
-        assert "API Serving이 현재 환경에서 비활성화되어 있습니다." in result.stdout
-        assert "현재 환경: local" in result.stdout
+        # 환경별로 설정이 다름 - 실제 recipe에서는 'pass_through' augmenter 사용
+        # Feature store provider는 환경에 따라 설정되지만, 
+        # Local recipe는 pass_through augmenter를 사용하므로 실질적으로 비활성화됨
 
-    def test_local_env_loads_correct_configs(self, local_test_settings: Settings):
-        """
-        LOCAL 환경에서 local.yaml 또는 base.yaml의 설정값들이
-        올바르게 로드되었는지 검증한다.
-        """
-        # HPO 비활성화 여부 검증 (base.yaml 기본값)
-        assert local_test_settings.hyperparameter_tuning.enabled is False, \
-            "LOCAL 환경에서 하이퍼파라미터 튜닝이 활성화되어 있습니다."
-            
-        # MLflow 실험 이름 검증 (base.yaml 기본값)
-        assert "Campaign-Uplift-Modeling" in local_test_settings.mlflow.experiment_name, \
-            "LOCAL 환경의 MLflow 실험 이름이 올바르지 않습니다."
-            
-        # 데이터 어댑터 설정 검증 (base.yaml 기본값)
-        adapter_name = local_test_settings.data_adapters.default_loader
-        assert adapter_name == "filesystem", \
-            "LOCAL 환경의 기본 로더가 'filesystem'이 아닙니다." 
+    def test_local_environment_serving_configuration(self, local_settings):
+        """Local 환경 서빙 설정 - BLUEPRINT 원칙 2"""  
+        # BLUEPRINT: Settings에 serving 설정이 있어야 함
+        assert hasattr(local_settings, 'serving')
+        assert hasattr(local_settings.serving, 'enabled')
+        
+        # Recipe 레벨에서 pass_through augmenter 사용으로 serving 제약
+        # 실제 serving은 augmenter 타입에 따라 차단됨 (PassThroughAugmenter 시 503 정책)
+
+    @pytest.mark.unit
+    def test_local_environment_augmenter_passthrough_behavior(self, local_settings):
+        """Local 환경 Augmenter PassThrough 동작 - BLUEPRINT 데이터 계약"""
+        augmenter = PassThroughAugmenter()
+        
+        # BLUEPRINT 데이터 계약: entity + timestamp 입력
+        sample_data = pd.DataFrame({
+            'user_id': ['u1', 'u2'],
+            'event_ts': pd.to_datetime(['2024-01-01', '2024-01-02']),
+            'label': [1, 0]
+        })
+        
+        result = augmenter.augment(sample_data, run_mode="train")
+        
+        # BLUEPRINT: PassThrough는 입력과 동일한 출력
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == len(sample_data)
+        pd.testing.assert_frame_equal(result, sample_data)
+
+    @pytest.mark.blueprint_principle_2
+    def test_local_environment_constraints_enable_focus(self, local_settings):
+        """Local 환경 제약이 핵심 로직 집중을 가능하게 함 - BLUEPRINT 철학"""
+        factory = Factory(local_settings)
+        
+        # BLUEPRINT 철학: 제약을 통한 단순함
+        # Local에서는 복잡한 인프라 없이 핵심 로직에만 집중
+        
+        # 1. 전처리기는 정상 생성
+        preprocessor = factory.create_preprocessor()
+        assert preprocessor is not None
+        
+        # 2. Augmenter는 PassThrough (단순함)
+        augmenter = factory.create_augmenter()
+        assert isinstance(augmenter, PassThroughAugmenter)
+        
+        # 3. 모델 생성도 정상 작동 (핵심 로직)
+        model = factory.create_model()
+        assert model is not None
+
+    def test_local_environment_fast_experimentation_ready(self, local_settings):
+        """Local 환경 빠른 실험 준비 - BLUEPRINT 설계 의도"""
+        # BLUEPRINT: 컴포넌트 등록 먼저 수행
+        from src.engine import register_all_components
+        register_all_components()
+        
+        factory = Factory(local_settings)
+        
+        # BLUEPRINT: Local 환경은 빠른 실험을 위해 설계됨
+        # 모든 핵심 컴포넌트가 외부 의존성 없이 생성 가능해야 함
+        
+        components = {
+            'preprocessor': factory.create_preprocessor(),
+            'augmenter': factory.create_augmenter(),
+            'model': factory.create_model(),
+            'evaluator': factory.create_evaluator()
+        }
+        
+        for name, component in components.items():
+            assert component is not None, f"{name} creation failed in local environment"

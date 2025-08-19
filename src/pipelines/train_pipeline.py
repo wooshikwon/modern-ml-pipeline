@@ -5,7 +5,6 @@ from types import SimpleNamespace
 
 import mlflow
 import pandas as pd
-from contextlib import contextmanager
 
 from src.settings import Settings
 from src.engine import Factory

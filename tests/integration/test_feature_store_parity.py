@@ -15,16 +15,11 @@ import pytest
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
-from typing import Dict, Any, List, Tuple
-import json
 from decimal import Decimal
-from unittest.mock import patch, MagicMock
 
 from src.engine.factory import Factory
 from src.components.augmenter import Augmenter
 from src.settings import Settings
-from src.utils.adapters.feature_store_adapter import FeatureStoreAdapter
-from src.pipelines.train_pipeline import run_training
 
 # DEV 환경 Feature Store 패리티 테스트
 pytestmark = [
@@ -229,7 +224,7 @@ class TestFeatureStoreParityValidation:
             ])
             pytest.fail(f"데이터 타입 일관성 위반 ({len(type_mismatches)}건):\n{type_details}")
         
-        print(f"✅ 데이터 타입 일관성 패리티 검증 완료")
+        print("✅ 데이터 타입 일관성 패리티 검증 완료")
 
     def _types_compatible(self, type1, type2):
         """타입 호환성 검사 헬퍼 메서드"""
@@ -317,7 +312,7 @@ class TestFeatureStoreParityValidation:
             ])
             pytest.fail(f"Augmenter 배치/서빙 모드 패리티 위반 ({len(augmenter_mismatches)}건):\n{augmenter_details}")
         
-        print(f"✅ Augmenter 파이프라인 패리티 검증 완료")
+        print("✅ Augmenter 파이프라인 패리티 검증 완료")
 
     def test_timestamp_handling_parity(self, dev_test_settings: Settings):
         """
@@ -359,7 +354,7 @@ class TestFeatureStoreParityValidation:
                 print(f"  온라인 타임스탬프: {online_timestamp}")
                 print(f"  쿼리 타임스탬프: {precise_time}")
         
-        print(f"✅ 타임스탬프 처리 패리티 검증 완료")
+        print("✅ 타임스탬프 처리 패리티 검증 완료")
 
     def test_large_scale_parity_validation(self, dev_test_settings: Settings):
         """
@@ -509,7 +504,7 @@ class TestFeatureStoreParityValidation:
                 assert offline_age_old == online_age_old, \
                     f"오래된 시점 데이터 처리 불일치: 오프라인={offline_age_old}, 온라인={online_age_old}"
         
-        print(f"✅ 엣지 케이스 패리티 검증 완료")
+        print("✅ 엣지 케이스 패리티 검증 완료")
 
     def test_comprehensive_parity_report(self, dev_test_settings: Settings, parity_test_entities, comprehensive_feature_list):
         """
@@ -591,7 +586,7 @@ class TestFeatureStoreParityValidation:
             parity_report["overall_parity_score"] = (successful_checks / total_checks) * 100
         
         # 리포트 출력
-        print(f"\n📊 Feature Store 패리티 종합 리포트:")
+        print("\n📊 Feature Store 패리티 종합 리포트:")
         print(f"  총 엔티티: {parity_report['total_entities']}개")
         print(f"  총 피처: {parity_report['total_features']}개")
         print(f"  전체 패리티 점수: {parity_report['overall_parity_score']:.2f}%")

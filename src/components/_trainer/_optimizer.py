@@ -1,6 +1,6 @@
 # src/components/_trainer/_optimizer.py
 from datetime import datetime
-from typing import Dict, Any, Callable, Tuple
+from typing import Dict, Any, Callable
 import pandas as pd
 from src.settings import Settings
 from src.utils.system.logger import logger

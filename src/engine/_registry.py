@@ -12,7 +12,6 @@ Blueprint - Architecture Excellence
 - 확장성: 새로운 어댑터 추가 시, Factory 수정 없이 이 파일에 한 줄만 추가하면 됨
 """
 from __future__ import annotations
-import importlib
 from typing import Dict, Type, TYPE_CHECKING
 from src.utils.system.logger import logger
 
@@ -175,4 +174,4 @@ def register_all_components():
         logger.warning(f"Could not import components for registration: {e}")
 
 # 모듈 로드 시 모든 컴포넌트를 등록합니다.
-register_all_components() 
+# register_all_components()  # ← bootstrap()에서 이미 호출하므로 중복 제거 

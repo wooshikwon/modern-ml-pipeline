@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 import mlflow
 
 # 필요한 타입 힌트를 위해 import
-from src.settings import Settings
 
 if TYPE_CHECKING:
     from src.components.preprocessor import Preprocessor

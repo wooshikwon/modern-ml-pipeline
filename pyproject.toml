@@ -97,3 +97,11 @@ forbidden_modules = [
   "src.pipelines",
 ]
 
+[dependency-groups]
+dev = [
+    "import-linter>=2.3",
+    "psycopg>=3.2.9",
+    "pytest>=8.4.1",
+    "ruff>=0.12.3",
+]
+
