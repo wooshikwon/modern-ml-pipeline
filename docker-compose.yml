@@ -1,30 +1,15 @@
 version: '3.8'
 
-services:
-  mlflow-server:
-    build:
-      context: .
-      dockerfile: ./docker/mlflow/Dockerfile
-    image: modern-ml-pipeline-mlflow
-    container_name: mlflow-server
-    restart: always
-    ports:
-      - "5001:5000" # Host:Container
-    volumes:
-      # Use a named volume to avoid host-container permission issues
-      - mlflow_data:/home/mlflow/mlruns
-    environment:
-      - MLFLOW_S3_ENDPOINT_URL=${MLFLOW_S3_ENDPOINT_URL}
-    command: >
-      mlflow server
-        --host 0.0.0.0
-        --port 5000
-        --backend-store-uri postgresql://postgres:postgres@postgres-mmp-dev:5432/mlflow
-        # Use a path inside the container that is guaranteed to be writable
-        --default-artifact-root /home/mlflow/mlruns
-    depends_on:
-      - postgres-mmp-dev
+# NOTE: MLflow 서버가 제거되었습니다.
+# modern-ml-pipeline은 이제 순수 라이브러리로서 외부 MLflow 서버에 연결하거나
+# 로컬 파일 모드로 동작합니다. 
+# 
+# MLflow 서버가 필요한 경우 mmp-local-dev 프로젝트를 사용하시기 바랍니다.
+# 
+# 이 파일은 향후 modern-ml-pipeline의 개발/테스트를 위한 보조 서비스
+# (예: PostgreSQL, Redis)만 제공합니다.
 
+services:
   postgres-mmp-dev:
     image: postgres:13
     container_name: postgres-mmp-dev
@@ -47,4 +32,3 @@ services:
 
 volumes:
   postgres_data:
-  mlflow_data: {} # Define the named volume for MLflow

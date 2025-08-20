@@ -27,7 +27,7 @@ data_adapters:
     sql:
       class_name: SqlAdapter
       config:
-        connection_uri: "postgresql://mluser:mysecretpassword@127.0.0.1:5432/mlpipeline"
+        connection_uri: "postgresql://postgres:postgres@127.0.0.1:5432/mlflow"  # mmp-local-dev 호환
         
         # 🎯 Use Case별 DB 설정 예시:
         #
@@ -92,10 +92,10 @@ feature_store:
       type: "postgres"
       host: "localhost"
       port: 5432
-      database: "mlpipeline"
-      db_schema: "features"  # mmp-local-dev의 features 스키마
-      user: "mluser"
-      password: "mysecretpassword"
+      database: "mlflow"     # mmp-local-dev 기본 DB
+      db_schema: "public"    # mmp-local-dev 기본 스키마  
+      user: "postgres"       # mmp-local-dev 기본 사용자
+      password: "postgres"   # mmp-local-dev 기본 패스워드
       
       # 🎯 Use Case별 Offline Store 설정:
       #
@@ -144,9 +144,9 @@ feature_store:
       # connection_string: "redis://ci-redis:6379/5"
       # socket_timeout: 1
 
-# 📊 MLflow 설정 - 팀 공유 실험 추적
+# 📊 MLflow 설정 - 외부 서버 연결 또는 로컬 파일 (Graceful Degradation)
 mlflow:
-  tracking_uri: http://localhost:5002  # mmp-local-dev MLflow 서버
+  tracking_uri: ${MLFLOW_TRACKING_URI:./mlruns}  # 환경변수로 외부 서버 지정, 기본값은 로컬 파일
   experiment_name: "E2E-Test-Experiment-2025"
   
   # 🎯 Use Case별 MLflow 설정:
@@ -277,7 +277,7 @@ artifact_stores:
     postgres_storage:
       enabled: true
       table_name: "batch_predictions"
-      connection_uri: "postgresql://mluser:mysecretpassword@127.0.0.1:5432/mlpipeline"
+      connection_uri: "postgresql://postgres:postgres@127.0.0.1:5432/mlflow"  # mmp-local-dev 호환
       
       # 🎯 Use Case별 DB 저장:
       #

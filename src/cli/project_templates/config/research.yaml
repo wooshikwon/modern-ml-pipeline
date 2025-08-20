@@ -1,0 +1,317 @@
+# =============================================================================
+# config/research.yaml - 연구 환경 설정
+# =============================================================================
+# 
+# 🎯 Research 환경: "실험의 자유와 재현성의 완벽한 조화"
+# - 연구자 친화적 설정 및 유연성
+# - 다양한 데이터셋 및 모델 실험 지원
+# - 외부 연구 도구 및 플랫폼 통합
+# - 논문 재현성 및 협업 중심 설계
+#
+# 📋 주요 Use Cases:
+# 1. 학술 연구 및 논문 실험
+# 2. 새로운 알고리즘 검증
+# 3. 벤치마크 및 성능 비교
+# 4. 연구실/대학원생 협업
+# 5. 오픈소스 모델 실험
+# =============================================================================
+
+# 📊 MLflow 설정 - 연구 실험 추적
+mlflow:
+  tracking_uri: ${MLFLOW_TRACKING_URI:./mlruns}  # 로컬 또는 연구실 서버
+  experiment_name: "Research-Experiments-${USER:default}"
+  
+  # 🧪 연구 실험 태그
+  tags:
+    environment: "research"
+    researcher: "${USER:unknown}"
+    institution: "${INSTITUTION:research-lab}"
+    paper_title: "${PAPER_TITLE:}"
+    conference: "${TARGET_CONFERENCE:}"
+
+# 🗃️ 데이터 어댑터 - 연구용 데이터 소스
+data_adapters:
+  default_loader: "storage"  # 주로 파일 기반
+  default_storage: "storage"
+  default_feature_store: "passthrough"  # 단순함 중시
+  
+  adapters:
+    # SQL 어댑터 - 연구실 DB 또는 공개 데이터셋
+    sql:
+      class_name: SqlAdapter
+      config:
+        # 연구실 PostgreSQL (기본)
+        connection_uri: "postgresql://${POSTGRES_USER:postgres}:${POSTGRES_PASSWORD:password}@${POSTGRES_HOST:localhost}:5432/${POSTGRES_DB:research_data}"
+        
+        # 공개 BigQuery 데이터셋 (연구용)
+        # connection_uri: "bigquery://bigquery-public-data"
+        
+        # SQLite (로컬 실험용)
+        # connection_uri: "sqlite:///research_data.db"
+    
+    # Storage 어댑터 - 다양한 연구 데이터
+    storage:
+      class_name: StorageAdapter
+      config:
+        # 로컬 파일 시스템 (기본)
+        base_path: "./data"
+        
+        # 연구실 공유 스토리지
+        # base_path: "/shared/research_data"
+        
+        # 클라우드 연구 버킷 (대용량 데이터셋)
+        # storage_options:
+        #   project: ${RESEARCH_GCP_PROJECT}
+        #   token: ${GOOGLE_APPLICATION_CREDENTIALS}
+    
+    # Feature Store - 단순 모드 (연구 중심)
+    feature_store:
+      class_name: FeastAdapter
+      config: {}
+
+# 🍽️ Feature Store 설정 - 연구 친화적 설정
+feature_store:
+  provider: "passthrough"  # 기본값: 복잡성 제거
+  
+  # 고급 연구용 Feature Store (필요시 활성화)
+  # provider: "feast"
+  # feast_config:
+  #   project: "research_features"
+  #   provider: "local"
+  #   registry: "data/research_registry.sqlite"
+  #   
+  #   offline_store:
+  #     type: "file"
+  #     path: "data/features"
+  #   
+  #   online_store:
+  #     type: "sqlite"
+  #     path: "data/online_features.db"
+
+# ⚡ 하이퍼파라미터 튜닝 - 연구 최적화
+hyperparameter_tuning:
+  enabled: true
+  timeout: 3600  # 1시간 (연구 실험 단위)
+  engine: "optuna"
+  
+  # 연구용 최적화 설정
+  pruning:
+    enabled: true
+    algorithm: "MedianPruner"
+    n_startup_trials: 10
+    n_warmup_steps: 20
+  
+  parallelization:
+    n_jobs: ${N_JOBS:4}  # 연구실 자원에 맞게 조정
+    
+  # 🔬 연구 특화 설정
+  research_mode:
+    save_all_trials: true       # 모든 실험 기록 보존
+    detailed_logging: true      # 상세 로깅
+    reproducibility_mode: true  # 재현성 보장
+    
+  # 📊 실험 비교 설정
+  comparison:
+    enable_baseline: true
+    baseline_models: ["random", "dummy", "simple_linear"]
+    statistical_tests: true
+
+# 🌐 환경 변수 - 연구 환경 설정
+environment:
+  app_env: "research"
+  
+  # 🧪 연구 지원 기능
+  research:
+    enable_debug_mode: true
+    enable_profiling: true
+    save_intermediate_results: true
+    enable_visualization: true
+    
+  # 📊 실험 추적
+  experiment_tracking:
+    enable_wandb: ${ENABLE_WANDB:false}
+    enable_tensorboard: true
+    enable_mlflow: true
+    
+  # 🔄 재현성 설정
+  reproducibility:
+    fix_random_seeds: true
+    save_environment: true
+    track_dependencies: true
+    git_integration: true
+
+# 🚫 API 서빙 - 연구 환경에서는 비활성화
+serving:
+  enabled: false  # 연구는 오프라인 분석 중심
+  
+  # 필요시 활성화 (데모, 프로토타입용)
+  # enabled: true
+  # model_stage: "Staging"
+  # host: "localhost"
+  # port: 8000
+
+# 📦 아티팩트 저장소 - 연구 결과 보관
+artifact_stores:
+  # 실험 데이터 (모든 중간 결과 저장)
+  experiment_data:
+    enabled: true
+    base_uri: "file://./experiments/${EXPERIMENT_NAME:default}"
+    
+  # 모델 체크포인트
+  model_checkpoints:
+    enabled: true
+    base_uri: "file://./checkpoints"
+    versioning: true
+    
+  # 시각화 결과
+  visualizations:
+    enabled: true
+    base_uri: "file://./visualizations"
+    formats: ["png", "pdf", "svg"]
+    
+  # 논문 자료 (재현성 패키지)
+  paper_artifacts:
+    enabled: true
+    base_uri: "file://./paper_artifacts"
+    include_code: true
+    include_data: true
+    include_models: true
+
+# 🔍 로깅 및 분석 - 연구 친화적
+logging:
+  level: "DEBUG"  # 상세 로깅
+  format: "detailed"
+  
+  # 📊 실험 로깅
+  experiment_logging:
+    log_hyperparameters: true
+    log_metrics: true
+    log_artifacts: true
+    log_model_signature: true
+    
+  # 📈 성능 프로파일링
+  profiling:
+    enable_time_profiling: true
+    enable_memory_profiling: true
+    enable_gpu_profiling: ${ENABLE_GPU_PROFILING:false}
+
+# 🔬 연구 특화 도구 통합
+research_tools:
+  # Weights & Biases 통합
+  wandb:
+    enabled: ${ENABLE_WANDB:false}
+    project: ${WANDB_PROJECT:research-experiments}
+    entity: ${WANDB_ENTITY:}
+    tags: ["research", "experiment"]
+    
+  # TensorBoard 통합
+  tensorboard:
+    enabled: true
+    log_dir: "./tensorboard_logs"
+    
+  # Jupyter Notebook 통합
+  jupyter:
+    enable_autosave: true
+    enable_checkpoints: true
+    notebook_dir: "./notebooks"
+    
+  # 외부 모델 허브 연동
+  model_hubs:
+    huggingface:
+      enabled: ${ENABLE_HUGGINGFACE:false}
+      cache_dir: "./hf_cache"
+    
+    pytorch_hub:
+      enabled: true
+      cache_dir: "./torch_cache"
+    
+    tensorflow_hub:
+      enabled: false
+      cache_dir: "./tf_cache"
+
+# 📊 데이터셋 관리
+datasets:
+  # 공개 벤치마크 데이터셋
+  benchmark_datasets:
+    enabled: true
+    auto_download: true
+    cache_dir: "./datasets"
+    
+    # 주요 벤치마크 데이터셋
+    available:
+      - "iris"
+      - "wine" 
+      - "breast_cancer"
+      - "digits"
+      - "boston_housing"
+      - "california_housing"
+    
+  # 사용자 정의 데이터셋
+  custom_datasets:
+    enabled: true
+    data_dir: "./custom_data"
+    
+    # 데이터 검증
+    validation:
+      check_missing_values: true
+      check_data_types: true
+      check_target_distribution: true
+    
+  # 데이터 전처리 파이프라인
+  preprocessing:
+    enable_auto_eda: true
+    enable_data_profiling: true
+    save_preprocessing_steps: true
+
+# 🧪 실험 관리
+experiment_management:
+  # 실험 비교
+  comparison:
+    enable_model_comparison: true
+    enable_metric_comparison: true
+    enable_statistical_testing: true
+    
+    # 시각화
+    plots:
+      - "learning_curves"
+      - "feature_importance" 
+      - "confusion_matrix"
+      - "roc_curves"
+      - "residual_plots"
+    
+  # 재현성 보장
+  reproducibility:
+    track_git_commit: true
+    save_conda_environment: true
+    save_pip_requirements: true
+    fix_random_seeds: true
+    
+  # 협업 지원
+  collaboration:
+    enable_experiment_sharing: true
+    enable_comment_system: true
+    enable_review_system: false
+
+# 💡 연구자 가이드:
+#
+# 🚀 빠른 실험 시작:
+#   1. 데이터 준비: data/ 디렉토리에 실험 데이터 배치
+#   2. 실험 실행: modern-ml-pipeline train --recipe-file recipes/research_experiment.yaml
+#   3. 결과 분석: 자동 생성된 시각화 및 보고서 확인
+#
+# 🔬 고급 실험:
+#   1. Weights & Biases 연동: ENABLE_WANDB=true 설정
+#   2. 하이퍼파라미터 최적화: hyperparameter_tuning.enabled=true
+#   3. 모델 비교: 다양한 알고리즘으로 동일 데이터 실험
+#
+# 📊 결과 분석:
+#   - MLflow UI: 실험 결과 비교 및 시각화
+#   - TensorBoard: 학습 과정 모니터링
+#   - Jupyter Notebook: 상세 분석 및 시각화
+#
+# 📝 논문 작성:
+#   1. 재현성 패키지 생성: paper_artifacts에 모든 자료 자동 저장
+#   2. 실험 결과 내보내기: 표, 그래프, 통계 요약
+#   3. 코드 및 데이터 공유: Git + MLflow로 완전한 추적
+#
+# =============================================================================
