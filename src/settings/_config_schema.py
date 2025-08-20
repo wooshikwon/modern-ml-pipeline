@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from typing import Dict, Any, Optional
 import requests
 import os
+import subprocess
 from src.utils.system.logger import logger
 
 class EnvironmentSettings(BaseModel):
@@ -97,6 +98,56 @@ class MlflowSettings(BaseModel):
                 fallback_uri=fallback_uri,
                 timeout=timeout
             )
+
+    @classmethod
+    def with_ui_launch(
+        cls,
+        tracking_uri: str,
+        experiment_name: str,
+        auto_launch_ui: bool = False,
+        ui_port: int = 5000
+    ) -> 'MlflowSettings':
+        """
+        로컬 MLflow UI 자동 실행 지원
+        
+        로컬 파일 모드시 백그라운드에서 MLflow UI를 자동으로 실행
+        
+        Args:
+            tracking_uri: MLflow tracking URI
+            experiment_name: 실험명
+            auto_launch_ui: UI 자동 실행 여부
+            ui_port: MLflow UI 포트 (기본: 5000)
+            
+        Returns:
+            MlflowSettings: 설정 객체 (UI 실행은 백그라운드에서)
+        """
+        # 설정 객체 생성
+        settings = cls(tracking_uri=tracking_uri, experiment_name=experiment_name)
+        
+        # UI 자동 실행 조건: 활성화 + 로컬 파일 모드
+        if auto_launch_ui and cls._is_local_file_uri(tracking_uri):
+            try:
+                # 백그라운드에서 MLflow UI 실행
+                logger.info(f"로컬 파일 모드 감지, MLflow UI 자동 실행 중... (포트: {ui_port})")
+                subprocess.Popen(
+                    ['mlflow', 'ui', '--backend-store-uri', tracking_uri, '--port', str(ui_port)],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    start_new_session=True  # 독립적인 프로세스 그룹으로 실행
+                )
+                logger.info(f"MLflow UI가 백그라운드에서 실행됨: http://localhost:{ui_port}")
+            except (OSError, subprocess.SubprocessError) as e:
+                logger.warning(f"MLflow UI 자동 실행 실패: {e}")
+                logger.warning("mlflow 명령이 설치되어 있는지 확인하세요")
+            except Exception as e:
+                logger.error(f"MLflow UI 실행 중 예상치 못한 오류: {e}")
+        
+        return settings
+    
+    @staticmethod
+    def _is_local_file_uri(tracking_uri: str) -> bool:
+        """URI가 로컬 파일 경로인지 확인"""
+        return not tracking_uri.startswith(('http://', 'https://', 'ftp://', 'sftp://'))
 
 class AdapterConfigSettings(BaseModel):
     """개별 어댑터 설정"""
