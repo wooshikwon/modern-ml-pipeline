@@ -1,6 +1,8 @@
 # src/settings/_config_schema.py
 from pydantic import BaseModel
 from typing import Dict, Any, Optional
+import requests
+from src.utils.system.logger import logger
 
 class EnvironmentSettings(BaseModel):
     """환경별 기본 설정"""
@@ -12,6 +14,48 @@ class MlflowSettings(BaseModel):
     """MLflow 실험 추적 설정"""
     tracking_uri: str
     experiment_name: str
+
+    @classmethod
+    def with_fallback(
+        cls,
+        server_uri: str,
+        experiment_name: str,
+        fallback_uri: Optional[str] = None,
+        timeout: int = 5
+    ) -> 'MlflowSettings':
+        """
+        MLflow Graceful Degradation - 서버 연결 실패 시 로컬 파일 모드로 fallback
+        
+        Args:
+            server_uri: MLflow 서버 URI
+            experiment_name: 실험명
+            fallback_uri: 폴백 URI (기본: "./mlruns")
+            timeout: 서버 연결 타임아웃 (초)
+            
+        Returns:
+            MlflowSettings: 서버 모드 또는 폴백 모드 설정
+        """
+        if fallback_uri is None:
+            fallback_uri = "./mlruns"
+        
+        # 서버 연결 테스트
+        try:
+            health_url = f"{server_uri}/health"
+            response = requests.get(health_url, timeout=timeout)
+            
+            if response.status_code == 200:
+                logger.info(f"MLflow 서버 연결 성공: {server_uri}")
+                return cls(tracking_uri=server_uri, experiment_name=experiment_name)
+            else:
+                logger.warning(f"MLflow 서버 응답 오류 ({response.status_code}), 폴백 모드로 전환: {fallback_uri}")
+                return cls(tracking_uri=fallback_uri, experiment_name=experiment_name)
+                
+        except (requests.ConnectionError, requests.Timeout) as e:
+            logger.warning(f"MLflow 서버 연결 실패: {e}, 폴백 모드로 전환: {fallback_uri}")
+            return cls(tracking_uri=fallback_uri, experiment_name=experiment_name)
+        except Exception as e:
+            logger.error(f"MLflow 서버 연결 중 예상치 못한 오류: {e}, 폴백 모드로 전환: {fallback_uri}")
+            return cls(tracking_uri=fallback_uri, experiment_name=experiment_name)
 
 class AdapterConfigSettings(BaseModel):
     """개별 어댑터 설정"""
