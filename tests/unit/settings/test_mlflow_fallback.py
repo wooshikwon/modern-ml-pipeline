@@ -3,13 +3,15 @@ MLflow Graceful Degradation 테스트
 
 M01-1: MlflowSettings.with_fallback() 구현
 M01-2: 환경 변수 기반 자동 설정 구현
+M01-3: 로컬 MLflow UI 자동 실행 구현
 서버 연결 테스트 → 파일 모드 fallback 로직 검증
 """
 
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, call
 import requests
 import os
+import subprocess
 from src.settings._config_schema import MlflowSettings
 
 
@@ -193,3 +195,101 @@ class TestMlflowEnvironmentAutoDetection:
                 # Then: 빈 문자열이므로 폴백 모드
                 assert result.tracking_uri == "./mlruns"
                 mock_get.assert_not_called()
+
+
+class TestMlflowUIAutoLaunch:
+    """M01-3: 로컬 MLflow UI 자동 실행 테스트"""
+
+    def test_with_ui_launch_local_mode_should_start_ui_background(self):
+        """로컬 파일 모드시 MLflow UI 백그라운드 실행"""
+        # Given: 로컬 파일 모드 + UI 자동 실행 활성화
+        with patch('subprocess.Popen') as mock_popen:
+            mock_process = MagicMock()
+            mock_popen.return_value = mock_process
+            
+            # When: UI 자동 실행으로 설정
+            result = MlflowSettings.with_ui_launch(
+                tracking_uri="./mlruns",
+                experiment_name="test-experiment",
+                auto_launch_ui=True
+            )
+            
+            # Then: 로컬 모드이므로 UI 실행
+            assert result.tracking_uri == "./mlruns"
+            assert result.experiment_name == "test-experiment"
+            mock_popen.assert_called_once_with(
+                ['mlflow', 'ui', '--backend-store-uri', './mlruns', '--port', '5000'],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True
+            )
+
+    def test_with_ui_launch_server_mode_should_not_start_ui(self):
+        """서버 모드시 MLflow UI 실행 안함"""
+        # Given: 서버 모드 + UI 자동 실행 활성화
+        with patch('subprocess.Popen') as mock_popen:
+            # When: 서버 URI로 UI 실행 시도
+            result = MlflowSettings.with_ui_launch(
+                tracking_uri="http://localhost:5002",
+                experiment_name="test-experiment",
+                auto_launch_ui=True
+            )
+            
+            # Then: 서버 모드이므로 UI 실행 안함
+            assert result.tracking_uri == "http://localhost:5002"
+            mock_popen.assert_not_called()
+
+    def test_with_ui_launch_disabled_should_not_start_ui(self):
+        """UI 자동 실행 비활성화시 실행 안함"""
+        # Given: 로컬 파일 모드 + UI 자동 실행 비활성화
+        with patch('subprocess.Popen') as mock_popen:
+            # When: UI 자동 실행 비활성화로 설정
+            result = MlflowSettings.with_ui_launch(
+                tracking_uri="./mlruns",
+                experiment_name="test-experiment",
+                auto_launch_ui=False
+            )
+            
+            # Then: 비활성화이므로 UI 실행 안함
+            assert result.tracking_uri == "./mlruns"
+            mock_popen.assert_not_called()
+
+    def test_with_ui_launch_custom_port_should_use_custom_port(self):
+        """커스텀 포트로 UI 실행"""
+        # Given: 로컬 파일 모드 + 커스텀 포트
+        with patch('subprocess.Popen') as mock_popen:
+            mock_process = MagicMock()
+            mock_popen.return_value = mock_process
+            
+            # When: 커스텀 포트로 UI 실행
+            result = MlflowSettings.with_ui_launch(
+                tracking_uri="./mlruns", 
+                experiment_name="test-experiment",
+                auto_launch_ui=True,
+                ui_port=8080
+            )
+            
+            # Then: 커스텀 포트로 실행
+            mock_popen.assert_called_once_with(
+                ['mlflow', 'ui', '--backend-store-uri', './mlruns', '--port', '8080'],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True
+            )
+
+    def test_with_ui_launch_subprocess_error_should_handle_gracefully(self):
+        """subprocess 오류시 정상 처리"""
+        # Given: subprocess 실행 오류
+        with patch('subprocess.Popen') as mock_popen:
+            mock_popen.side_effect = OSError("mlflow command not found")
+            
+            # When: UI 실행 시도
+            result = MlflowSettings.with_ui_launch(
+                tracking_uri="./mlruns",
+                experiment_name="test-experiment", 
+                auto_launch_ui=True
+            )
+            
+            # Then: 오류에도 설정 객체는 정상 반환
+            assert result.tracking_uri == "./mlruns"
+            assert result.experiment_name == "test-experiment"
