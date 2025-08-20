@@ -63,9 +63,10 @@ uv run python main.py validate --recipe-file recipes/my_first_model.yaml
 # 모델 학습을 실행합니다.
 uv run python main.py train --recipe-file recipes/my_first_model.yaml
 
-# 학습 결과 확인 (MLflow UI)
-# (mmp-local-dev 환경의 docker-compose up -d가 실행되어 있어야 합니다)
-open http://127.0.0.1:5002
+# 학습 결과 확인 (MLflow UI - 자동 실행)
+# 로컬 파일 모드: MLflow UI가 자동으로 백그라운드에서 실행됩니다
+# 브라우저에서 자동으로 열리거나 콘솔 메시지의 URL로 접속하세요
+# 수동 실행: mlflow ui --backend-store-uri ./mlruns
 ```
 
 ### 5. 모델 배포 및 추론
@@ -210,32 +211,50 @@ APP_ENV=prod    uv run python main.py train ...  # BigQuery + Redis Labs
 
 ---
 
-## 🌍 환경별 설정
+## 🌍 실행 모드별 가이드
 
-### LOCAL 환경 (기본)
-- **데이터**: 로컬 파일 (Parquet, CSV)
-- **Feature Store**: 비활성화 (Pass-through)
-- **MLflow**: 로컬 디렉토리 (`./mlruns`)
-- **특징**: 빠른 실험, 외부 의존성 없음
+### 🚀 독립 실행 모드 (기본값 - 권장)
+**MLflow Graceful Degradation 적용 - 외부 서버 없이도 완전 동작**
 
-### DEV 환경 
 ```bash
-# mmp-local-dev 인프라 필요 (별도 설치)
-git clone https://github.com/wooshikwon/mmp-local-dev.git ../mmp-local-dev
-cd ../mmp-local-dev && docker-compose up -d
-
-# DEV 환경에서 실행
-APP_ENV=dev uv run python main.py train --recipe-file recipes/my_model.yaml
+# 즉시 실행 가능 - 외부 서버나 Docker 불필요  
+uv run python main.py train --recipe-file recipes/example.yaml
 ```
 
-- **데이터**: PostgreSQL
-- **Feature Store**: PostgreSQL + Redis
-- **MLflow**: 공유 서버
-- **특징**: 완전한 기능, 팀 협업
+- **MLflow**: 로컬 파일 (`./mlruns`) + 자동 UI 실행
+- **Feature Store**: PassThrough 모드 (외부 의존성 없음)  
+- **데이터**: 로컬 파일 (CSV, Parquet 등)
+- **특징**: 설치 즉시 실행, 인터넷 연결 불필요, 빠른 실험
 
-### PROD 환경
-- **데이터**: BigQuery, Snowflake
-- **Feature Store**: BigQuery + Redis Labs
+### 🔧 고급 기능 모드 (mmp-local-dev 연동)
+**선택적 고급 기능 - Feature Store 및 공유 MLflow 서버 사용**
+
+```bash
+# 1. mmp-local-dev 설치 및 실행 (선택사항)
+git clone https://github.com/wooshikwon/mmp-local-dev.git ../mmp-local-dev  
+cd ../mmp-local-dev && docker-compose up -d
+
+# 2. 환경 변경 후 실행
+echo "APP_ENV=dev" > .env
+echo "MLFLOW_TRACKING_URI=http://localhost:5002" >> .env
+uv run python main.py train --recipe-file recipes/example.yaml
+```
+
+- **MLflow**: 공유 서버 (http://localhost:5002)
+- **Feature Store**: Feast (PostgreSQL + Redis)
+- **데이터**: 실시간 피처 조회, 팀 공유 실험  
+- **특징**: 프로덕션 유사 환경, 팀 협업, Feature Store 테스트
+
+### ☁️ 클라우드 연결 모드 (프로덕션)
+```bash
+# 환경변수로 클라우드 서버 연결
+APP_ENV=prod MLFLOW_TRACKING_URI=https://your-mlflow-server.com \
+uv run python main.py train --recipe-file recipes/prod_model.yaml
+```
+
+- **MLflow**: 클라우드 서버 (GCP/AWS/Azure)
+- **Feature Store**: 프로덕션 Feast 클러스터
+- **데이터**: BigQuery, Snowflake 등 대규모 DW
 - **MLflow**: 클라우드 스토리지
 - **특징**: 확장성, 안정성
 
@@ -273,13 +292,141 @@ class_path: "causalml.inference.meta.TRegressor"
 
 ---
 
+## 🔐 환경변수 및 비밀 관리
+
+Modern ML Pipeline은 **config YAML에는 연결 정보만, 실제 비밀은 환경변수로 주입**하는 보안 패턴을 사용합니다.
+
+### 📋 기본 사용법
+
+#### 1. .env 파일 설정
+```bash
+# 기본 .env 파일 생성
+cp .env.example .env
+
+# 필요한 환경변수 설정
+cat >> .env << EOF
+APP_ENV=local
+MLFLOW_TRACKING_URI=http://localhost:5002
+POSTGRES_PASSWORD=mysecretpassword
+EOF
+```
+
+#### 2. Config YAML에서 환경변수 참조
+```yaml
+# config/prod.yaml
+data_adapters:
+  adapters:
+    sql:
+      connection_uri: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:5432/${POSTGRES_DB}"
+
+mlflow:
+  tracking_uri: ${MLFLOW_TRACKING_URI}
+
+feature_store:
+  feast_config:
+    online_store:
+      connection_string: ${REDIS_CONNECTION_STRING}
+```
+
+### 🌍 인프라별 설정 예시
+
+#### ☁️ Google Cloud Platform
+```bash
+# 환경변수 설정
+export GCP_PROJECT_ID="my-ml-project"
+export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account.json"
+export BIGQUERY_DATASET="ml_pipeline_data"
+
+# config에서 참조
+# connection_uri: "bigquery://${GCP_PROJECT_ID}/${BIGQUERY_DATASET}"
+```
+
+#### ☁️ Amazon Web Services  
+```bash
+# 환경변수 설정 (권장: IAM Role 사용)
+export AWS_ACCESS_KEY_ID="AKIA..."
+export AWS_SECRET_ACCESS_KEY="your-secret-key"
+export AWS_REGION="us-east-1"
+export S3_BUCKET="my-ml-data-bucket"
+
+# config에서 참조
+# storage_options:
+#   key: ${AWS_ACCESS_KEY_ID}
+#   secret: ${AWS_SECRET_ACCESS_KEY}
+```
+
+#### 🔵 Microsoft Azure
+```bash
+# 환경변수 설정
+export AZURE_STORAGE_ACCOUNT="mystorageaccount"  
+export AZURE_STORAGE_KEY="your-storage-key"
+export AZURE_SQL_PASSWORD="your-password"
+
+# config에서 참조
+# storage_options:
+#   account_name: ${AZURE_STORAGE_ACCOUNT}
+#   account_key: ${AZURE_STORAGE_KEY}
+```
+
+### 🔒 보안 Best Practices
+
+#### 1. 로컬 개발
+```bash
+# .env 파일 사용 (자동 로딩됨)
+echo "POSTGRES_PASSWORD=dev-password" >> .env
+echo "API_KEY=dev-api-key" >> .env
+```
+
+#### 2. 컨테이너/CI-CD
+```bash
+# 환경변수로 직접 주입
+docker run -e POSTGRES_PASSWORD="$VAULT_PASSWORD" my-ml-app
+export POSTGRES_PASSWORD="$(kubectl get secret db-secret -o jsonpath='{.data.password}' | base64 -d)"
+```
+
+#### 3. 클라우드 네이티브 (권장)
+```bash
+# 서비스 계정/IAM Role 자동 인증 (환경변수 불필요)
+gcloud auth application-default login  # GCP
+# EC2/EKS의 IAM Role 자동 사용        # AWS  
+# Managed Identity 자동 사용           # Azure
+```
+
+### 🎯 환경변수 사용 패턴
+
+**필수 변수** (기본값 없음):
+```yaml
+connection_uri: "postgresql://user:${POSTGRES_PASSWORD}@host/db"
+```
+
+**선택적 변수** (기본값 제공):
+```yaml  
+mlflow:
+  tracking_uri: ${MLFLOW_TRACKING_URI:./mlruns}  # 기본값: 로컬 파일
+  experiment_name: ${EXPERIMENT_NAME:Default-Experiment}
+```
+
+### 📚 지원하는 모든 환경변수
+
+전체 환경변수 목록과 설정 예시는 [.env.example](/.env.example) 파일을 참조하세요:
+
+- **기본 설정**: `APP_ENV`, `LOG_LEVEL`
+- **MLflow**: `MLFLOW_TRACKING_URI`, `MLFLOW_EXPERIMENT_NAME`
+- **데이터베이스**: `POSTGRES_*`, `BIGQUERY_*`, `SNOWFLAKE_*`
+- **클라우드 스토리지**: `GCS_*`, `S3_*`, `AZURE_*`
+- **Feature Store**: `REDIS_*`, `FEAST_*`
+- **보안**: `API_SECRET_KEY`, `JWT_SECRET_KEY`
+- **모니터링**: `SENTRY_DSN`, `DATADOG_API_KEY`
+
+---
+
 ## 🐛 트러블슈팅
 
 ### 자주 발생하는 문제
 
-**1. MLflow 연결 오류**
+**1. MLflow 자동 전환 확인**
 ```bash
-# MLflow 서버 확인
+# Graceful Degradation 동작 확인 - 서버 없이도 정상 동작
 curl http://localhost:5002/health
 # 환경변수 확인
 echo $MLFLOW_TRACKING_URI

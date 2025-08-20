@@ -16,7 +16,8 @@ from src.settings import load_settings_by_file, create_settings_for_inference, l
 from src.pipelines import run_training, run_batch_inference
 from src.serving import run_api_server
 from src.utils.system.logger import setup_logging, logger
-from src.engine import AdapterRegistry, EvaluatorRegistry, PreprocessorStepRegistry
+from src.engine import AdapterRegistry, EvaluatorRegistry
+from src.components._preprocessor._registry import PreprocessorStepRegistry
 from src.utils.system.catalog_parser import load_model_catalog
 from src.settings.compatibility_maps import TASK_METRIC_COMPATIBILITY
 

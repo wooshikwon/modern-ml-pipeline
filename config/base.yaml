@@ -27,8 +27,8 @@ environment:
 
 # 2. 모델 아티팩트 스토어 (MLflow Model Registry)
 mlflow:
-  # LOCAL 환경에서는 파일 시스템 기반 MLflow 사용
-  tracking_uri: ${MLFLOW_TRACKING_URI:http://127.0.0.1:5002} # 포트 변경: 5001 -> 5002 (추가 포트 충돌 해결)
+  # LOCAL 환경에서는 파일 시스템 기반 MLflow 사용 (Graceful Degradation)
+  tracking_uri: ${MLFLOW_TRACKING_URI:./mlruns}  # 기본값: 로컬 파일 모드, 서버 사용시 환경변수로 오버라이드
   # 모든 실험의 통합 목적을 명확히 정의
   experiment_name: "Default-Experiment"
 
