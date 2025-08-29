@@ -99,3 +99,10 @@ pids
 
 # Claude
 .claude/
+
+# Development directory (excluded from PyPI builds)
+# Note: dev/ contains development-specific files and should not be packaged
+dev/docker-compose.override.yml
+dev/*/logs/
+dev/*/data/
+dev/*/tmp/
