@@ -9,11 +9,7 @@ CLAUDE.md 원칙 준수:
 """
 
 import subprocess
-import sys
-from pathlib import Path
-from typing import Any, Dict
 import pytest
-from unittest.mock import patch, MagicMock
 
 
 class TestCLIEntryPoints:

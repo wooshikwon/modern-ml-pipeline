@@ -44,11 +44,13 @@ class CheckResult:
         details: 상세 정보 목록 (선택사항)
         status: 건강 상태 (자동 계산)
         recommendations: 문제 해결을 위한 추천 사항들
+        severity: 문제의 심각도 (M04-2-5 Enhanced Actionable Reporting)
     """
     is_healthy: bool
     message: str
     details: Optional[List[str]] = None
     recommendations: Optional[List[str]] = None
+    severity: Optional[str] = None  # critical, important, warning
     
     @property
     def status(self) -> HealthStatus:
@@ -73,7 +75,7 @@ class HealthCheckConfig(BaseModel):
     # PostgreSQL 설정
     postgres_host: str = Field(default="localhost", description="PostgreSQL 호스트")
     postgres_port: int = Field(default=5432, description="PostgreSQL 포트")
-    postgres_database: str = Field(default="modern_ml_pipeline", description="PostgreSQL 데이터베이스명")
+    postgres_database: str = Field(default="mlpipeline", description="PostgreSQL 데이터베이스명")
     
     # Redis 설정
     redis_host: str = Field(default="localhost", description="Redis 호스트")
@@ -81,6 +83,15 @@ class HealthCheckConfig(BaseModel):
     
     # Feast 설정
     feast_repo_path: Optional[str] = Field(default=None, description="Feast repository 경로")
+    
+    # M04-2-4 Enhanced: 선택적 검증 설정
+    skip_postgresql: bool = Field(default=False, description="PostgreSQL 검증 스킵 여부")
+    skip_redis: bool = Field(default=False, description="Redis 검증 스킵 여부") 
+    skip_feast: bool = Field(default=False, description="Feast 검증 스킵 여부")
+    
+    # mmp-local-dev 통합 설정
+    enable_docker_integration: bool = Field(default=True, description="Docker 컨테이너 상태 검증 활성화")
+    mmp_local_dev_path: Optional[str] = Field(default="../mmp-local-dev", description="mmp-local-dev 디렉토리 경로")
     
     # 출력 설정
     use_colors: bool = Field(default=True, description="컬러 출력 사용 여부")

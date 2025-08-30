@@ -39,6 +39,8 @@ dependencies = [
     "setuptools>=68",
     "psycopg[binary]>=3.2.9",
     "redis>=6.2.0",
+    "packaging>=24.2",
+    "black>=25.1.0",
 ]
 
 [project.optional-dependencies]

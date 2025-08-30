@@ -1,0 +1,76 @@
+# 피처 스키마 정의
+# M04-1-1 Template System에서 사용하는 표준 피처 정의
+
+version: "1.0"
+last_updated: "2024-08-30"
+
+# 엔티티 스키마
+entity:
+  name: "user"
+  id_column: "user_id"
+  timestamp_column: "event_timestamp"
+  description: "사용자별 ML 파이프라인 엔티티"
+
+# 피처 그룹 정의
+feature_groups:
+  user_features:
+    description: "사용자 기본 정보"
+    features:
+      age:
+        type: "numeric"
+        description: "사용자 나이"
+        valid_range: [18, 100]
+      income:
+        type: "numeric"
+        description: "연간 소득 (USD)"
+        valid_range: [20000, 500000]
+        
+  session_features:
+    description: "사용자 세션 행동 패턴"
+    features:
+      session_length:
+        type: "numeric"
+        description: "세션 지속 시간 (초)"
+        valid_range: [10, 7200]
+      page_views:
+        type: "numeric" 
+        description: "세션당 페이지 뷰"
+        valid_range: [1, 100]
+
+  behavioral_features:
+    description: "사용자 행동 분석 피처 (clustering용)"
+    features:
+      activity_score:
+        type: "numeric"
+        description: "활동 점수 (0-100)"
+        valid_range: [0, 100]
+      engagement_level:
+        type: "category"
+        description: "참여 수준"
+        categories: ["low", "medium", "high"]
+
+  demographic_features:
+    description: "인구통계학적 정보 (causal inference용)"
+    features:
+      gender:
+        type: "category" 
+        categories: ["male", "female", "other"]
+      location:
+        type: "category"
+        description: "거주 지역"
+        categories: ["urban", "suburban", "rural"]
+
+# 타겟 변수 정의
+targets:
+  outcome:
+    type: "binary"
+    description: "분류 타겟 (0: negative, 1: positive)"
+    values: [0, 1]
+  target_value:
+    type: "numeric"
+    description: "회귀 타겟 값"
+    valid_range: [0, 1000]
+  treatment:
+    type: "binary"
+    description: "인과추론 치료 변수"
+    values: [0, 1]

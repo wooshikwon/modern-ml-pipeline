@@ -8,7 +8,7 @@ CLAUDE.md 원칙 준수:
 - 사용자 친화적 출력
 """
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 import typer
 
 from src.health.models import (
@@ -241,3 +241,257 @@ class HealthReporter:
             ])
         
         return additional_recommendations
+
+
+class ActionableReporter:
+    """
+    M04-2-5 Enhanced Actionable Reporting System
+    
+    실행 가능한 해결책과 우선순위 기반 보고서를 제공하는 클래스.
+    """
+    
+    def __init__(self, config: Optional[HealthCheckConfig] = None) -> None:
+        """
+        ActionableReporter 인스턴스를 초기화합니다.
+        
+        Args:
+            config: 건강 검사 설정
+        """
+        self.config = config or HealthCheckConfig()
+    
+    def generate_executable_commands(self, summary: HealthCheckSummary) -> Dict[CheckCategory, List[str]]:
+        """
+        문제 상황별 실행 가능한 명령어를 생성합니다.
+        
+        Args:
+            summary: 건강 검사 요약 정보
+            
+        Returns:
+            Dict[CheckCategory, List[str]]: 카테고리별 실행 가능한 명령어 목록
+        """
+        executable_commands = {}
+        
+        for category, result in summary.categories.items():
+            if not result.is_healthy:
+                commands = []
+                
+                if category == CheckCategory.ENVIRONMENT:
+                    commands.extend([
+                        "uv sync --reinstall",
+                        "uv run python --version",
+                        "uv add python@3.11"
+                    ])
+                elif category == CheckCategory.MLFLOW:
+                    commands.extend([
+                        "mlflow server --host 0.0.0.0 --port 5000",
+                        "docker-compose -f ../mmp-local-dev/docker-compose.yml restart mlflow",
+                        "export MLFLOW_TRACKING_URI=http://localhost:5000"
+                    ])
+                elif category == CheckCategory.EXTERNAL_SERVICES:
+                    commands.extend([
+                        "docker-compose -f ../mmp-local-dev/docker-compose.yml ps",
+                        "docker-compose -f ../mmp-local-dev/docker-compose.yml restart",
+                        "docker-compose -f ../mmp-local-dev/docker-compose.yml up -d"
+                    ])
+                elif category == CheckCategory.TEMPLATES:
+                    commands.extend([
+                        "yamllint config/",
+                        "find config/ -name '*.yaml' -exec yamllint {} \\;",
+                        "uv run python -c \"import yaml; yaml.safe_load(open('config/base.yaml'))\""
+                    ])
+                
+                if commands:
+                    executable_commands[category] = commands
+        
+        return executable_commands
+    
+    def sort_issues_by_priority(self, summary: HealthCheckSummary) -> List[Dict[str, Any]]:
+        """
+        문제들을 우선순위순으로 정렬합니다.
+        
+        Args:
+            summary: 건강 검사 요약 정보
+            
+        Returns:
+            List[Dict[str, Any]]: 우선순위순 정렬된 문제 목록
+        """
+        issues = []
+        priority_order = {'critical': 0, 'important': 1, 'warning': 2}
+        
+        for category, result in summary.categories.items():
+            if not result.is_healthy:
+                severity = result.severity or 'warning'
+                issues.append({
+                    'category': category,
+                    'result': result,
+                    'severity': severity,
+                    'priority': priority_order.get(severity, 3)
+                })
+        
+        # 우선순위순 정렬 (숫자가 작을수록 높은 우선순위)
+        return sorted(issues, key=lambda x: x['priority'])
+    
+    def generate_step_by_step_resolution(self, category: CheckCategory, result: CheckResult) -> List[Dict[str, Any]]:
+        """
+        단계별 해결 가이드를 생성합니다.
+        
+        Args:
+            category: 검사 카테고리
+            result: 검사 결과
+            
+        Returns:
+            List[Dict[str, Any]]: 단계별 해결 가이드
+        """
+        steps = []
+        
+        if category == CheckCategory.EXTERNAL_SERVICES:
+            steps = [
+                {
+                    'step_number': 1,
+                    'action': 'Docker 컨테이너 상태 확인',
+                    'command': 'docker-compose -f ../mmp-local-dev/docker-compose.yml ps',
+                    'description': 'mmp-local-dev의 모든 컨테이너 상태를 확인합니다.'
+                },
+                {
+                    'step_number': 2,
+                    'action': '서비스별 연결 테스트',
+                    'command': 'telnet localhost 5432; telnet localhost 6379',
+                    'description': 'PostgreSQL과 Redis 포트 연결을 개별 테스트합니다.'
+                },
+                {
+                    'step_number': 3,
+                    'action': '컨테이너 재시작',
+                    'command': 'docker-compose -f ../mmp-local-dev/docker-compose.yml restart',
+                    'description': '문제가 있는 서비스를 재시작합니다.'
+                }
+            ]
+        elif category == CheckCategory.MLFLOW:
+            steps = [
+                {
+                    'step_number': 1,
+                    'action': 'MLflow 서버 상태 확인',
+                    'command': 'curl -f http://localhost:5000/health',
+                    'description': 'MLflow 서버 응답을 확인합니다.'
+                },
+                {
+                    'step_number': 2,
+                    'action': '로컬 모드로 전환',
+                    'command': 'unset MLFLOW_TRACKING_URI',
+                    'description': '서버 연결 실패 시 로컬 모드로 전환합니다.'
+                }
+            ]
+        
+        return steps
+    
+    def format_with_priority_colors(self, category_name: str, result: CheckResult) -> str:
+        """
+        우선순위 기반 색상으로 포맷팅합니다.
+        
+        Args:
+            category_name: 카테고리명
+            result: 검사 결과
+            
+        Returns:
+            str: 색상 코딩된 결과 문자열
+        """
+        severity = result.severity or 'warning'
+        
+        # 우선순위별 색상 설정
+        if severity == 'critical':
+            color = typer.colors.BRIGHT_RED
+            icon = "🔥"
+        elif severity == 'important':
+            color = typer.colors.BRIGHT_YELLOW
+            icon = "⚠️"
+        else:  # warning
+            color = typer.colors.YELLOW
+            icon = "💡"
+        
+        formatted_message = f"{icon} {category_name}: {result.message}"
+        
+        if self.config.use_colors:
+            formatted_message = typer.style(formatted_message, fg=color, bold=True)
+        
+        return formatted_message
+    
+    def generate_interactive_resolution_guide(self, category: CheckCategory, result: CheckResult) -> Dict[str, Any]:
+        """
+        대화형 해결 가이드를 생성합니다.
+        
+        Args:
+            category: 검사 카테고리
+            result: 검사 결과
+            
+        Returns:
+            Dict[str, Any]: 대화형 가이드 정보
+        """
+        guide = {
+            'options': [],
+            'prompts': [],
+            'next_steps': []
+        }
+        
+        if category == CheckCategory.MLFLOW:
+            guide['options'] = [
+                {
+                    'choice': '1',
+                    'description': 'MLflow 서버 재시작',
+                    'commands': [
+                        'docker-compose -f ../mmp-local-dev/docker-compose.yml restart mlflow',
+                        'sleep 10',
+                        'curl -f http://localhost:5000/health'
+                    ]
+                },
+                {
+                    'choice': '2',
+                    'description': '로컬 모드로 전환',
+                    'commands': [
+                        'unset MLFLOW_TRACKING_URI',
+                        'mkdir -p ./mlruns',
+                        'echo "로컬 모드로 전환됨"'
+                    ]
+                }
+            ]
+            
+            guide['prompts'] = [
+                '해결 방법을 선택하세요:',
+                '1) MLflow 서버 재시작',
+                '2) 로컬 모드로 전환',
+                '선택 (1-2): '
+            ]
+        
+        guide['next_steps'] = [
+            'modern-ml-pipeline self-check 재실행하여 문제 해결 확인',
+            '문제가 지속되면 로그 파일 확인 또는 GitHub Issues에 보고'
+        ]
+        
+        return guide
+    
+    def generate_comprehensive_actionable_report(self, summary: HealthCheckSummary) -> Dict[str, Any]:
+        """
+        종합적인 액션 가능한 보고서를 생성합니다.
+        
+        Args:
+            summary: 건강 검사 요약 정보
+            
+        Returns:
+            Dict[str, Any]: 종합 액션 가능한 보고서
+        """
+        report = {
+            'summary': {
+                'overall_healthy': summary.overall_healthy,
+                'total_checks': summary.total_checks,
+                'failed_checks': summary.failed_checks,
+                'success_rate': ((summary.total_checks - summary.failed_checks) / summary.total_checks * 100) if summary.total_checks > 0 else 0
+            },
+            'prioritized_actions': self.sort_issues_by_priority(summary),
+            'executable_commands': self.generate_executable_commands(summary),
+            'interactive_guides': {}
+        }
+        
+        # 실패한 각 카테고리에 대해 대화형 가이드 생성
+        for category, result in summary.categories.items():
+            if not result.is_healthy:
+                report['interactive_guides'][category] = self.generate_interactive_resolution_guide(category, result)
+        
+        return report
