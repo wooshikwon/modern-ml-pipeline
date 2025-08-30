@@ -1,4 +1,5 @@
 # LOCAL 환경 Classification 레시피
+# Generated with Jinja2 Template Engine
 name: "local_classification_recipe"
 
 model:
@@ -19,6 +20,7 @@ model:
   data_interface:
     task_type: "classification"
     target_column: "outcome"
+  
   
   hyperparameter_tuning:
     enabled: false

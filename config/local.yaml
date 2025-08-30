@@ -1,14 +1,18 @@
 # LOCAL 환경 설정
-environment: local
+environment:
+  app_env: local
+  gcp_project_id: "test-project"
 
-# 환경별 특화 설정
+mlflow:
+  tracking_uri: "./mlruns"
+  experiment_name: "local-development"
 
-database:
-  adapter: storage
-  source: data/local_data.csv
+serving:
+  enabled: false
+  host: "0.0.0.0"
+  port: 8000
 
-logging:
-  level: INFO
-  
-features:
-  store_enabled: false
+artifact_stores:
+  local:
+    enabled: true
+    base_uri: "./artifacts"

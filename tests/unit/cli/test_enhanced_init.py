@@ -17,9 +17,8 @@ CLAUDE.md 원칙 준수:
 import tempfile
 import os
 from pathlib import Path
-from unittest.mock import patch, call
+from unittest.mock import patch
 import click
-import typer.testing
 from typer.testing import CliRunner
 import pytest
 

@@ -189,11 +189,40 @@ class EnhancedTemplateGenerator:
         }
     
     def _copy_static_files(self, config: TemplateConfig) -> None:
-        """정적 파일들 복사"""
-        # .env.template 복사
-        env_template_src = self.templates_dir / ".env.template"
-        if env_template_src.exists():
-            shutil.copy2(env_template_src, config.target_directory / ".env.template")
+        """정적 파일들 복사 및 .env 파일 생성"""
+        # .env 파일을 템플릿에서 생성
+        self._generate_env_file(config)
+    
+    def _generate_env_file(self, config: TemplateConfig) -> None:
+        """환경별 .env 파일 생성 (Jinja2 템플릿 사용)"""
+        env_template_path = self.templates_dir / ".env.template"
+        
+        if not env_template_path.exists():
+            typer.echo(
+                f"⚠️  .env.template 파일이 없습니다: {env_template_path}",
+                color=typer.colors.YELLOW
+            )
+            return
+        
+        # 템플릿 변수 준비
+        template_vars = {
+            'environment': config.environment,
+            'recipe_type': config.recipe_type,
+        }
+        
+        # Jinja2 템플릿 렌더링
+        template_content = env_template_path.read_text()
+        template = Template(template_content)
+        rendered_content = template.render(**template_vars)
+        
+        # .env 파일로 저장
+        env_file_path = config.target_directory / ".env"
+        env_file_path.write_text(rendered_content)
+        
+        typer.echo(
+            f"✅ .env 파일 생성됨 ({config.environment} 환경): {env_file_path}",
+            color=typer.colors.GREEN
+        )
     
     def _create_data_files(self, config: TemplateConfig) -> None:
         """환경별 데이터 파일 생성"""
@@ -235,7 +264,7 @@ class EnhancedTemplateGenerator:
             "config/base.yaml",
             f"config/{config.environment}.yaml",
             f"recipes/{config.recipe_type}_recipe.yaml",
-            ".env.template"
+            ".env"
         ]
         
         for file_path in required_files:

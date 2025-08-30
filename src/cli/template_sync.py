@@ -7,8 +7,6 @@ root 디렉토리의 실제 파일을 templates/ 디렉토리로 동기화
 
 from pathlib import Path
 import shutil
-import yaml
-from typing import Dict, Any
 import typer
 
 

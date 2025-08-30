@@ -377,17 +377,80 @@ def init(
 @app.command()
 def validate(
     recipe_file: Annotated[str, typer.Option(help="검증할 Recipe 파일 경로")],
+    level: Annotated[
+        str, 
+        typer.Option(
+            help="검증 레벨: basic (syntax/schema만) 또는 full (connectivity/execution 포함)"
+        )
+    ] = "basic",
+    fix_suggestions: Annotated[
+        bool,
+        typer.Option(
+            "--fix-suggestions", 
+            help="구체적인 해결 방법 제시"
+        )
+    ] = False,
 ) -> None:
     """
     지정된 Recipe 파일과 관련 설정 파일들의 유효성을 검증합니다.
+    
+    M04-3: 다층 검증 아키텍처
+    - Layer 1: Syntax 검증 (YAML 구문, 필수 필드)
+    - Layer 2: Schema 검증 (Pydantic 기반 엄격한 검증) 
+    - Layer 3: Connectivity 검증 (MLflow, DB, Feature Store 연결)
+    - Layer 4: Execution 검증 (Factory 컴포넌트 생성 테스트)
     """
-    typer.echo(f"'{recipe_file}' 설정 파일 검증을 시작합니다...")
+    from src.cli.enhanced_validate import EnhancedValidator
+    
+    typer.echo(f"🔍 Recipe 검증 시작: {recipe_file}")
+    typer.echo(f"검증 레벨: {level.upper()}, 해결책 제시: {'ON' if fix_suggestions else 'OFF'}\n")
+    
     try:
-        load_settings_by_file(recipe_file)
-        typer.secho("✅ 성공: 모든 설정 파일이 유효합니다.", fg=typer.colors.GREEN)
+        validator = EnhancedValidator(level=level, fix_suggestions=fix_suggestions)
+        result = validator.validate_recipe(recipe_file)
+        
+        if result.success:
+            # 성공 시는 ActionableReporter에서 처리
+            if fix_suggestions:
+                validator.format_with_actionable_reporter(result)
+            else:
+                if level == "basic":
+                    typer.secho("✅ Basic 검증 완료", fg=typer.colors.GREEN)
+                else:
+                    typer.secho("🎉 전체 검증 성공: Recipe 파일이 모든 요구사항을 충족합니다", fg=typer.colors.GREEN)
+        else:
+            # 실패 시 처리
+            if fix_suggestions:
+                # ActionableReporter 사용하여 우선순위 기반 표시
+                try:
+                    validator.format_with_actionable_reporter(result)
+                except Exception as e:
+                    typer.secho(f"ActionableReporter 오류: {e}", fg=typer.colors.RED)
+                    # 폴백: 기존 방식으로 표시
+                    for step_result in result.steps:
+                        if step_result.passed:
+                            typer.secho(f"✅ {step_result.name}", fg=typer.colors.GREEN)
+                        elif step_result.skipped:
+                            typer.secho(f"⏭️  {step_result.name}: {step_result.skip_reason}", fg=typer.colors.YELLOW)
+                        else:
+                            typer.secho(f"❌ {step_result.name}: {step_result.error}", fg=typer.colors.RED)
+            else:
+                # 기존 간단한 표시 방식
+                for step_result in result.steps:
+                    if step_result.passed:
+                        typer.secho(f"✅ {step_result.name}", fg=typer.colors.GREEN)
+                    elif step_result.skipped:
+                        typer.secho(f"⏭️  {step_result.name}: {step_result.skip_reason}", fg=typer.colors.YELLOW)
+                    else:
+                        typer.secho(f"❌ {step_result.name}: {step_result.error}", fg=typer.colors.RED)
+                
+                typer.echo("\n더 구체적인 해결 방법이 필요하다면:")
+                typer.echo("  --fix-suggestions 옵션을 사용하세요")
+            
+            raise typer.Exit(code=1)
+            
     except Exception as e:
-        typer.secho("❌ 오류: 설정 파일 검증에 실패했습니다.", fg=typer.colors.RED)
-        typer.echo(e)
+        typer.secho(f"❌ 검증 중 오류 발생: {e}", fg=typer.colors.RED)
         raise typer.Exit(code=1)
 
 
