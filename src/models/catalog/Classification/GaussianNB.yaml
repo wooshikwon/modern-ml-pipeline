@@ -1,0 +1,26 @@
+class_path: "sklearn.naive_bayes.GaussianNB"
+description: "Gaussian Naive Bayes Classifier from scikit-learn."
+library: "scikit-learn"
+hyperparameters:
+  # 고정 파라미터 (모든 환경 동일)
+  fixed: {}
+  # Optuna 최적화 대상 파라미터 (범위 지정)
+  tunable:
+    var_smoothing:
+      type: "float"
+      range: [1e-12, 1e-6]
+      default: 1e-9
+  # 환경별 기본값
+  environment_defaults:
+    local:
+      var_smoothing: 1e-9
+    dev:
+      var_smoothing: 1e-9
+    prod:
+      var_smoothing: 1e-9
+# 지원 태스크 및 요구사항
+supported_tasks: ["binary_classification", "multiclass_classification"]
+feature_requirements:
+  numerical: true
+  categorical: false
+  text: false

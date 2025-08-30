@@ -1,0 +1,57 @@
+# Advanced Regression Scenario - Independent Config
+# 회귀 테스트 시나리오를 위한 독립적인 설정
+
+environment:
+  app_env: "test"
+  gcp_project_id: "test-regression-project"
+
+mlflow:
+  tracking_uri: "./test_mlruns_regression"
+  experiment_name: "advanced-regression-test"
+
+data_adapters:
+  default_loader: "local_data_loader"
+  default_storage: "storage"
+  
+  adapters:
+    storage:
+      class_name: StorageAdapter
+      config:
+        storage_options: {}
+
+feature_store:
+  provider: "feast"
+  feast_config:
+    project: "advanced_regression_test"
+    provider: "local"
+    registry: "test_regression_registry.sqlite"
+
+hyperparameter_tuning:
+  enabled: true
+  timeout: 120  # 2분 제한
+  engine: "optuna"
+  
+  pruning:
+    enabled: true
+    algorithm: "MedianPruner"
+    n_startup_trials: 2
+    n_warmup_steps: 3
+  
+  parallelization:
+    n_jobs: 1
+
+serving:
+  enabled: false
+
+artifact_stores:
+  local:
+    enabled: true
+    base_uri: "./test_regression_artifacts"
+  
+  prediction_results:
+    enabled: true
+    base_uri: "file://./test_regression_artifacts/predictions"
+  
+  preprocessed_dataset:
+    enabled: true
+    base_uri: "file://./test_regression_artifacts/preprocessed"

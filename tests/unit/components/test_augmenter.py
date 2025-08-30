@@ -4,32 +4,35 @@ Blueprint 핵심 원칙 검증:
 - 원칙 2: 환경별 역할 분담 - Local(PassThrough) vs Dev(FeatureStore)
 - Augmenter 선택 정책: 환경/provider/서빙 모드별 차등 동작
 - PIT 조인 데이터 계약: entity + timestamp → 피처 추가
+
+Factory 패턴 적용:
+- SettingsFactory로 파일 의존성 제거
+- TestDataFactory로 표준화된 테스트 데이터
+- 실제 컴포넌트 유지하여 Blueprint 검증 보장
 """
 import pytest
 import pandas as pd
 
 from src.components._augmenter import PassThroughAugmenter, FeatureStoreAugmenter
-from src.settings.loaders import load_settings_by_file
+from tests.factories.settings_factory import SettingsFactory
+from tests.factories.test_data_factory import TestDataFactory
 
 
 class TestAugmenterBlueprintCompliance:
-    """Augmenter의 Blueprint 철학 준수 테스트"""
+    """Augmenter의 Blueprint 철학 준수 테스트 - Factory 패턴 적용"""
 
     @pytest.fixture
-    def mock_settings_local(self):
-        """Local 환경 Settings - PassThroughAugmenter 대상"""
-        return load_settings_by_file(
-            recipe_file="tests/fixtures/recipes/local_classification_test.yaml"
-        )
+    def mock_settings_local(self, test_factories):
+        """Local 환경 Settings - SettingsFactory 사용"""
+        # SettingsFactory로 완전한 Settings 생성 (파일 의존성 제거)
+        settings_dict = test_factories['settings'].create_local_settings()
+        return test_factories['mocks'].get_settings(settings_dict)
 
     @pytest.fixture
     def sample_entity_data(self):
-        """BLUEPRINT Augmenter 데이터 계약: entity + timestamp"""
-        return pd.DataFrame({
-            'user_id': ['u1', 'u2', 'u3'],
-            'event_ts': pd.to_datetime(['2024-01-01', '2024-01-02', '2024-01-03']),
-            'label': [1, 0, 1]  # 학습 시에만 포함
-        })
+        """BLUEPRINT Augmenter 데이터 계약: entity + timestamp - TestDataFactory 사용"""
+        # 기존 패턴 유지 (event_ts 컬럼명)
+        return TestDataFactory.create_minimal_entity_data(entity_count=3)
 
     def test_pass_through_augmenter_initialization(self, mock_settings_local):
         """PassThroughAugmenter 초기화 - BLUEPRINT 원칙 2 (Local 환경)"""
@@ -97,10 +100,7 @@ class TestAugmenterBlueprintCompliance:
         
         # BLUEPRINT 원칙 2: Local 환경에서는 PassThrough 동작
         # 실제 Feature Store 연결 없이도 동작해야 함
-        sample_data = pd.DataFrame({
-            'user_id': ['test_user'],
-            'event_ts': pd.to_datetime(['2024-01-01'])
-        })
+        sample_data = TestDataFactory.create_minimal_entity_data(entity_count=1)
         
         result = augmenter.augment(sample_data, run_mode="train")
         assert result is not None
@@ -111,10 +111,7 @@ class TestAugmenterBlueprintCompliance:
         augmenter = PassThroughAugmenter()
         
         # BLUEPRINT: entity + timestamp는 반드시 보존되어야 함
-        input_data = pd.DataFrame({
-            'user_id': ['u1', 'u2'],
-            'event_ts': pd.to_datetime(['2024-01-01', '2024-01-02'])
-        })
+        input_data = TestDataFactory.create_minimal_entity_data(entity_count=2)
         
         result = augmenter.augment(input_data, run_mode="train")
         

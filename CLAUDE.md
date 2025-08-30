@@ -42,13 +42,20 @@
 
 ## 4) 골든 커맨드
 
+### 기본 도구
 * 동기화: `uv sync`
 * 정적검사/포맷: `uv run ruff check .` / `uv run black --check .` / `uv run isort --check-only .`
 * 타입체크: `uv run mypy src`
-* 테스트(기본): `uv run pytest -q -m "not slow and not integration"`
-* 커버리지: `uv run pytest --cov=src --cov-report=term-missing --fail-under=90 -q`
 * pre-commit 전체 실행: `uv run pre-commit run -a`
 * 패키지 추가/제거: `uv add <pkg>` / `uv remove <pkg>`
+
+### 테스트 실행 전략 (Phase 4 최적화)
+* **빠른 개발용** (핵심만): `uv run pytest -m "core and unit" -v`
+* **표준 CI** (기본): `uv run pytest -q -m "not slow and not integration"`
+* **성능 최적화** (병렬): `uv run pytest -n auto tests/unit/ -v`  
+* **커버리지 검증**: `uv run pytest --cov=src --cov-report=term-missing --fail-under=90 -q`
+* **전체 단위**: `uv run pytest tests/unit/ -v`
+* **핵심+통합**: `uv run pytest -m "(core and unit) or integration" -v`
 
 ---
 

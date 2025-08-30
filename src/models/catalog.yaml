@@ -2,9 +2,86 @@ Classification:
   - class_path: "sklearn.ensemble.RandomForestClassifier"
     description: "Random Forest Classifier from scikit-learn."
     library: "scikit-learn"
+    hyperparameters:
+      # 고정 파라미터 (모든 환경 동일)
+      fixed:
+        random_state: 42
+      # Optuna 최적화 대상 파라미터 (범위 지정)
+      tunable:
+        n_estimators:
+          type: "int"
+          range: [10, 200]
+          default: 100
+        max_depth:
+          type: "int" 
+          range: [3, 20]
+          default: 10
+        min_samples_split:
+          type: "int"
+          range: [2, 20] 
+          default: 2
+        min_samples_leaf:
+          type: "int"
+          range: [1, 10]
+          default: 1
+      # 환경별 기본값
+      environment_defaults:
+        local:
+          n_estimators: 10
+          max_depth: 3
+          n_jobs: 2
+        dev:
+          n_estimators: 50
+          max_depth: 10
+          n_jobs: 4
+        prod:
+          n_estimators: 100
+          max_depth: 15
+          n_jobs: -1
+    # 지원 태스크 및 요구사항
+    supported_tasks: ["binary_classification", "multiclass_classification"]
+    feature_requirements:
+      numerical: true
+      categorical: true
+      text: false
   - class_path: "sklearn.linear_model.LogisticRegression"
     description: "Logistic Regression from scikit-learn."
     library: "scikit-learn"
+    hyperparameters:
+      fixed:
+        random_state: 42
+        max_iter: 1000
+      tunable:
+        C:
+          type: "float"
+          range: [0.001, 100.0]
+          default: 1.0
+        penalty:
+          type: "categorical"
+          range: ["l1", "l2", "elasticnet", "none"]
+          default: "l2"
+        solver:
+          type: "categorical"
+          range: ["liblinear", "lbfgs", "newton-cg", "sag", "saga"]
+          default: "lbfgs"
+      environment_defaults:
+        local:
+          C: 1.0
+          penalty: "l2"
+          solver: "lbfgs"
+        dev:
+          C: 1.0
+          penalty: "l2"
+          solver: "lbfgs"
+        prod:
+          C: 1.0
+          penalty: "l2"
+          solver: "saga"
+    supported_tasks: ["binary_classification", "multiclass_classification"]
+    feature_requirements:
+      numerical: true
+      categorical: true
+      text: false
   - class_path: "xgboost.XGBClassifier"
     description: "XGBoost Classifier."
     library: "xgboost"

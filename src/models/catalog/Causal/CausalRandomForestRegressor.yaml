@@ -1,0 +1,72 @@
+class_path: "causalml.inference.tree.CausalRandomForestRegressor"
+description: "Causal Random Forest for Uplift Modeling."
+library: "causalml"
+hyperparameters:
+  # 고정 파라미터 (모든 환경 동일)
+  fixed:
+    random_state: 42
+  # Optuna 최적화 대상 파라미터 (범위 지정)
+  tunable:
+    n_estimators:
+      type: "int"
+      range: [10, 200]
+      default: 100
+    max_depth:
+      type: "int"
+      range: [3, 20]
+      default: 8
+    min_samples_leaf:
+      type: "int"
+      range: [1, 100]
+      default: 5
+    min_samples_split:
+      type: "int"
+      range: [2, 20]
+      default: 2
+    max_features:
+      type: "categorical"
+      range: ["auto", "sqrt", "log2", null]
+      default: "auto"
+    bootstrap:
+      type: "categorical"
+      range: [true, false]
+      default: true
+    n_reg:
+      type: "float"
+      range: [0.01, 10.0]
+      default: 1.0
+    evaluationFunction:
+      type: "categorical"
+      range: ["KL", "ED", "Chi", "CTS"]
+      default: "KL"
+    min_samples_treatment:
+      type: "int"
+      range: [10, 200]
+      default: 50
+    control_name:
+      type: "categorical"
+      range: ["control"]
+      default: "control"
+  # 환경별 기본값
+  environment_defaults:
+    local:
+      n_estimators: 50
+      max_depth: 5
+      min_samples_leaf: 20
+      min_samples_treatment: 25
+    dev:
+      n_estimators: 100
+      max_depth: 8
+      min_samples_leaf: 10
+      min_samples_treatment: 50
+    prod:
+      n_estimators: 150
+      max_depth: 12
+      min_samples_leaf: 5
+      min_samples_treatment: 100
+# 지원 태스크 및 요구사항
+supported_tasks: ["causal_inference", "uplift_modeling"]
+feature_requirements:
+  numerical: true
+  categorical: true
+  text: false

@@ -1,0 +1,46 @@
+# =============================================================================
+# config/base.yaml - 기본 설정 및 모든 환경의 공통 기반
+# =============================================================================
+# 
+# 🎯 BASE 설정 철학: "안전하고 보수적인 기본값"
+# - 모든 환경의 공통 기반이자 로컬 개발의 기본값
+# - 가장 안전하고 보수적인 값으로 설정
+# - 외부 의존성 최소화 및 즉시 실행 가능성 보장
+# - 각 환경별 설정이 이 값들을 덮어씀
+# =============================================================================
+
+# 실행 환경
+environment:
+  app_env: "${APP_ENV:local}"
+  gcp_project_id: "{{ project_name | default('local-project') }}"
+  gcp_credential_path: "${GCP_CREDENTIAL_PATH:./credentials/local_gcp_credentials.json}"
+
+# MLflow 설정
+mlflow:
+  tracking_uri: "${MLFLOW_TRACKING_URI:http://127.0.0.1:5002}"
+  experiment_name: "{{ experiment_name | default('Default-Experiment') }}"
+
+# API 서빙 설정
+serving:
+  enabled: {{ serving_enabled | default('false') }}
+  model_stage: "${MODEL_STAGE:Staging}"
+  host: "{{ serving_host | default('0.0.0.0') }}"
+  port: {{ serving_port | default('8000') }}
+
+# 아티팩트 저장소
+artifact_stores:
+  local:
+    enabled: true
+    base_uri: "./artifacts"
+  
+  augmented_dataset:
+    enabled: {{ enable_augmented_data | default('true') }}
+    base_uri: "file://./artifacts/augmented"
+  
+  preprocessed_dataset:
+    enabled: {{ enable_preprocessed_data | default('true') }}
+    base_uri: "file://./artifacts/preprocessed"
+  
+  prediction_results:
+    enabled: {{ enable_prediction_results | default('true') }}
+    base_uri: "file://./artifacts/predictions"

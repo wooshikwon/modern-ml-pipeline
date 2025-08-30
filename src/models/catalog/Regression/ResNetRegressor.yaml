@@ -1,0 +1,57 @@
+class_path: "rtdl_revisiting_models.ResNetRegressor"
+description: "ResNet-like model for tabular data from RTDL."
+library: "rtdl_revisiting_models"
+hyperparameters:
+  # 고정 파라미터 (모든 환경 동일)
+  fixed:
+    seed: 42
+  # Optuna 최적화 대상 파라미터 (범위 지정)
+  tunable:
+    n_blocks:
+      type: "int"
+      range: [1, 8]
+      default: 2
+    d_main:
+      type: "int"
+      range: [64, 512]
+      default: 128
+    d_hidden:
+      type: "int"
+      range: [64, 1024]
+      default: 256
+    dropout_first:
+      type: "float"
+      range: [0.0, 0.5]
+      default: 0.25
+    dropout_second:
+      type: "float"
+      range: [0.0, 0.5]
+      default: 0.0
+    normalization:
+      type: "categorical"
+      range: ["BatchNorm1d", "LayerNorm"]
+      default: "BatchNorm1d"
+    activation:
+      type: "categorical"
+      range: ["ReLU", "GELU"]
+      default: "ReLU"
+  # 환경별 기본값
+  environment_defaults:
+    local:
+      n_blocks: 2
+      d_main: 64
+      d_hidden: 128
+    dev:
+      n_blocks: 4
+      d_main: 128
+      d_hidden: 256
+    prod:
+      n_blocks: 6
+      d_main: 256
+      d_hidden: 512
+# 지원 태스크 및 요구사항
+supported_tasks: ["regression"]
+feature_requirements:
+  numerical: true
+  categorical: true
+  text: false

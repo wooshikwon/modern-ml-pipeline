@@ -1,0 +1,42 @@
+# Basic Classification Scenario - Independent Config
+# 테스트 시나리오 전용 독립적인 설정
+
+environment:
+  app_env: "test"
+  gcp_project_id: "test-project"
+
+mlflow:
+  tracking_uri: "./test_mlruns"
+  experiment_name: "basic-classification-test"
+
+data_adapters:
+  default_loader: "local_data_loader"
+  default_storage: "storage"
+  
+  adapters:
+    storage:
+      class_name: StorageAdapter
+      config:
+        storage_options: {}
+
+feature_store:
+  provider: "feast"
+  feast_config:
+    project: "basic_classification_test"
+    provider: "local"
+    registry: "test_registry.sqlite"
+
+hyperparameter_tuning:
+  enabled: false
+
+serving:
+  enabled: false
+
+artifact_stores:
+  local:
+    enabled: true
+    base_uri: "./test_artifacts"
+  
+  prediction_results:
+    enabled: true
+    base_uri: "file://./test_artifacts/predictions"

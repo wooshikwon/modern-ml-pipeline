@@ -1,4 +1,5 @@
 """CLI Module Public API"""
-from .commands import app
+# Import from the unified main_commands.py file
+from .main_commands import app
 
 __all__ = ["app"] 
