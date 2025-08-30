@@ -1,0 +1,55 @@
+# {{ environment.upper() }} 환경 {{ recipe_type.title() }} 레시피
+# Generated with Jinja2 Template Engine
+name: "{{ recipe_name }}"
+
+model:
+  class_path: "sklearn.ensemble.RandomForestClassifier"
+  hyperparameters:
+    n_estimators: {{ n_estimators }}
+    max_depth: {{ max_depth }}
+    random_state: 42
+    n_jobs: {{ n_jobs }}
+  
+  loader:
+    name: "{{ loader_name }}"
+    source_uri: "{{ data_source }}"
+    adapter: {{ adapter }}
+    entity_schema:
+      entity_columns: ["user_id"]
+      timestamp_column: "event_timestamp"
+  data_interface:
+    task_type: "classification"
+    target_column: "outcome"
+  
+  {% if feature_store %}
+  augmenter:
+    type: "feature_store"
+    features:
+      - feature_namespace: "user_features"
+        features: ["age", "income"]
+      - feature_namespace: "session_features"
+        features: ["session_length", "page_views"]
+  {% endif %}
+  
+  {% if hyperparameter_tuning %}
+  hyperparameter_tuning:
+    enabled: true
+    n_trials: {{ n_trials }}
+    metric: "roc_auc"
+    direction: "maximize"
+  {% else %}
+  hyperparameter_tuning:
+    enabled: false
+  {% endif %}
+
+evaluation:
+  metrics:
+    - "accuracy"
+    - "f1_score"
+    - "precision"
+    - "recall"
+    {% if feature_store %}- "roc_auc"{% endif %}
+  validation:
+    method: "train_test_split"
+    test_size: 0.2
+    random_state: 42

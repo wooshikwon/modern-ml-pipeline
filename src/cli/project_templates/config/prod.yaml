@@ -1,0 +1,201 @@
+# =============================================================================
+# config/prod.yaml - 프로덕션 환경 설정 (base.yaml override)
+# =============================================================================
+# 
+# 🎯 PROD 환경 철학: "성능, 안정성, 관측 가능성의 완벽한 삼위일체"
+# - base.yaml의 기본 설정을 프로덕션 수준으로 override
+# - 클라우드 네이티브 서비스 활용 
+# - 무제한 확장성과 운영 안정성
+# - 완전한 관측 가능성과 모니터링
+# =============================================================================
+
+# 환경 식별자
+environment:
+  app_env: "prod"  # base.yaml override
+  gcp_project_id: "${GCP_PROD_PROJECT_ID}"
+
+# MLflow 설정 - 클라우드 네이티브 (base.yaml override)
+mlflow:
+  tracking_uri: "${MLFLOW_PROD_TRACKING_URI}"  # base.yaml override: 프로덕션 서버
+  experiment_name: "Production-Models-${YEAR}"
+  
+  # 🌍 Use Case별 MLflow 설정 예시:
+  #
+  # 🏢 GCP 환경:
+  #   tracking_uri: "https://mlflow.your-company.com"
+  #   artifact_location: "gs://mmp-prod-artifacts"
+  #
+  # ☁️ AWS 환경:  
+  #   tracking_uri: "https://mlflow.amazonaws.com"
+  #   artifact_location: "s3://mmp-prod-artifacts"
+  #
+  # 🔵 Azure 환경:
+  #   tracking_uri: "https://mlflow.azureml.com"
+  #   artifact_location: "abfss://artifacts@company.dfs.core.windows.net"
+
+# 데이터 어댑터 - SQL 우선 (base.yaml override)
+data_adapters:
+  default_loader: "sql"              # base.yaml override: SQL 우선
+  default_storage: "storage"         # base.yaml 유지
+  default_feature_store: "feature_store"  # base.yaml 유지
+  
+  adapters:
+    # SQL 어댑터 - 프로덕션 데이터베이스 (base.yaml override)
+    sql:
+      class_name: SqlAdapter
+      config:
+        # 🌍 Use Case별 데이터베이스 설정:
+        #
+        # 🏢 BigQuery (GCP):
+        connection_uri: "bigquery://${GCP_PROJECT_ID}/${DATASET_ID}"
+        # job_config:
+        #   maximum_bytes_billed: 1000000000  # 10GB 제한
+        #   use_query_cache: true
+        #
+        # ❄️ Snowflake (Multi-cloud):
+        # connection_uri: "snowflake://${SNOWFLAKE_USER}:${SNOWFLAKE_PASSWORD}@${SNOWFLAKE_ACCOUNT}/${SNOWFLAKE_DATABASE}/${SNOWFLAKE_SCHEMA}?warehouse=${SNOWFLAKE_WAREHOUSE}"
+        #
+        # 🐘 PostgreSQL (Enterprise):
+        # connection_uri: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:5432/${POSTGRES_DB}"
+        # pool_size: 20
+    
+    # Storage 어댑터 - 클라우드 스토리지 (base.yaml override)
+    storage:
+      class_name: StorageAdapter
+      config:
+        # 🌍 Use Case별 스토리지 설정:
+        #
+        # 🏢 Google Cloud Storage:
+        storage_options:
+          project: ${GCP_PROJECT_ID}
+          token: ${GCS_SERVICE_ACCOUNT_KEY}
+        #
+        # ☁️ AWS S3:
+        # storage_options:
+        #   key: ${AWS_ACCESS_KEY_ID}
+        #   secret: ${AWS_SECRET_ACCESS_KEY}
+        #   client_kwargs:
+        #     region_name: ${AWS_REGION}
+
+# Feature Store - 프로덕션 환경 설정 (base.yaml override)
+feature_store:
+  provider: "feast"
+  feast_config:
+    project: "mmp-prod"
+    provider: "gcp"  # base.yaml override: 클라우드 네이티브
+    registry: "gs://mmp-prod-registry/registry.db"  # base.yaml override: 클라우드 저장소
+    
+    # Offline Store - BigQuery (base.yaml override)
+    offline_store:
+      type: "bigquery"
+      project_id: ${GCP_PROJECT_ID}
+      dataset_id: "feature_store"
+      
+      # 🌍 Alternative Offline Stores:
+      #
+      # ❄️ Snowflake:
+      # type: "snowflake"
+      # account: ${SNOWFLAKE_ACCOUNT}
+      # database: "FEATURE_STORE"
+      # warehouse: "COMPUTE_WH"
+    
+    # Online Store - Redis 클러스터 (base.yaml override)
+    online_store:
+      type: "redis"
+      connection_string: ${REDIS_CONNECTION_STRING}
+      ssl: true
+      
+      # 🌍 Alternative Online Stores:
+      #
+      # 🗄️ DynamoDB (AWS):
+      # type: "dynamodb"
+      # region: ${AWS_REGION}
+      # table_name: "feast_online_store"
+
+# 하이퍼파라미터 튜닝 - 프로덕션 최적화 (base.yaml override)
+hyperparameter_tuning:
+  enabled: true             # base.yaml override: 프로덕션에서는 활성화
+  timeout: 7200             # base.yaml override: 2시간 충분한 탐색
+  
+  pruning:
+    n_startup_trials: 10    # base.yaml override: 충분한 초기 trial
+    n_warmup_steps: 20      # base.yaml override
+  
+  parallelization:
+    n_jobs: 16              # base.yaml override: 고성능 병렬 처리
+
+# API 서빙 - 프로덕션 서빙 (base.yaml override)
+serving:
+  enabled: true
+  model_stage: "Production"  # base.yaml override: MLflow Production 스테이지
+  
+  # 🌍 Use Case별 서빙 설정:
+  #
+  # 🚀 고성능 서빙:
+  #   autoscaling:
+  #     min_replicas: 3
+  #     max_replicas: 100
+  #     target_cpu_utilization: 70
+  #
+  # 🔒 보안 강화:
+  #   security:
+  #     enable_https: true
+  #     require_api_key: true
+  #     allowed_origins: ["https://company.com"]
+
+# 아티팩트 저장소 - 프로덕션 클라우드 저장소 (base.yaml override)
+artifact_stores:
+  # 피처 증강 데이터 (base.yaml override)
+  augmented_dataset:
+    enabled: true
+    base_uri: "gs://mmp-prod-datasets/augmented"  # base.yaml override: 클라우드 저장소
+    
+    # 🌍 Use Case별 저장소 설정:
+    # base_uri: "s3://mmp-prod-datasets/augmented"              # AWS
+    # base_uri: "abfss://datasets@company.dfs.core.windows.net" # Azure
+    
+  # 전처리 데이터 - 프로덕션에서는 활성화 (base.yaml override)
+  preprocessed_dataset:
+    enabled: true           # base.yaml override: 프로덕션에서는 감사용 활성화
+    base_uri: "gs://mmp-prod-datasets/preprocessed"  # base.yaml override: 클라우드 저장소
+    retention_days: 90      # 90일 보관
+    
+  # 예측 결과 (base.yaml override)
+  prediction_results:
+    enabled: true
+    base_uri: "gs://mmp-prod-predictions"  # base.yaml override: 클라우드 저장소
+    
+    # 데이터 거버넌스 (프로덕션 추가 설정)
+    governance:
+      enable_lineage: true      # 데이터 계보 추적
+      enable_versioning: true   # 버전 관리
+      retention_policy: "5_years"  # 5년 보관
+    
+    # PostgreSQL 저장 - 프로덕션 DB (base.yaml override)
+    postgres_storage:
+      enabled: true
+      table_name: "batch_predictions"
+      connection_uri: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:5432/${POSTGRES_DB}"
+
+# 보안 설정 (프로덕션 추가)
+security:
+  enable_authentication: true
+  api_key_required: true
+  rate_limiting: true
+  
+# 모니터링 설정 (프로덕션 추가)  
+monitoring:
+  enable_metrics: true
+  enable_tracing: true
+  enable_profiling: false  # 성능상 기본 비활성화
+
+# 💡 운영자 가이드:
+#
+# 🚀 프로덕션 배포:
+#   APP_ENV=prod uv run python main.py train --recipe-file production_model
+#
+# 📊 배치 추론 실행:
+#   APP_ENV=prod uv run python main.py batch-inference --run-id <PROD_RUN_ID>
+#
+# 🌐 API 서버 시작:
+#   APP_ENV=prod uv run python main.py serve-api --run-id <PROD_RUN_ID> --host 0.0.0.0 --port 8080

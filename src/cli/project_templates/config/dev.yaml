@@ -1,0 +1,147 @@
+# =============================================================================
+# config/dev.yaml - 개발 환경 설정 (base.yaml override)
+# =============================================================================
+# 
+# 🎯 DEV 환경 철학: "모든 기능이 완전히 작동하는 안전한 실험실"
+# - base.yaml 기본 설정에서 개발팀 협업에 필요한 설정만 override
+# - 팀 공유: 통합된 Feature Store와 MLflow
+# - 안전한 실험: 운영에 영향 없는 독립 환경
+# - 실제 환경: PROD와 동일한 기술 스택 검증
+# =============================================================================
+
+# 환경 식별자
+environment:
+  app_env: "dev"  # base.yaml override
+  gcp_project_id: "dev-project"
+
+# 데이터 어댑터 - SQL 어댑터 우선 (base.yaml override)
+data_adapters:
+  default_loader: "sql"              # base.yaml override: SQL 우선
+  default_storage: "storage"         # base.yaml 유지
+  default_feature_store: "feature_store"  # base.yaml 유지
+  
+  adapters:
+    # SQL 어댑터 - PostgreSQL 개발 DB (base.yaml override)
+    sql:
+      class_name: SqlAdapter
+      config:
+        connection_uri: "postgresql://postgres:postgres@127.0.0.1:5432/mlflow"  # mmp-local-dev 호환
+        
+        # 🌍 Use Case별 DB 설정 예시:
+        #
+        # 🏢 팀 공유 PostgreSQL:
+        # connection_uri: "postgresql://team:${TEAM_DB_PASSWORD}@dev-db.company.com:5432/ml_dev"
+        # pool_size: 10
+        # max_overflow: 5
+        #
+        # ☁️ Cloud SQL (GCP) 개발 인스턴스:
+        # connection_uri: "postgresql://dev_user:${DEV_DB_PASSWORD}@${CLOUD_SQL_DEV_IP}:5432/ml_dev"
+        # ssl_mode: "require"
+
+# Feature Store - 개발 환경 설정 (base.yaml override)
+feature_store:
+  provider: "feast"
+  feast_config:
+    project: "ml_pipeline_dev"
+    provider: "local"
+    registry: "data/feature_store/dev_registry.sqlite"
+    
+    # Offline Store - PostgreSQL (mmp-local-dev)
+    offline_store:
+      type: "postgres"
+      host: "localhost"
+      port: 5432
+      database: "mlflow"     # mmp-local-dev 기본 DB
+      db_schema: "public"    # mmp-local-dev 기본 스키마  
+      user: "postgres"       # mmp-local-dev 기본 사용자
+      password: "postgres"   # mmp-local-dev 기본 패스워드
+    
+    # Online Store - Redis (mmp-local-dev)
+    online_store:
+      type: "redis"
+      connection_string: "localhost:6379"
+
+# MLflow 설정 - 외부 서버 연결 지원 (base.yaml override)
+mlflow:
+  tracking_uri: ${MLFLOW_TRACKING_URI:./mlruns}  # base.yaml override: 환경변수 지원
+  experiment_name: "E2E-Test-Experiment-2025"  # base.yaml override
+  
+  # 🌍 Use Case별 MLflow 설정:
+  #
+  # 🏢 팀 공유 MLflow 서버:
+  # tracking_uri: "https://mlflow-dev.company.com"
+  # experiment_name: "Team-Dev-Experiments-${TEAM_NAME}"
+  #
+  # 📊 개발자별 실험 분리:
+  # experiment_name: "Dev-${USER}-Experiments"
+  # tags:
+  #   developer: ${USER}
+  #   environment: "dev"
+
+# 하이퍼파라미터 튜닝 - 개발 환경 최적화 (base.yaml override)
+hyperparameter_tuning:
+  enabled: true             # base.yaml override: 개발에서는 활성화
+  timeout: 600              # base.yaml override: 10분 (개발 환경 자원 보호)
+  
+  pruning:
+    n_startup_trials: 5     # base.yaml override: 빠른 개발 피드백
+    n_warmup_steps: 10      # base.yaml override
+  
+  parallelization:
+    n_jobs: 4               # base.yaml override: 개발 서버 자원 고려
+
+# API 서빙 - 개발 및 테스트용 (base.yaml override)
+serving:
+  enabled: true
+  model_stage: "Staging"    # base.yaml override: MLflow Staging 스테이지 사용
+  
+  # 🌍 Use Case별 서빙 설정:
+  #
+  # 👥 팀 공유 개발 서버:
+  #   host: "0.0.0.0"
+  #   port: 8080
+  #   workers: 2
+  #   cors_origins: ["http://localhost:3000", "https://dev-frontend.company.com"]
+
+# 아티팩트 저장소 - 개발 환경 데이터 관리 (base.yaml override)
+artifact_stores:
+  # 피처 증강 데이터 (base.yaml override)
+  augmented_dataset:
+    enabled: true
+    base_uri: "file://./local/artifacts/dev_augmented"  # base.yaml override: dev 전용 경로
+    
+  # 전처리 데이터 - 개발에서는 활성화 (base.yaml override)
+  preprocessed_dataset:
+    enabled: true           # base.yaml override: 개발에서는 활성화
+    base_uri: "file://./local/artifacts/dev_preprocessed"  # base.yaml override: dev 전용 경로
+    
+  # 예측 결과 (base.yaml override)
+  prediction_results:
+    enabled: true
+    base_uri: "file://./local/artifacts/dev_predictions"  # base.yaml override: dev 전용 경로
+    
+    # PostgreSQL 저장 - mmp-local-dev 연동 (base.yaml 추가)
+    postgres_storage:
+      enabled: true
+      table_name: "batch_predictions"
+      connection_uri: "postgresql://postgres:postgres@127.0.0.1:5432/mlflow"  # mmp-local-dev 호환
+
+# 개발 지원 기능 (환경별 추가 설정)
+development:
+  enable_debug_mode: true     # 상세 디버깅 정보
+  enable_profiling: false     # 기본 비활성화 (필요시 true)
+  save_intermediate: true     # 중간 결과 저장 (디버깅용)
+
+# 💡 개발팀 가이드:
+#
+# 🚀 개발 환경 시작:
+#   ./setup-dev-environment.sh start
+#
+# 🧪 모델 실험:
+#   APP_ENV=dev uv run python main.py train --recipe-file my_experiment
+#
+# 🔄 API 서빙 테스트:
+#   APP_ENV=dev uv run python main.py serve-api --run-id <DEV_RUN_ID>
+#
+# 📊 MLflow UI 접근:
+#   http://localhost:5002

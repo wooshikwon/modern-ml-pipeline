@@ -118,12 +118,18 @@ class HealthCheckOrchestrator:
     def _run_environment_checks(self) -> Dict[CheckCategory, CheckResult]:
         """환경 관련 모든 검사를 실행합니다."""
         try:
-            # 여러 환경 검사를 실행하고 통합
+            # M04-2-2 개선: 세부 검증 기능 추가
             checks = [
-                ("Python 버전", self.environment_checker.check_python_version),
-                ("핵심 의존성", self.environment_checker.check_core_dependencies),
+                # 기본 검사
+                ("Python 버전 기본", self.environment_checker.check_python_version),
+                ("핵심 의존성 기본", self.environment_checker.check_core_dependencies),
                 ("템플릿 접근성", self.environment_checker.check_template_accessibility),
-                ("uv 가용성", self.environment_checker.check_uv_availability)
+                ("uv 가용성", self.environment_checker.check_uv_availability),
+                # M04-2-2 세부 검사 추가
+                ("Python 버전 세부", self.environment_checker.check_python_version_detailed),
+                ("의존성 호환성 세부", self.environment_checker.check_dependencies_detailed),
+                ("템플릿 내용 검증", self.environment_checker.check_template_content_validation),
+                ("uv 고급 기능", self.environment_checker.check_uv_advanced_capabilities)
             ]
             
             all_healthy = True
@@ -177,22 +183,74 @@ class HealthCheckOrchestrator:
     def _run_mlflow_checks(self) -> Dict[CheckCategory, CheckResult]:
         """MLflow 관련 모든 검사를 실행합니다."""
         try:
-            # 현재 모드 감지
+            # M04-2-3 개선: 세부 MLflow 검증 기능 추가
+            checks = []
             current_mode = self.mlflow_checker.detect_current_mode()
             
             if current_mode == 'server':
-                result = self.mlflow_checker.check_server_connectivity()
+                # 서버 모드 검사
+                checks = [
+                    ("MLflow 서버 기본", self.mlflow_checker.check_server_connectivity),
+                    ("MLflow 서버 세부", self.mlflow_checker.check_server_detailed),
+                    ("MLflow 추적 기능", self.mlflow_checker.check_tracking_functionality),
+                ]
             elif current_mode == 'local':
-                result = self.mlflow_checker.check_local_mode()
+                # 로컬 모드 검사
+                checks = [
+                    ("MLflow 로컬 기본", self.mlflow_checker.check_local_mode),
+                    ("MLflow 로컬 세부", self.mlflow_checker.check_local_mode_detailed),
+                    ("MLflow 추적 기능", self.mlflow_checker.check_tracking_functionality),
+                ]
             else:
-                result = CheckResult(
+                return {CheckCategory.MLFLOW: CheckResult(
                     is_healthy=False,
                     message="MLflow 모드를 감지할 수 없음",
                     details=["MLflow 설정을 확인하세요"],
                     recommendations=["MLFLOW_TRACKING_URI 환경변수 설정"]
-                )
+                )}
             
-            return {CheckCategory.MLFLOW: result}
+            # 공통 검사 추가
+            checks.append(("MLflow 유연성 검사", self.mlflow_checker.check_graceful_degradation))
+            
+            # 모든 검사 실행 및 결과 통합
+            all_healthy = True
+            combined_details = []
+            combined_recommendations = []
+            
+            for check_name, check_method in checks:
+                try:
+                    result = check_method()
+                    
+                    if not result.is_healthy:
+                        all_healthy = False
+                    
+                    # 세부 정보 통합
+                    if result.details:
+                        combined_details.extend([f"{check_name}: {detail}" for detail in result.details])
+                    
+                    # 추천사항 통합
+                    if result.recommendations:
+                        combined_recommendations.extend([
+                            f"{check_name} - {rec}" for rec in result.recommendations
+                        ])
+                        
+                except Exception as e:
+                    all_healthy = False
+                    combined_details.append(f"{check_name}: 검사 실패 - {e}")
+            
+            # 통합 결과 생성
+            if all_healthy:
+                message = f"모든 MLflow 검사 통과 ({current_mode} 모드)"
+            else:
+                failed_count = len([detail for detail in combined_details if "❌" in detail or "실패" in detail])
+                message = f"MLflow 검사에서 {failed_count}개 문제 발견 ({current_mode} 모드)"
+            
+            return {CheckCategory.MLFLOW: CheckResult(
+                is_healthy=all_healthy,
+                message=message,
+                details=combined_details,
+                recommendations=combined_recommendations
+            )}
             
         except Exception as e:
             return {
@@ -206,49 +264,73 @@ class HealthCheckOrchestrator:
     def _run_external_service_checks(self) -> Dict[CheckCategory, CheckResult]:
         """외부 서비스 관련 모든 검사를 실행합니다."""
         try:
-            # 각 서비스별 검사 실행
-            checks = [
-                ("PostgreSQL", self.external_checker.check_postgresql),
-                ("Redis", self.external_checker.check_redis),
-                ("Feast", self.external_checker.check_feast)
-            ]
+            # M04-2-4 Enhanced: 선택적 검증 + 세부 검증 + Docker 통합 + 호환성 검증
+            checks = []
             
+            # 1. 선택적 검증 (설정에 따라 서비스 스킵 가능)
+            checks.append(("선택적 서비스 검증", self.external_checker.check_services_selectively))
+            
+            # 2. Docker 통합 검증 (mmp-local-dev 컨테이너 상태)
+            if self.external_checker.config.enable_docker_integration:
+                checks.append(("Docker 통합", self.external_checker.check_docker_integration))
+            
+            # 3. 세부 기능 검증 (실제 기능 테스트)
+            if not self.external_checker.config.skip_postgresql:
+                checks.append(("PostgreSQL 세부", self.external_checker.check_postgresql_detailed))
+            
+            if not self.external_checker.config.skip_redis:
+                checks.append(("Redis 세부", self.external_checker.check_redis_detailed))
+            
+            if not self.external_checker.config.skip_feast:
+                checks.append(("Feast 세부", self.external_checker.check_feast_detailed))
+            
+            # 4. mmp-local-dev 호환성 검증
+            checks.append(("mmp-local-dev 호환성", self.external_checker.check_mmp_local_dev_compatibility))
+            
+            # 모든 검사 실행 및 결과 통합
             all_healthy = True
             combined_details = []
             combined_recommendations = []
-            healthy_services = []
-            failed_services = []
+            successful_checks = []
+            failed_checks = []
             
-            for service_name, check_method in checks:
+            for check_name, check_method in checks:
                 try:
                     result = check_method()
                     
                     if result.is_healthy:
-                        healthy_services.append(service_name)
+                        successful_checks.append(check_name)
                     else:
-                        failed_services.append(service_name)
+                        failed_checks.append(check_name)
                         all_healthy = False
                     
                     # 세부 정보 통합
                     if result.details:
-                        combined_details.extend([f"{service_name}: {detail}" for detail in result.details])
+                        combined_details.extend([f"{check_name}: {detail}" for detail in result.details])
                     
                     # 추천사항 통합
                     if result.recommendations:
                         combined_recommendations.extend([
-                            f"{service_name} - {rec}" for rec in result.recommendations
+                            f"{check_name} - {rec}" for rec in result.recommendations
                         ])
                         
                 except Exception as e:
-                    failed_services.append(service_name)
+                    failed_checks.append(check_name)
                     all_healthy = False
-                    combined_details.append(f"{service_name}: 검사 실패 - {e}")
+                    combined_details.append(f"{check_name}: 검사 실패 - {e}")
             
             # 통합 결과 생성
+            total_checks = len(checks)
+            successful_count = len(successful_checks)
+            
             if all_healthy:
-                message = f"모든 외부 서비스 연결 가능 ({len(healthy_services)}/3)"
+                message = f"모든 외부 서비스 Enhanced 검증 완료 ({successful_count}/{total_checks})"
             else:
-                message = f"외부 서비스 연결 실패: {', '.join(failed_services)}"
+                message = f"외부 서비스 검증에서 {len(failed_checks)}개 문제 발견 ({successful_count}/{total_checks})"
+            
+            # 검증 통계 추가
+            if combined_details:
+                combined_details.insert(0, f"📊 Enhanced 검증 통계: {successful_count}개 성공, {len(failed_checks)}개 실패")
             
             return {
                 CheckCategory.EXTERNAL_SERVICES: CheckResult(

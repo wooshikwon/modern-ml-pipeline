@@ -1,152 +1,97 @@
 # =============================================================================
-# config/local.yaml - 로컬 개발 환경 설정
+# config/local.yaml - 로컬 개발 환경 설정 (base.yaml override)
 # =============================================================================
 # 
-# 🎯 LOCAL 환경 철학: "빠른 실험과 디버깅의 성지"
-# - 제약은 단순함을 낳고, 단순함은 집중을 낳는다
-# - 외부 의존성 최소화로 즉시 실행 가능
-# - 의도적 제약을 통한 개발자 집중도 향상
-#
-# 📋 주요 Use Cases:
-# 1. 빠른 프로토타이핑 및 알고리즘 검증
-# 2. 코드 디버깅 및 로직 테스트
-# 3. 새로운 모델 실험
-# 4. 단위 테스트 및 통합 테스트
-# 5. 오프라인 개발 (인터넷 연결 없음)
+# 🎯 LOCAL 환경 철학: "빠른 개발과 즉시 실행 가능성"
+# - base.yaml의 기본 설정을 그대로 사용하되, 필요한 부분만 override
+# - 외부 의존성 최소화 (PostgreSQL, Redis 등 선택적)
+# - 파일 시스템 기반 빠른 프로토타이핑
+# - 새로운 개발자도 즉시 실행 가능
 # =============================================================================
 
-# 🔧 MLflow 설정 - 로컬 파일 시스템 사용
-mlflow:
-  tracking_uri: "./mlruns"  # 로컬 디렉토리에 모든 실험 저장
-  experiment_name: "Local-Experiments"
-  
-  # 🎯 Use Case별 실험명 예시:
-  # experiment_name: "Algorithm-Validation"     # 알고리즘 검증용
-  # experiment_name: "Debug-Session-2025"       # 디버깅 세션용
-  # experiment_name: "Unit-Test-Models"         # 단위 테스트용
-  # experiment_name: "Prototype-${USER}"        # 개발자별 프로토타입
+# 환경 식별자
+environment:
+  app_env: "local"  # base.yaml의 ${APP_ENV:local} override
 
-# 🚫 Feature Store - PassThrough 모드 (의도적 제약)
-feature_store:
-  provider: "passthrough"  # Feature Store 비활성화
-  
-  # 📝 Alternative Options:
-  # ✅ PassThrough Mode (기본값) - 피처 증강 없이 원본 데이터 사용
-  #   provider: "passthrough"
-  #
-  # 🔧 Simple File-based (가벼운 피처 실험용)
-  #   provider: "feast"
-  #   feast_config:
-  #     project: "local_dev"
-  #     provider: "local"
-  #     registry: "data/local_registry.db"
-  #     offline_store:
-  #       type: "file"
-  #       path: "data/features"
-  #     online_store:
-  #       type: "sqlite"
-  #       path: "data/online_store.db"
-
-# 📁 데이터 어댑터 - 로컬 파일 시스템
+# 데이터 어댑터 - 파일 시스템 우선
 data_adapters:
-  default_loader: "storage"    # 파일 기반 데이터 로딩
-  default_storage: "storage"   # 로컬 스토리지 사용
+  default_loader: "storage"     # base.yaml override: storage 우선
   
   adapters:
+    # Storage 어댑터 - 로컬 파일 시스템
     storage:
       class_name: StorageAdapter
       config:
-        base_path: "./data"  # 모든 데이터 파일의 기본 경로
+        storage_options: {}     # 로컬 파일 시스템 기본 사용
         
-        # 🎯 Use Case별 경로 설정 예시:
-        # base_path: "./data/experiments"     # 실험 데이터용
-        # base_path: "./test_data"            # 테스트 데이터용  
-        # base_path: "/Users/${USER}/ml_data" # 사용자별 데이터 경로
-        # base_path: "./synthetic_data"       # 합성 데이터용
+    # SQL 어댑터 - 선택적 사용 (SQLite)
+    sql:
+      class_name: SqlAdapter  
+      config:
+        connection_uri: "sqlite:///./local/data/local.db"  # 경량 SQLite
 
-# ⚡ 하이퍼파라미터 튜닝 - 빠른 실험용 제한
+# Feature Store - 로컬 개발용 간소화
+feature_store:
+  provider: "feast"
+  feast_config:
+    project: "ml_pipeline_local"
+    provider: "local"
+    registry: "data/feature_store/local_registry.sqlite"
+    
+    # Offline Store - 로컬 파일
+    offline_store:
+      type: "file"
+      path: "./data/feature_store/offline"
+    
+    # Online Store - 로컬 SQLite (Redis 대신)
+    online_store:
+      type: "sqlite" 
+      path: "./data/feature_store/online.db"
+
+# MLflow - 로컬 파일 시스템
+mlflow:
+  tracking_uri: "file:./mlruns"    # base.yaml override: 명시적 로컬 파일
+  experiment_name: "Local-Development"
+
+# 하이퍼파라미터 튜닝 - 개발용 최소화
 hyperparameter_tuning:
-  enabled: true
-  timeout: 300        # 5분 제한 (빠른 피드백)
-  engine: "optuna"
-  pruning:
-    enabled: true
-    algorithm: "MedianPruner"
-    n_startup_trials: 3     # 로컬에서는 빠른 pruning
-    n_warmup_steps: 5
+  enabled: false                   # 로컬에서는 기본 비활성화
+  timeout: 120                     # 2분 제한
   parallelization:
-    n_jobs: 2              # 로컬 머신 자원 보호
-    
-  # 🎯 Use Case별 튜닝 설정 예시:
-  # 
-  # 🚀 빠른 프로토타이핑용:
-  #   timeout: 120           # 2분 극속 실험
-  #   parallelization:
-  #     n_jobs: 1            # 단일 코어로 안정성 확보
-  #
-  # 🔍 심화 실험용:
-  #   timeout: 900           # 15분 허용
-  #   parallelization:
-  #     n_jobs: 4            # 멀티코어 활용
-  #
-  # 🧪 알고리즘 검증용:
-  #   timeout: 60            # 1분 극한 제한
-  #   pruning:
-  #     n_startup_trials: 1  # 즉시 pruning
+    n_jobs: 1                     # 단일 프로세스
 
-# 🔒 API 서빙 - 시스템적 비활성화 (의도적 제약)
+# API 서빙 - 로컬 개발
 serving:
-  enabled: false  # LOCAL 환경에서는 API 서빙 차단
+  model_stage: "None"             # base.yaml override: 로컬은 단계 무관
   
-  # 📝 왜 비활성화?
-  # 1. 로컬 개발은 실험에 집중
-  # 2. 서빙은 DEV 환경에서 테스트
-  # 3. 복잡성 제거로 디버깅 용이성 확보
-  # 4. 포트 충돌 방지
-
-# 📊 아티팩트 저장소 - 로컬 디버깅 최적화
+# 아티팩트 저장소 - 로컬 파일
 artifact_stores:
-  # 피처 증강 데이터 (디버깅용)
+  # 모든 아티팩트를 로컬 파일 시스템에 저장
   augmented_dataset:
-    enabled: true           # 디버깅 시 중간 결과 확인용
-    base_uri: "file://./local/debug/augmented"
+    enabled: true
+    base_uri: "file://./local/artifacts/augmented"
     
-  # 전처리 데이터 (상세 디버깅용)
   preprocessed_dataset:
-    enabled: false          # 기본 비활성화 (필요시만 true)
-    base_uri: "file://./local/debug/preprocessed"
+    enabled: true
+    base_uri: "file://./local/artifacts/preprocessed"
     
-  # 예측 결과
   prediction_results:
     enabled: true
-    base_uri: "file://./local/results"
+    base_uri: "file://./local/artifacts/predictions"
     
-    # 🎯 Use Case별 결과 저장 예시:
-    # base_uri: "file://./experiments/${EXPERIMENT_NAME}"  # 실험별 분리
-    # base_uri: "file://./debug/${DATE}"                  # 날짜별 분리
-    # base_uri: "file://./prototypes/${MODEL_TYPE}"       # 모델 타입별 분리
+    # PostgreSQL 저장 비활성화 (파일 우선)
+    postgres_storage:
+      enabled: false
 
-# 🐛 디버깅 및 개발 지원 옵션
-environment:
-  app_env: "local"
-  debug_mode: true          # 상세 로그 활성화
+# 모니터링 - 개발용 최소화
+monitoring:
+  enable_metrics: false           # 기본 비활성화
+  enable_logging: true            # 로깅은 유지
   
-  # 🔧 Advanced 디버깅 옵션들:
-  # verbose_logging: true   # 매우 상세한 로그
-  # profile_performance: true # 성능 프로파일링
-  # save_intermediate: true   # 모든 중간 결과 저장
-  # validate_schemas: true    # 스키마 검증 강화
-
-# 💡 개발자 팁:
-# 
-# 🚀 빠른 시작:
-#   APP_ENV=local uv run python main.py train --recipe-file my_experiment
-#
-# 🔍 디버깅 모드:
-#   DEBUG=true APP_ENV=local uv run python main.py train --recipe-file debug_model
-#
-# 📊 성능 측정:
-#   PROFILE=true APP_ENV=local uv run python main.py train --recipe-file perf_test
-#
-# 🧪 단위 테스트:
-#   APP_ENV=local pytest tests/ 
+  development_tools:
+    enable_query_profiling: true   # 로컬 디버깅에 유용
+    enable_memory_profiling: false
+    save_execution_traces: true
+    
+  alerts:
+    enable_slack_notifications: false
