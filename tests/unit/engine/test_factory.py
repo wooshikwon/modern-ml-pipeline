@@ -4,24 +4,35 @@ Blueprint 핵심 원칙 검증:
 - 원칙 3: 선언적 파이프라인 - Factory를 통한 동적 컴포넌트 조립
 - 원칙 4: 모듈화/확장성 - Factory & Registry 패턴 구현
 - 원칙 1: 설정-논리 분리 - Settings 기반 컴포넌트 생성
+
+Factory 패턴 적용:
+- SettingsFactory로 완전한 Settings 객체 생성 (파일 의존성 제거)
+- 실제 Factory 클래스 유지하여 통합 테스트 성격 보장
+- Blueprint 정책과 실제 컴포넌트 생성 로직 검증
 """
 import pytest
 from unittest.mock import patch
 
 from src.engine.factory import Factory
-from src.settings.loaders import load_settings_by_file
+from src.settings import Settings
+from tests.factories.settings_factory import SettingsFactory
 
 
 class TestFactoryBlueprintCompliance:
-    """Factory의 Blueprint 철학 준수 테스트"""
+    """Factory의 Blueprint 철학 준수 테스트 - Factory 패턴 적용"""
 
     @pytest.fixture
-    def mock_settings(self):
-        """테스트용 Settings 객체 - 실제 로더 사용으로 BLUEPRINT 원칙 1 준수"""
-        return load_settings_by_file(
-            recipe_file="tests/fixtures/recipes/local_classification_test.yaml"
-        )
+    def mock_settings(self, test_factories):
+        """테스트용 Settings 객체 - SettingsFactory 사용으로 파일 의존성 제거"""
+        # SettingsFactory로 완전한 설정 딕셔너리 생성
+        settings_dict = test_factories['settings'].create_classification_settings("local")
+        
+        # 실제 Factory가 요구하는 Settings 객체로 변환
+        # Factory는 settings.recipe.model.class_path 같은 실제 속성에 접근하므로
+        return Settings(**settings_dict)
 
+    @pytest.mark.core
+    @pytest.mark.unit
     @pytest.mark.blueprint_principle_1
     def test_factory_initialization_with_settings(self, mock_settings):
         """Factory 초기화 - Settings 객체 주입 (BLUEPRINT 원칙 1)"""
@@ -32,6 +43,8 @@ class TestFactoryBlueprintCompliance:
         # BLUEPRINT: Settings를 단일 진실 공급원으로 사용
         assert hasattr(factory, 'model_config')
 
+    @pytest.mark.core
+    @pytest.mark.unit
     @pytest.mark.blueprint_principle_3
     @pytest.mark.blueprint_principle_4
     def test_factory_dynamic_component_creation_interface(self, mock_settings):
@@ -51,6 +64,8 @@ class TestFactoryBlueprintCompliance:
             assert hasattr(factory, method_name), f"Factory missing {method_name} method"
             assert callable(getattr(factory, method_name)), f"{method_name} is not callable"
 
+    @pytest.mark.core
+    @pytest.mark.unit
     @pytest.mark.blueprint_principle_1
     def test_factory_model_config_property(self, mock_settings):
         """Factory model_config 프로퍼티 - 레시피 논리 접근 (BLUEPRINT 원칙 1)"""
@@ -62,6 +77,8 @@ class TestFactoryBlueprintCompliance:
         # 레시피에서 모델 논리 정보를 가져와야 함
         assert hasattr(model_config, 'loader') or hasattr(model_config, 'class_path')
 
+    @pytest.mark.core
+    @pytest.mark.unit
     def test_factory_creates_preprocessor_following_blueprint(self, mock_settings):
         """Factory 전처리기 생성 - BLUEPRINT 철학 준수"""
         factory = Factory(mock_settings)
@@ -75,6 +92,7 @@ class TestFactoryBlueprintCompliance:
         assert hasattr(preprocessor, 'transform')
         assert hasattr(preprocessor, 'fit_transform')
 
+    @pytest.mark.core
     @pytest.mark.unit
     def test_factory_augmenter_creation_environment_driven(self, mock_settings):
         """Factory Augmenter 생성 - 환경별 차등 기능 (BLUEPRINT 원칙 2)"""

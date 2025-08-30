@@ -1,0 +1,68 @@
+class_path: "src.models.FTTransformerClassifier"
+description: "FT-Transformer for classification tasks, with built-in preprocessing."
+library: "rtdl_revisiting_models"
+hyperparameters:
+  # 고정 파라미터 (모든 환경 동일)
+  fixed:
+    seed: 42
+  # Optuna 최적화 대상 파라미터 (범위 지정)
+  tunable:
+    n_blocks:
+      type: "int"
+      range: [1, 8]
+      default: 3
+    d_token:
+      type: "int"
+      range: [64, 512]
+      default: 192
+    attention_dropout:
+      type: "float"
+      range: [0.0, 0.5]
+      default: 0.2
+    ffn_d_hidden:
+      type: "int"
+      range: [64, 1024]
+      default: 512
+    ffn_dropout:
+      type: "float"
+      range: [0.0, 0.5]
+      default: 0.1
+    residual_dropout:
+      type: "float"
+      range: [0.0, 0.2]
+      default: 0.0
+    n_heads:
+      type: "int"
+      range: [4, 16]
+      default: 8
+    prenormalization:
+      type: "categorical"
+      range: [true, false]
+      default: true
+    activation:
+      type: "categorical"
+      range: ["ReGLU", "GELU"]
+      default: "ReGLU"
+  # 환경별 기본값
+  environment_defaults:
+    local:
+      n_blocks: 2
+      d_token: 64
+      n_heads: 4
+      ffn_d_hidden: 128
+    dev:
+      n_blocks: 3
+      d_token: 128
+      n_heads: 8
+      ffn_d_hidden: 256
+    prod:
+      n_blocks: 6
+      d_token: 256
+      n_heads: 12
+      ffn_d_hidden: 512
+# 지원 태스크 및 요구사항
+supported_tasks: ["binary_classification", "multiclass_classification"]
+feature_requirements:
+  numerical: true
+  categorical: true
+  text: false

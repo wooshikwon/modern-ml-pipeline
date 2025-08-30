@@ -13,7 +13,6 @@ from unittest.mock import Mock, patch
 from sklearn.ensemble import RandomForestClassifier
 
 from src.components._trainer import Trainer
-from src.settings.loaders import load_settings_by_file
 from src.interface import BaseAugmenter, BasePreprocessor, BaseEvaluator
 
 
@@ -21,14 +20,14 @@ from src.interface import BaseAugmenter, BasePreprocessor, BaseEvaluator
 @pytest.mark.blueprint_principle_1
 @pytest.mark.blueprint_principle_4
 class TestTrainerBlueprintCompliance:
-    """Trainer Blueprint 원칙 준수 테스트"""
+    """Trainer Blueprint 원칙 준수 테스트 - Factory 패턴 적용"""
 
     @pytest.fixture
-    def classification_settings(self):
-        """분류 작업용 Settings 객체 - 실제 로더 사용으로 일관성 보장"""
-        return load_settings_by_file(
-            recipe_file="tests/fixtures/recipes/local_classification_test.yaml"
-        )
+    def classification_settings(self, test_factories):
+        """분류 작업용 Settings 객체 - Factory 패턴 적용"""
+        settings_dict = test_factories['settings'].create_classification_settings("local")
+        from src.settings import Settings
+        return Settings(**settings_dict)
 
     @pytest.fixture
     def mock_factory_provider(self):
@@ -64,19 +63,9 @@ class TestTrainerBlueprintCompliance:
         return provider
 
     @pytest.fixture
-    def sample_training_data(self):
-        """테스트용 학습 데이터 생성 - 결정론적 시드 사용"""
-        np.random.seed(42)
-        n_samples = 100
-        
-        return pd.DataFrame({
-            'user_id': range(n_samples),
-            'event_timestamp': pd.date_range('2024-01-01', periods=n_samples, freq='h'),
-            'feature_1': np.random.normal(0, 1, n_samples),
-            'feature_2': np.random.normal(2, 1.5, n_samples),
-            'feature_3': np.random.randint(0, 5, n_samples),
-            'approved': np.random.choice([0, 1], n_samples, p=[0.6, 0.4])  # 불균형 데이터
-        })
+    def sample_training_data(self, test_factories):
+        """테스트용 학습 데이터 생성 - Factory 패턴 적용"""
+        return test_factories['data'].create_classification_data(n_samples=100)
 
     @pytest.fixture
     def mock_components(self):

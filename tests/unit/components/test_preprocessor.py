@@ -14,56 +14,34 @@ from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 
 from src.components._preprocessor import Preprocessor
-from src.settings.loaders import load_settings_by_file
 
 
 @pytest.mark.unit
 @pytest.mark.blueprint_principle_1
 @pytest.mark.blueprint_principle_3
 class TestPreprocessorBlueprintCompliance:
-    """Preprocessor Blueprint 원칙 준수 테스트"""
+    """Preprocessor Blueprint 원칙 준수 테스트 - Factory 패턴 적용"""
 
     @pytest.fixture
-    def classification_settings(self):
-        """분류 작업용 Settings - 실제 로더로 일관성 보장"""
-        return load_settings_by_file(
-            recipe_file="tests/fixtures/recipes/local_classification_test.yaml"
-        )
+    def classification_settings(self, test_factories):
+        """분류 작업용 Settings - Factory 패턴 적용"""
+        settings_dict = test_factories['settings'].create_classification_settings("local")
+        from src.settings import Settings
+        return Settings(**settings_dict)
 
     @pytest.fixture
-    def comprehensive_training_data(self):
-        """포괄적 학습 데이터 - 다양한 데이터 타입 포함"""
-        np.random.seed(42)
-        n_samples = 200
-        
-        return pd.DataFrame({
-            # Entity 스키마 컬럼
-            'user_id': range(n_samples),
-            'event_timestamp': pd.date_range('2024-01-01', periods=n_samples, freq='h'),
-            
-            # 숫자형 피처 (결측치 포함)
-            'age': np.concatenate([np.random.normal(35, 10, n_samples-20), [np.nan]*20]),
-            'income': np.random.lognormal(10, 1, n_samples),
-            'credit_score': np.random.randint(300, 850, n_samples),
-            
-            # 범주형 피처
-            'region': np.random.choice(['North', 'South', 'East', 'West'], n_samples),
-            'occupation': np.random.choice(['Engineer', 'Teacher', 'Doctor', 'Other'], n_samples),
-            
-            # 대상 변수
-            'approved': np.random.choice([0, 1], n_samples, p=[0.65, 0.35])
-        })
+    def comprehensive_training_data(self, test_factories):
+        """포괄적 학습 데이터 - Factory 패턴 적용"""
+        return test_factories['data'].create_comprehensive_training_data(n_samples=200)
 
     @pytest.fixture
-    def incomplete_data(self):
+    def incomplete_data(self, test_factories):
         """Recipe에 정의된 컬럼이 누락된 데이터 - D01 이슈 테스트용"""
-        return pd.DataFrame({
-            'user_id': [1, 2, 3],
-            'event_timestamp': pd.date_range('2024-01-01', periods=3, freq='h'),
-            'existing_feature': [1.0, 2.0, 3.0],
-            'approved': [0, 1, 0]
-            # Recipe에 정의된 'age', 'income' 등이 누락
-        })
+        # Factory 기반 데이터에서 일부 컬럼 제거하여 누락 상황 시뮬레이션
+        data = test_factories['data'].create_classification_data(n_samples=3)
+        # 특정 컬럼들 제거 (누락 시나리오)
+        columns_to_remove = ['feature2', 'feature3'] if 'feature2' in data.columns else []
+        return data.drop(columns=columns_to_remove, errors='ignore')
 
     def test_preprocessor_initialization_follows_blueprint_principles(self, classification_settings):
         """Preprocessor 초기화가 Blueprint 원칙을 따르는지 검증"""

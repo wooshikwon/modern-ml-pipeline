@@ -1,0 +1,45 @@
+class_path: "sklearn.ensemble.RandomForestClassifier"
+description: "Random Forest Classifier from scikit-learn."
+library: "scikit-learn"
+hyperparameters:
+  # 고정 파라미터 (모든 환경 동일)
+  fixed:
+    random_state: 42
+  # Optuna 최적화 대상 파라미터 (범위 지정)
+  tunable:
+    n_estimators:
+      type: "int"
+      range: [10, 200]
+      default: 100
+    max_depth:
+      type: "int" 
+      range: [3, 20]
+      default: 10
+    min_samples_split:
+      type: "int"
+      range: [2, 20] 
+      default: 2
+    min_samples_leaf:
+      type: "int"
+      range: [1, 10]
+      default: 1
+  # 환경별 기본값
+  environment_defaults:
+    local:
+      n_estimators: 10
+      max_depth: 3
+      n_jobs: 2
+    dev:
+      n_estimators: 50
+      max_depth: 10
+      n_jobs: 4
+    prod:
+      n_estimators: 100
+      max_depth: 15
+      n_jobs: -1
+# 지원 태스크 및 요구사항
+supported_tasks: ["binary_classification", "multiclass_classification"]
+feature_requirements:
+  numerical: true
+  categorical: true
+  text: false

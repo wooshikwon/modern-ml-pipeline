@@ -1,127 +1,204 @@
+# Enhanced conftest.py - Factory pattern integrated with independent test support
+# Global fixture dependencies removed for test independence
+# Factory pattern for standardized test data and mocking
+# Phase 4 Performance Optimization: Session-scoped fixtures for immutable test data
+
 import pytest
-import os
+import pandas as pd
+import numpy as np
 from pathlib import Path
-import socket
+from typing import Dict, Any
 
-from src.settings import Settings, load_settings_by_file
-from src.utils.system.logger import setup_logging
+from tests.factories.test_data_factory import TestDataFactory
+from tests.factories.settings_factory import SettingsFactory
+from tests.mocks.component_registry import MockComponentRegistry
 
-# 🆕 Phase 6: 테스트 환경 자동 감지 시스템
-class TestConfig:
-    """테스트 환경 기본 설정 클래스"""
-    def __init__(self, env_name: str):
-        self.env_name = env_name
-        self.recipe_file = None
-        
-    def get_env_name(self) -> str:
-        return self.env_name
-
-class LocalTestConfig(TestConfig):
-    """LOCAL 환경 테스트 설정: 빠른 실험과 디버깅"""
-    def __init__(self):
-        super().__init__("local")
-        self.recipe_file = "local_classification_test"
-        self.mock_data_enabled = True
-        self.external_services_required = False
-        
-class DevTestConfig(TestConfig):
-    """DEV 환경 테스트 설정: 완전한 기능 검증"""
-    def __init__(self):
-        super().__init__("dev")
-        self.recipe_file = "dev_classification_test"
-        self.mock_data_enabled = False
-        self.external_services_required = True
-        
-class MockTestConfig(TestConfig):
-    """Mock 환경 테스트 설정: CI/CD 및 단위 테스트"""
-    def __init__(self):
-        super().__init__("mock")
-        self.recipe_file = "e2e_classification_test"  # Mock 데이터가 포함된 E2E Recipe 사용
-        self.mock_data_enabled = True
-        self.external_services_required = False
-
-@pytest.fixture(scope="session")  
-def test_environment():
-    """
-    🆕 Phase 6: 테스트 환경 자동 감지 및 설정
-    APP_ENV 환경 변수를 기반으로 적절한 TestConfig 반환
-    """
-    env = os.getenv("APP_ENV", "local")
-    
-    if env == "local":
-        return LocalTestConfig()
-    elif env == "dev":
-        return DevTestConfig() 
-    else:
-        return MockTestConfig()
 
 @pytest.fixture(scope="session")
 def tests_root() -> Path:
     """Fixture to return the root path of the tests directory."""
     return Path(__file__).parent
 
+
+@pytest.fixture(scope="session")
+def scenario_path(tests_root: Path):
+    """
+    Scenario-based test data loader.
+    Each test can independently load its required scenario data.
+    
+    Usage:
+        def test_example(scenario_path):
+            scenario_dir = scenario_path("basic_classification")
+            recipe_path = scenario_dir / "recipe.yaml"
+            config_path = scenario_dir / "config.yaml"
+            data_path = scenario_dir / "sample_data.csv"
+    """
+    def _scenario(name: str) -> Path:
+        return tests_root / "scenarios" / name
+    return _scenario
+
+
 @pytest.fixture
 def fixture_recipes_path(tests_root: Path) -> Path:
     """Fixture to return the path to the test recipes in fixtures."""
     return tests_root / "fixtures" / "recipes"
 
-@pytest.fixture(scope="session")
-def test_settings(tests_root: Path) -> Settings:
-    """테스트용 기본 Settings 객체를 로드합니다."""
-    recipe_path = tests_root / "fixtures" / "recipes" / "local_classification_test.yaml"
-    return load_settings_by_file(str(recipe_path))
 
-@pytest.fixture(scope="session", autouse=True)
-def setup_test_logging(test_settings: Settings):
-    """모든 테스트 세션에 대해 로깅을 설정합니다."""
-    setup_logging(test_settings)
-
-# 🆕 DEV 스택 자동 스킵 픽스처
+# Service availability check for integration tests
 @pytest.fixture(scope="session")
-def ensure_dev_stack_or_skip():
-    """mmp-local-dev 스택(Postgres/Redis/MLflow)이 기동되지 않았으면 관련 테스트를 스킵합니다."""
-    def _is_open(host: str, port: int, timeout: float = 1.0) -> bool:
+def check_dev_services():
+    """
+    Check if development services are available.
+    Returns a function to test service availability.
+    """
+    import socket
+    
+    def _is_service_up(host: str, port: int, timeout: float = 1.0) -> bool:
         try:
             with socket.create_connection((host, port), timeout=timeout):
                 return True
         except Exception:
             return False
-    services = [("localhost", 5432), ("localhost", 6379), ("localhost", 5002)]
-    all_up = all(_is_open(h, p) for h, p in services)
-    if not all_up:
-        pytest.skip("mmp-local-dev 스택이 기동되지 않아 DEV 통합 테스트를 스킵합니다.")
+    
+    def _check_services(required_services=None):
+        if required_services is None:
+            required_services = [
+                ("localhost", 5432),  # PostgreSQL
+                ("localhost", 6379),  # Redis  
+                ("localhost", 5002),  # MLflow
+            ]
+        
+        return all(_is_service_up(h, p) for h, p in required_services)
+    
+    return _check_services
+
+
+# ========================================
+# Factory Pattern Fixtures
+# ========================================
 
 @pytest.fixture(scope="session")
-def local_test_settings(tests_root: Path) -> Settings:
-    """
-    LOCAL 환경 테스트를 위한 표준 설정 객체(Settings)를 제공하는 Fixture.
-    """
-    os.environ['APP_ENV'] = 'local'
-    recipe_path = tests_root / "fixtures" / "recipes" / "e2e_classification_test.yaml"
-    settings = load_settings_by_file(str(recipe_path))
-    setup_logging(settings)
-    return settings
+def test_factories():
+    """테스트 팩토리들 제공 - 중앙화된 접근점"""
+    return {
+        'data': TestDataFactory,
+        'settings': SettingsFactory,
+        'mocks': MockComponentRegistry
+    }
+
+
+@pytest.fixture(autouse=True)
+def reset_mocks():
+    """각 테스트 후 Mock 초기화 - 테스트 독립성 보장"""
+    yield
+    MockComponentRegistry.reset_all()
+
 
 @pytest.fixture(scope="session")
-def dev_test_settings(tests_root: Path) -> Settings:
-    """
-    DEV 환경 테스트를 위한 표준 설정 객체(Settings)를 제공하는 Fixture.
-    """
-    os.environ['APP_ENV'] = 'dev'
-    recipe_path = tests_root / "fixtures" / "recipes" / "e2e_classification_test.yaml"
-    settings = load_settings_by_file(str(recipe_path))
-    setup_logging(settings)
-    return settings
+def shared_test_data():
+    """공유 테스트 데이터 (세션 단위 캐싱) - 성능 최적화"""
+    return {
+        'classification_large': TestDataFactory.create_classification_data(n_samples=1000),
+        'regression_large': TestDataFactory.create_regression_data(n_samples=1000),
+        'comprehensive': TestDataFactory.create_comprehensive_training_data(n_samples=500)
+    }
+
 
 @pytest.fixture(scope="session")
-def e2e_test_settings(tests_root: Path) -> Settings:
-    """
-    🆕 Phase 6: E2E 통합 테스트를 위한 설정
-    Phase 1-5 통합 기능 검증용 Fixture
-    """
-    env = os.getenv("APP_ENV", "local")
-    os.environ['APP_ENV'] = env
-    recipe_path = tests_root / "fixtures" / "recipes" / "e2e_classification_test.yaml"
-    settings = load_settings_by_file(str(recipe_path))
-    setup_logging(settings)
-    return settings
+def classification_test_data():
+    """분류 작업용 표준 테스트 데이터 (50샘플 - 빠른 테스트) - 세션 캐싱"""
+    return TestDataFactory.create_classification_data(n_samples=50)
+
+
+@pytest.fixture(scope="session")
+def regression_test_data():
+    """회귀 작업용 표준 테스트 데이터 (50샘플 - 빠른 테스트) - 세션 캐싱"""  
+    return TestDataFactory.create_regression_data(n_samples=50)
+
+
+@pytest.fixture
+def fast_classification_data(shared_test_data):
+    """빠른 분류 데이터 (공유 데이터 슬라이싱) - 성능 최적화"""
+    return shared_test_data['classification_large'].head(10).copy()
+
+
+@pytest.fixture  
+def fast_regression_data(shared_test_data):
+    """빠른 회귀 데이터 (공유 데이터 슬라이싱) - 성능 최적화"""
+    return shared_test_data['regression_large'].head(10).copy()
+
+
+@pytest.fixture(scope="session")
+def classification_settings():
+    """분류 작업용 표준 설정 - 세션 캐싱"""
+    return SettingsFactory.create_classification_settings()
+
+
+@pytest.fixture(scope="session")
+def regression_settings():
+    """회귀 작업용 표준 설정 - 세션 캐싱"""
+    return SettingsFactory.create_regression_settings()
+
+
+@pytest.fixture(scope="session")
+def minimal_settings():
+    """최소한의 설정 - 빠른 테스트용 - 세션 캐싱"""
+    return SettingsFactory.create_minimal_settings()
+
+
+# ========================================
+# Enhanced Markers and Configuration
+# ========================================
+
+def pytest_configure(config):
+    """Register custom markers."""
+    # 기존 마커 유지
+    config.addinivalue_line(
+        "markers", "requires_services: mark test as requiring external services"
+    )
+    config.addinivalue_line(
+        "markers", "slow: mark test as slow running"
+    )
+    config.addinivalue_line(
+        "markers", "integration: mark test as integration test"
+    )
+    
+    # 새로운 마커 추가
+    config.addinivalue_line(
+        "markers", "core: mark test as core functionality (highest priority)"
+    )
+    config.addinivalue_line(
+        "markers", "extended: mark test as extended coverage (lower priority)"
+    )
+    config.addinivalue_line(
+        "markers", "unit: mark test as unit test"
+    )
+    config.addinivalue_line(
+        "markers", "blueprint_principle_1: Tests for Blueprint Principle 1 (설정-논리 분리)"
+    )
+    config.addinivalue_line(
+        "markers", "blueprint_principle_2: Tests for Blueprint Principle 2 (환경별 역할 분담)"
+    )
+    config.addinivalue_line(
+        "markers", "blueprint_principle_3: Tests for Blueprint Principle 3 (선언적 파이프라인)"
+    )
+    config.addinivalue_line(
+        "markers", "blueprint_principle_4: Tests for Blueprint Principle 4 (모듈화/확장성)"
+    )
+
+
+@pytest.fixture(autouse=True, scope="session")
+def setup_test_environment():
+    """테스트 환경 전역 설정"""
+    # 재현 가능한 랜덤 시드 설정
+    np.random.seed(42)
+    
+    # pandas 설정 최적화
+    pd.set_option('display.max_columns', 20)
+    pd.set_option('display.width', 1000)
+    
+    yield
+    
+    # 테스트 후 정리
+    pd.reset_option('display.max_columns')
+    pd.reset_option('display.width')

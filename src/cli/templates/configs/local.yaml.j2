@@ -1,0 +1,49 @@
+# LOCAL 환경 설정
+environment:
+  app_env: local
+  gcp_project_id: "{{ project_name | default('test-project') }}"
+
+# MLflow 로컬 설정
+mlflow:
+  tracking_uri: "./mlruns"
+  experiment_name: "{{ experiment_name | default('local-development') }}"
+
+# 데이터 어댑터 설정
+data_adapters:
+  default_loader: "{{ default_loader | default('local_data_loader') }}"
+  default_storage: "storage"
+  
+  adapters:
+    storage:
+      class_name: StorageAdapter
+      config:
+        storage_options: {}
+
+# Feature Store 설정 (로컬)
+feature_store:
+  provider: "feast"
+  feast_config:
+    project: "{{ project_name | default('ml_pipeline_local') }}"
+    provider: "local"
+    registry: "data/feature_store/local_registry.sqlite"
+
+# 하이퍼파라미터 튜닝 (제한된 리소스)
+hyperparameter_tuning:
+  enabled: {{ enable_hyperparameter_tuning | default('false') }}
+  timeout: {{ tuning_timeout | default('300') }}  # 5분
+  engine: "optuna"
+  
+  parallelization:
+    n_jobs: {{ tuning_n_jobs | default('2') }}
+
+# API 서빙 (로컬 개발)
+serving:
+  enabled: {{ serving_enabled | default('false') }}
+  host: "{{ serving_host | default('0.0.0.0') }}"
+  port: {{ serving_port | default('8000') }}
+
+# 아티팩트 저장소 (로컬)
+artifact_stores:
+  local:
+    enabled: true
+    base_uri: "./artifacts"
