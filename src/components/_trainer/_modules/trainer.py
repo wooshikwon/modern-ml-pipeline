@@ -6,8 +6,8 @@ from sklearn.model_selection import train_test_split
 from src.settings import Settings
 from src.utils.system.logger import logger
 from src.interface import BaseTrainer, BaseModel, BaseAugmenter, BasePreprocessor, BaseEvaluator
-from ._data_handler import split_data, prepare_training_data
-from ._optimizer import OptunaOptimizer
+from .data_handler import split_data, prepare_training_data
+from .optimizer import OptunaOptimizer
 
 if TYPE_CHECKING:
     pass
@@ -141,3 +141,7 @@ class Trainer(BaseTrainer):
     def _get_stratify_col(self):
         di = self.settings.recipe.model.data_interface
         return di.target_column if di.task_type == "classification" else di.treatment_column if di.task_type == "causal" else None
+
+# Self-registration
+from .._registry import TrainerRegistry
+TrainerRegistry.register("default", Trainer)

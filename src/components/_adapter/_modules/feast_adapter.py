@@ -5,7 +5,6 @@ from src.interface.base_adapter import BaseAdapter
 from src.utils.system.logger import logger
 from pydantic import BaseModel
 from src.settings import Settings
-from src.engine import AdapterRegistry
 
 try:
     from feast import FeatureStore
@@ -181,4 +180,6 @@ class FeastAdapter(BaseAdapter):
         """Feast는 주로 읽기용이므로, write는 기본적으로 지원하지 않습니다."""
         raise NotImplementedError("FeastAdapter does not support write operation.")
 
+# Self-registration
+from .._registry import AdapterRegistry
 AdapterRegistry.register("feature_store", FeastAdapter) 

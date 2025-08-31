@@ -151,15 +151,18 @@ def get_task_metrics(task_type: str) -> List[str]:
     evaluator_class = EVALUATOR_REGISTRY[task_type.lower()]
     metrics = _extract_metrics_from_evaluator(evaluator_class)
     
-    # 메트릭 추출 실패 시 fallback
+    # 메트릭 추출 실패 시 최소 fallback (동적 추출 실패는 드물어야 함)
     if not metrics:
-        fallback_metrics = {
-            'classification': ['accuracy', 'precision', 'recall', 'f1_score'],
-            'regression': ['r2_score', 'mean_squared_error'],
+        from src.utils.system.logger import logger
+        logger.warning(f"Dynamic metric extraction failed for {task_type}, using minimal fallback")
+        # 최소한의 공통 메트릭만 제공
+        common_fallbacks = {
+            'classification': ['accuracy', 'f1_score'], 
+            'regression': ['r2_score'],
             'clustering': ['silhouette_score'],
             'causal': ['uplift_auc']
         }
-        metrics = fallback_metrics.get(task_type.lower(), [])
+        metrics = common_fallbacks.get(task_type.lower(), [])
     
     return metrics
 

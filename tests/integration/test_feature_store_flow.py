@@ -18,7 +18,7 @@ import mlflow
 import shutil
 
 from src.engine.factory import Factory
-from src.components._augmenter._augmenter import FeatureStoreAugmenter as Augmenter
+from src.components._fetcher import FeatureStoreAugmenter as Augmenter
 from src.pipelines.train_pipeline import run_training
 from src.serving.router import app, setup_api_context
 

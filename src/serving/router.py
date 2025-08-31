@@ -7,7 +7,7 @@ from src.utils.system.logger import logger
 from src.serving._context import app_context
 from src.serving._lifespan import lifespan, setup_api_context
 from src.serving import _endpoints as handlers
-from src.components._augmenter._pass_through import PassThroughAugmenter
+from src.components._fetcher import PassThroughAugmenter
 from src.serving.schemas import (
     HealthCheckResponse,
     ModelMetadataResponse,
@@ -141,14 +141,6 @@ def run_api_server(settings: Settings, run_id: str, host: str = "0.0.0.0", port:
             "API serving is not supported when the augmenter is 'pass_through'. "
             "A feature store connection is required."
         )
-    # SqlFallbackAugmenter 차단(구현 후 클래스 임포트하여 검사)
-    try:
-        from src.components._augmenter._sql_fallback import SqlFallbackAugmenter  # noqa
-        if isinstance(wrapped_model.trained_augmenter, SqlFallbackAugmenter):
-            raise TypeError("API serving is not supported with 'sql_fallback' augmenter. A feature store is required.")
-    except Exception:
-        # 아직 미구현인 경우 검사 생략
-        pass
     # 정적 predict 엔드포인트 사용
 
     uvicorn.run(app, host=host, port=port)

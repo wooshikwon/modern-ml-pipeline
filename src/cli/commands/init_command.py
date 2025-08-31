@@ -31,7 +31,7 @@ def create_project_structure(project_path: Path, with_mmp_dev: bool = False) -> 
     (project_path / "config").mkdir(exist_ok=True)
     (project_path / "recipes").mkdir(exist_ok=True)
     (project_path / "data").mkdir(exist_ok=True)
-    (project_path / "docs").mkdir(exist_ok=True)
+    (project_path / "sql").mkdir(exist_ok=True)
     
     # 2. Config 파일들 생성
     _generate_config_files(project_path, with_mmp_dev)

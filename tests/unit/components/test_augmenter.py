@@ -13,7 +13,7 @@ Factory 패턴 적용:
 import pytest
 import pandas as pd
 
-from src.components._augmenter import PassThroughAugmenter, FeatureStoreAugmenter
+from src.components._fetcher import PassThroughAugmenter, FeatureStoreAugmenter
 from tests.factories.settings_factory import SettingsFactory
 from tests.factories.test_data_factory import TestDataFactory
 

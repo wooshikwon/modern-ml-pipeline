@@ -17,3 +17,7 @@ class ClassificationEvaluator(BaseEvaluator):
             "f1_score": f1_score(y, predictions, average=self.settings.average),
         }
         return metrics
+
+# Self-registration
+from .._registry import EvaluatorRegistry
+EvaluatorRegistry.register("classification", ClassificationEvaluator)

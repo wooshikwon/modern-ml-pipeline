@@ -11,8 +11,7 @@ import tempfile
 import pandas as pd
 
 from src.settings import Settings
-from src.utils.adapters.sql_adapter import SqlAdapter
-from src.utils.adapters.storage_adapter import StorageAdapter
+from src.components._adapter import SqlAdapter, StorageAdapter
 
 
 class TestSqlAdapterGuards:
@@ -70,7 +69,7 @@ class TestStorageAdapterBasics:
 class TestFeastAdapterImport:
     def test_optional_import_guard(self):
         try:
-            from src.utils.adapters.feast_adapter import FeastAdapter  # noqa
+            from src.components._adapter import FeastAdapter  # noqa
             assert True  # 임포트 성공 시 OK (동작 검증은 통합 테스트에서)
         except ImportError:
             pytest.skip("Feast SDK 미설치 환경: import만 스킵") 
