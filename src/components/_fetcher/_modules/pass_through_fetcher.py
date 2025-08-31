@@ -22,4 +22,8 @@ class PassThroughAugmenter(BaseAugmenter):
             raise ValueError(f"Invalid run_mode '{run_mode}'. Valid modes: {valid_modes}")
         
         logger.info("피처 증강을 건너뜁니다. ('passthrough' 모드 또는 레시피에 augmenter 미정의)")
-        return df 
+        return df
+
+# Self-registration  
+from .._registry import FetcherRegistry
+FetcherRegistry.register("pass_through", PassThroughAugmenter) 

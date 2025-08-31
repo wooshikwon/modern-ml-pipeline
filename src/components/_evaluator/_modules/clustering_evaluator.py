@@ -13,3 +13,7 @@ class ClusteringEvaluator(BaseEvaluator):
             "silhouette_score": silhouette_score(X, labels),
         }
         return metrics
+
+# Self-registration
+from .._registry import EvaluatorRegistry
+EvaluatorRegistry.register("clustering", ClusteringEvaluator)

@@ -8,7 +8,7 @@ import pytest
 import pandas as pd
 from unittest.mock import Mock, patch
 from src.engine.factory import Factory
-from src.components._trainer._trainer import Trainer
+from src.components._trainer import Trainer
 from src.pipelines.train_pipeline import run_training
 from src.settings import Settings
 from src.settings.loaders import load_settings

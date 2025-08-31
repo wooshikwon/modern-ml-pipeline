@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 from src.engine.factory import Factory
-from src.components._augmenter._augmenter import FeatureStoreAugmenter as Augmenter
+from src.components._fetcher import FeatureStoreAugmenter as Augmenter
 from src.settings import Settings
 
 # DEV 환경 Feature Store 패리티 테스트

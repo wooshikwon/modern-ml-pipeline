@@ -10,8 +10,8 @@ from jinja2 import Environment, FileSystemLoader
 from rich.console import Console
 
 from src.settings._model_validation import ModelSpec
-from ..templates.environment_configs import ENVIRONMENT_CONFIGS
-from ..templates.evaluation_metrics import get_task_metrics, get_tuning_config
+from .environment_configs import ENVIRONMENT_CONFIGS
+from .evaluation_metrics import get_task_metrics, get_tuning_config
 
 
 class CatalogBasedRecipeGenerator:

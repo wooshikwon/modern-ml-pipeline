@@ -100,4 +100,8 @@ class SqlAdapter(BaseAdapter):
             logger.info(f"Successfully wrote {len(df)} rows to {table_name}.")
         except Exception as e:
             logger.error(f"SQL write 작업 실패: {e}", exc_info=True)
-            raise 
+            raise
+
+# Self-registration
+from .._registry import AdapterRegistry
+AdapterRegistry.register("sql", SqlAdapter)

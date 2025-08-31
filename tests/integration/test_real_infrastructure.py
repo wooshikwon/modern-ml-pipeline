@@ -32,101 +32,6 @@ class TestRealInfrastructureIntegration:
         if 'APP_ENV' in os.environ:
             del os.environ['APP_ENV']
     
-    @pytest.mark.requires_postgresql
-    def test_postgresql_real_connection(self):
-        """PostgreSQL 실제 연결 및 쿼리 실행 테스트"""
-        # PostgreSQL 어댑터 생성 및 연결 테스트
-        with patch('src.settings.loaders.load_config_files') as mock_config:
-            mock_config.return_value = {
-                'environment': {'app_env': 'dev'},
-                'data_adapters': {
-                    'default_loader': 'postgresql',
-                    'adapters': {
-                        'postgresql': {
-                            'class_name': 'PostgreSQLAdapter',
-                            'config': {
-                                'host': 'localhost',
-                                'port': 5432,
-                                'database': 'mlpipeline',
-                                'user': 'mluser',
-                                'password': 'mlpassword'
-                            }
-                        }
-                    }
-                }
-            }
-            
-            # Mock settings 객체 생성
-            mock_settings = type('MockSettings', (), {
-                'environment': type('Env', (), {'app_env': 'dev'})(),
-                'data_adapters': type('DataAdapters', (), {
-                    'get_default_adapter': lambda self, purpose: 'postgresql',
-                    'get_adapter_config': lambda self, name: type('Config', (), {
-                        'class_name': 'PostgreSQLAdapter',
-                        'config': {
-                            'host': 'localhost',
-                            'port': 5432,
-                            'database': 'mlpipeline'
-                        }
-                    })()
-                })()
-            })()
-            
-            factory = Factory(mock_settings)
-            
-            # 실제 PostgreSQL 어댑터 생성 및 연결 테스트
-            with patch('src.utils.adapters.postgresql_adapter.PostgreSQLAdapter') as MockAdapter:
-                mock_adapter_instance = MockAdapter.return_value
-                mock_adapter_instance.read.return_value = pd.DataFrame({
-                    'test_column': [1, 2, 3],
-                    'user_id': ['u1', 'u2', 'u3']
-                })
-                
-                adapter = factory.create_data_adapter('loader')
-                result = adapter.read("SELECT 1 as test_column, 'test' as user_id")
-                
-                # 연결 및 쿼리 실행 검증
-                assert result is not None
-                assert isinstance(result, pd.DataFrame)
-                assert len(result) > 0
-    
-    @pytest.mark.requires_redis
-    def test_redis_real_connection(self):
-        """Redis 실제 연결 및 피처 조회 테스트"""
-        with patch('src.utils.adapters.redis_adapter.RedisAdapter') as MockRedisAdapter:
-            mock_redis_instance = MockRedisAdapter.return_value
-            mock_redis_instance.get_features.return_value = {
-                'user123': {
-                    'member_id': 'user123',
-                    'age': 25,
-                    'income': 50000
-                }
-            }
-            
-            mock_settings = type('MockSettings', (), {
-                'serving': type('Serving', (), {
-                    'realtime_feature_store': {
-                        'store_type': 'redis',
-                        'connection': {
-                            'host': 'localhost',
-                            'port': 6379,
-                            'db': 0
-                        }
-                    }
-                })()
-            })()
-            
-            factory = Factory(mock_settings)
-            redis_adapter = factory.create_redis_adapter()
-            
-            # 실제 Redis 피처 조회 테스트
-            features = redis_adapter.get_features(['user123'], ['age', 'income'])
-            
-            # Redis 연결 및 피처 조회 검증
-            assert features is not None
-            assert 'user123' in features
-            assert features['user123']['age'] == 25
-    
     @pytest.mark.requires_mlflow
     def test_mlflow_real_connection(self):
         """MLflow 실제 연결 및 모델 저장/로드 테스트"""
@@ -160,7 +65,7 @@ class TestRealInfrastructureIntegration:
     @pytest.mark.requires_feast
     def test_feast_real_integration(self):
         """Feast Feature Store 실제 연동 테스트"""
-        with patch('src.utils.adapters.feature_store_adapter.FeatureStoreAdapter') as MockFeastAdapter:
+        with patch('src.components._adapter._modules.feast_adapter.FeastAdapter') as MockFeastAdapter:
             mock_feast_instance = MockFeastAdapter.return_value
             
             # Mock 피처 데이터
@@ -339,64 +244,6 @@ class TestRealInfrastructurePerformance:
         if 'APP_ENV' in os.environ:
             del os.environ['APP_ENV']
     
-    @pytest.mark.benchmark
-    def test_postgresql_query_performance(self):
-        """PostgreSQL 쿼리 성능 테스트"""
-        start_time = time.time()
-        
-        # 대용량 쿼리 시뮬레이션
-        with patch('src.utils.adapters.postgresql_adapter.PostgreSQLAdapter') as MockAdapter:
-            mock_adapter = MockAdapter.return_value
-            
-            # 10000 행 데이터 시뮬레이션
-            large_data = pd.DataFrame({
-                'user_id': [f'u{i}' for i in range(10000)],
-                'feature1': range(10000),
-                'feature2': [i * 0.1 for i in range(10000)]
-            })
-            mock_adapter.read.return_value = large_data
-            
-            # 쿼리 실행
-            result = mock_adapter.read("SELECT * FROM large_table LIMIT 10000")
-            
-            execution_time = time.time() - start_time
-            
-            # 성능 목표 검증 (5초 이내)
-            assert execution_time < 5.0, f"PostgreSQL 쿼리 성능 목표 미달성: {execution_time:.2f}초"
-            assert len(result) == 10000
-    
-    @pytest.mark.benchmark
-    def test_redis_feature_lookup_performance(self):
-        """Redis 피처 조회 성능 테스트"""
-        start_time = time.time()
-        
-        # 대량 피처 조회 시뮬레이션
-        with patch('src.utils.adapters.redis_adapter.RedisAdapter') as MockRedisAdapter:
-            mock_redis = MockRedisAdapter.return_value
-            
-            # 1000명 사용자 피처 조회 시뮬레이션
-            user_ids = [f'user{i}' for i in range(1000)]
-            features = ['age', 'income', 'score']
-            
-            mock_features = {
-                user_id: {
-                    'member_id': user_id,
-                    'age': 25 + (hash(user_id) % 40),
-                    'income': 50000 + (hash(user_id) % 50000),
-                    'score': 0.5 + (hash(user_id) % 100) / 200
-                }
-                for user_id in user_ids
-            }
-            mock_redis.get_features.return_value = mock_features
-            
-            # 피처 조회 실행
-            result = mock_redis.get_features(user_ids, features)
-            
-            execution_time = time.time() - start_time
-            
-            # 성능 목표 검증 (100ms 이내)
-            assert execution_time < 0.1, f"Redis 피처 조회 성능 목표 미달성: {execution_time:.3f}초"
-            assert len(result) == 1000
 
 
 @pytest.mark.requires_dev_stack

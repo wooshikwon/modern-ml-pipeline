@@ -14,3 +14,7 @@ class RegressionEvaluator(BaseEvaluator):
             "mean_squared_error": mean_squared_error(y, predictions),
         }
         return metrics
+
+# Self-registration
+from .._registry import EvaluatorRegistry
+EvaluatorRegistry.register("regression", RegressionEvaluator)

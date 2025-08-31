@@ -5,6 +5,7 @@ from pathlib import Path
 from src.interface.base_adapter import BaseAdapter
 from src.settings import Settings
 from src.utils.system.logger import logger
+
 class StorageAdapter(BaseAdapter):
     """
     fsspec 라이브러리를 기반으로 하는 통합 스토리지 어댑터.
@@ -45,4 +46,8 @@ class StorageAdapter(BaseAdapter):
         if lower.endswith('.csv'):
             df.to_csv(uri, index=False)
         else:
-            df.to_parquet(uri, storage_options=self.storage_options, **kwargs) 
+            df.to_parquet(uri, storage_options=self.storage_options, **kwargs)
+
+# Self-registration
+from .._registry import AdapterRegistry
+AdapterRegistry.register("storage", StorageAdapter)

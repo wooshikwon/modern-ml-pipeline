@@ -25,7 +25,8 @@ from src.settings import (
 from src.pipelines import run_training, run_batch_inference
 from src.serving import run_api_server
 from src.utils.system.logger import setup_logging, logger
-from src.engine import AdapterRegistry, EvaluatorRegistry
+from src.components._adapter import AdapterRegistry
+from src.components._evaluator import EvaluatorRegistry
 from src.components._preprocessor._registry import PreprocessorStepRegistry
 from src.utils.system.catalog_parser import load_model_catalog
 
@@ -253,7 +254,7 @@ list_app = typer.Typer(help="사용 가능한 컴포넌트들의 '별명(type)' 
 def list_adapters() -> None:
     """사용 가능한 모든 데이터 어댑터의 별명 목록을 출력합니다."""
     typer.echo("✅ Available Adapters:")
-    available_items = sorted(AdapterRegistry._adapters.keys())
+    available_items = sorted(AdapterRegistry.list_adapters().keys())
     for item in available_items:
         typer.echo(f"- {item}")
 
@@ -262,7 +263,7 @@ def list_adapters() -> None:
 def list_evaluators() -> None:
     """사용 가능한 모든 평가자의 별명 목록을 출력합니다."""
     typer.echo("✅ Available Evaluators:")
-    available_items = sorted(EvaluatorRegistry._evaluators.keys())
+    available_items = sorted(EvaluatorRegistry.get_available_tasks())
     for item in available_items:
         typer.echo(f"- {item}")
 

@@ -11,3 +11,7 @@ class CausalEvaluator(BaseEvaluator):
         # 이 부분은 예시이며, 실제 구현은 모델의 특성에 따라 달라집니다.
         # 예를 들어, uplift_score 등을 계산할 수 있습니다.
         return {"uplift_auc": 0.6} # Placeholder
+
+# Self-registration
+from .._registry import EvaluatorRegistry
+EvaluatorRegistry.register("causal", CausalEvaluator)

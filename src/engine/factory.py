@@ -4,12 +4,13 @@ from typing import Optional, Dict, Any, TYPE_CHECKING
 
 import pandas as pd
 
-from src.components._augmenter import FeatureStoreAugmenter, PassThroughAugmenter
+from src.components._fetcher import FeatureStoreAugmenter, PassThroughAugmenter
 from src.components._preprocessor import Preprocessor, BasePreprocessor
+from src.components._adapter import AdapterRegistry
+from src.components._evaluator import EvaluatorRegistry
 from src.interface import BaseAdapter
 from src.settings import Settings
 from src.utils.system.logger import logger
-from src.engine._registry import AdapterRegistry, EvaluatorRegistry
 
 if TYPE_CHECKING:
     from src.engine._artifact import PyfuncWrapper
@@ -41,9 +42,9 @@ class Factory:
         target_type = adapter_type or self.settings.recipe.model.loader.adapter
         logger.debug(f"DataAdapter 생성: type='{target_type}'")
         try:
-            return AdapterRegistry.create(target_type, settings=self.settings)
+            return AdapterRegistry.create_adapter(target_type, self.settings)
         except Exception as e:
-            available = list(getattr(AdapterRegistry, "_adapters", {}).keys())
+            available = list(AdapterRegistry.list_adapters().keys())
             raise ValueError(
                 f"지원하지 않는 DataAdapter 타입입니다: '{target_type}'. 사용 가능한 어댑터: {available}"
             ) from e
@@ -72,10 +73,6 @@ class Factory:
         if aug_type == "feature_store" and provider in {"feast", "mock", "dynamic"}:
             return FeatureStoreAugmenter(settings=self.settings, factory=self)
 
-        # (train/batch 전용) 실패 + fallback.sql 명시 → SqlFallbackAugmenter (미구현 자리표시, 후속 단계에서 구현)
-        if mode in {"train", "batch"} and hasattr(aug_conf, "fallback") and getattr(aug_conf.fallback, "type", "") == "sql":
-            # 다음 단계에서 SqlFallbackAugmenter 구현 후 등록 예정
-            raise NotImplementedError("SqlFallbackAugmenter는 다음 단계에서 구현/등록됩니다.")
 
         raise ValueError(
             f"적절한 Augmenter를 선택할 수 없습니다. env={env}, provider={provider}, aug_type={aug_type}, mode={mode}"
@@ -124,7 +121,7 @@ class Factory:
         if not self.settings.feature_store:
             raise ValueError("Feature Store settings are not configured.")
         logger.info("Creating Feature Store adapter.")
-        return AdapterRegistry.create('feature_store', self.settings)
+        return AdapterRegistry.create_adapter('feature_store', self.settings)
     
     def create_optuna_integration(self):
         """Optuna Integration 생성"""

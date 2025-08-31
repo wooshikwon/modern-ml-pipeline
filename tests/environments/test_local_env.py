@@ -15,7 +15,7 @@ import pytest
 import pandas as pd
 
 from src.engine.factory import Factory
-from src.components._augmenter import PassThroughAugmenter
+from src.components._fetcher import PassThroughAugmenter
 from src.settings.loaders import load_settings_by_file
 
 

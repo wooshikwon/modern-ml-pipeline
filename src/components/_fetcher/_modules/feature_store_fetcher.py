@@ -61,3 +61,7 @@ class FeatureStoreAugmenter(BaseAugmenter):
             return result
         else:
             raise ValueError(f"Unsupported run_mode: {run_mode}")
+
+# Self-registration
+from .._registry import FetcherRegistry
+FetcherRegistry.register("feature_store", FeatureStoreAugmenter)
