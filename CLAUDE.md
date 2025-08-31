@@ -57,6 +57,12 @@
 * **전체 단위**: `uv run pytest tests/unit/ -v`
 * **핵심+통합**: `uv run pytest -m "(core and unit) or integration" -v`
 
+### Coverage 사용 시 주의사항
+* **병렬 실행 + Coverage**: `.coverage.*` 임시 파일이 생성됨
+* **정리 명령**: `rm -f .coverage.*` (pytest-xdist 사용 후)
+* **권장 스크립트**: `./scripts/verify_test_coverage.sh` (자동 정리 포함)
+* **gitignore**: 이미 `.coverage.*` 패턴 등록됨
+
 ---
 
 ## 5) Git & 워크플로

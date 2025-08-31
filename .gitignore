@@ -70,6 +70,14 @@ backup.sql
 test_results/
 *.test
 
+# Coverage reports
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+.hypothesis/
+
 # OS generated files
 .directory
 .fuse_hidden*

@@ -22,7 +22,7 @@ class CatalogBasedRecipeGenerator:
         self.console = Console()
         
         # Jinja2 환경 설정
-        template_dir = Path(__file__).parent.parent / "recipe_templates"
+        template_dir = Path(__file__).parent.parent / "templates" / "recipes"
         self.jinja_env = Environment(
             loader=FileSystemLoader(template_dir),
             autoescape=False,

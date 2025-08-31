@@ -8,10 +8,12 @@ echo "🚀 === 테스트 안정화 성과 검증 스크립트 ==="
 echo "Phase 4.5 완료 후 최종 검증 실행"
 echo ""
 
-# 1. 전체 커버리지 측정
+# 1. 전체 커버리지 측정 (coverage 임시 파일 정리)
 echo "📊 1. 전체 테스트 커버리지 측정"
 echo "----------------------------------------"
+rm -f .coverage .coverage.*  # 기존 coverage 파일 정리
 uv run pytest --cov=src --cov-report=term-missing --cov-report=html tests/unit/ --quiet
+rm -f .coverage.*  # 병렬 실행으로 생성된 임시 파일 정리
 
 echo ""
 echo "📁 2. 핵심 모듈별 커버리지 분석"
@@ -23,6 +25,7 @@ for module in "${modules[@]}"; do
     if [ -d "tests/unit/$module" ]; then
         echo "   🔍 src/$module 커버리지 분석:"
         uv run pytest --cov=src/$module tests/unit/$module/ --cov-report=term-missing --quiet --tb=no || true
+        rm -f .coverage.*  # 임시 파일 정리
         echo ""
     fi
 done
@@ -105,4 +108,10 @@ echo ""
 echo "📁 생성된 보고서:"
 echo "   - HTML 커버리지 리포트: htmlcov/index.html"
 echo ""
+
+# 최종 정리: 임시 coverage 파일들 제거
+echo "🧹 임시 파일 정리 중..."
+rm -f .coverage.*
+echo ""
+
 echo "🎯 검증 완료! 테스트 안정화 프로젝트 성공적으로 완료되었습니다."
