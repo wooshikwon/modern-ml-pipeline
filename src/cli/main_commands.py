@@ -15,6 +15,7 @@ from typing import Optional, Dict, Any
 # Modern CLI commands
 from src.cli.commands.system_check_command import system_check_command
 from src.cli.commands.get_recipe_command import get_recipe_command
+from src.cli.commands.get_config_command import get_config_command
 
 # Core functionality imports 
 from src.settings import (
@@ -94,7 +95,10 @@ def main(
     pass
 
 
-# === Modern Commands (Phase 3-5) ===
+# === Modern Commands (Phase 1-5) ===
+
+# Phase 1: Get Config Command
+app.command("get-config", help="대화형으로 환경별 설정 파일 생성")(get_config_command)
 
 # Phase 3: System Check Command  
 app.command("system-check", help="현재 config 파일 기반 시스템 연결 상태 검사")(system_check_command)
