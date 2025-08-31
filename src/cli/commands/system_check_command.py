@@ -19,7 +19,7 @@ from rich.table import Table
 from rich.panel import Panel
 
 from src.cli.utils.system_check_models import CheckResult
-from src.cli.utils.env_loader import load_config_with_env, get_env_name_with_fallback
+from src.cli.utils.env_loader import load_config_with_env
 from src.cli.utils.dynamic_service_checker import DynamicServiceChecker
 
 
@@ -27,7 +27,7 @@ class ConfigBasedSystemChecker:
     """
     Config 파일 내용에 따라 동적으로 시스템 체크하는 클래스.
     
-    config/*.yaml 파일들을 동적으로 로딩하여 실제 설정된 서비스만 체크합니다:
+    configs/*.yaml 파일들을 동적으로 로딩하여 실제 설정된 서비스만 체크합니다:
     - MLflow tracking_uri 기반 연결 테스트
     - PostgreSQL connection_uri 기반 연결 테스트  
     - Redis online_store 기반 연결 테스트
@@ -36,7 +36,7 @@ class ConfigBasedSystemChecker:
     실패 시 구체적인 해결책을 제시합니다.
     """
     
-    def __init__(self, config_dir: Path = Path("config")) -> None:
+    def __init__(self, config_dir: Path = Path("configs")) -> None:
         """
         Initialize config-based system checker.
         
@@ -100,7 +100,7 @@ class ConfigBasedSystemChecker:
                 results.append(CheckResult(
                     is_healthy=False,
                     message=f"Config Parse Error ({env_name}): YAML 파싱 오류: {config['_parse_error']}",
-                    recommendations=[f"config/{env_name}.yaml 파일의 YAML 구문을 확인하세요"],
+                    recommendations=[f"configs/{env_name}.yaml 파일의 YAML 구문을 확인하세요"],
                     severity="critical"
                 ))
                 continue
@@ -318,7 +318,7 @@ class ConfigBasedSystemChecker:
                 return CheckResult(
                     is_healthy=False,
                     message=f"Feature Store Config ({env}): 필수 Feast 설정 누락 - {missing_fields}",
-                    recommendations=[f"config/{env}.yaml에서 feature_store.feast_config.{missing_fields[0]} 설정을 추가하세요"],
+                    recommendations=[f"configs/{env}.yaml에서 feature_store.feast_config.{missing_fields[0]} 설정을 추가하세요"],
                     severity="important"
                 )
             
@@ -505,7 +505,7 @@ def system_check_command(
         typer.secho(f"❌ 설정 파일 오류: {e}", fg=typer.colors.RED)
         typer.echo("\n💡 해결방법:")
         typer.echo("   1. modern-ml-pipeline init 으로 프로젝트를 초기화하세요")
-        typer.echo("   2. 또는 config/ 디렉토리에 YAML 설정 파일이 있는지 확인하세요")
+        typer.echo("   2. 또는 configs/ 디렉토리에 YAML 설정 파일이 있는지 확인하세요")
         raise typer.Exit(code=1)
     except Exception as e:
         typer.secho(f"❌ 시스템 체크 중 오류 발생: {e}", fg=typer.colors.RED)

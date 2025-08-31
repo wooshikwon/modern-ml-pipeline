@@ -132,15 +132,15 @@ class EnvironmentChecker:
     
     def check_environment_variables(self) -> bool:
         """환경변수 설정 확인"""
-        app_env = os.getenv('APP_ENV', 'local')
+        env_name = os.getenv('ENV_NAME', 'local')
         
-        if app_env == 'local':
+        if env_name == 'local':
             # LOCAL 환경에서는 환경변수 검증 생략
             logger.info("✅ LOCAL 환경: 환경변수 검증 생략")
             return True
             
         # DEV/PROD 환경에서는 추가 검증
-        if app_env in ['dev', 'prod']:
+        if env_name in ['dev', 'prod']:
             critical_vars = []
             
             # PostgreSQL 연결 필요 시
@@ -150,7 +150,7 @@ class EnvironmentChecker:
             if critical_vars:
                 self.warnings.append(f"중요한 환경변수가 설정되지 않았습니다: {critical_vars}")
                 
-        logger.info(f"✅ 환경변수 확인 완료 (APP_ENV: {app_env})")
+        logger.info(f"✅ 환경변수 확인 완료 (ENV_NAME: {env_name})")
         return True
     
     def check_system_compatibility(self) -> bool:

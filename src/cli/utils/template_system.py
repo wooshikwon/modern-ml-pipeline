@@ -261,8 +261,8 @@ class EnhancedTemplateGenerator:
     def _validate_generation(self, config: TemplateConfig) -> None:
         """생성된 프로젝트 구조 검증"""
         required_files = [
-            "config/base.yaml",
-            f"config/{config.environment}.yaml",
+            "configs/base.yaml",
+            f"configs/{config.environment}.yaml",
             f"recipes/{config.recipe_type}_recipe.yaml",
             ".env"
         ]

@@ -185,7 +185,7 @@ modern-ml-pipeline system-check
 
 ```
 {project_path.name}/
-├── config/          # 환경별 설정 파일
+├── configs/         # 환경별 설정 파일
 ├── recipes/         # ML 레시피 파일들
 ├── data/           # 샘플 데이터 및 데이터 파일들
 └── docs/           # 프로젝트 문서
@@ -194,7 +194,7 @@ modern-ml-pipeline system-check
 ## 다음 단계
 
 - `modern-ml-pipeline get-recipe`로 첫 번째 ML 레시피를 생성해보세요
-- `config/` 디렉토리의 설정을 프로젝트에 맞게 수정하세요
+- `configs/` 디렉토리의 설정을 프로젝트에 맞게 수정하세요
 - `data/sample_data.csv`를 참고하여 실제 데이터를 준비하세요
 """
     

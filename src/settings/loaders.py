@@ -1,17 +1,14 @@
 """
-Settings Loaders - Public API
+Settings Loaders - Public API (v2.0)
 이 모듈은 설정 로딩을 위한 최상위 공개 API를 제공합니다.
 설정 로딩의 전체 과정을 조율하는 오케스트레이터 역할을 합니다.
 """
 
 from typing import Dict, Any, Optional
-import warnings
-import os
 
 from .schema import Settings
 from ._recipe_schema import RecipeSettings, JinjaVariable
 from src.utils.system.logger import logger
-from src.utils.deprecation import deprecated, show_deprecation_warning
 from ._builder import (
     load_config_files,
     load_recipe_file,
@@ -25,39 +22,28 @@ from src.utils.system.sql_utils import prevent_select_star
 from pathlib import Path
 from ._utils import BASE_DIR
 
-__all__ = ["load_settings", "load_settings_by_file", "create_settings_for_inference", "load_config_files"]
+__all__ = ["load_settings", "load_settings_by_file", "create_settings_for_inference"]
 
-def load_settings(model_name: str) -> Settings:
+def load_settings(model_name: str, env_name: str) -> Settings:
     """
-    모델명 기반 설정 로딩 (기존 호환성)
+    모델명 기반 설정 로딩 (v2.0)
+    
+    Args:
+        model_name: 모델 이름
+        env_name: 환경 이름 (필수)
     """
-    return load_settings_by_file(f"models/{model_name}")
+    return load_settings_by_file(f"recipes/{model_name}.yaml", env_name)
 
-def load_settings_by_file(recipe_file: str, context_params: Optional[Dict[str, Any]] = None, env_name: Optional[str] = None) -> Settings:
+def load_settings_by_file(recipe_file: str, env_name: str, context_params: Optional[Dict[str, Any]] = None) -> Settings:
     """
+    Settings 로드 (v2.0).
     [YAML 로드 → Jinja 변수 검증 → Jinja 렌더링 → Pydantic 검증]의 파이프라인을 조율합니다.
     
     Args:
         recipe_file: Recipe 파일 경로
+        env_name: 환경 이름 (필수)
         context_params: Jinja 템플릿 파라미터
-        env_name: 환경 이름 (없으면 APP_ENV 환경변수 사용)
     """
-    # Deprecation warning for missing env_name
-    if not env_name:
-        show_deprecation_warning(
-            "Calling load_settings_by_file() without env_name parameter",
-            alternative="load_settings_by_file(recipe_file, env_name='<env>')"
-        )
-        # Try to get from environment
-        env_name = os.getenv('ENV_NAME')
-        if not env_name:
-            warnings.warn(
-                "🔴 CRITICAL: Using merged config mode (legacy). This will be removed in v2.0!\n"
-                "Please specify env_name parameter or set ENV_NAME environment variable.",
-                DeprecationWarning,
-                stacklevel=2
-            )
-    
     # 1. 환경별 config와 Recipe 파일 로딩
     config_data = load_config_files(env_name=env_name)
     recipe_data = load_recipe_file(recipe_file)

@@ -48,7 +48,7 @@ def load_environment(env_name: str, base_path: Optional[Path] = None) -> None:
 
 def get_config_path(env_name: str, base_path: Optional[Path] = None) -> Path:
     """
-    환경별 config 파일 경로 반환.
+    환경별 config 파일 경로 반환 (v2.0).
     
     Args:
         env_name: 환경 이름
@@ -62,11 +62,10 @@ def get_config_path(env_name: str, base_path: Optional[Path] = None) -> Path:
     """
     base_path = base_path or Path.cwd()
     
-    # configs/ 또는 config/ 디렉토리 확인
-    for dir_name in ['configs', 'config']:
-        config_file = base_path / dir_name / f"{env_name}.yaml"
-        if config_file.exists():
-            return config_file
+    # v2.0: configs/ 디렉토리만 지원
+    config_file = base_path / "configs" / f"{env_name}.yaml"
+    if config_file.exists():
+        return config_file
     
     raise FileNotFoundError(
         f"configs/{env_name}.yaml 파일을 찾을 수 없습니다.\n"
@@ -159,33 +158,3 @@ def load_config_with_env(env_name: str, base_path: Optional[Path] = None) -> Dic
     return config
 
 
-def get_env_name_with_fallback(
-    env_name: Optional[str] = None,
-    allow_env_var: bool = True
-) -> str:
-    """
-    env_name을 가져오되, 없으면 환경변수에서 가져옴.
-    
-    Args:
-        env_name: 명시적으로 전달된 환경 이름
-        allow_env_var: 환경변수 fallback 허용 여부
-        
-    Returns:
-        환경 이름
-        
-    Raises:
-        ValueError: env_name이 없고 환경변수도 없을 때
-    """
-    if env_name:
-        return env_name
-    
-    if allow_env_var:
-        env_from_var = os.getenv('ENV_NAME')
-        if env_from_var:
-            logger.info(f"ENV_NAME 환경변수에서 환경 이름 사용: {env_from_var}")
-            return env_from_var
-    
-    raise ValueError(
-        "--env-name 파라미터가 필요합니다.\n"
-        "또는 ENV_NAME 환경변수를 설정하세요."
-    )

@@ -22,9 +22,9 @@ from ._recipe_schema import RecipeSettings
 class Settings(BaseModel):
     """
     Blueprint v17.0 통합 설정 모델
-    config/*.yaml (인프라) + recipes/*.yaml (모델 논리)의 통합 인터페이스
+    configs/*.yaml (인프라) + recipes/*.yaml (모델 논리)의 통합 인터페이스
     """
-    # config/*.yaml에서 오는 필드들 (인프라 설정)
+    # configs/*.yaml에서 오는 필드들 (인프라 설정)
     environment: EnvironmentSettings
     mlflow: MlflowSettings
     serving: ServingSettings

@@ -27,7 +27,7 @@ def setup_mlflow(settings: "Settings") -> None:
     logger.info("MLflow 설정 완료:")
     logger.info(f"  - Tracking URI: {settings.mlflow.tracking_uri}")
     logger.info(f"  - Experiment: {settings.mlflow.experiment_name}")
-    logger.info(f"  - Environment: {settings.environment.app_env}")
+    logger.info(f"  - Environment: {settings.environment.env_name}")
 
 @contextmanager
 def start_run(settings: "Settings", run_name: str) -> "Run":

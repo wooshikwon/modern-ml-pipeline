@@ -55,7 +55,7 @@ class Factory:
         정책: blueprint.md 148-155 라인 참조.
         """
         mode = (run_mode or "batch").lower()
-        env = self.settings.environment.app_env if hasattr(self.settings, "environment") else "local"
+        env = self.settings.environment.env_name if hasattr(self.settings, "environment") else "local"
         provider = (self.settings.feature_store.provider if getattr(self.settings, "feature_store", None) else "none")
         aug_conf = getattr(self.settings.recipe.model, "augmenter", None)
         aug_type = getattr(aug_conf, "type", None) if aug_conf else None
