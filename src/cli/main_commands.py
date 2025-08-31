@@ -16,6 +16,7 @@ from typing import Optional, Dict, Any
 from src.cli.commands.system_check_command import system_check_command
 from src.cli.commands.get_recipe_command import get_recipe_command
 from src.cli.commands.get_config_command import get_config_command
+from src.cli.commands.migrate_command import migrate_command
 from src.cli.utils.env_loader import load_environment, get_env_name_with_fallback
 
 # Core functionality imports 
@@ -27,6 +28,10 @@ from src.settings import (
 from src.pipelines import run_training, run_batch_inference
 from src.serving import run_api_server
 from src.utils.system.logger import setup_logging, logger
+from src.utils.deprecation import show_deprecation_warning
+from rich.console import Console
+
+console = Console()
 from src.components._adapter import AdapterRegistry
 from src.components._evaluator import EvaluatorRegistry
 from src.components._preprocessor._registry import PreprocessorStepRegistry
@@ -60,6 +65,63 @@ app = typer.Typer(
     no_args_is_help=True,
     rich_markup_mode="rich"
 )
+
+
+@app.callback()
+def main_callback():
+    """
+    Main callback executed before any command.
+    Checks for legacy structure and shows deprecation warnings.
+    """
+    import warnings
+    import sys
+    import os
+    from src.cli.commands.migrate_command import check_legacy_structure
+    from rich.table import Table
+    
+    # Enable deprecation warnings if requested
+    if os.getenv('SHOW_DEPRECATION_WARNINGS', 'true').lower() == 'true':
+        warnings.filterwarnings('always', category=DeprecationWarning)
+    
+    # Python version check
+    if sys.version_info < (3, 8):
+        console.print(
+            "[red]⚠️ Python 3.7 support is deprecated and will be removed in v2.0[/red]"
+        )
+    
+    # Legacy structure check (only show occasionally to avoid spam)
+    # Check if we should show legacy warnings (once per day)
+    check_file = Path.home() / ".mmp_legacy_check"
+    should_check = True
+    
+    if check_file.exists():
+        import time
+        last_check = check_file.stat().st_mtime
+        current_time = time.time()
+        # Show warning once per day
+        should_check = (current_time - last_check) > 86400
+    
+    if should_check:
+        legacy_items = check_legacy_structure()
+        
+        if legacy_items:
+            console.print("\n[yellow]⚠️ Legacy structure detected:[/yellow]")
+            table = Table(show_header=True, header_style="bold yellow")
+            table.add_column("Found", style="red") 
+            table.add_column("Should be", style="green")
+            table.add_column("Type")
+            
+            for old, new, name in legacy_items[:3]:  # Show max 3 items
+                table.add_row(old, new, name)
+            
+            if len(legacy_items) > 3:
+                table.add_row("...", "...", f"and {len(legacy_items) - 3} more")
+            
+            console.print(table)
+            console.print("\n[yellow]Run 'mmp migrate' to fix these issues[/yellow]\n")
+        
+        # Update check file
+        check_file.touch()
 
 
 def version_callback(value: bool) -> None:
@@ -100,6 +162,7 @@ def main(
 
 # Phase 1: Get Config Command
 app.command("get-config", help="대화형으로 환경별 설정 파일 생성")(get_config_command)
+app.command("migrate", help="레거시 프로젝트 구조를 새 구조로 마이그레이션")(migrate_command)
 
 # Phase 3: System Check Command  
 app.command("system-check", help="현재 config 파일 기반 시스템 연결 상태 검사")(system_check_command)
@@ -191,6 +254,20 @@ def train(
         mmp train -r recipes/model.yaml -e prod --params '{"date": "2024-01-01"}'
     """
     try:
+        # Deprecation warning if env_name not provided
+        if env_name is None:
+            console.print(
+                "[yellow]⚠️ WARNING: Running without --env-name is deprecated![/yellow]\n"
+                "[yellow]This feature will be removed in v2.0.[/yellow]\n"
+                "[yellow]Please use: mmp train --recipe-file <file> --env-name <env>[/yellow]",
+                style="yellow"
+            )
+            show_deprecation_warning(
+                "Running train command without --env-name",
+                alternative="mmp train --recipe-file <file> --env-name <env>",
+                critical=True
+            )
+        
         # 환경 이름 결정 및 환경변수 로드
         env_name = get_env_name_with_fallback(env_name)
         load_environment(env_name)
@@ -248,6 +325,20 @@ def batch_inference(
         mmp batch-inference --run-id abc123 -e dev --params '{"date": "2024-01-01"}'
     """
     try:
+        # Deprecation warning if env_name not provided
+        if env_name is None:
+            console.print(
+                "[yellow]⚠️ WARNING: Running without --env-name is deprecated![/yellow]\n"
+                "[yellow]This feature will be removed in v2.0.[/yellow]\n"
+                "[yellow]Please use: mmp batch-inference --run-id <id> --env-name <env>[/yellow]",
+                style="yellow"
+            )
+            show_deprecation_warning(
+                "Running batch-inference command without --env-name",
+                alternative="mmp batch-inference --run-id <id> --env-name <env>",
+                critical=True
+            )
+        
         # 환경 이름 결정 및 환경변수 로드
         env_name = get_env_name_with_fallback(env_name)
         load_environment(env_name)
@@ -307,6 +398,20 @@ def serve_api(
         mmp serve-api --run-id abc123 -e dev --host localhost --port 8080
     """
     try:
+        # Deprecation warning if env_name not provided
+        if env_name is None:
+            console.print(
+                "[yellow]⚠️ WARNING: Running without --env-name is deprecated![/yellow]\n"
+                "[yellow]This feature will be removed in v2.0.[/yellow]\n"
+                "[yellow]Please use: mmp serve-api --run-id <id> --env-name <env>[/yellow]",
+                style="yellow"
+            )
+            show_deprecation_warning(
+                "Running serve-api command without --env-name",
+                alternative="mmp serve-api --run-id <id> --env-name <env>",
+                critical=True
+            )
+        
         # 환경 이름 결정 및 환경변수 로드
         env_name = get_env_name_with_fallback(env_name)
         load_environment(env_name)

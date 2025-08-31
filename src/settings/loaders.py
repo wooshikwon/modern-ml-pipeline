@@ -5,10 +5,13 @@ Settings Loaders - Public API
 """
 
 from typing import Dict, Any, Optional
+import warnings
+import os
 
 from .schema import Settings
 from ._recipe_schema import RecipeSettings, JinjaVariable
 from src.utils.system.logger import logger
+from src.utils.deprecation import deprecated, show_deprecation_warning
 from ._builder import (
     load_config_files,
     load_recipe_file,
@@ -39,6 +42,22 @@ def load_settings_by_file(recipe_file: str, context_params: Optional[Dict[str, A
         context_params: Jinja 템플릿 파라미터
         env_name: 환경 이름 (없으면 APP_ENV 환경변수 사용)
     """
+    # Deprecation warning for missing env_name
+    if not env_name:
+        show_deprecation_warning(
+            "Calling load_settings_by_file() without env_name parameter",
+            alternative="load_settings_by_file(recipe_file, env_name='<env>')"
+        )
+        # Try to get from environment
+        env_name = os.getenv('ENV_NAME')
+        if not env_name:
+            warnings.warn(
+                "🔴 CRITICAL: Using merged config mode (legacy). This will be removed in v2.0!\n"
+                "Please specify env_name parameter or set ENV_NAME environment variable.",
+                DeprecationWarning,
+                stacklevel=2
+            )
+    
     # 1. 환경별 config와 Recipe 파일 로딩
     config_data = load_config_files(env_name=env_name)
     recipe_data = load_recipe_file(recipe_file)

@@ -1,16 +1,40 @@
 # src/settings/_config_schema.py
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, validator
 from typing import Dict, Any, Optional
 import requests
 import os
 import subprocess
+import warnings
 from src.utils.system.logger import logger
+from src.utils.deprecation import deprecated, show_deprecation_warning
 
 class EnvironmentSettings(BaseModel):
     """환경별 기본 설정"""
-    app_env: str
+    app_env: Optional[str] = Field(None, description="[DEPRECATED] Use --env-name parameter instead")
     gcp_project_id: str
     gcp_credential_path: Optional[str] = None
+    
+    @validator('app_env')
+    def warn_app_env(cls, v):
+        """Warn about deprecated app_env field."""
+        if v:
+            show_deprecation_warning(
+                "app_env field in config",
+                alternative="--env-name parameter or ENV_NAME environment variable"
+            )
+        return v
+    
+    @validator('gcp_project_id')
+    def warn_hardcoded_project(cls, v):
+        """Warn about hardcoded GCP project ID."""
+        if v and not v.startswith("${"):
+            warnings.warn(
+                "Hardcoding gcp_project_id in config is not recommended. "
+                "Consider using environment variables: ${GCP_PROJECT}",
+                UserWarning,
+                stacklevel=2
+            )
+        return v
 
 class MlflowSettings(BaseModel):
     """MLflow 실험 추적 설정"""

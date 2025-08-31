@@ -1,0 +1,61 @@
+[project]
+name = "{PROJECT_NAME}"
+version = "0.1.0"
+description = "ML Pipeline project created with Modern ML Pipeline"
+requires-python = ">=3.11,<3.12"
+
+dependencies = [
+    "modern-ml-pipeline>=0.2.0",
+    "pandas",
+    "scikit-learn", 
+    "pyyaml",
+    "python-dotenv",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "black", 
+    "ruff",
+    "mypy",
+]
+
+cloud-gcp = [
+    "google-cloud-storage",
+    "google-cloud-bigquery",
+]
+
+cloud-aws = [
+    "boto3", 
+    "s3fs",
+]
+
+all = [
+    "modern-ml-pipeline[cloud-gcp,cloud-aws,dev]",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest",
+    "black",
+    "ruff", 
+    "mypy"
+]
+
+[tool.ruff]
+line-length = 100
+select = ["E","F","I","UP","B","SIM","PL"]
+ignore = ["E203","E501"]
+
+[tool.black]
+line-length = 100
+
+[tool.isort]
+profile = "black"
+
+[tool.mypy]
+python_version = "3.11"
+warn_unused_ignores = true
+warn_return_any = true
+disallow_untyped_defs = true
+no_implicit_optional = true

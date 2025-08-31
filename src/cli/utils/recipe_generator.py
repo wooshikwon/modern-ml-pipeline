@@ -32,7 +32,6 @@ class CatalogBasedRecipeGenerator:
     
     def generate_recipe(
         self, 
-        environment: str, 
         task_type: str, 
         model_spec: ModelSpec
     ) -> Path:
