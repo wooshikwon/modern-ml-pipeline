@@ -9,15 +9,18 @@ CLAUDE.md 원칙 준수:
 """
 
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import yaml
 import typer
+from typing_extensions import Annotated
 
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 
 from src.cli.utils.system_check_models import CheckResult
+from src.cli.utils.env_loader import load_config_with_env, get_env_name_with_fallback
+from src.cli.utils.dynamic_service_checker import DynamicServiceChecker
 
 
 class ConfigBasedSystemChecker:
@@ -442,28 +445,40 @@ class ConfigBasedSystemChecker:
 # CLI 명령어 구현
 
 def system_check_command(
+    env_name: Annotated[
+        Optional[str],
+        typer.Option("--env-name", "-e", help="검사할 환경 이름")
+    ] = None,
     actionable: bool = typer.Option(False, "--actionable", "-a", help="실행 가능한 해결책 제시")
 ) -> None:
     """
-    현재 config 파일 기반 시스템 연결 상태 검사.
+    특정 환경의 시스템 연결 상태 검사.
     
-    config/*.yaml 파일들을 동적으로 분석하여 실제 설정된 서비스만 체크합니다:
+    지정된 환경의 config를 기반으로 서비스 연결을 테스트합니다:
     - MLflow tracking_uri 기반 연결 테스트
     - PostgreSQL connection_uri 기반 연결 테스트  
     - Redis online_store 기반 연결 테스트
     - Feature Store feast_config 기반 설정 검증
     
     Args:
+        env_name: 환경 이름 (없으면 ENV_NAME 환경변수 사용)
         actionable: 실행 가능한 해결책 제시 여부
     """
-    if actionable:
-        typer.echo("🔍 시스템 연결 상태를 검사합니다... (실행 가능한 해결책 모드)\n")
-    else:
-        typer.echo("🔍 시스템 연결 상태를 검사합니다...\n")
-    
     try:
-        checker = ConfigBasedSystemChecker()
-        summary = checker.run_dynamic_checks(actionable=actionable)
+        # 환경 이름 결정
+        env_name = get_env_name_with_fallback(env_name)
+        
+        if actionable:
+            typer.echo(f"🔍 환경 '{env_name}'의 연결 상태를 검사합니다... (실행 가능한 해결책 모드)\n")
+        else:
+            typer.echo(f"🔍 환경 '{env_name}'의 연결 상태를 검사합니다...\n")
+        
+        # 환경별 config 로드
+        config = load_config_with_env(env_name)
+        
+        # 단일 환경 체크를 위한 새로운 체커 생성
+        checker = DynamicServiceChecker()
+        summary = checker.check_single_environment(env_name, config, actionable=actionable)
         
         if actionable:
             # ActionableReporter 사용
