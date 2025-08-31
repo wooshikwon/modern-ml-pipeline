@@ -30,10 +30,11 @@
   - 완료일: 2025-08-31
   - [완료 보고서](./PHASE_1_COMPLETION_REPORT.md)
 
-- 📄 [**Phase 2: --env-name 통합**](./PHASE_2_ENV_NAME_INTEGRATION.md)
+- 📄 [**Phase 2: --env-name 통합**](./PHASE_2_ENV_NAME_INTEGRATION.md) - ✅ 완료
   - 모든 실행 명령어 수정
   - 환경변수 로더 구현
-  - 예상 시간: 1일
+  - 완료일: 2025-08-31
+  - [완료 보고서](./PHASE_2_COMPLETION_REPORT.md)
 
 - 📄 [**Phase 3: 테스트 및 문서화**](./PHASE_3_TESTING_AND_DOCS.md)
   - E2E 테스트
