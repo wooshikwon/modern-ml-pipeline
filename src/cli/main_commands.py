@@ -16,6 +16,7 @@ from typing import Optional, Dict, Any
 from src.cli.commands.system_check_command import system_check_command
 from src.cli.commands.get_recipe_command import get_recipe_command
 from src.cli.commands.get_config_command import get_config_command
+from src.cli.utils.env_loader import load_environment, get_env_name_with_fallback
 
 # Core functionality imports 
 from src.settings import (
@@ -169,27 +170,56 @@ def init(
 
 @app.command()
 def train(
-    recipe_file: Annotated[str, typer.Option(help="실행할 Recipe 파일 경로")],
+    recipe_file: Annotated[
+        str, 
+        typer.Option("--recipe-file", "-r", help="실행할 Recipe 파일 경로")
+    ],
+    env_name: Annotated[
+        Optional[str],
+        typer.Option("--env-name", "-e", help="사용할 환경 이름")
+    ] = None,
     context_params: Annotated[
-        Optional[str], typer.Option(help="Jinja 템플릿에 전달할 파라미터 (JSON)")
+        Optional[str], 
+        typer.Option("--params", "-p", help="Jinja 템플릿 파라미터 (JSON)")
     ] = None,
 ) -> None:
     """
-    지정된 Recipe를 사용하여 학습 파이프라인을 실행합니다.
+    지정된 환경과 Recipe로 학습 파이프라인 실행.
+    
+    Examples:
+        mmp train --recipe-file recipes/model.yaml --env-name dev
+        mmp train -r recipes/model.yaml -e prod --params '{"date": "2024-01-01"}'
     """
     try:
+        # 환경 이름 결정 및 환경변수 로드
+        env_name = get_env_name_with_fallback(env_name)
+        load_environment(env_name)
+        
+        # Settings 생성 (Phase 0에서 구현한 env_name 파라미터 사용)
         params: Optional[Dict[str, Any]] = (
             json.loads(context_params) if context_params else None
         )
-        settings = load_settings_by_file(recipe_file, context_params=params)
+        settings = load_settings_by_file(
+            recipe_file, 
+            context_params=params,
+            env_name=env_name  # Phase 0에서 추가한 파라미터
+        )
         setup_logging(settings)
 
-        logger.info(f"'{recipe_file}' 레시피로 학습을 시작합니다.")
+        logger.info(f"환경 '{env_name}'에서 학습을 시작합니다.")
+        logger.info(f"Recipe: {recipe_file}")
         computed = settings.recipe.model.computed
         run_name = computed.get("run_name", "unknown") if computed else "unknown"
         logger.info(f"Run Name: {run_name}")
+        
         run_training(settings=settings, context_params=params)
 
+    except FileNotFoundError as e:
+        logger.error(f"파일을 찾을 수 없습니다: {e}")
+        raise typer.Exit(code=1)
+    except ValueError as e:
+        logger.error(f"환경 설정 오류: {e}")
+        raise typer.Exit(code=1)
     except Exception as e:
         logger.error(f"학습 파이프라인 실행 중 오류 발생: {e}", exc_info=True)
         raise typer.Exit(code=1)
@@ -197,29 +227,54 @@ def train(
 
 @app.command()
 def batch_inference(
-    run_id: Annotated[str, typer.Option(help="추론에 사용할 MLflow Run ID")],
+    run_id: Annotated[
+        str, 
+        typer.Option("--run-id", help="추론에 사용할 MLflow Run ID")
+    ],
+    env_name: Annotated[
+        Optional[str],
+        typer.Option("--env-name", "-e", help="사용할 환경 이름")
+    ] = None,
     context_params: Annotated[
-        Optional[str], typer.Option(help="Jinja 템플릿에 전달할 파라미터 (JSON)")
+        Optional[str], 
+        typer.Option("--params", "-p", help="Jinja 템플릿 파라미터 (JSON)")
     ] = None,
 ) -> None:
     """
-    지정된 `run_id`의 모델을 사용하여 배치 추론을 실행합니다.
+    지정된 환경에서 배치 추론 실행.
+    
+    Examples:
+        mmp batch-inference --run-id abc123 --env-name prod
+        mmp batch-inference --run-id abc123 -e dev --params '{"date": "2024-01-01"}'
     """
     try:
+        # 환경 이름 결정 및 환경변수 로드
+        env_name = get_env_name_with_fallback(env_name)
+        load_environment(env_name)
+        
         params: Optional[Dict[str, Any]] = (
             json.loads(context_params) if context_params else None
         )
-        # 추론 시점에는 config 파일만 로드하여 Settings 생성
-        config_data = load_config_files()
+        
+        # Config 로드 및 Settings 생성 (Phase 0 env_name 지원)
+        config_data = load_config_files(env_name=env_name)
         settings = create_settings_for_inference(config_data)
         setup_logging(settings)
 
-        logger.info(f"Run ID '{run_id}'로 배치 추론을 시작합니다.")
+        logger.info(f"환경 '{env_name}'에서 배치 추론을 시작합니다.")
+        logger.info(f"Run ID: {run_id}")
+        
         run_batch_inference(
             settings=settings,
             run_id=run_id,
             context_params=params or {},
         )
+    except FileNotFoundError as e:
+        logger.error(f"파일을 찾을 수 없습니다: {e}")
+        raise typer.Exit(code=1)
+    except ValueError as e:
+        logger.error(f"환경 설정 오류: {e}")
+        raise typer.Exit(code=1)
     except Exception as e:
         logger.error(f"배치 추론 파이프라인 실행 중 오류 발생: {e}", exc_info=True)
         raise typer.Exit(code=1)
@@ -227,21 +282,51 @@ def batch_inference(
 
 @app.command()
 def serve_api(
-    run_id: Annotated[str, typer.Option(help="서빙할 모델의 MLflow Run ID")],
-    host: Annotated[str, typer.Option(help="바인딩할 호스트")] = "0.0.0.0",
-    port: Annotated[int, typer.Option(help="바인딩할 포트")] = 8000,
+    run_id: Annotated[
+        str, 
+        typer.Option("--run-id", help="서빙할 모델의 MLflow Run ID")
+    ],
+    env_name: Annotated[
+        Optional[str],
+        typer.Option("--env-name", "-e", help="사용할 환경 이름")
+    ] = None,
+    host: Annotated[
+        str, 
+        typer.Option("--host", help="바인딩할 호스트")
+    ] = "0.0.0.0",
+    port: Annotated[
+        int, 
+        typer.Option("--port", help="바인딩할 포트")
+    ] = 8000,
 ) -> None:
     """
-    지정된 `run_id`의 모델로 FastAPI 서버를 실행합니다.
+    지정된 환경에서 API 서버 실행.
+    
+    Examples:
+        mmp serve-api --run-id abc123 --env-name prod
+        mmp serve-api --run-id abc123 -e dev --host localhost --port 8080
     """
     try:
-        # 추론 시점에는 config 파일만 로드하여 Settings 생성
-        config_data = load_config_files()
+        # 환경 이름 결정 및 환경변수 로드
+        env_name = get_env_name_with_fallback(env_name)
+        load_environment(env_name)
+        
+        # Config 로드 및 Settings 생성 (Phase 0 env_name 지원)
+        config_data = load_config_files(env_name=env_name)
         settings = create_settings_for_inference(config_data)
         setup_logging(settings)
 
-        logger.info(f"Run ID '{run_id}'로 API 서버를 시작합니다.")
+        logger.info(f"환경 '{env_name}'에서 API 서버를 시작합니다.")
+        logger.info(f"Run ID: {run_id}")
+        logger.info(f"Server: {host}:{port}")
+        
         run_api_server(settings=settings, run_id=run_id, host=host, port=port)
+    except FileNotFoundError as e:
+        logger.error(f"파일을 찾을 수 없습니다: {e}")
+        raise typer.Exit(code=1)
+    except ValueError as e:
+        logger.error(f"환경 설정 오류: {e}")
+        raise typer.Exit(code=1)
     except Exception as e:
         logger.error(f"API 서버 실행 중 오류 발생: {e}", exc_info=True)
         raise typer.Exit(code=1)
