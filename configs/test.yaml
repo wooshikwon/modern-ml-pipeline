@@ -1,0 +1,28 @@
+environment:
+  app_env: test
+  gcp_project_id: ${GCP_PROJECT:}
+mlflow:
+  tracking_uri: ./mlruns
+  experiment_name: test-experiment
+data_adapters:
+  default_loader: sql
+  default_storage: storage
+  adapters:
+    sql:
+      class_name: SqlAdapter
+      config:
+        connection_uri: postgresql://${DB_USER}:${DB_PASSWORD}@localhost:5432/test_db
+        query_timeout: 30
+    storage:
+      class_name: StorageAdapter
+      config:
+        storage_options: {}
+serving:
+  enabled: false
+  model_stage: None
+artifact_stores:
+  local:
+    enabled: true
+    base_uri: ./data
+hyperparameter_tuning:
+  enabled: false
