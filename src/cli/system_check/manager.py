@@ -66,7 +66,7 @@ class DynamicServiceChecker:
         Config 내용을 분석해서 실제 사용하는 서비스만 동적 검증.
 
         Args:
-            config: 전체 설정 딕셔너리 (config/*.yaml 파일들을 병합한 것)
+            config: 전체 설정 딕셔너리 (configs/*.yaml 파일들을 병합한 것)
 
         Returns:
             List[CheckResult]: 각 서비스별 검사 결과 리스트

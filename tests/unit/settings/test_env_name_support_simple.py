@@ -27,23 +27,13 @@ class TestEnvNameParameterSupport:
             mock_load.assert_called_once_with('dev')
             assert result == {'test': 'config'}
     
-    def test_load_config_files_without_env_name(self):
-        """load_config_files가 env_name 없이도 동작하는지 테스트 (하위 호환성)"""
-        with patch('src.settings._utils.get_app_env') as mock_get_env:
-            with patch('src.settings._builder._load_yaml_with_env') as mock_load_yaml:
-                mock_get_env.return_value = 'local'
-                mock_load_yaml.side_effect = [
-                    {'base': 'config'},
-                    {'env': 'local'}
-                ]
-                
-                # env_name이 없으면 기존 방식 사용
-                with patch('src.settings._builder.Path.exists', return_value=True):
-                    result = load_config_files()
-                
-                mock_get_env.assert_called_once()
-                assert 'base' in result
-                assert 'env' in result
+    def test_load_config_files_requires_env_name(self):
+        """load_config_files가 v2.0에서 env_name을 필수로 요구하는지 테스트"""
+        # v2.0: env_name은 필수 파라미터
+        with pytest.raises(TypeError) as exc_info:
+            load_config_files()  # env_name 없이 호출
+        
+        assert "missing 1 required positional argument: 'env_name'" in str(exc_info.value)
     
     def test_load_settings_by_file_accepts_env_name(self):
         """load_settings_by_file가 env_name 파라미터를 받는지 테스트"""
@@ -170,12 +160,12 @@ class TestEnvironmentSpecificLoading:
                 # configs/ 디렉토리의 파일이 사용되었는지 확인
                 assert result['source'] == 'configs'
     
-    def test_legacy_config_directory_fallback(self):
-        """configs/ 없을 때 config/ 폴백 테스트"""
+    def test_configs_directory_required(self):
+        """v2.0에서 configs/ 디렉토리가 필수인지 테스트"""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
             
-            # config/ 디렉토리만 생성
+            # config/ 디렉토리만 생성 (레거시, 지원 안 함)
             config_dir = tmpdir_path / 'config'
             config_dir.mkdir()
             
@@ -184,13 +174,9 @@ class TestEnvironmentSpecificLoading:
             (config_dir / 'dev.yaml').write_text('env: dev')
             
             with patch('src.settings._builder.BASE_DIR', tmpdir_path):
-                with patch('src.settings._builder.logger') as mock_logger:
-                    result = load_config_for_env('dev')
-                    
-                    # config/ 디렉토리의 파일이 사용되었는지 확인
-                    assert result['source'] == 'legacy'
-                    
-                    # 경고 로그 확인
-                    mock_logger.warning.assert_called()
-                    warning_msg = str(mock_logger.warning.call_args)
-                    assert 'legacy' in warning_msg.lower() or 'config/' in warning_msg
+                # v2.0: configs/ 디렉토리가 없으면 에러
+                with pytest.raises(FileNotFoundError) as exc_info:
+                    load_config_for_env('dev')
+                
+                assert 'configs/ directory not found' in str(exc_info.value)
+                assert "Run 'mmp init'" in str(exc_info.value)

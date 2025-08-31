@@ -128,7 +128,7 @@ def run_api_server(settings: Settings, run_id: str, host: str = "0.0.0.0", port:
     """
     # Blueprint 원칙 9: 환경별 기능 분리 - API 서빙 시스템적 차단
     if hasattr(settings, 'serving') and settings.serving and not getattr(settings.serving, 'enabled', True):
-        logger.error(f"'{settings.environment.app_env}' 환경에서는 API 서빙이 비활성화되어 있습니다.")
+        logger.error(f"'{settings.environment.env_name}' 환경에서는 API 서빙이 비활성화되어 있습니다.")
         return
 
     # 서버 시작 시 컨텍스트 설정

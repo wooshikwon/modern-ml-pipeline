@@ -38,7 +38,7 @@ class BaseServiceChecker(ABC):
         주어진 config에서 이 체커가 검사할 수 있는 서비스가 설정되어 있는지 판단.
 
         Args:
-            config: 전체 설정 딕셔너리 (config/*.yaml 파일들을 병합한 것)
+            config: 전체 설정 딕셔너리 (configs/*.yaml 파일들을 병합한 것)
 
         Returns:
             bool: 이 체커가 검사할 서비스가 설정되어 있으면 True

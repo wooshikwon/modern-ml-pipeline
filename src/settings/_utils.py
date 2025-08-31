@@ -37,16 +37,16 @@ def _recursive_merge(dict1: Dict, dict2: Dict) -> Dict:
 
 # 편의 함수들
 def get_app_env() -> str:
-    """현재 앱 환경 반환"""
-    return os.getenv("APP_ENV", "local")
+    """현재 앱 환경 반환 (v2.0: ENV_NAME 사용)"""
+    return os.getenv("ENV_NAME", "local")
 
 def is_local_env() -> bool:
     """로컬 환경 여부 확인"""
-    return get_app_env() == "local"
+    return os.getenv("ENV_NAME", "local") == "local"
 
 def is_dev_env() -> bool:
     """개발 환경 여부 확인"""
-    return get_app_env() == "dev"
+    return os.getenv("ENV_NAME", "local") == "dev"
 
 def is_prod_env() -> bool:
     """운영 환경 여부 확인"""

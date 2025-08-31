@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 
 def load_config_for_env(env_name: str) -> Dict[str, Any]:
-    """특정 환경에 대한 config 로딩 (새 방식)
+    """특정 환경에 대한 config 로딩 (v2.0)
     
     Args:
         env_name: 환경 이름 (필수)
@@ -25,11 +25,13 @@ def load_config_for_env(env_name: str) -> Dict[str, Any]:
     """
     from ._utils import _recursive_merge
     
-    # configs 디렉토리 우선, 없으면 config 사용
+    # configs 디렉토리만 지원 (v2.0)
     config_dir = BASE_DIR / "configs"
     if not config_dir.exists():
-        config_dir = BASE_DIR / "config"
-        logger.warning(f"Using legacy 'config/' directory. Please migrate to 'configs/'")
+        raise FileNotFoundError(
+            f"configs/ directory not found at {config_dir}. "
+            "Run 'mmp init' to create project structure."
+        )
     
     # 환경별 .env 파일 로드 (존재하는 경우)
     env_file = BASE_DIR / f".env.{env_name}"
@@ -56,30 +58,14 @@ def load_config_for_env(env_name: str) -> Dict[str, Any]:
     
     return merged_config
 
-def load_config_files(env_name: Optional[str] = None) -> Dict[str, Any]:
-    """환경별 config 파일 로딩 - base.yaml → {env_name}.yaml 순서로 병합
+def load_config_files(env_name: str) -> Dict[str, Any]:
+    """환경별 config 파일 로딩 - base.yaml → {env_name}.yaml 순서로 병합 (v2.0)
     
     Args:
-        env_name: 환경 이름 (없으면 APP_ENV 환경변수 사용)
+        env_name: 환경 이름 (필수)
     """
-    # env_name이 지정되면 새 방식 사용
-    if env_name is not None:
-        return load_config_for_env(env_name)
-    
-    # 하위 호환성: env_name이 없으면 기존 방식 사용
-    from ._utils import get_app_env, _recursive_merge
-    
-    config_dir = BASE_DIR / "config"  # 레거시는 config 디렉토리 사용
-    
-    base_config = _load_yaml_with_env(config_dir / "base.yaml")
-    
-    app_env = get_app_env()
-    env_config_file = config_dir / f"{app_env}.yaml"
-    env_config = _load_yaml_with_env(env_config_file)
-    
-    merged_config = _recursive_merge(base_config, env_config)
-    
-    return merged_config
+    # v2.0: env_name 필수, 새 방식만 사용
+    return load_config_for_env(env_name)
 
 def load_recipe_file(recipe_file: str) -> Dict[str, Any]:
     """Recipe 파일 로딩 - 절대/상대/recipes 경로 순으로 탐색"""
@@ -192,8 +178,9 @@ def _validate_and_prepare_context_params(
 
 def _post_process_settings(settings: "Settings") -> "Settings":
     """생성된 Settings 객체에 대한 후처리 작업을 수행합니다."""
-    # MLflow 경로 처리 (LOCAL 환경 안정성)
-    if settings.environment.app_env == 'local' and settings.mlflow.tracking_uri.startswith("./"):
+    # MLflow 경로 처리 (v2.0: env_name 기반)
+    env_name = os.environ.get('ENV_NAME', 'local')
+    if env_name == 'local' and settings.mlflow.tracking_uri.startswith("./"):
         uri_path = settings.mlflow.tracking_uri.replace("file://", "")
         absolute_path = Path(uri_path).resolve()
         settings.mlflow.tracking_uri = f"file://{absolute_path}"

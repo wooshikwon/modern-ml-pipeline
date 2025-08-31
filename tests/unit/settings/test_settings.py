@@ -12,12 +12,16 @@ def test_load_settings_by_file(test_factories):
     SettingsFactory가 현대화된 Recipe 구조를 올바르게 생성하는지 테스트합니다.
     (Factory 패턴으로 파일 의존성 제거 - Phase 2)
     """
+    # ENV_NAME 환경변수 설정 (v2.0: env_name property가 이를 읽음)
+    import os
+    os.environ['ENV_NAME'] = 'local'
+    
     # SettingsFactory로 완전한 설정 딕셔너리 생성
     settings_dict = test_factories['settings'].create_classification_settings(
         "local",
         # 기존 테스트가 검증하던 특정 값들로 오버라이드
         **{
-            "environment": {"app_env": "local"},
+            "environment": {},  # v2.0: app_env 필드 제거됨
             "mlflow": {"experiment_name": "local-test-Campaign-Uplift-Modeling"},
             "recipe": {
                 "model": {
@@ -44,7 +48,8 @@ def test_load_settings_by_file(test_factories):
 
     # 최상위 레벨 검증
     assert isinstance(settings, Settings)
-    assert settings.environment.app_env == "local"
+    # v2.0: app_env 필드 제거됨, env_name property 사용
+    assert settings.environment.env_name == "local"
     assert "Campaign-Uplift-Modeling" in settings.mlflow.experiment_name
     assert settings.hyperparameter_tuning.enabled is False
 

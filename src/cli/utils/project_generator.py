@@ -36,7 +36,7 @@ class ProjectStructureGenerator:
         Create basic project directory structure.
         
         Creates:
-            - config/
+            - configs/
             - recipes/
             - data/
             - docs/

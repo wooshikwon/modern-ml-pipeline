@@ -25,7 +25,7 @@ def setup_logging(settings: "Settings"):
             handler.close()
 
     # 실행 모드에 따른 로그 레벨 및 핸들러 설정
-    if settings.environment.app_env == "local":
+    if settings.environment.env_name == "local":
         root_logger.setLevel(logging.DEBUG)
         log_dir = Path(__file__).resolve().parent.parent.parent.parent / "logs"
         log_dir.mkdir(exist_ok=True)
@@ -40,4 +40,4 @@ def setup_logging(settings: "Settings"):
     handler.setFormatter(formatter)
     root_logger.addHandler(handler)
 
-    logger.info(f"로거 설정 완료. 실행 환경: {settings.environment.app_env}") 
+    logger.info(f"로거 설정 완료. 실행 환경: {settings.environment.env_name}") 
