@@ -1,21 +1,75 @@
 # src/settings/_helpers.py
 
 from pathlib import Path
-from typing import Dict, Any, List, TYPE_CHECKING
+from typing import Dict, Any, List, TYPE_CHECKING, Optional
 from ._utils import _load_yaml_with_env, BASE_DIR
 from src.utils.system.logger import logger
 from ._recipe_schema import RecipeSettings, JinjaVariable
 import pandas as pd
 from src.utils.system.sql_utils import prevent_select_star
+import os
+from dotenv import load_dotenv
 
 if TYPE_CHECKING:
     from .schema import Settings
 
 
-def load_config_files() -> Dict[str, Any]:
-    """환경별 config 파일 로딩 - base.yaml → {app_env}.yaml 순서로 병합"""
+def load_config_for_env(env_name: str) -> Dict[str, Any]:
+    """특정 환경에 대한 config 로딩 (새 방식)
+    
+    Args:
+        env_name: 환경 이름 (필수)
+    
+    Returns:
+        병합된 config 딕셔너리
+    """
+    from ._utils import _recursive_merge
+    
+    # configs 디렉토리 우선, 없으면 config 사용
+    config_dir = BASE_DIR / "configs"
+    if not config_dir.exists():
+        config_dir = BASE_DIR / "config"
+        logger.warning(f"Using legacy 'config/' directory. Please migrate to 'configs/'")
+    
+    # 환경별 .env 파일 로드 (존재하는 경우)
+    env_file = BASE_DIR / f".env.{env_name}"
+    if env_file.exists():
+        load_dotenv(env_file, override=True)
+        logger.info(f"Loaded environment variables from {env_file}")
+    
+    # base.yaml 로드
+    base_config = _load_yaml_with_env(config_dir / "base.yaml")
+    
+    # 환경별 config 로드
+    env_config_file = config_dir / f"{env_name}.yaml"
+    if not env_config_file.exists():
+        logger.warning(f"Environment config not found: {env_config_file}")
+        env_config = {}
+    else:
+        env_config = _load_yaml_with_env(env_config_file)
+    
+    # 병합 및 반환
+    merged_config = _recursive_merge(base_config, env_config)
+    
+    # ENV_NAME 환경변수 설정 (다른 컴포넌트를 위해)
+    os.environ['ENV_NAME'] = env_name
+    
+    return merged_config
+
+def load_config_files(env_name: Optional[str] = None) -> Dict[str, Any]:
+    """환경별 config 파일 로딩 - base.yaml → {env_name}.yaml 순서로 병합
+    
+    Args:
+        env_name: 환경 이름 (없으면 APP_ENV 환경변수 사용)
+    """
+    # env_name이 지정되면 새 방식 사용
+    if env_name is not None:
+        return load_config_for_env(env_name)
+    
+    # 하위 호환성: env_name이 없으면 기존 방식 사용
     from ._utils import get_app_env, _recursive_merge
-    config_dir = BASE_DIR / "config"
+    
+    config_dir = BASE_DIR / "config"  # 레거시는 config 디렉토리 사용
     
     base_config = _load_yaml_with_env(config_dir / "base.yaml")
     

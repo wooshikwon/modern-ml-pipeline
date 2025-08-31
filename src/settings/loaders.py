@@ -30,12 +30,17 @@ def load_settings(model_name: str) -> Settings:
     """
     return load_settings_by_file(f"models/{model_name}")
 
-def load_settings_by_file(recipe_file: str, context_params: Optional[Dict[str, Any]] = None) -> Settings:
+def load_settings_by_file(recipe_file: str, context_params: Optional[Dict[str, Any]] = None, env_name: Optional[str] = None) -> Settings:
     """
     [YAML 로드 → Jinja 변수 검증 → Jinja 렌더링 → Pydantic 검증]의 파이프라인을 조율합니다.
+    
+    Args:
+        recipe_file: Recipe 파일 경로
+        context_params: Jinja 템플릿 파라미터
+        env_name: 환경 이름 (없으면 APP_ENV 환경변수 사용)
     """
     # 1. 환경별 config와 Recipe 파일 로딩
-    config_data = load_config_files()
+    config_data = load_config_files(env_name=env_name)
     recipe_data = load_recipe_file(recipe_file)
     
     if not recipe_data:
