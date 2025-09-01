@@ -446,9 +446,9 @@ class ConfigBasedSystemChecker:
 
 def system_check_command(
     env_name: Annotated[
-        Optional[str],
-        typer.Option("--env-name", "-e", help="검사할 환경 이름")
-    ] = None,
+        str,
+        typer.Option("--env-name", "-e", help="검사할 환경 이름 (필수)")
+    ],
     actionable: bool = typer.Option(False, "--actionable", "-a", help="실행 가능한 해결책 제시")
 ) -> None:
     """
@@ -461,12 +461,11 @@ def system_check_command(
     - Feature Store feast_config 기반 설정 검증
     
     Args:
-        env_name: 환경 이름 (없으면 ENV_NAME 환경변수 사용)
+        env_name: 환경 이름 (필수)
         actionable: 실행 가능한 해결책 제시 여부
     """
     try:
-        # 환경 이름 결정
-        env_name = get_env_name_with_fallback(env_name)
+        # v2.0: env_name은 필수 파라미터
         
         if actionable:
             typer.echo(f"🔍 환경 '{env_name}'의 연결 상태를 검사합니다... (실행 가능한 해결책 모드)\n")

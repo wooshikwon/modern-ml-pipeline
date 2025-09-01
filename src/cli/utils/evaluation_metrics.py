@@ -15,7 +15,7 @@ from src.components._evaluator import (
     ClusteringEvaluator, 
     CausalEvaluator
 )
-from src.settings._recipe_schema import MLTaskSettings
+from src.settings import DataInterface
 
 
 # Evaluator Registry
@@ -100,10 +100,9 @@ def _get_metrics_by_dummy_call(evaluator_class: Type[BaseEvaluator]) -> List[str
     """
     try:
         # Mock 설정으로 임시 evaluator 인스턴스 생성
-        mock_settings = MLTaskSettings(
+        mock_settings = DataInterface(
             task_type='classification',
-            target_column='target',
-            average='weighted'  # classification용
+            target_column='target'
         )
         evaluator = evaluator_class(mock_settings)
         

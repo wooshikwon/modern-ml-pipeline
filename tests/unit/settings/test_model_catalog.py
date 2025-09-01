@@ -13,7 +13,7 @@ import tempfile
 from pathlib import Path
 from typing import Dict, Any
 
-from src.settings._model_validation import (
+from src.settings import (
     HyperparameterSpec,
     ModelSpec,
     ModelCatalog
