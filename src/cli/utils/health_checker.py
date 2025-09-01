@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List
 from urllib.parse import urlparse
 
-from src.cli.utils.system_check_models import CheckResult
+from src.cli.utils.health_models import CheckResult
 from src.utils.system.logger import logger
 
 

@@ -15,42 +15,7 @@ from jinja2 import Environment, FileSystemLoader, Template
 import shutil
 import typer
 
-# 환경별 설정 매핑 (계획서 섹션 7.2)
-ENVIRONMENT_CONFIGS: Dict[str, Dict[str, Any]] = {
-    'local': {
-        'adapter': 'storage',
-        'hyperparameter_tuning': False,
-        'n_estimators': 10,
-        'max_depth': 3,
-        'n_jobs': 2,
-        'data_source': 'data/sample.csv',
-        'loader_name': 'local_data_loader',
-        'feature_store': False,
-        'n_trials': 10
-    },
-    'dev': {
-        'adapter': 'sql', 
-        'hyperparameter_tuning': True,
-        'n_estimators': 100,
-        'max_depth': 10,
-        'n_jobs': -1,
-        'data_source': 'sql/features.sql',
-        'loader_name': 'sql_data_loader',
-        'feature_store': True,
-        'n_trials': 50
-    },
-    'prod': {
-        'adapter': 'sql',
-        'hyperparameter_tuning': True, 
-        'n_estimators': 200,
-        'max_depth': 15,
-        'n_jobs': -1,
-        'data_source': 'sql/production_features.sql',
-        'loader_name': 'sql_data_loader',
-        'feature_store': True,
-        'n_trials': 100
-    }
-}
+from .env_defaults import ENVIRONMENT_CONFIGS
 
 @dataclass
 class TemplateConfig:

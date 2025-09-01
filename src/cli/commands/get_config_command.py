@@ -34,7 +34,7 @@ def get_config_command(
         mmp get-config --env-name dev
         mmp get-config --template local --non-interactive
     """
-    from src.cli.core.config_builder import InteractiveConfigBuilder
+    from src.cli.utils.config_builder import InteractiveConfigBuilder
     
     try:
         builder = InteractiveConfigBuilder()
@@ -70,7 +70,7 @@ def _create_from_template(env_name: str, template: str) -> None:
         env_name: 환경 이름
         template: 템플릿 이름 (local/dev/prod)
     """
-    from src.cli.core.config_builder import InteractiveConfigBuilder
+    from src.cli.utils.config_builder import InteractiveConfigBuilder
     
     builder = InteractiveConfigBuilder()
     

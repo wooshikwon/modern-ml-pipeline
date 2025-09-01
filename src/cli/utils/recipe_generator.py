@@ -10,8 +10,8 @@ from jinja2 import Environment, FileSystemLoader
 from rich.console import Console
 
 from src.settings import ModelSpec
-from .environment_configs import ENVIRONMENT_CONFIGS
-from .evaluation_metrics import get_task_metrics, get_tuning_config
+from .env_defaults import ENVIRONMENT_CONFIGS
+from .ml_metrics import get_task_metrics, get_tuning_config
 
 
 class CatalogBasedRecipeGenerator:
@@ -32,6 +32,7 @@ class CatalogBasedRecipeGenerator:
     
     def generate_recipe(
         self, 
+        environment: str,
         task_type: str, 
         model_spec: ModelSpec
     ) -> Path:
