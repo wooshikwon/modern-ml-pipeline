@@ -19,8 +19,7 @@ from src.cli.utils.env_loader import (
     load_environment,
     get_config_path,
     resolve_env_variables,
-    load_config_with_env,
-    get_env_name_with_fallback
+    load_config_with_env
 )
 
 
@@ -215,36 +214,3 @@ class TestLoadConfigWithEnv:
             assert os.getenv("ENV_NAME") == "dev"
 
 
-class TestGetEnvNameWithFallback:
-    """get_env_name_with_fallback 함수 테스트."""
-    
-    def test_explicit_env_name(self):
-        """명시적 env_name 우선 사용."""
-        result = get_env_name_with_fallback("explicit")
-        assert result == "explicit"
-    
-    def test_fallback_to_env_var(self):
-        """환경변수 fallback 테스트."""
-        os.environ["ENV_NAME"] = "from_env"
-        
-        result = get_env_name_with_fallback(None, allow_env_var=True)
-        assert result == "from_env"
-    
-    def test_no_fallback_when_disabled(self):
-        """fallback 비활성화 테스트."""
-        os.environ["ENV_NAME"] = "from_env"
-        
-        with pytest.raises(ValueError) as exc_info:
-            get_env_name_with_fallback(None, allow_env_var=False)
-        
-        assert "--env-name" in str(exc_info.value)
-    
-    def test_error_when_no_env_name(self):
-        """env_name 없을 때 에러."""
-        os.environ.pop("ENV_NAME", None)
-        
-        with pytest.raises(ValueError) as exc_info:
-            get_env_name_with_fallback(None, allow_env_var=True)
-        
-        assert "--env-name" in str(exc_info.value)
-        assert "ENV_NAME" in str(exc_info.value)

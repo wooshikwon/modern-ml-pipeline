@@ -1,9 +1,9 @@
 # src/components/_evaluator/_causal.py
 from src.interface import BaseEvaluator
-from src.settings._recipe_schema import MLTaskSettings
+from src.settings import DataInterface
 
 class CausalEvaluator(BaseEvaluator):
-    def __init__(self, data_interface_settings: MLTaskSettings):
+    def __init__(self, data_interface_settings: DataInterface):
         self.settings = data_interface_settings
 
     def evaluate(self, model, X, y, source_df=None):

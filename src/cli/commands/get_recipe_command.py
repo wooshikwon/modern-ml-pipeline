@@ -16,7 +16,7 @@ from rich.prompt import Prompt
 from rich.table import Table
 from rich.panel import Panel
 
-from src.settings._model_validation import ModelCatalog, ModelSpec
+from src.settings import ModelCatalog, ModelSpec
 from src.cli.utils.recipe_generator import CatalogBasedRecipeGenerator
 
 

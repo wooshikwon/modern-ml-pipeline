@@ -111,6 +111,7 @@ app.command("system-check", help="현재 config 파일 기반 시스템 연결 �
 # Phase 4: Get Recipe Command
 app.command("get-recipe", help="대화형 모델 선택 및 레시피 생성")(get_recipe_command)
 
+
 # Phase 5: Init Command
 @app.command()
 def init(

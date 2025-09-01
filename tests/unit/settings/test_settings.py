@@ -1,66 +1,150 @@
 """
-Settings 테스트
+Settings Tests (v2.0)
 
-설정 로딩, 검증, 환경별 설정 병합 테스트
+Test the new simplified settings structure.
 """
 
-from src.settings import Settings
-from src.settings._recipe_schema import HyperparametersSettings
+import pytest
+import tempfile
+import yaml
+from pathlib import Path
+from unittest.mock import patch
 
-def test_load_settings_by_file(test_factories):
-    """
-    SettingsFactory가 현대화된 Recipe 구조를 올바르게 생성하는지 테스트합니다.
-    (Factory 패턴으로 파일 의존성 제거 - Phase 2)
-    """
-    # ENV_NAME 환경변수 설정 (v2.0: env_name property가 이를 읽음)
-    import os
-    os.environ['ENV_NAME'] = 'local'
-    
-    # SettingsFactory로 완전한 설정 딕셔너리 생성
-    settings_dict = test_factories['settings'].create_classification_settings(
-        "local",
-        # 기존 테스트가 검증하던 특정 값들로 오버라이드
-        **{
-            "environment": {},  # v2.0: app_env 필드 제거됨
-            "mlflow": {"experiment_name": "local-test-Campaign-Uplift-Modeling"},
-            "recipe": {
-                "model": {
-                    "class_path": "sklearn.ensemble.RandomForestClassifier",
-                    "hyperparameters": {"C": 1.0},  # 기존 테스트가 검증하던 값
-                    "data_interface": {
-                        "task_type": "classification",
-                        "target_column": "outcome"  # 기존 테스트가 검증하던 값
-                    },
-                    "loader": {
-                        "entity_schema": {
-                            "entity_columns": ["user_id"],
-                            "timestamp_column": "event_timestamp"
-                        }
-                    }
-                }
-            },
-            "hyperparameter_tuning": {"enabled": False}
+from src.settings import (
+    Settings, Config, Recipe, load_settings,
+    Environment, MLflow, Adapter,
+    Model, Data, Loader, DataInterface, Evaluation
+)
+
+
+def test_settings_creation():
+    """Test that Settings can be created with new structure."""
+    # Create Config
+    config = Config(
+        environment=Environment(project_id="test-project"),
+        mlflow=MLflow(tracking_uri="./mlruns", experiment_name="test"),
+        adapters={
+            "storage": Adapter(type="storage", config={"base_path": "./data"})
         }
     )
     
-    # 실제 Settings 객체로 변환
-    settings = Settings(**settings_dict)
-
-    # 최상위 레벨 검증
-    assert isinstance(settings, Settings)
-    # v2.0: app_env 필드 제거됨, env_name property 사용
-    assert settings.environment.env_name == "local"
-    assert "Campaign-Uplift-Modeling" in settings.mlflow.experiment_name
-    assert settings.hyperparameter_tuning.enabled is False
-
-    # 레시피 내용 검증
-    assert settings.recipe.model.class_path == "sklearn.ensemble.RandomForestClassifier"
-    assert settings.recipe.model.data_interface.task_type == "classification"
-    assert settings.recipe.model.data_interface.target_column == "outcome"
-    assert settings.recipe.model.loader.entity_schema.entity_columns == ["user_id"]
-    assert settings.recipe.model.loader.entity_schema.timestamp_column == "event_timestamp"
+    # Create Recipe
+    recipe = Recipe(
+        name="test_recipe",
+        model=Model(
+            class_path="sklearn.ensemble.RandomForestClassifier",
+            hyperparameters={"n_estimators": 100, "random_state": 42}
+        ),
+        data=Data(
+            loader=Loader(
+                name="train_loader",
+                adapter="storage",
+                source_uri="data.csv"
+            ),
+            data_interface=DataInterface(
+                task_type="classification",
+                target_column="label"
+            )
+        ),
+        evaluation=Evaluation(
+            metrics=["accuracy", "f1"],
+            validation={"method": "split", "test_size": 0.2}
+        )
+    )
     
-    # 하이퍼파라미터 검증 (HyperparametersSettings 스키마 준수)
-    assert isinstance(settings.recipe.model.hyperparameters, HyperparametersSettings)
-    assert isinstance(settings.recipe.model.hyperparameters.root, dict)
-    assert settings.recipe.model.hyperparameters.root['C'] == 1.0 
+    # Create Settings
+    settings = Settings(config, recipe)
+    
+    # Verify structure
+    assert settings.config.environment.project_id == "test-project"
+    assert settings.recipe.name == "test_recipe"
+    assert settings.recipe.model.class_path == "sklearn.ensemble.RandomForestClassifier"
+    assert settings.recipe.data.data_interface.task_type == "classification"
+
+
+@patch('builtins.open')
+@patch('pathlib.Path.exists')
+def test_load_settings_integration(mock_exists, mock_open):
+    """Test load_settings function with mocked files."""
+    # Mock file existence
+    mock_exists.return_value = True
+    
+    # Mock config file content
+    config_content = {
+        "environment": {"project_id": "test-project"},
+        "mlflow": {"tracking_uri": "./mlruns", "experiment_name": "test"},
+        "adapters": {
+            "sql": {"type": "sql", "config": {"connection_uri": "postgresql://localhost"}}
+        }
+    }
+    
+    # Mock recipe file content
+    recipe_content = {
+        "name": "test_model",
+        "model": {
+            "class_path": "sklearn.linear_model.LogisticRegression",
+            "hyperparameters": {"C": 1.0}
+        },
+        "data": {
+            "loader": {
+                "name": "train_data",
+                "adapter": "sql", 
+                "source_uri": "SELECT * FROM features"
+            },
+            "data_interface": {
+                "task_type": "classification",
+                "target_column": "target"
+            }
+        },
+        "evaluation": {
+            "metrics": ["accuracy", "precision"],
+            "validation": {"method": "split"}
+        }
+    }
+    
+    # Setup mock to return YAML content
+    with patch('yaml.safe_load') as mock_yaml:
+        mock_yaml.side_effect = [config_content, recipe_content]
+        
+        # Mock file handles
+        mock_open.return_value.__enter__.return_value = "mock_file"
+        
+        # Test load_settings
+        settings = load_settings("test_model.yaml", "dev")
+        
+        # Verify settings
+        assert settings.config.environment.project_id == "test-project"
+        assert settings.recipe.name == "test_model"
+        assert settings.recipe.model.hyperparameters["C"] == 1.0
+        assert "sql" in settings.config.adapters
+
+
+def test_settings_validation():
+    """Test that Settings validation catches errors."""
+    config = Config(
+        environment=Environment(project_id="test"),
+        mlflow=MLflow(tracking_uri="./mlruns", experiment_name="test"),
+        adapters={"storage": Adapter(type="storage", config={})}
+    )
+    
+    # Recipe that references non-existent adapter
+    recipe = Recipe(
+        name="test",
+        model=Model(class_path="test.Model"),
+        data=Data(
+            loader=Loader(
+                name="loader",
+                adapter="missing_adapter",  # This doesn't exist in config
+                source_uri="data.csv"
+            ),
+            data_interface=DataInterface(
+                task_type="classification",
+                target_column="target"
+            )
+        ),
+        evaluation=Evaluation(metrics=["accuracy"])
+    )
+    
+    # Should raise validation error
+    with pytest.raises(ValueError, match="not defined in Config"):
+        Settings(config, recipe)
