@@ -15,7 +15,7 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 import yaml
 
-from src.cli.utils.env_loader import (
+from src.cli.utils.config_loader import (
     load_environment,
     get_config_path,
     resolve_env_variables,

@@ -67,4 +67,4 @@ ENVIRONMENT_CONFIGS: Dict[str, Dict[str, Any]] = {
     }
 }
 
-# 태스크별 평가 메트릭은 evaluation_metrics.py로 분리됨
+# 태스크별 평가 메트릭은 ml_metrics.py로 분리됨

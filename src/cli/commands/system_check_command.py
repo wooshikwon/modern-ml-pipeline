@@ -18,9 +18,9 @@ from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 
-from src.cli.utils.system_check_models import CheckResult
-from src.cli.utils.env_loader import load_config_with_env
-from src.cli.utils.dynamic_service_checker import DynamicServiceChecker
+from src.cli.utils.health_models import CheckResult
+from src.cli.utils.config_loader import load_config_with_env
+from src.cli.utils.health_checker import DynamicServiceChecker
 
 
 class ConfigBasedSystemChecker:

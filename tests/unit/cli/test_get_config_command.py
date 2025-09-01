@@ -15,7 +15,7 @@ import yaml
 import tempfile
 
 from src.cli.commands.get_config_command import get_config_command, _create_from_template
-from src.cli.core.config_builder import InteractiveConfigBuilder
+from src.cli.utils.config_builder import InteractiveConfigBuilder
 from src.cli.ui.interactive_selector import InteractiveSelector
 
 
@@ -57,7 +57,7 @@ class TestGetConfigCommand:
     def test_get_config_command_interactive(self):
         """대화형 설정 생성 테스트."""
         with patch('src.cli.commands.get_config_command.console'):
-            with patch('src.cli.core.config_builder.InteractiveConfigBuilder') as mock_builder_class:
+            with patch('src.cli.utils.config_builder.InteractiveConfigBuilder') as mock_builder_class:
                 # Mock 설정
                 mock_builder = MagicMock()
                 mock_builder_class.return_value = mock_builder
@@ -117,7 +117,7 @@ class TestInteractiveConfigBuilder:
         }
         
         with tempfile.TemporaryDirectory() as tmpdir:
-            with patch('src.cli.core.config_builder.Path.cwd', return_value=Path(tmpdir)):
+            with patch('src.cli.utils.config_builder.Path.cwd', return_value=Path(tmpdir)):
                 config_path = builder.generate_config_file('test', selections)
                 
                 assert config_path.exists()
@@ -150,7 +150,7 @@ class TestInteractiveConfigBuilder:
         }
         
         with tempfile.TemporaryDirectory() as tmpdir:
-            with patch('src.cli.core.config_builder.Path.cwd', return_value=Path(tmpdir)):
+            with patch('src.cli.utils.config_builder.Path.cwd', return_value=Path(tmpdir)):
                 env_path = builder.generate_env_template('test', selections)
                 
                 assert env_path.exists()
@@ -166,8 +166,8 @@ class TestInteractiveConfigBuilder:
                 assert 'REDIS_HOST=' in content
                 assert 'GCS_BUCKET=' in content
     
-    @patch('src.cli.core.config_builder.Prompt')
-    @patch('src.cli.core.config_builder.Confirm')
+    @patch('src.cli.utils.config_builder.Prompt')
+    @patch('src.cli.utils.config_builder.Confirm')
     def test_run_interactive_flow(self, mock_confirm, mock_prompt):
         """대화형 플로우 테스트."""
         builder = InteractiveConfigBuilder()

@@ -6,7 +6,7 @@ Registry 기반 평가 메트릭 시스템 테스트
 import pytest
 from unittest.mock import patch
 
-from src.cli.utils.evaluation_metrics import (
+from src.cli.utils.ml_metrics import (
     get_task_metrics,
     get_tuning_config, 
     get_primary_metric,
@@ -132,8 +132,8 @@ class TestRegistryEvaluationMetrics:
         for metric in expected:
             assert metric in metrics
 
-    @patch('src.cli.utils.evaluation_metrics.re.findall')
-    @patch('src.cli.utils.evaluation_metrics.inspect.getsource')
+    @patch('src.cli.utils.ml_metrics.re.findall')
+    @patch('src.cli.utils.ml_metrics.inspect.getsource')
     def test_extract_metrics_fallback_to_dummy_call(self, mock_getsource, mock_findall):
         """소스 파싱 실패 시 더미 호출 fallback 테스트"""
         # Given: getsource는 성공하지만 정규식 매칭이 실패하도록 설정
@@ -141,7 +141,7 @@ class TestRegistryEvaluationMetrics:
         mock_findall.return_value = []  # 정규식 매칭 실패
         
         # When
-        with patch('src.cli.utils.evaluation_metrics._get_metrics_by_dummy_call') as mock_dummy:
+        with patch('src.cli.utils.ml_metrics._get_metrics_by_dummy_call') as mock_dummy:
             mock_dummy.return_value = ['mocked_metric']
             metrics = _extract_metrics_from_evaluator(ClassificationEvaluator)
         
@@ -162,7 +162,7 @@ class TestRegistryEvaluationMetrics:
         for metric in expected:
             assert metric in metrics
 
-    @patch('src.cli.utils.evaluation_metrics._extract_metrics_from_evaluator')
+    @patch('src.cli.utils.ml_metrics._extract_metrics_from_evaluator')
     def test_get_task_metrics_with_fallback(self, mock_extract):
         """메트릭 추출 실패 시 fallback 동작 테스트"""
         # Given: 메트릭 추출 실패

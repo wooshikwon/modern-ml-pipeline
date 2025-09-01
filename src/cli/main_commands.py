@@ -16,7 +16,7 @@ from typing import Optional, Dict, Any
 from src.cli.commands.system_check_command import system_check_command
 from src.cli.commands.get_recipe_command import get_recipe_command
 from src.cli.commands.get_config_command import get_config_command
-from src.cli.utils.env_loader import load_environment
+from src.cli.utils.config_loader import load_environment
 
 # Core functionality imports 
 from src.settings import (

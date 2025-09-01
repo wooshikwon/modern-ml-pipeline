@@ -18,7 +18,7 @@ from src.cli.commands.system_check_command import (
     ConfigBasedSystemChecker,
     _display_basic_summary
 )
-from src.cli.utils.system_check_models import CheckResult
+from src.cli.utils.health_models import CheckResult
 
 
 # 이 테스트 파일은 conftest.py의 global fixture 사용을 피하기 위해 독립적으로 실행됩니다
