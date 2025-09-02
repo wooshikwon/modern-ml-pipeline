@@ -1,5 +1,5 @@
 environment:
-  app_env: test
+  env_name: test
   gcp_project_id: ${GCP_PROJECT:}
 mlflow:
   tracking_uri: ./mlruns

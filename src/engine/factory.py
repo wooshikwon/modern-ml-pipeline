@@ -52,7 +52,6 @@ class Factory:
     def create_augmenter(self, run_mode: Optional[str] = None):
         """
         설정과 실행 모드에 따라 적절한 Augmenter 인스턴스를 생성합니다.
-        정책: blueprint.md 148-155 라인 참조.
         """
         mode = (run_mode or "batch").lower()
         env = self.settings.environment.env_name if hasattr(self.settings, "environment") else "local"

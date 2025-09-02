@@ -20,7 +20,7 @@ from src.cli.utils.config_loader import load_environment
 
 # Core functionality imports 
 from src.settings import (
-    load_settings_by_file,
+    load_settings,
     create_settings_for_inference,
     load_config_files,
 )
@@ -203,10 +203,9 @@ def train(
         params: Optional[Dict[str, Any]] = (
             json.loads(context_params) if context_params else None
         )
-        settings = load_settings_by_file(
+        settings = load_settings(
             recipe_file, 
-            env_name,  # v2.0에서 필수 파라미터
-            context_params=params
+            env_name  # v2.0에서 필수 파라미터
         )
         setup_logging(settings)
 

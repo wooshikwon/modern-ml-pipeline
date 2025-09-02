@@ -13,7 +13,7 @@ import tempfile
 import os
 from pathlib import Path
 from unittest.mock import patch, Mock
-from src.settings.loaders import load_settings_by_file
+from src.settings import load_settings
 from src.engine import Factory, bootstrap
 from src.pipelines.train_pipeline import run_training
 from src.pipelines.inference_pipeline import run_batch_inference
@@ -40,7 +40,7 @@ class TestPipelineFlow:
             test_data.to_csv(csv_path, index=False)
             
             # Settings 로드 및 데이터 경로 수정
-            settings = load_settings_by_file("models/classification/logistic_regression")
+            settings = load_settings("models/classification/logistic_regression", "local")
             
             # 테스트용 데이터 경로로 변경
             settings.recipe.model.loader.source_uri = str(csv_path)
@@ -175,7 +175,7 @@ class TestPipelineFlow:
             csv_path = Path(temp_dir) / "integrity_test.csv"
             test_data.to_csv(csv_path, index=False)
             
-            settings = load_settings_by_file("models/classification/logistic_regression")
+            settings = load_settings("models/classification/logistic_regression", "local")
             settings.recipe.model.loader.source_uri = str(csv_path)
             
             bootstrap(settings)
@@ -222,7 +222,7 @@ class TestPipelineFlow:
             test_data.to_csv(csv_path, index=False)
             
             # 첫 번째 실행
-            settings1 = load_settings_by_file("models/classification/logistic_regression")
+            settings1 = load_settings("models/classification/logistic_regression", "local")
             settings1.recipe.model.loader.source_uri = str(csv_path)
             bootstrap(settings1)
             
@@ -231,7 +231,7 @@ class TestPipelineFlow:
             loaded_data1 = data_adapter1.read(settings1.recipe.model.loader.source_uri)
             
             # 두 번째 실행 (동일한 설정)
-            settings2 = load_settings_by_file("models/classification/logistic_regression")
+            settings2 = load_settings("models/classification/logistic_regression", "local")
             settings2.recipe.model.loader.source_uri = str(csv_path)
             
             factory2 = Factory(settings2)
@@ -252,7 +252,7 @@ class TestPipelineFlow:
     def test_factory_component_interaction_in_pipeline(self):
         """Factory 컴포넌트들의 파이프라인 내 상호작용 검증 (RED)"""
         # Feature Store 의존성을 피하고 PassThroughAugmenter를 사용하기 위해 local 환경 설정
-        with patch.dict(os.environ, {'APP_ENV': 'local'}):
+        with patch.dict(os.environ, {'ENV_NAME': 'local'}):
             test_data = pd.DataFrame({
                 'PassengerId': [1, 2, 3, 4],
                 'timestamp': pd.to_datetime(['2024-01-01', '2024-01-02', '2024-01-03', '2024-01-04']),
@@ -266,7 +266,7 @@ class TestPipelineFlow:
                 csv_path = Path(temp_dir) / "interaction_test.csv"
                 test_data.to_csv(csv_path, index=False)
                 
-                settings = load_settings_by_file("models/classification/logistic_regression")
+                settings = load_settings("models/classification/logistic_regression", "local")
                 settings.recipe.model.loader.source_uri = str(csv_path)
                 
                 bootstrap(settings)

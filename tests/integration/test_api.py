@@ -10,7 +10,7 @@ import pytest
 
 from src.serving.router import app
 from src.serving.schemas import PredictionResponse
-from src.settings.loaders import load_settings_by_file
+from src.settings import load_settings
 
 
 class TestServingAPIBlueprintCompliance:
@@ -19,8 +19,8 @@ class TestServingAPIBlueprintCompliance:
     @pytest.fixture
     def mock_settings(self):
         """테스트용 Settings - Serving API 검증용"""
-        return load_settings_by_file(
-            recipe_file="tests/fixtures/recipes/local_classification_test.yaml"
+        return load_settings(
+            recipe_file="tests/fixtures/recipes/local_classification_test.yaml", env_name="local"
         )
 
     def test_serving_app_exists(self):
@@ -77,7 +77,7 @@ class TestServingAPIBlueprintCompliance:
         assert hasattr(mock_settings.serving, 'enabled')
         
         # 환경별로 서빙 정책이 다름 (Local=False, DEV/PROD=True)
-        env_type = mock_settings.environment.app_env
+        env_type = mock_settings.environment.env_name
         if env_type == 'local':
             assert not mock_settings.serving.enabled
         elif env_type in ['dev', 'prod']:

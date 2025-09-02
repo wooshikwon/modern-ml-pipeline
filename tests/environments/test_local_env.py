@@ -16,7 +16,7 @@ import pandas as pd
 
 from src.engine.factory import Factory
 from src.components._fetcher import PassThroughAugmenter
-from src.settings.loaders import load_settings_by_file
+from src.settings import load_settings
 
 
 @pytest.mark.local_env
@@ -26,8 +26,8 @@ class TestLocalEnvironmentBlueprintCompliance:
     @pytest.fixture
     def local_settings(self):
         """Local 환경 Settings - BLUEPRINT 원칙 2 검증용"""
-        return load_settings_by_file(
-            recipe_file="tests/fixtures/recipes/local_classification_test.yaml"
+        return load_settings(
+            recipe_file="tests/fixtures/recipes/local_classification_test.yaml", env_name="local"
         )
 
     def test_local_environment_settings_loaded(self, local_settings):

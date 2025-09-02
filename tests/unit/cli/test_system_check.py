@@ -14,11 +14,9 @@ import shutil
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
 
-from src.cli.commands.system_check_command import (
-    ConfigBasedSystemChecker,
-    _display_basic_summary
-)
-from src.cli.utils.health_models import CheckResult
+from src.cli.system_check.manager import DynamicServiceChecker
+from src.cli.system_check.models import CheckResult
+from src.cli.commands.system_check_command import _display_summary
 
 
 # 이 테스트 파일은 conftest.py의 global fixture 사용을 피하기 위해 독립적으로 실행됩니다
@@ -40,34 +38,28 @@ class TestSystemCheckCommand:
 
     @pytest.mark.core
     @pytest.mark.unit
-    def test_config_based_checker_initialization(self):
-        """ConfigBasedSystemChecker 초기화 테스트"""
-        # Given: config 디렉토리에 YAML 파일 생성
-        config_content = {
-            "environment": {"app_env": "test"},
-            "mlflow": {"tracking_uri": "http://localhost:5002"}
-        }
-        self._create_config_file("test.yaml", config_content)
+    def test_dynamic_checker_initialization(self):
+        """DynamicServiceChecker 초기화 테스트"""
+        # Given: DynamicServiceChecker 생성
+        checker = DynamicServiceChecker()
         
-        # When: ConfigBasedSystemChecker 초기화
-        checker = ConfigBasedSystemChecker(self.config_dir)
-        
-        # Then: configs가 올바르게 로드되어야 함
-        assert "test" in checker.configs
-        assert checker.configs["test"]["mlflow"]["tracking_uri"] == "http://localhost:5002"
+        # Then: 체커가 올바르게 초기화되어야 함
+        assert checker is not None
+        assert len(checker.checkers) > 0  # 기본 체커들이 등록되어 있어야 함
 
-    def test_config_loading_with_yaml_parse_error(self):
-        """YAML 파싱 오류 처리 테스트"""
-        # Given: 잘못된 YAML 파일
-        invalid_yaml = "invalid: yaml: content: ["
-        (self.config_dir / "invalid.yaml").write_text(invalid_yaml)
+    def test_checker_can_check_method(self):
+        """DynamicServiceChecker can_check 메서드 테스트"""
+        # Given: MLflow 설정이 있는 config
+        config = {
+            "ml_tracking": {"tracking_uri": "http://localhost:5000"}
+        }
         
-        # When: ConfigBasedSystemChecker 초기화
-        checker = ConfigBasedSystemChecker(self.config_dir)
+        # When: DynamicServiceChecker로 체크
+        checker = DynamicServiceChecker()
+        active_services = checker.get_active_services(config)
         
-        # Then: 파싱 오류가 기록되어야 함
-        assert "invalid" in checker.configs
-        assert "_parse_error" in checker.configs["invalid"]
+        # Then: MLflow가 활성 서비스로 감지되어야 함
+        assert "MLflow" in active_services
 
     def test_run_dynamic_checks_with_mlflow_config(self):
         """MLflow 설정이 있는 경우 동적 체크 테스트"""
@@ -77,53 +69,73 @@ class TestSystemCheckCommand:
         }
         self._create_config_file("mlflow_test.yaml", config_content)
         
-        checker = ConfigBasedSystemChecker(self.config_dir)
+        checker = DynamicServiceChecker()
         
         # When: 동적 체크 실행 (MLflow 연결은 mock)
-        with patch.object(checker, '_check_mlflow_connection') as mock_mlflow:
+        with patch('src.cli.system_check.checkers.mlflow.MLflowChecker.check') as mock_check:
             mock_result = CheckResult(
                 is_healthy=True,
+                service_name="MLflow",
                 message="MLflow Connection (mlflow_test): Connection successful"
             )
-            mock_mlflow.return_value = mock_result
+            mock_check.return_value = mock_result
             
-            summary = checker.run_dynamic_checks()
+            results = checker.run_checks(config_content)
         
         # Then: MLflow 체크가 실행되어야 함
-        mock_mlflow.assert_called_once_with("mlflow_test", config_content)
-        assert summary['total_checks'] > 0
-        assert any("MLflow" in result.message for result in summary['results'])
+        assert len(results) > 0
+        assert any(r.service_name == "MLflow" for r in results)
 
     def test_run_dynamic_checks_with_no_services(self):
         """서비스 설정이 없는 경우 테스트"""
         # Given: 기본 설정만 있는 config
-        config_content = {"environment": {"app_env": "test"}}
+        config_content = {"environment": {"env_name": "test"}}
         self._create_config_file("basic.yaml", config_content)
         
-        checker = ConfigBasedSystemChecker(self.config_dir)
+        checker = DynamicServiceChecker()
         
         # When: 동적 체크 실행
-        summary = checker.run_dynamic_checks()
+        results = checker.run_checks(config_content)
         
         # Then: 체크 결과가 비어있어야 함 (서비스 설정이 없으므로)
-        assert summary['total_checks'] == 0
+        assert len(results) == 0
 
-    def test_config_directory_not_found(self):
-        """Config 디렉토리가 없는 경우 테스트"""
-        # Given: 존재하지 않는 디렉토리
-        non_existent_dir = Path(self.temp_dir) / "non_existent"
+    def test_summary_stats_generation(self):
+        """Summary stats 생성 테스트"""
+        # Given: 테스트 결과들
+        results = [
+            CheckResult(is_healthy=True, service_name="MLflow", message="OK"),
+            CheckResult(is_healthy=False, service_name="PostgreSQL", message="Failed", severity="critical")
+        ]
         
-        # When & Then: FileNotFoundError가 발생해야 함
-        with pytest.raises(FileNotFoundError, match="Config 디렉토리를 찾을 수 없습니다"):
-            ConfigBasedSystemChecker(non_existent_dir)
+        # When: Summary stats 생성
+        stats = checker.get_summary_stats(results)
+        
+        # Then: 올바른 통계가 생성되어야 함
+        assert stats['total'] == 2
+        assert stats['healthy'] == 1
+        assert stats['unhealthy'] == 1
+        assert stats['critical_failures'] == 1
 
-    def test_empty_config_directory(self):
-        """빈 config 디렉토리 처리 테스트"""
-        # Given: 빈 config 디렉토리
+    def test_get_active_services(self):
+        """활성 서비스 목록 가져오기 테스트"""
+        # Given: 여러 서비스가 설정된 config
+        config = {
+            "ml_tracking": {"tracking_uri": "http://localhost:5000"},
+            "data_adapters": {
+                "adapters": {
+                    "sql": {
+                        "config": {"connection_uri": "postgresql://localhost/db"}
+                    }
+                }
+            }
+        }
         
-        # When & Then: FileNotFoundError가 발생해야 함
-        with pytest.raises(FileNotFoundError, match="Config 디렉토리에 YAML 파일이 없습니다"):
-            ConfigBasedSystemChecker(self.config_dir)
+        # When: 활성 서비스 조회
+        active_services = checker.get_active_services(config)
+        
+        # Then: 설정된 서비스들이 반환되어야 함
+        assert len(active_services) >= 2  # 최소 MLflow와 PostgreSQL
 
     @patch('mlflow.set_tracking_uri')
     @patch('mlflow.get_tracking_uri')  
@@ -136,7 +148,7 @@ class TestSystemCheckCommand:
         }
         self._create_config_file("test.yaml", config_content)
         
-        checker = ConfigBasedSystemChecker(self.config_dir)
+        checker = DynamicServiceChecker()
         
         # Mock 설정
         mock_get_uri.return_value = "original_uri"
@@ -145,7 +157,12 @@ class TestSystemCheckCommand:
         mock_mlflow_client.return_value = mock_client
         
         # When: MLflow 연결 체크
-        result = checker._check_mlflow_connection("test", config_content)
+        from src.cli.system_check.checkers.mlflow import MLflowChecker
+        mlflow_checker = MLflowChecker()
+        if mlflow_checker.can_check(config_content):
+            result = mlflow_checker.check(config_content)
+        else:
+            result = None
         
         # Then: 성공 결과가 반환되어야 함
         assert result is not None
@@ -160,13 +177,18 @@ class TestSystemCheckCommand:
     def test_check_postgres_connection_no_config(self):
         """PostgreSQL 설정이 없는 경우 테스트"""
         # Given: PostgreSQL 설정이 없는 config
-        config_content = {"environment": {"app_env": "test"}}
+        config_content = {"environment": {"env_name": "test"}}
         self._create_config_file("test.yaml", config_content)
         
-        checker = ConfigBasedSystemChecker(self.config_dir)
+        checker = DynamicServiceChecker()
         
-        # When: PostgreSQL 연결 체크
-        result = checker._check_postgres_connection("test", config_content)
+        # When: PostgreSQL 연결 체크  
+        from src.cli.system_check.checkers.postgresql import PostgreSQLChecker
+        postgres_checker = PostgreSQLChecker()
+        if postgres_checker.can_check(config_content):
+            result = postgres_checker.check(config_content)
+        else:
+            result = None
         
         # Then: None이 반환되어야 함 (설정이 없으므로)
         assert result is None
@@ -187,7 +209,9 @@ class TestSystemCheckCommand:
         }
         
         # When: 기본 요약 표시
-        _display_basic_summary(summary)
+        from rich.console import Console
+        console = Console()
+        _display_summary(summary, console)
         
         # Then: 성공 메시지가 출력되어야 함
         captured = capsys.readouterr()
@@ -211,7 +235,9 @@ class TestSystemCheckCommand:
         }
         
         # When: 기본 요약 표시
-        _display_basic_summary(summary)
+        from rich.console import Console
+        console = Console()
+        _display_summary(summary, console)
         
         # Then: 실패 메시지가 출력되어야 함
         captured = capsys.readouterr()

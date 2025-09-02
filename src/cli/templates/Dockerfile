@@ -1,40 +1,59 @@
+# Multi-stage build for {{ project_name }}
 FROM python:3.11-slim as builder
 
-# uv 설치
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
-
-# 작업 디렉토리 설정
-WORKDIR /app
-
-# 의존성 파일 복사 및 설치
-COPY pyproject.toml ./
-RUN uv sync --frozen --no-cache --no-dev
-
-FROM python:3.11-slim as runtime
-
-# 필수 시스템 패키지 설치
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    git \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# 가상환경 복사
-COPY --from=builder /app/.venv /app/.venv
+# Install uv
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.cargo/bin:$PATH"
 
-# PATH 설정
-ENV PATH="/app/.venv/bin:$PATH"
-
-# 작업 디렉토리 설정  
+# Set working directory
 WORKDIR /app
 
-# 애플리케이션 파일 복사
-COPY . .
+# Copy dependency files
+COPY pyproject.toml uv.lock* ./
 
-# 기본 포트 (환경변수로 오버라이드 가능)
-EXPOSE 8000
+# Install dependencies
+RUN uv sync --frozen --no-dev
 
-# 헬스체크 (모든 환경 동일)
-HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
+# Production stage
+FROM python:3.11-slim
 
-# 기본 실행 명령 (APP_ENV에 따라 자동 환경 전환)
-CMD ["modern-ml-pipeline", "api-serving"]
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    libpq5 \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN useradd -m -s /bin/bash mluser
+
+# Set working directory
+WORKDIR /app
+
+# Copy virtual environment from builder
+COPY --from=builder /app/.venv /app/.venv
+
+# Copy application code
+COPY --chown=mluser:mluser . .
+
+# Set environment variables
+ENV PATH="/app/.venv/bin:$PATH"
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
+# Switch to non-root user
+USER mluser
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Default command (can be overridden)
+CMD ["mmp", "serve-api", "--env-name", "prod", "--host", "0.0.0.0", "--port", "8000"]

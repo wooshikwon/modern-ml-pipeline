@@ -34,10 +34,10 @@ class TestPackageDataInclusion:
         
         # 예상되는 템플릿 파일들
         expected_files = [
-            "config/base.yaml",
-            "config/local.yaml", 
-            "config/enterprise.yaml",
-            "config/research.yaml",
+            "configs/base.yaml",
+            "configs/local.yaml", 
+            "configs/enterprise.yaml",
+            "configs/research.yaml",
             "recipes/local_classification_test.yaml",
             "recipes/dev_classification_test.yaml",
             "guideline_recipe.yaml.j2",
@@ -123,8 +123,8 @@ class TestPackageDataInclusion:
         
         # Then: 휠 파일 내용 검사
         expected_template_paths = [
-            "cli/project_templates/config/base.yaml",
-            "cli/project_templates/config/local.yaml", 
+            "cli/project_templates/configs/base.yaml",
+            "cli/project_templates/configs/local.yaml", 
             "cli/project_templates/__init__.py",
         ]
         
@@ -165,8 +165,8 @@ class TestPackageDataInclusion:
         
         # Then: 핵심 템플릿 파일들이 존재해야 함
         essential_templates = [
-            "config/base.yaml",
-            "config/local.yaml",
+            "configs/base.yaml",
+            "configs/local.yaml",
             "recipes/local_classification_test.yaml",
         ]
         
@@ -203,8 +203,8 @@ class TestPackageDataAccessibility:
             assert template_dir.exists(), "템플릿 패키지 디렉토리가 존재하지 않습니다"
             
             # Then: 최소한 기본 설정 파일들이 접근 가능해야 함
-            config_dir = template_dir / "config"
-            assert config_dir.exists(), "config 디렉토리가 존재하지 않습니다"
+            config_dir = template_dir / "configs"
+            assert config_dir.exists(), "configs 디렉토리가 존재하지 않습니다"
             
             base_config = config_dir / "base.yaml"
             assert base_config.exists(), "base.yaml 설정 파일이 존재하지 않습니다"

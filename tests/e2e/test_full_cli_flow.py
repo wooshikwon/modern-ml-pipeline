@@ -167,7 +167,7 @@ class TestFullCLIFlow:
         self._prepare_mock_data(test_project_dir)
         
         with patch('src.cli.main_commands.run_training') as mock_run_training:
-            with patch('src.cli.main_commands.load_settings_by_file') as mock_load_settings:
+            with patch('src.cli.main_commands.load_settings') as mock_load_settings:
                 mock_settings = MagicMock()
                 mock_settings.recipe.model.computed = {"run_name": "test_run"}
                 mock_load_settings.return_value = mock_settings
@@ -197,13 +197,13 @@ class TestFullCLIFlow:
         
         # Step 4: Settings 로드 테스트
         with patch('src.settings._builder.BASE_DIR', test_project_dir):
-            with patch('src.settings.loaders.BASE_DIR', test_project_dir):
+            with patch('src.settings.BASE_DIR', test_project_dir):
                 with patch('src.settings._utils.BASE_DIR', test_project_dir):
-                    from src.settings import load_settings_by_file
+                    from src.settings import load_settings
                     
-                    with patch('src.settings.loaders.load_config_files') as mock_load_config:
+                    with patch('src.settings.load_config_files') as mock_load_config:
                         mock_config = {
-                            'environment': {'app_env': 'test', 'gcp_project_id': 'test-project'},
+                            'environment': {'env_name': 'test', 'gcp_project_id': 'test-project'},
                             'mlflow': {'tracking_uri': './mlruns', 'experiment_name': 'test_experiment'},
                             'data_adapters': {'adapters': {}},
                             'serving': {
@@ -226,7 +226,7 @@ class TestFullCLIFlow:
                         }
                         mock_load_config.return_value = mock_config
                         
-                        settings = load_settings_by_file(
+                        settings = load_settings(
                             str(test_project_dir / "recipes" / "test.yaml"),
                             env_name="test"
                         )
@@ -265,8 +265,8 @@ class TestFullCLIFlow:
         with open(test_project_dir / "configs" / "prod.yaml", 'r') as f:
             prod_config = yaml.safe_load(f)
         
-        assert dev_config['environment']['app_env'] == 'dev'
-        assert prod_config['environment']['app_env'] == 'prod'
+        assert dev_config['environment']['env_name'] == 'dev'
+        assert prod_config['environment']['env_name'] == 'prod'
     
     def test_batch_inference_flow(self, test_project_dir, cli_runner):
         """배치 추론 플로우 테스트."""

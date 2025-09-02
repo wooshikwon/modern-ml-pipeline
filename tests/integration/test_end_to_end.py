@@ -11,7 +11,7 @@ from src.engine.factory import Factory
 from src.components._trainer import Trainer
 from src.pipelines.train_pipeline import run_training
 from src.settings import Settings
-from src.settings.loaders import load_settings
+from src.settings import load_settings
 
 
 class TestEndToEndIntegration:
@@ -20,7 +20,7 @@ class TestEndToEndIntegration:
     def test_blueprint_principle_1_recipe_vs_config_separation(self):
         """Blueprint 원칙 1: 레시피는 논리, 설정은 인프라"""
         # 설정 로딩이 레시피와 config를 올바르게 분리하는지 확인
-        settings = load_settings("xgboost_x_learner")
+        settings = load_settings("xgboost_x_learner", "local")
         
         # 레시피 정보 (모델 논리)
         assert hasattr(settings.model, 'name')
@@ -296,7 +296,7 @@ class TestEndToEndIntegration:
         
         # 3. 설정 파일 누락 시 처리
         try:
-            load_settings("non_existent_model")
+            load_settings("non_existent_model", "local")
             assert False, "Should have raised an exception"
         except Exception as e:
             # 적절한 오류 메시지 확인
@@ -343,11 +343,11 @@ class TestEndToEndIntegration:
         # 다양한 환경에서 설정이 올바르게 로드되는지 확인
         
         # 1. XGBoost 모델 설정
-        xgboost_settings = load_settings("xgboost_x_learner")
+        xgboost_settings = load_settings("xgboost_x_learner", "local")
         assert xgboost_settings.model.name == "xgboost_x_learner"
         
         # 2. CausalForest 모델 설정
-        causal_forest_settings = load_settings("causal_forest")
+        causal_forest_settings = load_settings("causal_forest", "local")
         assert causal_forest_settings.model.name == "causal_forest"
         
         # 3. 각 모델이 고유한 설정을 가지는지 확인
@@ -406,7 +406,7 @@ def test_blueprint_v13_complete_workflow():
     # 1. 학습 워크플로우 시뮬레이션
     
     # Mock settings 생성 (class_path 기반)
-    with patch('src.settings.loaders.load_settings_by_file') as mock_load_settings:  # 🔄 수정: settings → loaders
+    with patch('src.settings.load_settings') as mock_load_settings:
         mock_settings = Mock()
         mock_settings.model.class_path = "src.models.xgboost_x_learner.XGBoostXLearner"
         mock_settings.model.computed = {
@@ -453,7 +453,7 @@ def test_blueprint_v13_batch_inference_complete():
     
     with patch('mlflow.pyfunc.load_model', return_value=mock_wrapper):
         with patch('src.pipelines.inference_pipeline._save_dataset') as mock_save:
-            with patch('src.settings.loaders.load_settings') as mock_load_settings:  # 🔄 수정: settings → loaders
+            with patch('src.settings.load_settings') as mock_load_settings:
                 mock_settings = Mock()
                 mock_load_settings.return_value = mock_settings
                 
@@ -489,7 +489,7 @@ def test_blueprint_v13_api_serving_dynamic_schema():
     mock_wrapper.predict.return_value = pd.DataFrame({"uplift_score": [0.85]})
     
     with patch('mlflow.pyfunc.load_model', return_value=mock_wrapper):
-        with patch('src.settings.loaders.load_settings') as mock_load_settings:  # 🔄 수정: settings → loaders
+        with patch('src.settings.load_settings') as mock_load_settings:
             mock_settings = Mock()
             mock_settings.serving.realtime_feature_store = {"store_type": "redis"}
             mock_load_settings.return_value = mock_settings
@@ -518,18 +518,18 @@ def test_blueprint_v13_seven_principles_compliance():
     Blueprint v13.0 7대 핵심 설계 원칙 준수 검증 테스트
     """
     # 원칙 1: 레시피는 논리, 설정은 인프라
-    with patch('src.settings.loaders.load_settings_by_file') as mock_load:  # 🔄 수정: settings → loaders
+    with patch('src.settings.load_settings') as mock_load:
         mock_settings = Mock()
         mock_settings.model.class_path = "external.model.ExternalModel"  # 외부 모델도 지원
-        mock_settings.environment.app_env = "prod"  # 환경 분리
+        mock_settings.environment.env_name = "prod"  # 환경 분리
         mock_load.return_value = mock_settings
         
-        from src.settings import load_settings_by_file
-        settings = load_settings_by_file("test_recipe")
+        from src.settings import load_settings
+        settings = load_settings("test_recipe", "local")
         
         # 레시피(논리)와 환경(인프라)이 분리되어 있는지 확인
         assert "external.model" in settings.model.class_path  # 논리
-        assert settings.environment.app_env == "prod"  # 인프라
+        assert settings.environment.env_name == "prod"  # 인프라
     
     # 원칙 2: 통합 데이터 어댑터
     from src.core.factory import Factory

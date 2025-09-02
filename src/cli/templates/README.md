@@ -1,150 +1,170 @@
-# {PROJECT_NAME}
+# {{ project_name }}
 
-이 프로젝트는 Modern ML Pipeline으로 생성되었습니다.
+ML Pipeline project powered by Modern ML Pipeline (MMP) framework.
 
-## 🚀 4단계 워크플로우로 빠른 시작
+## 🚀 5-Step ML Pipeline Workflow
 
-### 1️⃣ Python 환경 설정
+### Step 1: Environment Setup
 ```bash
-# Python 3.11 설치 확인
-python --version  # 3.11.x 이어야 함
-
-# uv 설치 (패키지 매니저)  
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# 패키지 동기화
+# Install dependencies with uv
 uv sync
+
+# Create environment configuration
+uv run mmp get-config --env-name local
+
+# Copy and configure environment variables
+cp .env.local.template .env.local
+# Edit .env.local with your credentials
 ```
 
-### 2️⃣ 환경 설정 & Config 생성
-```bash  
-# 환경변수 설정 (.env.template을 참고해서 .env 생성)
-cp .env.template .env
-
-# 환경별 설정 예시
-echo "APP_ENV=local" >> .env        # 로컬 개발
-# 또는
-echo "APP_ENV=dev" >> .env          # 개발 서버  
-# 또는  
-echo "APP_ENV=prod" >> .env         # 운영 서버
-
-# 추가 환경변수 설정 (DB, Redis 등)
-vi .env  # 필요한 설정값들 입력
-
-# Config 파일들 생성 (.env 기반으로 configs/*.yaml 자동 생성)
-uv run modern-ml-pipeline get-config
-```
-
-### 3️⃣ 환경 연결 검증 ✅
+### Step 2: Recipe Creation
 ```bash
-# 생성된 configs/*.yaml 파일들로 실제 서비스 연결 테스트
-uv run modern-ml-pipeline system-check
+# Create ML recipe interactively
+uv run mmp get-recipe
 
-# 🔍 검증 항목:
-# - Database 연결 (PostgreSQL)
-# - Cache 연결 (Redis)  
-# - MLflow 서버 연결
-# - Cloud Storage 연결 (GCS/AWS S3)
-# - Feature Store 연결
+# Or use a template
+uv run mmp get-recipe --template classification
 ```
 
-### 4️⃣ ML 레시피 생성
+### Step 3: Model Training
 ```bash
-# 환경 독립적 ML 레시피 생성 (task + model 선택만)
-uv run modern-ml-pipeline get-recipe
+# Train model with the recipe
+uv run mmp train --recipe-file recipes/your_recipe.yaml --env-name local
 
-# 대화형으로 선택:
-# 1) Task 선택: Classification, Regression, etc.
-# 2) Model 선택: 카탈로그에서 사용 가능한 모델들
+# With hyperparameter tuning
+uv run mmp train --recipe-file recipes/your_recipe.yaml --env-name local --tune
 ```
 
-### 5️⃣ 모델 학습 & 추론
+### Step 4: Model Inference
 ```bash
-# 모델 학습 (검증된 환경 + ML 레시피)
-uv run modern-ml-pipeline train --recipe-file recipes/your_recipe.yaml
+# Batch inference
+uv run mmp batch-inference --run-id <mlflow_run_id> --env-name local
 
-# 배치 추론
-uv run modern-ml-pipeline batch-inference --recipe-file recipes/your_recipe.yaml
-
-# API 서빙 
-uv run modern-ml-pipeline api-serving --recipe-file recipes/your_recipe.yaml
+# Or serve as API
+uv run mmp serve-api --run-id <mlflow_run_id> --env-name local --port 8000
 ```
 
-## 📁 프로젝트 구조
-
-```
-{PROJECT_NAME}/
-├── configs/         # 환경별 설정 파일 (get-config로 생성)
-├── recipes/         # ML 레시피 파일들 (get-recipe로 생성)  
-├── data/           # 데이터 파일들
-├── sql/            # SQL 쿼리 파일들
-├── .env            # 🔥 환경변수 (모든 환경 전환의 중심!)
-├── .env.template   # 환경변수 템플릿
-├── pyproject.toml  # uv 패키지 의존성
-├── Dockerfile      # 컨테이너 설정
-└── README.md       # 이 가이드
-```
-
-## 🔄 환경 전환 방법
-
-동일한 코드베이스에서 .env 파일의 설정만으로 환경 전환:
-
-1. **.env 수정**: `APP_ENV=dev` 변경
-2. **Config 재생성**: `modern-ml-pipeline get-config`  
-3. **연결 검증**: `modern-ml-pipeline system-check`
-4. **바로 사용**: 동일한 recipes로 실행!
-
-## 🐳 Docker 컨테이너화 (모든 환경 동일)
-
-### 독립 실행 (내장 DB/Redis/MLflow)
+### Step 5: Model Deployment
 ```bash
-# Docker Compose로 전체 스택 실행
+# Check system status
+uv run mmp system-check --env-name prod
+
+# Deploy to production
+uv run mmp deploy --run-id <mlflow_run_id> --env-name prod
+```
+
+## 📁 Project Structure
+
+```
+{{ project_name }}/
+├── README.md            # This file
+├── pyproject.toml       # Project dependencies (uv)
+├── Dockerfile           # Container configuration
+├── docker-compose.yml   # Local development services
+├── .env.local.template  # Environment variables template
+├── configs/            # Environment configurations
+│   ├── local.yaml      # Local development config
+│   ├── dev.yaml        # Development server config
+│   └── prod.yaml       # Production config
+├── recipes/            # ML pipeline recipes
+│   └── .gitkeep       
+├── data/              # Data directory
+│   ├── raw/           # Raw data
+│   ├── processed/     # Processed data
+│   └── features/      # Feature store data
+├── sql/               # SQL scripts
+│   ├── ddl/           # Table definitions
+│   └── dml/           # Data queries
+└── models/            # Saved models (auto-generated)
+```
+
+## 🛠️ Development Setup
+
+### Prerequisites
+- Python 3.11+
+- uv (for package management)
+- Docker & Docker Compose (optional, for local services)
+
+### Quick Start with Docker
+```bash
+# Start local services (MLflow, PostgreSQL, Redis)
 docker-compose up -d
 
-# 애플리케이션 로그 확인
-docker-compose logs -f {PROJECT_NAME}
-
-# 개별 서비스 상태 확인
+# Check services
 docker-compose ps
+
+# View logs
+docker-compose logs -f
 ```
 
-### 외부 서비스 연동 (mmp-local-dev 등)
+### Local Development
 ```bash
-# .env 파일에서 외부 서비스 정보 설정
-APP_ENV=dev
-POSTGRES_HOST=external-db-host
-REDIS_HOST=external-redis-host
-MLFLOW_TRACKING_URI=http://external-mlflow:5000
+# Install development dependencies
+uv sync --dev
 
-# 애플리케이션만 실행
-docker-compose up {PROJECT_NAME}
+# Run tests
+uv run pytest
+
+# Format code
+uv run black .
+uv run isort .
+
+# Lint code
+uv run ruff check .
+
+# Type check
+uv run mypy .
 ```
 
-## 🚨 문제 해결
+## 📊 MLflow UI
 
-### Config 생성 실패 시
-```bash
-# .env 파일 확인
-cat .env
+After starting services with Docker Compose:
+- MLflow UI: http://localhost:5002
+- Default experiment: `{{ project_name }}-experiment`
 
-# 템플릿 다시 복사  
-cp .env.template .env
-vi .env  # 올바른 값 입력
-modern-ml-pipeline get-config
+## 🔧 Configuration
+
+### Environment Variables
+Each environment has its own `.env.{env_name}` file:
+- `.env.local` - Local development
+- `.env.dev` - Development server
+- `.env.prod` - Production
+
+### Config Files
+Configuration hierarchy:
+1. `configs/base.yaml` - Base configuration (inherited by all)
+2. `configs/{env_name}.yaml` - Environment-specific overrides
+
+### Recipe Structure
+Recipes define ML pipeline specifications:
+```yaml
+name: my_recipe
+model:
+  class_path: sklearn.ensemble.RandomForestClassifier
+  hyperparameters:
+    n_estimators: 100
+    random_state: 42
+data:
+  loader:
+    name: sql_loader
+    source_uri: "SELECT * FROM features"
+evaluation:
+  metrics: ["accuracy", "f1", "roc_auc"]
 ```
 
-### System Check 실패 시
-```bash
-# 어떤 서비스가 실패했는지 확인
-modern-ml-pipeline system-check
+## 📝 Documentation
 
-# 해당 서비스 설정 수정 후 재시도
-vi .env  # 문제된 서비스 설정 수정
-modern-ml-pipeline get-config  # config 재생성
-modern-ml-pipeline system-check  # 재검증
-```
+- [MMP Documentation](https://github.com/your-org/modern-ml-pipeline)
+- [API Reference](./docs/api.md)
+- [Recipe Guide](./docs/recipes.md)
 
-## 📚 더 많은 정보
+## 🤝 Contributing
 
-- [Modern ML Pipeline 문서](https://github.com/your-org/modern-ml-pipeline)
-- [mmp-local-dev 개발환경](https://github.com/your-org/mmp-local-dev)
+1. Create a feature branch
+2. Make changes and test
+3. Run quality checks: `uv run pre-commit run --all-files`
+4. Submit pull request
+
+## 📄 License
+
+Copyright © {{ current_year }} {{ organization }}. All rights reserved.

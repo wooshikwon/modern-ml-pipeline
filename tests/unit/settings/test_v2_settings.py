@@ -20,15 +20,15 @@ class TestConfigSchema:
     """Test Config schema classes."""
     
     def test_environment_creation(self):
-        """Test Environment can be created without app_env."""
+        """Test Environment can be created without env_name."""
         env = Environment(
             project_id="test-project",
             credential_path="/path/to/creds.json"
         )
         assert env.project_id == "test-project"
         assert env.credential_path == "/path/to/creds.json"
-        # app_env field should not exist
-        assert not hasattr(env, 'app_env')
+        # env_name field should not exist
+        assert not hasattr(env, 'env_name')
     
     def test_config_creation(self):
         """Test Config creation with minimal fields."""
@@ -228,7 +228,7 @@ class TestSimplification:
     def test_no_deprecated_fields(self):
         """Test that deprecated fields are removed."""
         env = Environment(project_id="test")
-        assert not hasattr(env, 'app_env'), "app_env field should be removed"
+        assert not hasattr(env, 'env_name'), "env_name field should be removed"
     
     def test_recipe_config_separation(self):
         """Test that Recipe and Config are completely separated."""

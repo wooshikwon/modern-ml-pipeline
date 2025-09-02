@@ -10,7 +10,7 @@ DEV_PLANS.md A03-1 구현:
 import pytest
 from unittest.mock import patch
 from src.engine.factory import Factory
-from src.settings.loaders import load_settings_by_file
+from src.settings import load_settings
 
 
 class TestFactoryBasedComponentAssembly:
@@ -19,7 +19,7 @@ class TestFactoryBasedComponentAssembly:
     def test_factory_creates_all_core_components(self):
         """Factory가 모든 핵심 컴포넌트를 올바르게 생성하는지 테스트 (GREEN 단계)"""
         # 실제 존재하는 레시피 파일 사용
-        settings = load_settings_by_file("models/classification/logistic_regression")
+        settings = load_settings("models/classification/logistic_regression", "local")
         
         # 디버그: optuna 가용성 확인
         try:
@@ -68,7 +68,7 @@ class TestFactoryBasedComponentAssembly:
     
     def test_components_receive_correct_settings_injection(self):
         """컴포넌트들이 올바른 Settings 주입을 받는지 테스트 (RED)"""
-        settings = load_settings_by_file("models/classification/logistic_regression")
+        settings = load_settings("models/classification/logistic_regression", "local")
         
         # Bootstrap으로 어댑터들이 자동 등록됨
         from src.engine import bootstrap
@@ -107,8 +107,8 @@ class TestFactoryBasedComponentAssembly:
         ]
         
         for case in test_cases:
-            with patch.dict('os.environ', {'APP_ENV': case['env']}):
-                settings = load_settings_by_file("models/classification/logistic_regression")
+            with patch.dict('os.environ', {'ENV_NAME': case['env']}):
+                settings = load_settings("models/classification/logistic_regression", "local")
                 
                 # Bootstrap으로 어댑터들이 자동 등록됨
                 from src.engine import bootstrap
@@ -125,7 +125,7 @@ class TestFactoryBasedComponentAssembly:
     
     def test_factory_component_interaction_readiness(self):
         """Factory로 생성된 컴포넌트들이 상호작용 준비가 되어있는지 테스트 (RED)"""
-        settings = load_settings_by_file("models/classification/logistic_regression")
+        settings = load_settings("models/classification/logistic_regression", "local")
         
         # Bootstrap으로 어댑터들이 자동 등록됨
         from src.engine import bootstrap
@@ -167,7 +167,7 @@ class TestFactoryBasedComponentAssembly:
     
     def test_factory_error_handling_graceful_degradation(self):
         """Factory의 우아한 에러 처리 테스트 (RED)"""
-        settings = load_settings_by_file("models/classification/logistic_regression")
+        settings = load_settings("models/classification/logistic_regression", "local")
         
         # Bootstrap으로 어댑터들이 자동 등록됨
         from src.engine import bootstrap
