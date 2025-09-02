@@ -353,39 +353,42 @@ class RecipeBuilder:
         model_spec = selections.get("model_spec", {})
         hyperparams = model_spec.get("hyperparameters", {})
         
-        # Fixed parameters
-        if "fixed" in hyperparams:
-            context["hyperparameters"].update(hyperparams["fixed"])
-        
-        # Tunable parameters (기본값 또는 범위의 첫 번째 값 사용)
-        if "tunable" in hyperparams:
-            for param, config in hyperparams["tunable"].items():
-                # 기본값이 있으면 사용, 없으면 range의 첫 번째 값 사용
-                if "default" in config:
-                    default_value = config["default"]
-                elif "range" in config and isinstance(config["range"], list) and len(config["range"]) > 0:
-                    default_value = config["range"][0]
-                elif "values" in config and isinstance(config["values"], list) and len(config["values"]) > 0:
-                    default_value = config["values"][0]
-                else:
-                    # 타입에 따른 기본값
-                    default_value = 1 if config.get("type") == "int" else 0.1
-                
-                context["hyperparameters"][param] = default_value
-        
-        # Tuning 설정
+        # Tuning 활성화 여부에 따라 다르게 처리
         if selections.get("enable_tuning"):
-            context["n_trials"] = selections.get("n_trials", 10)
-            context["tuning_timeout"] = selections.get("tuning_timeout", 300)
+            # 튜닝 활성화시: fixed와 tunable 분리
+            context["fixed_params"] = {}
+            context["tunable_specs"] = {}
             
-            # Tuning search space
-            context["search_space"] = {}
+            # Fixed 파라미터 (튜닝하지 않음)
+            if "fixed" in hyperparams:
+                context["fixed_params"].update(hyperparams["fixed"])
+            
+            # Tunable 파라미터 (Optuna가 탐색)
             if "tunable" in hyperparams:
                 for param, config in hyperparams["tunable"].items():
-                    context["search_space"][param] = {
-                        "type": config.get("type", "choice"),
-                        "range": config.get("range", [context["hyperparameters"][param]])
+                    context["tunable_specs"][param] = {
+                        "type": config.get("type", "float"),
+                        "range": config.get("range", [0.1, 1.0])
                     }
+        else:
+            # 튜닝 비활성화시: 모든 파라미터를 고정값으로
+            context["all_hyperparameters"] = {}
+            
+            # Fixed parameters
+            if "fixed" in hyperparams:
+                context["all_hyperparameters"].update(hyperparams["fixed"])
+            
+            # Tunable parameters (기본값 또는 범위의 첫 번째 값 사용)
+            if "tunable" in hyperparams:
+                for param, config in hyperparams["tunable"].items():
+                    if "default" in config:
+                        default_value = config["default"]
+                    elif "range" in config and isinstance(config["range"], list) and len(config["range"]) > 0:
+                        default_value = config["range"][0]
+                    else:
+                        default_value = 1 if config.get("type") == "int" else 0.1
+                    
+                    context["all_hyperparameters"][param] = default_value
         
         return context
     

@@ -1,6 +1,7 @@
 # Recipe: {{ recipe_name }}
 # Generated: {{ timestamp }}
 # Task: {{ task }}
+# Model: {{ model_class }}
 
 name: {{ recipe_name }}
 
@@ -8,45 +9,58 @@ model:
   class_path: {{ model_class }}
   library: {{ model_library }}
   hyperparameters:
-    {% for param, value in hyperparameters.items() %}
-    {{ param }}: {{ value }}
-    {% endfor %}
+    tuning_enabled: {{ enable_tuning | lower }}
+    {% if enable_tuning %}
+    # Optuna 튜닝 설정
+    fixed:
+      {% for param, value in fixed_params.items() %}
+      {{ param }}: {{ value }}
+      {% endfor %}
+    tunable:
+      {% for param, spec in tunable_specs.items() %}
+      {{ param }}:
+        type: {{ spec.type }}
+        range: {{ spec.range }}
+      {% endfor %}
+    {% else %}
+    # 모든 파라미터 고정값
+    values:
+      {% for param, value in all_hyperparameters.items() %}
+      {{ param }}: {{ value }}
+      {% endfor %}
+    {% endif %}
 
 data:
   loader:
-    name: main_loader
-    adapter: ${DEFAULT_ADAPTER:storage}  # 환경의 config에서 결정됨
-    source_uri: sql/train_data.sql       # 또는 data/train.csv
+    # source_uri 패턴을 보고 어댑터가 자동 결정됨
+    # .sql → SQL adapter, .csv/.parquet → Storage adapter
+    source_uri: sql/train_data.sql  # TODO: 실제 데이터 경로로 수정
   
   data_interface:
     task_type: {{ task|lower }}
-    target_column: target  # 사용자가 수정 필요
-    entity_schema:         # 사용자가 수정 필요
-      - user_id
-      - timestamp
+    target_column: target  # TODO: 실제 타겟 컬럼명으로 수정
+    feature_columns: null  # null이면 target 제외 모든 컬럼 사용
+    id_column: null        # 필요시 ID 컬럼 지정
 
-  preprocessor:
-    steps:
-      - type: StandardScaler
-        columns: [numerical_features]  # 사용자가 수정 필요
-      - type: OneHotEncoder
-        columns: [categorical_features]  # 사용자가 수정 필요
+# 전처리 파이프라인 (필요시 수정)
+preprocessor:
+  steps:
+    - type: StandardScaler
+      columns: [numerical_features]  # TODO: 실제 수치형 컬럼으로 수정
+    - type: OneHotEncoder
+      columns: [categorical_features]  # TODO: 실제 범주형 컬럼으로 수정
 
 evaluation:
   metrics: {{ metrics }}
   validation:
     method: train_test_split
-    test_size: 0.2
+    test_size: {{ test_size }}
     random_state: 42
 
-# 선택적: 하이퍼파라미터 튜닝 설정
-hyperparameter_tuning:
-  enabled: false
-  search_space:
-    {% for param, value in hyperparameters.items() %}
-    {{ param }}:
-      type: choice  # 또는 range
-      values: [{{ value }}]  # 사용자가 수정 필요
-    {% endfor %}
-  n_trials: 10
-  timeout: 300
+metadata:
+  author: {{ author | default('CLI Recipe Builder') }}
+  created_at: {{ timestamp }}
+  description: "{{ task }} task using {{ model_library }}"
+  {% if enable_tuning %}
+  tuning_note: "Optuna 하이퍼파라미터 튜닝이 활성화됨. Config의 optuna 설정을 확인하세요."
+  {% endif %}
