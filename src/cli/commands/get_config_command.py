@@ -1,19 +1,17 @@
 """
 Get-Config Command Implementation
-Phase 1: Interactive configuration generation
+Phase 3: Enhanced interactive configuration generation
 
 CLAUDE.md 원칙 준수:
 - 타입 힌트 필수
 - Google Style Docstring
-- TDD 기반 개발
+- 대화형 인터페이스
 """
 
-from typing import Optional, Dict, Any
+from typing import Optional
 import typer
 from pathlib import Path
 from rich.console import Console
-from rich.prompt import Prompt, Confirm
-from rich.table import Table
 from rich.panel import Panel
 
 console = Console()
@@ -25,20 +23,24 @@ def get_config_command(
     """
     대화형으로 환경별 설정 파일을 생성합니다.
     
-    환경별 config YAML과 .env 템플릿을 생성합니다.
+    MLflow, 데이터 소스, Feature Store, Artifact Storage 등을 
+    대화형으로 선택하여 환경별 config YAML과 .env 템플릿을 생성합니다.
     
     Examples:
         mmp get-config
         mmp get-config --env-name dev
         mmp get-config --env-name production
-        mmp get-config --env-name wooshik-test
+        
+    생성되는 파일:
+        - configs/{env_name}.yaml: 환경 설정 파일
+        - .env.{env_name}.template: 환경 변수 템플릿
     """
     from src.cli.utils.config_builder import InteractiveConfigBuilder
     
     try:
         builder = InteractiveConfigBuilder()
         
-        # 대화형 플로우 (유일한 방법)
+        # 대화형 플로우 실행
         selections = builder.run_interactive_flow(env_name)
         
         # 파일 생성
@@ -54,7 +56,6 @@ def get_config_command(
     except Exception as e:
         console.print(f"❌ 오류 발생: {e}", style="red")
         raise typer.Exit(1)
-
 
 
 def _show_completion_message(env_name: str, config_path: Path, env_template_path: Path) -> None:

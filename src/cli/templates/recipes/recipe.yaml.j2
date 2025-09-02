@@ -1,0 +1,52 @@
+# Recipe: {{ recipe_name }}
+# Generated: {{ timestamp }}
+# Task: {{ task }}
+
+name: {{ recipe_name }}
+
+model:
+  class_path: {{ model_class }}
+  library: {{ model_library }}
+  hyperparameters:
+    {% for param, value in hyperparameters.items() %}
+    {{ param }}: {{ value }}
+    {% endfor %}
+
+data:
+  loader:
+    name: main_loader
+    adapter: ${DEFAULT_ADAPTER:storage}  # 환경의 config에서 결정됨
+    source_uri: sql/train_data.sql       # 또는 data/train.csv
+  
+  data_interface:
+    task_type: {{ task|lower }}
+    target_column: target  # 사용자가 수정 필요
+    entity_schema:         # 사용자가 수정 필요
+      - user_id
+      - timestamp
+
+  preprocessor:
+    steps:
+      - type: StandardScaler
+        columns: [numerical_features]  # 사용자가 수정 필요
+      - type: OneHotEncoder
+        columns: [categorical_features]  # 사용자가 수정 필요
+
+evaluation:
+  metrics: {{ metrics }}
+  validation:
+    method: train_test_split
+    test_size: 0.2
+    random_state: 42
+
+# 선택적: 하이퍼파라미터 튜닝 설정
+hyperparameter_tuning:
+  enabled: false
+  search_space:
+    {% for param, value in hyperparameters.items() %}
+    {{ param }}:
+      type: choice  # 또는 range
+      values: [{{ value }}]  # 사용자가 수정 필요
+    {% endfor %}
+  n_trials: 10
+  timeout: 300

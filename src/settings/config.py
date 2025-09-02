@@ -90,7 +90,7 @@ class Config(BaseModel):
     artifact_stores: Optional[Dict[str, ArtifactStore]] = None
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "environment": {
                     "project_id": "my-gcp-project",
