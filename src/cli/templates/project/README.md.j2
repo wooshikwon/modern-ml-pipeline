@@ -1,0 +1,106 @@
+# {{ project_name }}
+
+이 프로젝트는 Modern ML Pipeline을 사용하여 생성되었습니다.
+
+## 🚀 빠른 시작
+
+### 1. 프로젝트 초기화
+프로젝트가 이미 초기화되었습니다. 다음 디렉토리 구조를 확인하세요:
+
+```
+{{ project_name }}/
+├── configs/         # 환경별 설정 파일
+├── recipes/         # ML 모델 레시피
+├── data/           # 데이터 파일
+├── sql/            # SQL 쿼리 파일
+├── docker-compose.yml
+├── Dockerfile
+├── pyproject.toml
+└── README.md
+```
+
+### 2. 환경 설정 생성
+프로젝트에 맞는 환경 설정을 생성합니다:
+
+```bash
+mmp get-config
+```
+
+이 명령어는 대화형으로 다음을 설정합니다:
+- 환경 이름 (local, dev, prod 등)
+- MLflow 사용 여부
+- 데이터 소스 (PostgreSQL, BigQuery, Local Files 등)
+- Feature Store (Feast, Tecton 등)
+- Artifact Storage (S3, GCS, Local 등)
+
+### 3. 시스템 연결 확인
+설정한 환경이 올바르게 연결되는지 확인합니다:
+
+```bash
+mmp system-check --env-name <환경명>
+```
+
+### 4. 모델 레시피 생성
+학습할 모델을 선택하고 레시피를 생성합니다:
+
+```bash
+mmp get-recipe
+```
+
+대화형으로 다음을 선택합니다:
+- Task 종류 (Classification, Regression, Clustering 등)
+- 모델 알고리즘 (RandomForest, XGBoost, LightGBM 등)
+
+### 5. 모델 학습
+생성된 레시피와 환경 설정으로 모델을 학습합니다:
+
+```bash
+mmp train --recipe-file recipes/<recipe_name>.yaml --env-name <환경명>
+```
+
+## 📁 프로젝트 구조
+
+### configs/
+환경별 설정 파일이 저장됩니다. `mmp get-config` 명령으로 생성됩니다.
+
+### recipes/
+ML 모델 레시피 파일이 저장됩니다. `mmp get-recipe` 명령으로 생성됩니다.
+
+### data/
+학습 및 추론에 사용할 데이터 파일을 저장합니다.
+- CSV, Parquet 등의 파일 형식 지원
+- Recipe의 `data.source_uri`에서 참조
+
+### sql/
+데이터베이스에서 데이터를 가져올 SQL 쿼리를 저장합니다.
+- Recipe의 `data.source_uri`에서 참조
+- 환경 설정의 데이터 어댑터와 함께 사용
+
+## 🔧 고급 사용법
+
+### 배치 추론
+학습된 모델로 배치 추론을 실행합니다:
+
+```bash
+mmp batch-inference --run-id <mlflow_run_id> --env-name <환경명>
+```
+
+### API 서빙
+학습된 모델을 REST API로 서빙합니다:
+
+```bash
+mmp serve-api --run-id <mlflow_run_id> --env-name <환경명> --port 8000
+```
+
+## 📚 추가 리소스
+
+- [Modern ML Pipeline 문서](https://github.com/modern-ml-pipeline/docs)
+- [MLflow 문서](https://mlflow.org/docs/latest/index.html)
+- [예제 프로젝트](https://github.com/modern-ml-pipeline/examples)
+
+## 📝 라이선스
+
+이 프로젝트는 MIT 라이선스 하에 있습니다.
+
+---
+Generated on {{ timestamp }} with Modern ML Pipeline
