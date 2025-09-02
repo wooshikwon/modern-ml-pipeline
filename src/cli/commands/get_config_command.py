@@ -20,9 +20,7 @@ console = Console()
 
 
 def get_config_command(
-    env_name: Optional[str] = typer.Option(None, "--env-name", "-e", help="환경 이름"),
-    non_interactive: bool = typer.Option(False, "--non-interactive", help="비대화형 모드"),
-    template: Optional[str] = typer.Option(None, "--template", "-t", help="템플릿 사용 (local/dev/prod)")
+    env_name: Optional[str] = typer.Option(None, "--env-name", "-e", help="환경 이름")
 ) -> None:
     """
     대화형으로 환경별 설정 파일을 생성합니다.
@@ -32,19 +30,15 @@ def get_config_command(
     Examples:
         mmp get-config
         mmp get-config --env-name dev
-        mmp get-config --template local --non-interactive
+        mmp get-config --env-name production
+        mmp get-config --env-name wooshik-test
     """
     from src.cli.utils.config_builder import InteractiveConfigBuilder
     
     try:
         builder = InteractiveConfigBuilder()
         
-        if non_interactive and template:
-            # 템플릿 기반 빠른 생성
-            _create_from_template(env_name or "local", template)
-            return
-        
-        # 대화형 플로우
+        # 대화형 플로우 (유일한 방법)
         selections = builder.run_interactive_flow(env_name)
         
         # 파일 생성
@@ -61,82 +55,6 @@ def get_config_command(
         console.print(f"❌ 오류 발생: {e}", style="red")
         raise typer.Exit(1)
 
-
-def _create_from_template(env_name: str, template: str) -> None:
-    """
-    템플릿 기반으로 빠르게 설정 생성.
-    
-    Args:
-        env_name: 환경 이름
-        template: 템플릿 이름 (local/dev/prod)
-    """
-    from src.cli.utils.config_builder import InteractiveConfigBuilder
-    
-    builder = InteractiveConfigBuilder()
-    
-    # 템플릿별 기본 설정
-    template_configs = {
-        'local': {
-            'env_name': env_name,
-            'project_name': 'ml-pipeline',
-            'data_source': 'postgresql',
-            'db_host': 'localhost',
-            'db_port': '5432',
-            'db_name': 'mlflow',
-            'db_user': 'postgres',
-            'mlflow_type': 'local',
-            'mlflow_uri': './mlruns',
-            'feature_store_enabled': False,
-            'storage_type': 'local',
-            'storage_path': './data'
-        },
-        'dev': {
-            'env_name': env_name,
-            'project_name': 'ml-pipeline',
-            'data_source': 'postgresql',
-            'db_host': 'dev-db.example.com',
-            'db_port': '5432',
-            'db_name': 'mlflow_dev',
-            'db_user': 'developer',
-            'mlflow_type': 'remote',
-            'mlflow_uri': 'http://mlflow-dev.example.com:5000',
-            'feature_store_enabled': True,
-            'feature_store_type': 'redis',
-            'redis_host': 'dev-redis.example.com',
-            'redis_port': '6379',
-            'storage_type': 'gcs',
-            'gcs_bucket': 'dev-ml-artifacts'
-        },
-        'prod': {
-            'env_name': env_name,
-            'project_name': 'ml-pipeline',
-            'data_source': 'bigquery',
-            'bq_project': 'your-project',
-            'bq_dataset': 'ml_data',
-            'mlflow_type': 'remote',
-            'mlflow_uri': 'http://mlflow-prod.example.com:5000',
-            'feature_store_enabled': True,
-            'feature_store_type': 'redis',
-            'redis_host': 'prod-redis.example.com',
-            'redis_port': '6379',
-            'storage_type': 'gcs',
-            'gcs_bucket': 'prod-ml-artifacts'
-        }
-    }
-    
-    if template not in template_configs:
-        console.print(f"❌ 알 수 없는 템플릿: {template}", style="red")
-        console.print("사용 가능한 템플릿: local, dev, prod", style="yellow")
-        raise typer.Exit(1)
-    
-    selections = template_configs[template]
-    selections['env_name'] = env_name  # Override with provided env_name
-    
-    # 파일 생성
-    config_path = builder.generate_config_file(env_name, selections)
-    env_template_path = builder.generate_env_template(env_name, selections)
-    
-    _show_completion_message(env_name, config_path, env_template_path)
 
 
 def _show_completion_message(env_name: str, config_path: Path, env_template_path: Path) -> None:

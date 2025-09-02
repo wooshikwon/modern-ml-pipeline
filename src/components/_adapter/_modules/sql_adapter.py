@@ -1,7 +1,8 @@
 from __future__ import annotations
 import pandas as pd
 import sqlalchemy
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict, Any, Tuple, Optional
+from urllib.parse import urlparse
 from src.interface.base_adapter import BaseAdapter
 from src.utils.system.logger import logger
 from pathlib import Path
@@ -15,22 +16,121 @@ if TYPE_CHECKING:
 class SqlAdapter(BaseAdapter):
     """
     SQLAlchemy를 기반으로 하는 통합 SQL 어댑터.
-    다양한 SQL 데이터베이스(PostgreSQL, BigQuery 등)와의 연결을 표준화합니다.
+    다양한 SQL 데이터베이스(PostgreSQL, BigQuery, MySQL, SQLite 등)와의 연결을 표준화합니다.
+    
+    URI 스키마에 따라 자동으로 적절한 데이터베이스 엔진을 선택합니다:
+    - bigquery:// → BigQuery 엔진
+    - postgresql:// or postgres:// → PostgreSQL 엔진
+    - mysql:// → MySQL 엔진
+    - sqlite:// → SQLite 엔진
     """
     def __init__(self, settings: Settings, **kwargs):
         self.settings = settings
         self.engine = self._create_engine()
 
+    def _parse_connection_uri(self, uri: str) -> Tuple[str, str, Dict[str, Any]]:
+        """
+        연결 URI를 파싱하여 데이터베이스 타입과 엔진별 설정을 반환합니다.
+        
+        Args:
+            uri: 데이터베이스 연결 URI
+            
+        Returns:
+            (db_type, processed_uri, engine_kwargs) 튜플
+        """
+        parsed = urlparse(uri)
+        scheme = parsed.scheme.lower()
+        
+        # 기본 엔진 설정
+        engine_kwargs = {}
+        
+        if scheme in ('bigquery', 'bigquery+sqlalchemy'):
+            db_type = 'bigquery'
+            # BigQuery는 특별한 처리 필요
+            engine_kwargs['pool_pre_ping'] = True
+            engine_kwargs['pool_size'] = 5
+            try:
+                from sqlalchemy_bigquery import BigQueryDialect
+                logger.info("BigQuery 엔진 설정 적용")
+            except ImportError:
+                logger.warning("sqlalchemy-bigquery 패키지가 설치되지 않았습니다. 기본 설정 사용.")
+            processed_uri = uri
+            
+        elif scheme in ('postgresql', 'postgres', 'postgresql+psycopg2'):
+            db_type = 'postgresql'
+            # PostgreSQL 최적화 설정
+            engine_kwargs['pool_size'] = 10
+            engine_kwargs['max_overflow'] = 20
+            engine_kwargs['pool_pre_ping'] = True
+            engine_kwargs['connect_args'] = {
+                'connect_timeout': 10,
+                'options': '-c statement_timeout=30000'  # 30초 타임아웃
+            }
+            processed_uri = uri
+            logger.info("PostgreSQL 엔진 설정 적용")
+            
+        elif scheme in ('mysql', 'mysql+pymysql', 'mysql+mysqldb'):
+            db_type = 'mysql'
+            # MySQL 최적화 설정
+            engine_kwargs['pool_size'] = 10
+            engine_kwargs['pool_recycle'] = 3600  # 1시간마다 연결 재활용
+            engine_kwargs['pool_pre_ping'] = True
+            processed_uri = uri
+            logger.info("MySQL 엔진 설정 적용")
+            
+        elif scheme == 'sqlite':
+            db_type = 'sqlite'
+            # SQLite는 연결 풀이 필요 없음
+            engine_kwargs['poolclass'] = sqlalchemy.pool.StaticPool
+            engine_kwargs['connect_args'] = {'check_same_thread': False}
+            processed_uri = uri
+            logger.info("SQLite 엔진 설정 적용")
+            
+        else:
+            # 알 수 없는 스키마는 기본 SQLAlchemy 처리
+            db_type = 'generic'
+            logger.warning(f"알 수 없는 데이터베이스 스키마: {scheme}. 기본 SQLAlchemy 설정 사용.")
+            processed_uri = uri
+            
+        return db_type, processed_uri, engine_kwargs
+
     def _create_engine(self):
-        """설정(Settings) 객체로부터 DB 연결 URI를 생성하고 SQLAlchemy 엔진을 반환합니다."""
+        """
+        설정(Settings) 객체로부터 DB 연결 URI를 파싱하고 
+        데이터베이스 타입에 맞는 SQLAlchemy 엔진을 생성합니다.
+        """
         try:
             # DataAdapterSettings 모델의 올바른 접근 방법: 딕셔너리 키로 접근
             sql_adapter_config = self.settings.data_adapters.adapters['sql']
             connection_uri = sql_adapter_config.config['connection_uri']
             
-            logger.info(f"SQLAlchemy 엔진 생성. URI: {connection_uri}")
-            # statement timeout 등은 DB별로 접속 문자열 옵션을 통해 설정 가능(여기서는 주석으로 가이드)
-            return sqlalchemy.create_engine(connection_uri)
+            # URI 파싱하여 DB 타입과 엔진 설정 추출
+            db_type, processed_uri, engine_kwargs = self._parse_connection_uri(connection_uri)
+            
+            logger.info(f"데이터베이스 타입: {db_type}")
+            logger.info(f"SQLAlchemy 엔진 생성. URI: {processed_uri[:50]}...")  # 보안을 위해 URI 일부만 로깅
+            
+            # 데이터베이스별 특수 처리
+            if db_type == 'bigquery':
+                # BigQuery는 추가 설정이 필요할 수 있음
+                try:
+                    # BigQuery 인증 설정이 있는 경우 처리
+                    if 'credentials_path' in sql_adapter_config.config:
+                        import os
+                        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = sql_adapter_config.config['credentials_path']
+                        logger.info("BigQuery 인증 파일 설정 완료")
+                except Exception as e:
+                    logger.warning(f"BigQuery 인증 설정 중 경고: {e}")
+            
+            # 엔진 생성
+            engine = sqlalchemy.create_engine(processed_uri, **engine_kwargs)
+            
+            # 연결 테스트
+            with engine.connect() as conn:
+                logger.info(f"{db_type} 데이터베이스 연결 테스트 성공")
+            
+            return engine
+            
         except KeyError as e:
             logger.error(f"SQL 어댑터 설정을 찾을 수 없습니다: {e}")
             raise ValueError(f"SQL 어댑터 설정이 누락되었습니다: {e}")

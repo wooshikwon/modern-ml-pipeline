@@ -14,7 +14,7 @@ class SettingsFactory:
         """기본 설정 딕셔너리 생성 - 모든 테스트의 공통 기반 (완전한 Settings 스키마)"""
         base = {
             "environment": {
-                "app_env": "test",
+                "env_name": "test",
                 "gcp_project_id": "test-project"
             },
             "mlflow": {
@@ -184,7 +184,7 @@ class SettingsFactory:
         """로컬 환경 설정 생성"""
         local_config = {
             "environment": {
-                "app_env": "local"
+                "env_name": "local"
             },
             "mlflow": {
                 "tracking_uri": "http://localhost:5002",
@@ -199,7 +199,7 @@ class SettingsFactory:
         """개발 환경 설정 생성"""
         dev_config = {
             "environment": {
-                "app_env": "dev"
+                "env_name": "dev"
             },
             "feature_store": {
                 "provider": "feast",
@@ -215,7 +215,7 @@ class SettingsFactory:
     def create_minimal_settings(task_type: str = "classification", **overrides) -> Dict[str, Any]:
         """최소한의 설정 - 빠른 테스트용"""
         minimal_config = {
-            "environment": {"app_env": "test"},
+            "environment": {"env_name": "test"},
             "mlflow": {"tracking_uri": "memory://", "experiment_name": "test"},
             "serving": {"host": "localhost", "port": 8000},
             "artifact_stores": {"local": {"type": "local", "path": "/tmp"}},
@@ -246,7 +246,7 @@ class SettingsFactory:
     def create_feature_store_settings(provider: str = "feast", **overrides) -> Dict[str, Any]:
         """Feature Store 설정 생성"""
         fs_config = {
-            "environment": {"app_env": "dev"},
+            "environment": {"env_name": "dev"},
             "feature_store": {
                 "provider": provider,
                 "config": {

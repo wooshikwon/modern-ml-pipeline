@@ -51,7 +51,7 @@ class TestEnvNameIntegration:
             config_file = configs_dir / "test.yaml"
             config_content = {
                 "environment": {
-                    "app_env": "test",
+                    "env_name": "test",
                     "gcp_project_id": "${GCP_PROJECT:}"
                 },
                 "mlflow": {
@@ -97,7 +97,7 @@ class TestEnvNameIntegration:
         recipe_file = test_environment / "recipes" / "test.yaml"
         
         with patch('src.cli.main_commands.load_environment') as mock_load_env:
-            with patch('src.cli.main_commands.load_settings_by_file') as mock_load_settings:
+            with patch('src.cli.main_commands.load_settings') as mock_load_settings:
                 with patch('src.cli.main_commands.run_training') as mock_run_training:
                     with patch('src.cli.main_commands.setup_logging'):
                         mock_settings = MagicMock()
@@ -254,7 +254,7 @@ class TestEnvNameIntegration:
         context_params = {"date": "2024-01-01", "version": "v1"}
         
         with patch('src.cli.main_commands.load_environment'):
-            with patch('src.cli.main_commands.load_settings_by_file') as mock_load_settings:
+            with patch('src.cli.main_commands.load_settings') as mock_load_settings:
                 with patch('src.cli.main_commands.run_training') as mock_run_training:
                     with patch('src.cli.main_commands.setup_logging'):
                         mock_settings = MagicMock()

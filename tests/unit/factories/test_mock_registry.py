@@ -161,8 +161,8 @@ class TestMockComponentRegistry:
         
         # 중첩된 속성 접근
         assert hasattr(settings_mock, 'environment')
-        assert hasattr(settings_mock.environment, 'app_env')
-        assert settings_mock.environment.app_env == 'test'
+        assert hasattr(settings_mock.environment, 'env_name')
+        assert settings_mock.environment.env_name == 'test'
         
         assert hasattr(settings_mock, 'recipe')
         assert hasattr(settings_mock.recipe, 'model')

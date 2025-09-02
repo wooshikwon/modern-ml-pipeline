@@ -49,7 +49,7 @@ class TestGetConfigCommand:
                     # 내용 검증
                     with open(config_path, 'r') as f:
                         config = yaml.safe_load(f)
-                        assert config['environment']['app_env'] == 'test'
+                        assert config['environment']['env_name'] == 'test'
             finally:
                 # 원래 디렉토리로 복원
                 os.chdir(original_cwd)
@@ -127,7 +127,7 @@ class TestInteractiveConfigBuilder:
                 with open(config_path, 'r') as f:
                     config = yaml.safe_load(f)
                 
-                assert config['environment']['app_env'] == 'test'
+                assert config['environment']['env_name'] == 'test'
                 assert config['mlflow']['tracking_uri'] == './mlruns'
                 assert 'sql' in config['data_adapters']['adapters']
     

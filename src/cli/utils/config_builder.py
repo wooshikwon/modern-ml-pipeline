@@ -11,6 +11,7 @@ CLAUDE.md 원칙 준수:
 from typing import Dict, Any, List, Optional, Tuple
 import yaml
 from pathlib import Path
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 from rich.console import Console
 from rich.prompt import Prompt, Confirm
 from rich.table import Table
@@ -25,6 +26,15 @@ class InteractiveConfigBuilder:
         """Initialize InteractiveConfigBuilder."""
         self.console = Console()
         self.selector = InteractiveSelector()
+        
+        # Setup Jinja2 environment
+        template_dir = Path(__file__).parent.parent / 'templates' / 'configs'
+        self.jinja_env = Environment(
+            loader=FileSystemLoader(str(template_dir)),
+            autoescape=select_autoescape(['yaml', 'yml']),
+            trim_blocks=True,
+            lstrip_blocks=True
+        )
         
     def run_interactive_flow(self, env_name: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -43,10 +53,6 @@ class InteractiveConfigBuilder:
         selections['env_name'] = env_name or Prompt.ask(
             "환경 이름을 입력하세요", 
             default="local"
-        )
-        selections['project_name'] = Prompt.ask(
-            "프로젝트 이름", 
-            default="ml-pipeline"
         )
         
         # 2. 데이터 소스
@@ -234,6 +240,127 @@ class InteractiveConfigBuilder:
         
         return config
     
+    def _select_serving(self) -> Dict[str, Any]:
+        """
+        API Serving 설정 선택.
+        
+        Returns:
+            Serving 관련 설정
+        """
+        config = {}
+        
+        config['enable_serving'] = Confirm.ask(
+            "API Serving을 활성화하시겠습니까?",
+            default=False
+        )
+        
+        if config['enable_serving']:
+            config['serving_workers'] = Prompt.ask(
+                "  Worker 프로세스 수",
+                default="1"
+            )
+            
+            # Model stage 선택
+            model_stages = [
+                ("None (모델 없음)", "None"),
+                ("Staging (스테이징 모델)", "Staging"),
+                ("Production (프로덕션 모델)", "Production"),
+                ("Archived (아카이브된 모델)", "Archived"),
+            ]
+            config['model_stage'] = self.selector.select(
+                "  모델 스테이지를 선택하세요",
+                model_stages
+            )
+            
+            # Authentication 설정
+            config['enable_auth'] = Confirm.ask(
+                "  API 인증을 활성화하시겠습니까?",
+                default=False
+            )
+        
+        return config
+    
+    def _select_hyperparameter_tuning(self) -> Dict[str, Any]:
+        """
+        Hyperparameter Tuning 설정 선택.
+        
+        Returns:
+            Hyperparameter tuning 관련 설정
+        """
+        config = {}
+        
+        config['enable_hyperparameter_tuning'] = Confirm.ask(
+            "Hyperparameter Tuning을 활성화하시겠습니까?",
+            default=False
+        )
+        
+        if config['enable_hyperparameter_tuning']:
+            # Tuning engine 선택
+            engines = [
+                ("Optuna (권장)", "optuna"),
+                ("Hyperopt", "hyperopt"),
+                ("Ray Tune", "ray"),
+            ]
+            config['tuning_engine'] = self.selector.select(
+                "  Tuning 엔진을 선택하세요",
+                engines
+            )
+            
+            config['tuning_timeout'] = Prompt.ask(
+                "  최대 실행 시간 (초)",
+                default="300"
+            )
+            
+            config['tuning_jobs'] = Prompt.ask(
+                "  병렬 실행 작업 수",
+                default="2"
+            )
+            
+            if config['tuning_engine'] == 'optuna':
+                directions = [
+                    ("Maximize (최대화)", "maximize"),
+                    ("Minimize (최소화)", "minimize"),
+                ]
+                config['tuning_direction'] = self.selector.select(
+                    "  최적화 방향을 선택하세요",
+                    directions
+                )
+        
+        return config
+    
+    def _select_monitoring(self) -> Dict[str, Any]:
+        """
+        Monitoring 설정 선택.
+        
+        Returns:
+            Monitoring 관련 설정
+        """
+        config = {}
+        
+        config['enable_monitoring'] = Confirm.ask(
+            "Monitoring을 활성화하시겠습니까?",
+            default=False
+        )
+        
+        if config['enable_monitoring']:
+            config['prometheus_port'] = Prompt.ask(
+                "  Prometheus 포트",
+                default="9090"
+            )
+            
+            config['enable_grafana'] = Confirm.ask(
+                "  Grafana 대시보드를 활성화하시겠습니까?",
+                default=False
+            )
+            
+            if config['enable_grafana']:
+                config['grafana_port'] = Prompt.ask(
+                    "    Grafana 포트",
+                    default="3000"
+                )
+        
+        return config
+    
     def _advanced_settings(self) -> Dict[str, Any]:
         """
         고급 설정 구성.
@@ -304,27 +431,36 @@ class InteractiveConfigBuilder:
         # 기본 환경 변수
         env_vars.append(f"# Environment: {env_name}")
         env_vars.append(f"ENV_NAME={env_name}")
-        env_vars.append(f"PROJECT_NAME={selections.get('project_name', 'ml-pipeline')}")
         env_vars.append("")
         
         # 데이터베이스 관련
         if selections.get('data_source') in ['postgresql', 'mysql']:
             env_vars.append("# Database")
-            env_vars.append(f"DB_USER={selections.get('db_user', 'user')}")
+            env_vars.append(f"DB_HOST={selections.get('db_host', 'localhost')}")
+            env_vars.append(f"DB_PORT={selections.get('db_port', '5432')}")
+            env_vars.append(f"DB_NAME={selections.get('db_name', 'mmp_db')}")
+            env_vars.append(f"DB_USER={selections.get('db_user', 'postgres')}")
             env_vars.append("DB_PASSWORD=your_password_here")
+            env_vars.append("DB_TIMEOUT=30")
             env_vars.append("")
         
         # BigQuery 관련
-        if selections.get('data_source') == 'bigquery':
+        if selections.get('data_source') == 'bigquery' or selections.get('use_gcp'):
             env_vars.append("# Google Cloud")
-            env_vars.append(f"GCP_PROJECT={selections.get('bq_project', 'your-project')}")
+            env_vars.append(f"GCP_PROJECT_ID={selections.get('bq_project', 'your-project')}")
+            if selections.get('data_source') == 'bigquery':
+                env_vars.append(f"BQ_DATASET_ID={selections.get('bq_dataset', 'mmp_dataset')}")
+                env_vars.append("BQ_LOCATION=US")
+                env_vars.append("BQ_TIMEOUT=30")
             env_vars.append("GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json")
             env_vars.append("")
         
         # MLflow 관련
-        if selections.get('mlflow_type') == 'remote':
+        if selections.get('mlflow_enabled'):
             env_vars.append("# MLflow")
-            env_vars.append(f"MLFLOW_TRACKING_URI={selections.get('mlflow_uri', 'http://localhost:5000')}")
+            env_vars.append(f"MLFLOW_TRACKING_URI={selections.get('mlflow_uri', './mlruns')}")
+            env_vars.append(f"MLFLOW_EXPERIMENT_NAME={selections.get('mlflow_experiment', f'mmp-{env_name}')}")
+            env_vars.append(f"MLFLOW_ARTIFACT_ROOT={selections.get('mlflow_artifact_root', './mlruns')}")
             env_vars.append("")
         
         # Feature Store (Redis) 관련
@@ -335,17 +471,66 @@ class InteractiveConfigBuilder:
             env_vars.append("REDIS_PASSWORD=")  # Optional
             env_vars.append("")
         
+        # Feast Registry
+        if selections.get('feature_store_enabled'):
+            env_vars.append("# Feast Feature Store")
+            env_vars.append(f"FEAST_REGISTRY_PATH={selections.get('feast_registry', './feast_repo/registry.db')}")
+            if selections.get('online_store_type') != 'redis':
+                env_vars.append(f"FEAST_ONLINE_STORE_PATH={selections.get('feast_online_store', './feast_repo/online_store.db')}")
+            env_vars.append("")
+        
         # Cloud Storage 관련
         if selections.get('storage_type') == 'gcs':
             env_vars.append("# Google Cloud Storage")
             env_vars.append(f"GCS_BUCKET={selections.get('gcs_bucket', 'your-bucket')}")
+            env_vars.append(f"GCS_PREFIX={selections.get('gcs_prefix', env_name)}")
             env_vars.append("")
         elif selections.get('storage_type') == 's3':
             env_vars.append("# AWS S3")
             env_vars.append(f"S3_BUCKET={selections.get('s3_bucket', 'your-bucket')}")
+            env_vars.append(f"S3_PREFIX={selections.get('s3_prefix', env_name)}")
             env_vars.append("AWS_ACCESS_KEY_ID=your_access_key")
             env_vars.append("AWS_SECRET_ACCESS_KEY=your_secret_key")
-            env_vars.append("AWS_REGION=us-west-2")
+            env_vars.append("AWS_REGION=us-east-1")
+            env_vars.append("S3_ENDPOINT_URL=")  # For MinIO compatibility
+            env_vars.append("")
+        elif selections.get('storage_type') == 'local':
+            env_vars.append("# Local Storage")
+            env_vars.append(f"LOCAL_ARTIFACT_PATH={selections.get('storage_path', './artifacts')}")
+            env_vars.append("")
+        
+        # API Serving 관련
+        if selections.get('enable_serving'):
+            env_vars.append("# API Serving")
+            env_vars.append("API_HOST=0.0.0.0")
+            env_vars.append("API_PORT=8000")
+            env_vars.append(f"API_WORKERS={selections.get('serving_workers', '1')}")
+            if selections.get('enable_auth'):
+                env_vars.append("AUTH_TYPE=jwt")
+                env_vars.append("AUTH_SECRET_KEY=your_secret_key_here")
+            env_vars.append("")
+        
+        # Hyperparameter Tuning 관련
+        if selections.get('enable_hyperparameter_tuning'):
+            env_vars.append("# Hyperparameter Tuning")
+            env_vars.append(f"HYPERPARAM_TIMEOUT={selections.get('tuning_timeout', '300')}")
+            env_vars.append(f"HYPERPARAM_JOBS={selections.get('tuning_jobs', '2')}")
+            if selections.get('tuning_engine') == 'optuna':
+                env_vars.append("OPTUNA_STUDY_NAME=mmp_study")
+                env_vars.append("OPTUNA_STORAGE=sqlite:///optuna.db")
+            env_vars.append("")
+        
+        # Monitoring 관련
+        if selections.get('enable_monitoring'):
+            env_vars.append("# Monitoring")
+            env_vars.append("ENABLE_METRICS=true")
+            env_vars.append(f"METRICS_PORT={selections.get('prometheus_port', '9090')}")
+            if selections.get('enable_grafana'):
+                env_vars.append("GRAFANA_HOST=localhost")
+                env_vars.append(f"GRAFANA_PORT={selections.get('grafana_port', '3000')}")
+            env_vars.append("COLLECT_SYSTEM_METRICS=true")
+            env_vars.append("COLLECT_MODEL_METRICS=true")
+            env_vars.append("COLLECT_DATA_METRICS=true")
             env_vars.append("")
         
         # 파일 저장
@@ -365,9 +550,62 @@ class InteractiveConfigBuilder:
         Returns:
             Config 딕셔너리 구조
         """
+        # Prepare context for Jinja2 template
+        context = self._prepare_template_context(selections)
+        
+        # Render template
+        template = self.jinja_env.get_template('config.yaml.j2')
+        rendered_yaml = template.render(**context)
+        
+        # Parse rendered YAML to dict
+        config = yaml.safe_load(rendered_yaml)
+        return config
+    
+    def _prepare_template_context(self, selections: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Prepare context for Jinja2 template rendering.
+        
+        Args:
+            selections: User selections from interactive flow
+            
+        Returns:
+            Context dictionary for template
+        """
+        context = {
+            'env_name': selections['env_name'],
+            'use_mlflow': 'mlflow_enabled' in selections and selections['mlflow_enabled'],
+            'use_sql': selections.get('data_source') in ['postgresql', 'mysql', 'sqlite'],
+            'use_bq': selections.get('data_source') == 'bigquery',
+            'use_storage': selections.get('storage_type') in ['local', 's3', 'gcs'],
+            'use_gcp': selections.get('data_source') == 'bigquery' or selections.get('storage_type') == 'gcs',
+            'gcp_project': selections.get('bq_project', ''),
+            'use_feast': selections.get('feature_store_enabled', False),
+            'use_redis': selections.get('online_store_type') == 'redis',
+            'use_local_storage': selections.get('storage_type') == 'local',
+            'use_s3': selections.get('storage_type') == 's3',
+            'use_gcs': selections.get('storage_type') == 'gcs',
+            'enable_serving': False,  # Will be added in next task
+            'enable_hyperparameter_tuning': False,  # Will be added in next task
+            'enable_monitoring': False,  # Will be added in next task
+        }
+        
+        # Add additional context from selections
+        context.update(selections)
+        return context
+    
+    def _build_config_structure_legacy(self, selections: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Legacy config builder - kept for fallback.
+        
+        Args:
+            selections: 사용자 선택 사항
+            
+        Returns:
+            Config 딕셔너리 구조
+        """
         config = {
             'environment': {
-                'app_env': selections['env_name'],
+                'env_name': selections['env_name'],
                 'gcp_project_id': selections.get('bq_project', '${GCP_PROJECT:}')
             },
             'mlflow': {

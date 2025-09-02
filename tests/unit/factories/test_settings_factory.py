@@ -20,7 +20,7 @@ class TestSettingsFactory:
         assert 'artifact_stores' in settings
         
         # 기본값 확인
-        assert settings['environment']['app_env'] == 'test'
+        assert settings['environment']['env_name'] == 'test'
         assert 'localhost:5002' in settings['mlflow']['tracking_uri']
     
     def test_create_classification_settings(self):
@@ -70,14 +70,14 @@ class TestSettingsFactory:
         """로컬 환경 설정 검증"""
         settings = SettingsFactory.create_local_settings()
         
-        assert settings['environment']['app_env'] == 'local'
+        assert settings['environment']['env_name'] == 'local'
         assert 'Campaign-Uplift-Modeling' in settings['mlflow']['experiment_name']
     
     def test_create_dev_settings(self):
         """개발 환경 설정 검증"""
         settings = SettingsFactory.create_dev_settings()
         
-        assert settings['environment']['app_env'] == 'dev'
+        assert settings['environment']['env_name'] == 'dev'
         assert 'feature_store' in settings
         assert settings['feature_store']['provider'] == 'feast'
     
@@ -96,7 +96,7 @@ class TestSettingsFactory:
     def test_settings_customization_with_overrides(self):
         """설정 커스터마이징 (overrides) 검증"""
         custom_overrides = {
-            'environment': {'app_env': 'custom_test'},
+            'environment': {'env_name': 'custom_test'},
             'recipe': {
                 'model': {
                     'hyperparameters': {'n_estimators': 100}
@@ -107,7 +107,7 @@ class TestSettingsFactory:
         settings = SettingsFactory.create_classification_settings(**custom_overrides)
         
         # Override된 값 확인
-        assert settings['environment']['app_env'] == 'custom_test'
+        assert settings['environment']['env_name'] == 'custom_test'
         assert settings['recipe']['model']['hyperparameters']['n_estimators'] == 100
         
         # 기본값은 유지
@@ -130,7 +130,7 @@ class TestSettingsFactory:
         """Feature Store 설정 검증"""
         settings = SettingsFactory.create_feature_store_settings("feast")
         
-        assert settings['environment']['app_env'] == 'dev'
+        assert settings['environment']['env_name'] == 'dev'
         assert settings['feature_store']['provider'] == 'feast'
         
         # Feature Store Augmenter 설정

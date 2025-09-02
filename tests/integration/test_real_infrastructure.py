@@ -25,12 +25,12 @@ class TestRealInfrastructureIntegration:
     
     def setup_method(self):
         """테스트 전 설정"""
-        os.environ['APP_ENV'] = 'dev'
+        os.environ['ENV_NAME'] = 'dev'
     
     def teardown_method(self):
         """테스트 후 정리"""
-        if 'APP_ENV' in os.environ:
-            del os.environ['APP_ENV']
+        if 'ENV_NAME' in os.environ:
+            del os.environ['ENV_NAME']
     
     @pytest.mark.requires_mlflow
     def test_mlflow_real_connection(self):
@@ -119,11 +119,11 @@ class TestEndToEndRealInfrastructure:
     """실제 인프라에서 End-to-End 테스트"""
     
     def setup_method(self):
-        os.environ['APP_ENV'] = 'dev'
+        os.environ['ENV_NAME'] = 'dev'
     
     def teardown_method(self):
-        if 'APP_ENV' in os.environ:
-            del os.environ['APP_ENV']
+        if 'ENV_NAME' in os.environ:
+            del os.environ['ENV_NAME']
     
     def test_complete_training_with_real_infrastructure(self):
         """실제 인프라에서 완전한 학습 워크플로우 테스트"""
@@ -135,13 +135,13 @@ class TestEndToEndRealInfrastructure:
             'outcome': [0, 1, 0, 1]
         })
         
-        with patch('src.settings.loaders.load_settings_by_file') as mock_load_settings, \
+        with patch('src.settings.load_settings') as mock_load_settings, \
              patch('src.pipelines.train_pipeline.mlflow') as mock_mlflow, \
              patch('src.core.factory.Factory.create_data_adapter') as mock_adapter:
             
             # Mock settings
             mock_settings = type('MockSettings', (), {
-                'environment': type('Env', (), {'app_env': 'dev'})(),
+                'environment': type('Env', (), {'env_name': 'dev'})(),
                 'model': type('Model', (), {
                     'class_path': 'sklearn.ensemble.RandomForestClassifier',
                     'hyperparameters': type('HP', (), {'root': {'n_estimators': 10}})(),
@@ -205,7 +205,7 @@ class TestEndToEndRealInfrastructure:
         
         with patch('mlflow.pyfunc.load_model', return_value=mock_wrapper), \
              patch('src.pipelines.inference_pipeline._save_dataset') as mock_save, \
-             patch('src.settings.loaders.load_settings') as mock_load_settings, \
+             patch('src.settings.load_settings') as mock_load_settings, \
              patch('src.core.factory.Factory.create_data_adapter') as mock_adapter:
             
             # Mock settings
@@ -238,11 +238,11 @@ class TestRealInfrastructurePerformance:
     """실제 인프라 성능 테스트"""
     
     def setup_method(self):
-        os.environ['APP_ENV'] = 'dev'
+        os.environ['ENV_NAME'] = 'dev'
     
     def teardown_method(self):
-        if 'APP_ENV' in os.environ:
-            del os.environ['APP_ENV']
+        if 'ENV_NAME' in os.environ:
+            del os.environ['ENV_NAME']
     
 
 
@@ -252,11 +252,11 @@ class TestRealDataLeakagePrevention:
     """실제 인프라에서 Data Leakage 방지 검증"""
     
     def setup_method(self):
-        os.environ['APP_ENV'] = 'dev'
+        os.environ['ENV_NAME'] = 'dev'
     
     def teardown_method(self):
-        if 'APP_ENV' in os.environ:
-            del os.environ['APP_ENV']
+        if 'ENV_NAME' in os.environ:
+            del os.environ['ENV_NAME']
     
     def test_train_validation_split_isolation(self):
         """Train/Validation 분리 격리 검증"""

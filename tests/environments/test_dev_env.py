@@ -14,7 +14,7 @@ DEV 환경의 철학:
 import pytest
 
 from src.engine.factory import Factory
-from src.settings.loaders import load_settings_by_file
+from src.settings import load_settings
 
 
 # ensure_dev_stack_or_skip 함수는 conftest.py의 fixture로 통합됨
@@ -27,8 +27,8 @@ class TestDevEnvironmentBlueprintCompliance:
     @pytest.fixture
     def dev_settings(self):
         """DEV 환경 Settings - BLUEPRINT 원칙 2 검증용"""
-        return load_settings_by_file(
-            recipe_file="tests/fixtures/recipes/dev_classification_test.yaml"
+        return load_settings(
+            recipe_file="tests/fixtures/recipes/dev_classification_test.yaml", env_name="dev"
         )
 
     def test_dev_environment_settings_loaded(self, ensure_dev_stack_or_skip, dev_settings):
