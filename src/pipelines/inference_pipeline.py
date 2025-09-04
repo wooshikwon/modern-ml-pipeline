@@ -13,7 +13,7 @@ from src.settings import Settings
 from src.utils.system.reproducibility import set_global_seeds
 
 
-def run_batch_inference(settings: Settings, run_id: str, context_params: dict = None):
+def run_inference_pipeline(settings: Settings, run_id: str, context_params: dict = None):
     """
     지정된 Run ID의 모델을 사용하여 배치 추론을 실행합니다.
     """

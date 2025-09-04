@@ -15,7 +15,7 @@ from typing_extensions import Annotated
 from pathlib import Path
 
 from src.settings import load_settings
-from src.pipelines import run_training
+from src.pipelines.train_pipeline import run_train_pipeline
 from src.utils.system.logger import setup_logging, logger
 from src.cli.utils.config_loader import load_environment
 
@@ -77,7 +77,7 @@ def train_command(
         logger.info(f"Run Name: {run_name}")
         
         # 4. 학습 파이프라인 실행
-        run_training(settings=settings, context_params=params)
+        run_train_pipeline(settings=settings, context_params=params)
         
         logger.info("✅ 학습이 성공적으로 완료되었습니다.")
 
