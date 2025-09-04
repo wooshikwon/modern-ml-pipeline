@@ -13,7 +13,7 @@ Factory 패턴 적용:
 import pytest
 from unittest.mock import patch
 
-from src.engine.factory import Factory
+from src.factory.factory import Factory
 from src.settings import Settings
 from tests.factories.settings_factory import SettingsFactory
 

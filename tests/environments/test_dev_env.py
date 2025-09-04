@@ -13,7 +13,7 @@ DEV 환경의 철학:
 
 import pytest
 
-from src.engine.factory import Factory
+from src.factory.factory import Factory
 from src.settings import load_settings
 
 

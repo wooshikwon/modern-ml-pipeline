@@ -18,7 +18,7 @@ import redis
 from datetime import datetime, timedelta
 import json
 
-from src.engine.factory import Factory
+from src.factory.factory import Factory
 from src.settings import Settings
 from src.components._adapter import FeastAdapter as FeatureStoreAdapter
 

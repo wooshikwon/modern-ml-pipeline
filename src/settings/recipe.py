@@ -1,182 +1,372 @@
 """
-Recipe Schema - Workflow Definitions (v2.0)
-Simplified from 259 lines to ~150 lines
-
-This module defines the ML workflow (Recipe) schema.
-Completely separated from Config (infrastructure) settings.
+Recipe Schema - Workflow Definitions (v3.0)
+Optuna 튜닝, Feature Store 통합 등 신규 기능 포함
+완전히 재작성됨 - CLI recipe.yaml.j2와 100% 호환
 """
 
 from pydantic import BaseModel, Field, validator
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Union, Literal
+
+
+class HyperparametersTuning(BaseModel):
+    """
+    하이퍼파라미터 설정 - Optuna 튜닝 지원
+    CLI 템플릿과 정확히 일치하는 구조
+    """
+    tuning_enabled: bool = Field(False, description="Optuna 하이퍼파라미터 튜닝 활성화")
+    
+    # 튜닝 활성화시 사용
+    fixed: Optional[Dict[str, Any]] = Field(None, description="튜닝시에도 고정할 파라미터")
+    tunable: Optional[Dict[str, Dict[str, Any]]] = Field(
+        None, 
+        description="튜닝 가능 파라미터 (type, range 포함)"
+    )
+    
+    # 튜닝 비활성화시 사용
+    values: Optional[Dict[str, Any]] = Field(None, description="튜닝 비활성화시 사용할 고정값")
+    
+    @validator('fixed', 'tunable')
+    def validate_tuning_params(cls, v, values, field):
+        """튜닝 활성화시 fixed/tunable 검증"""
+        if values.get('tuning_enabled'):
+            if field.name == 'tunable' and v:
+                # tunable 파라미터 구조 검증
+                for param, spec in v.items():
+                    if 'type' not in spec:
+                        raise ValueError(f"{param}에 'type'이 필요합니다")
+                    if 'range' not in spec:
+                        raise ValueError(f"{param}에 'range'가 필요합니다")
+                    # type 검증
+                    if spec['type'] not in ['int', 'float', 'categorical']:
+                        raise ValueError(f"{param}의 type은 int/float/categorical 중 하나여야 합니다")
+        return v
+    
+    @validator('values')
+    def validate_fixed_values(cls, v, values):
+        """튜닝 비활성화시 values 검증"""
+        if not values.get('tuning_enabled') and not v:
+            # 튜닝이 비활성화되었는데 values가 없으면 경고
+            pass  # 빈 딕셔너리라도 허용
+        return v
 
 
 class Model(BaseModel):
-    """
-    Model configuration.
-    Defines the ML model and its hyperparameters.
-    """
-    class_path: str = Field(..., description="Full Python path to model class")
-    library: Optional[str] = Field(None, description="Library name (sklearn, xgboost, etc.)")
-    hyperparameters: Dict[str, Any] = Field(
-        default_factory=dict, 
-        description="Model hyperparameters"
-    )
-    computed: Optional[Dict[str, Any]] = Field(
-        default_factory=dict,
-        description="Runtime computed fields (run_name, etc.)"
+    """모델 설정"""
+    class_path: str = Field(..., description="모델 클래스 전체 경로 (예: sklearn.ensemble.RandomForestClassifier)")
+    library: str = Field(..., description="라이브러리 이름 (sklearn, xgboost, lightgbm, catboost 등)")
+    hyperparameters: HyperparametersTuning = Field(
+        default_factory=lambda: HyperparametersTuning(tuning_enabled=False, values={}),
+        description="하이퍼파라미터 설정"
     )
     
-    class Config:
-        schema_extra = {
-            "example": {
-                "class_path": "sklearn.ensemble.RandomForestClassifier",
-                "library": "sklearn",
-                "hyperparameters": {
-                    "n_estimators": 100,
-                    "max_depth": 10,
-                    "random_state": 42
-                }
-            }
-        }
+    # 런타임에 추가되는 필드
+    computed: Optional[Dict[str, Any]] = Field(
+        default_factory=dict,
+        description="런타임 계산 필드 (run_name 등)"
+    )
+
+
+class EntitySchema(BaseModel):
+    """엔티티 스키마 - Feature Store Point-in-time join용"""
+    entity_columns: List[str] = Field(..., description="엔티티 컬럼 목록 (예: user_id, item_id)")
+    timestamp_column: str = Field(..., description="타임스탬프 컬럼 (point-in-time join 기준)")
 
 
 class Loader(BaseModel):
-    """Data loader configuration."""
-    name: str = Field("data_loader", description="Name of the data loader")
-    adapter: Optional[str] = Field(None, description="Adapter name (optional, auto-detected from source_uri if not provided)")
-    source_uri: str = Field(..., description="Data source URI or SQL query")
-    cache_enabled: bool = Field(False, description="Whether to cache loaded data")
+    """데이터 로더 설정"""
+    source_uri: str = Field(..., description="데이터 소스 URI (SQL 파일 경로 또는 데이터 파일 경로)")
+    entity_schema: EntitySchema = Field(..., description="엔티티 스키마 정의")
     
+    def get_adapter_type(self) -> str:
+        """source_uri에서 어댑터 타입 자동 추론"""
+        uri = self.source_uri.lower()
+        
+        # .sql 파일은 SQL adapter
+        if uri.endswith('.sql'):
+            return 'sql'
+        # 데이터 파일은 Storage adapter
+        elif any(uri.endswith(ext) for ext in ['.csv', '.parquet', '.json', '.feather']):
+            return 'storage'
+        # 기본값은 SQL (쿼리 문자열로 가정)
+        else:
+            return 'sql'
+
+
+class FeatureNamespace(BaseModel):
+    """Feature Store 네임스페이스"""
+    feature_namespace: str = Field(..., description="피처 네임스페이스 이름")
+    features: List[str] = Field(..., description="해당 네임스페이스에서 가져올 피처 목록")
+
+
+class Fetcher(BaseModel):
+    """
+    피처 페처 설정 - Feature Store 통합
+    """
+    type: Literal["feature_store", "pass_through"] = Field(..., description="페처 타입")
+    features: Optional[List[FeatureNamespace]] = Field(
+        None, 
+        description="Feature Store에서 가져올 피처 정의"
+    )
     
+    @validator('features')
+    def validate_features(cls, v, values):
+        """feature_store 타입일 때 features 필수"""
+        if values.get('type') == 'feature_store':
+            if not v:
+                # 빈 리스트라도 허용
+                return []
+        elif values.get('type') == 'pass_through':
+            if v:
+                # pass_through인데 features가 있으면 무시
+                pass
+        return v
+
+
 class DataInterface(BaseModel):
-    """Data interface configuration."""
-    task_type: str = Field(..., description="ML task type: 'classification' or 'regression'")
-    target_column: str = Field(..., description="Target column name")
-    feature_columns: Optional[List[str]] = Field(None, description="Feature columns (None = all)")
-    id_column: Optional[str] = Field(None, description="ID column for tracking")
+    """데이터 인터페이스 설정"""
+    task_type: Literal["classification", "regression", "clustering", "causal"] = Field(
+        ..., 
+        description="ML 태스크 타입"
+    )
+    target_column: str = Field(..., description="타겟 컬럼 이름")
+    feature_columns: Optional[List[str]] = Field(
+        None, 
+        description="피처 컬럼 목록 (None이면 target 제외 모든 컬럼)"
+    )
+    id_column: Optional[str] = Field(None, description="ID 컬럼 (추적용)")
 
 
 class Data(BaseModel):
+    """데이터 설정"""
+    loader: Loader = Field(..., description="데이터 로더 설정")
+    fetcher: Fetcher = Field(..., description="피처 페처 설정")
+    data_interface: DataInterface = Field(..., description="데이터 인터페이스 설정")
+
+
+class PreprocessorStep(BaseModel):
     """
-    Data configuration.
-    Defines data loading and interface.
+    전처리 단계 - 다양한 전처리 타입 지원
+    CLI 템플릿의 모든 전처리 타입 포함
     """
-    loader: Loader
-    data_interface: DataInterface
-    entity_schema: Optional[Dict[str, str]] = Field(
-        None,
-        description="Entity column schema for feature engineering"
-    )
+    type: Literal[
+        # Scaler
+        "standard_scaler",
+        "min_max_scaler", 
+        "robust_scaler",
+        # Encoder
+        "one_hot_encoder",
+        "ordinal_encoder",
+        "catboost_encoder",
+        # Imputer
+        "simple_imputer",
+        # Feature Engineering
+        "polynomial_features",
+        "tree_based_feature_generator",
+        "missing_indicator",
+        "kbins_discretizer"
+    ] = Field(..., description="전처리 타입")
     
-    class Config:
-        schema_extra = {
-            "example": {
-                "loader": {
-                    "name": "training_data",
-                    "adapter": "sql",
-                    "source_uri": "SELECT * FROM training_table"
-                },
-                "data_interface": {
-                    "task_type": "classification",
-                    "target_column": "label",
-                    "feature_columns": ["feature1", "feature2"]
-                }
-            }
-        }
+    columns: List[str] = Field(..., description="적용할 컬럼 목록")
+    
+    # 타입별 추가 파라미터
+    strategy: Optional[Literal["mean", "median", "most_frequent", "constant"]] = Field(
+        None, 
+        description="SimpleImputer 전략"
+    )
+    degree: Optional[int] = Field(None, ge=2, le=5, description="PolynomialFeatures 차수")
+    n_bins: Optional[int] = Field(None, ge=2, le=20, description="KBinsDiscretizer 구간 개수")
+    sigma: Optional[float] = Field(None, ge=0.0, le=1.0, description="CatBoostEncoder regularization")
+    
+    @validator('strategy')
+    def validate_strategy(cls, v, values):
+        """simple_imputer일 때만 strategy 필요"""
+        if values.get('type') == 'simple_imputer' and not v:
+            raise ValueError("simple_imputer는 strategy가 필요합니다")
+        return v
+    
+    @validator('degree')
+    def validate_degree(cls, v, values):
+        """polynomial_features일 때만 degree 필요"""
+        if values.get('type') == 'polynomial_features' and not v:
+            return 2  # 기본값
+        return v
+    
+    @validator('n_bins')
+    def validate_n_bins(cls, v, values):
+        """kbins_discretizer일 때만 n_bins 필요"""
+        if values.get('type') == 'kbins_discretizer' and not v:
+            return 5  # 기본값
+        return v
 
 
 class Preprocessor(BaseModel):
-    """Data preprocessing configuration."""
-    steps: List[Dict[str, Any]] = Field(
+    """전처리 파이프라인"""
+    steps: List[PreprocessorStep] = Field(
         default_factory=list,
-        description="List of preprocessing steps"
+        description="전처리 단계 목록 (순서대로 적용)"
     )
+
+
+class ValidationConfig(BaseModel):
+    """검증 설정"""
+    method: Literal["train_test_split", "cross_validation"] = Field(
+        "train_test_split",
+        description="검증 방법"
+    )
+    test_size: float = Field(0.2, ge=0.1, le=0.5, description="테스트 세트 비율")
+    random_state: int = Field(42, description="랜덤 시드")
     
-    class Config:
-        schema_extra = {
-            "example": {
-                "steps": [
-                    {"type": "missing_handler", "config": {"strategy": "drop"}},
-                    {"type": "scaler", "config": {"method": "standard"}}
-                ]
-            }
-        }
+    # Cross validation용 (선택)
+    n_folds: Optional[int] = Field(None, ge=2, le=10, description="Cross validation fold 수")
+    
+    @validator('n_folds')
+    def validate_n_folds(cls, v, values):
+        """cross_validation일 때 n_folds 필수"""
+        if values.get('method') == 'cross_validation' and not v:
+            return 5  # 기본값
+        return v
 
 
 class Evaluation(BaseModel):
-    """
-    Evaluation configuration.
-    Defines metrics and validation strategy.
-    """
-    metrics: List[str] = Field(..., description="Evaluation metrics")
-    validation: Dict[str, Any] = Field(
-        default_factory=lambda: {"method": "split", "test_size": 0.2},
-        description="Validation strategy configuration"
+    """평가 설정"""
+    metrics: List[str] = Field(..., description="평가 메트릭 목록")
+    validation: ValidationConfig = Field(
+        default_factory=ValidationConfig,
+        description="검증 설정"
     )
     
     @validator('metrics')
-    def validate_metrics(cls, v, values):
-        """Ensure metrics are valid strings."""
+    def validate_metrics(cls, v):
+        """메트릭 이름 정규화"""
         if not v:
-            raise ValueError("At least one metric must be specified")
+            raise ValueError("최소 하나의 메트릭이 필요합니다")
+        # 소문자로 정규화
         return [m.lower() for m in v]
-    
-    class Config:
-        schema_extra = {
-            "example": {
-                "metrics": ["accuracy", "precision", "recall", "f1"],
-                "validation": {
-                    "method": "split",
-                    "test_size": 0.2,
-                    "random_state": 42
-                }
-            }
-        }
+
+
+class Metadata(BaseModel):
+    """메타데이터"""
+    author: Optional[str] = Field("CLI Recipe Builder", description="작성자")
+    created_at: str = Field(..., description="생성 시간")
+    description: Optional[str] = Field(None, description="Recipe 설명")
+    tuning_note: Optional[str] = Field(None, description="튜닝 관련 메모")
 
 
 class Recipe(BaseModel):
     """
-    Root Recipe configuration (recipes/*.yaml).
-    
-    This is the complete ML workflow definition.
-    Completely separated from Config (infrastructure) settings.
+    루트 레시피 설정 (recipes/*.yaml)
+    CLI recipe.yaml.j2 템플릿과 100% 호환
     """
-    name: str = Field(..., description="Recipe name")
-    model: Model
-    data: Data
-    preprocessor: Optional[Preprocessor] = None
-    evaluation: Evaluation
-    metadata: Optional[Dict[str, Any]] = Field(
-        default_factory=dict,
-        description="Additional metadata (author, version, etc.)"
-    )
+    name: str = Field(..., description="레시피 이름")
+    model: Model = Field(..., description="모델 설정")
+    data: Data = Field(..., description="데이터 설정")
+    preprocessor: Optional[Preprocessor] = Field(None, description="전처리 파이프라인")
+    evaluation: Evaluation = Field(..., description="평가 설정")
+    metadata: Optional[Metadata] = Field(None, description="메타데이터")
+    
+    def get_task_type(self) -> str:
+        """ML 태스크 타입 반환"""
+        return self.data.data_interface.task_type
+    
+    def get_metrics(self) -> List[str]:
+        """평가 메트릭 목록 반환"""
+        return self.evaluation.metrics
+    
+    def is_tuning_enabled(self) -> bool:
+        """하이퍼파라미터 튜닝 활성화 여부"""
+        return self.model.hyperparameters.tuning_enabled
+    
+    def get_hyperparameters(self) -> Dict[str, Any]:
+        """현재 하이퍼파라미터 반환 (튜닝 여부에 따라 다름)"""
+        hp = self.model.hyperparameters
+        
+        if hp.tuning_enabled:
+            # 튜닝 활성화시 fixed 파라미터만 반환
+            return hp.fixed or {}
+        else:
+            # 튜닝 비활성화시 values 반환
+            return hp.values or {}
+    
+    def get_tunable_params(self) -> Optional[Dict[str, Dict[str, Any]]]:
+        """튜닝 가능한 파라미터 반환"""
+        if self.is_tuning_enabled():
+            return self.model.hyperparameters.tunable
+        return None
     
     class Config:
-        schema_extra = {
+        """Pydantic 설정"""
+        json_schema_extra = {
             "example": {
                 "name": "classification_rf",
                 "model": {
                     "class_path": "sklearn.ensemble.RandomForestClassifier",
-                    "hyperparameters": {"n_estimators": 100}
+                    "library": "sklearn",
+                    "hyperparameters": {
+                        "tuning_enabled": True,
+                        "fixed": {
+                            "random_state": 42,
+                            "n_jobs": -1
+                        },
+                        "tunable": {
+                            "n_estimators": {
+                                "type": "int",
+                                "range": [50, 200]
+                            },
+                            "max_depth": {
+                                "type": "int", 
+                                "range": [5, 20]
+                            }
+                        }
+                    }
                 },
                 "data": {
                     "loader": {
-                        "name": "train_data",
-                        "adapter": "sql",
-                        "source_uri": "SELECT * FROM features"
+                        "source_uri": "sql/train_data.sql",
+                        "entity_schema": {
+                            "entity_columns": ["user_id"],
+                            "timestamp_column": "event_timestamp"
+                        }
+                    },
+                    "fetcher": {
+                        "type": "feature_store",
+                        "features": [
+                            {
+                                "feature_namespace": "user_features",
+                                "features": ["age", "gender", "location"]
+                            }
+                        ]
                     },
                     "data_interface": {
                         "task_type": "classification",
-                        "target_column": "target"
+                        "target_column": "label",
+                        "feature_columns": None
                     }
                 },
+                "preprocessor": {
+                    "steps": [
+                        {
+                            "type": "standard_scaler",
+                            "columns": ["age", "income"]
+                        },
+                        {
+                            "type": "one_hot_encoder",
+                            "columns": ["gender", "location"]
+                        }
+                    ]
+                },
                 "evaluation": {
-                    "metrics": ["accuracy", "f1"],
-                    "validation": {"method": "split"}
+                    "metrics": ["accuracy", "f1", "roc_auc"],
+                    "validation": {
+                        "method": "train_test_split",
+                        "test_size": 0.2,
+                        "random_state": 42
+                    }
+                },
+                "metadata": {
+                    "author": "Data Scientist",
+                    "created_at": "2024-01-01 12:00:00",
+                    "description": "Random Forest classifier with Optuna tuning",
+                    "tuning_note": "Optuna will optimize n_estimators and max_depth"
                 }
             }
         }
-    
-    def get_task_type(self) -> str:
-        """Get the ML task type."""
-        return self.data.data_interface.task_type

@@ -9,7 +9,7 @@ DEV_PLANS.md A03-1 구현:
 
 import pytest
 from unittest.mock import patch
-from src.engine.factory import Factory
+from src.factory.factory import Factory
 from src.settings import load_settings
 
 
@@ -29,7 +29,7 @@ class TestFactoryBasedComponentAssembly:
             print(f"❌ optuna not available: {e}")
         
         # Bootstrap으로 어댑터들이 자동 등록됨 (순환 import 해결!)
-        from src.engine import bootstrap
+        from src.factory import bootstrap
         try:
             bootstrap(settings)
             print("✅ Bootstrap successful")
@@ -71,7 +71,7 @@ class TestFactoryBasedComponentAssembly:
         settings = load_settings("models/classification/logistic_regression", "local")
         
         # Bootstrap으로 어댑터들이 자동 등록됨
-        from src.engine import bootstrap
+        from src.factory import bootstrap
         bootstrap(settings)
         
         factory = Factory(settings)
@@ -111,7 +111,7 @@ class TestFactoryBasedComponentAssembly:
                 settings = load_settings("models/classification/logistic_regression", "local")
                 
                 # Bootstrap으로 어댑터들이 자동 등록됨
-                from src.engine import bootstrap
+                from src.factory import bootstrap
                 bootstrap(settings)
                 
                 factory = Factory(settings)
@@ -128,7 +128,7 @@ class TestFactoryBasedComponentAssembly:
         settings = load_settings("models/classification/logistic_regression", "local")
         
         # Bootstrap으로 어댑터들이 자동 등록됨
-        from src.engine import bootstrap
+        from src.factory import bootstrap
         bootstrap(settings)
         
         factory = Factory(settings)
@@ -170,7 +170,7 @@ class TestFactoryBasedComponentAssembly:
         settings = load_settings("models/classification/logistic_regression", "local")
         
         # Bootstrap으로 어댑터들이 자동 등록됨
-        from src.engine import bootstrap
+        from src.factory import bootstrap
         bootstrap(settings)
         
         factory = Factory(settings)

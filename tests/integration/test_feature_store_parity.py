@@ -17,7 +17,7 @@ import numpy as np
 from datetime import datetime, timedelta
 from decimal import Decimal
 
-from src.engine.factory import Factory
+from src.factory.factory import Factory
 from src.components._fetcher import FeatureStoreAugmenter as Augmenter
 from src.settings import Settings
 

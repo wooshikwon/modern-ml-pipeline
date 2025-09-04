@@ -18,7 +18,7 @@ import psycopg2
 from datetime import datetime, timedelta
 
 from src.settings import Settings
-from src.engine.factory import Factory
+from src.factory.factory import Factory
 
 # DEV 환경 Feature Store Point-in-time 테스트
 pytestmark = [
