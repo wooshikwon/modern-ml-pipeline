@@ -9,7 +9,7 @@ from src.utils.system.logger import logger
 from src.serving._context import app_context
 from src.serving.schemas import create_dynamic_prediction_request, create_batch_prediction_request
 from src.utils.system.sql_utils import parse_select_columns
-from src.engine import bootstrap
+from src.factory import bootstrap
 
 
 def setup_api_context(run_id: str, settings: Settings):

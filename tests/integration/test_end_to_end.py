@@ -7,7 +7,7 @@ End-to-End 통합 테스트
 import pytest
 import pandas as pd
 from unittest.mock import Mock, patch
-from src.engine.factory import Factory
+from src.factory.factory import Factory
 from src.components._trainer import Trainer
 from src.pipelines.train_pipeline import run_training
 from src.settings import Settings

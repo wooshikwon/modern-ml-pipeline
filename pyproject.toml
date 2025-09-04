@@ -148,7 +148,7 @@ source_modules = [
   "src.components"
 ]
 forbidden_modules = [
-  "src.engine",
+  "src.factory",
 ]
 
 [[tool.importlinter.contracts]]

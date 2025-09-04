@@ -6,7 +6,7 @@ import mlflow
 from datetime import datetime
 from typing import Dict, Any, Optional
 
-from src.engine import Factory, bootstrap
+from src.factory import Factory, bootstrap
 from src.utils.integrations.mlflow_integration import start_run
 from src.utils.system.logger import logger
 from src.settings import Settings

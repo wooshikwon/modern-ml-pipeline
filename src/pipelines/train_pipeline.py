@@ -7,8 +7,8 @@ import mlflow
 import pandas as pd
 
 from src.settings import Settings
-from src.engine import Factory
-from src.engine import bootstrap
+from src.factory import Factory
+from src.factory import bootstrap
 from src.components._trainer import Trainer
 from src.utils.system.logger import logger
 from src.utils.integrations import mlflow_integration as mlflow_utils

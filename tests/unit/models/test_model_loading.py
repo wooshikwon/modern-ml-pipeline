@@ -10,7 +10,7 @@ import pandas as pd
 import numpy as np
 from unittest.mock import patch
 
-from src.engine.factory import Factory
+from src.factory.factory import Factory
 from src.settings import Settings
 
 

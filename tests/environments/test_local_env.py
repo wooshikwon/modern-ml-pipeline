@@ -14,7 +14,7 @@ LOCAL 환경의 철학:
 import pytest
 import pandas as pd
 
-from src.engine.factory import Factory
+from src.factory.factory import Factory
 from src.components._fetcher import PassThroughAugmenter
 from src.settings import load_settings
 
@@ -110,7 +110,7 @@ class TestLocalEnvironmentBlueprintCompliance:
     def test_local_environment_fast_experimentation_ready(self, local_settings):
         """Local 환경 빠른 실험 준비 - BLUEPRINT 설계 의도"""
         # BLUEPRINT: 컴포넌트 등록 먼저 수행
-        from src.engine import register_all_components
+        from src.factory import register_all_components
         register_all_components()
         
         factory = Factory(local_settings)

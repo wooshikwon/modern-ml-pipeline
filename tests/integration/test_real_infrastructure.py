@@ -13,7 +13,7 @@ import pandas as pd
 import time
 import os
 from unittest.mock import patch
-from src.engine.factory import Factory
+from src.factory.factory import Factory
 from src.pipelines.train_pipeline import run_training
 from src.pipelines.inference_pipeline import run_batch_inference
 

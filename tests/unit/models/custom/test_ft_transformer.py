@@ -219,7 +219,7 @@ class TestFTTransformerIntegration:
         }
         
         from src.settings import Settings
-        from src.engine.factory import Factory
+        from src.factory.factory import Factory
         
         settings = Settings(**settings_dict)
         factory = Factory(settings)

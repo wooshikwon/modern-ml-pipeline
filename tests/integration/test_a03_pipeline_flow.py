@@ -14,7 +14,7 @@ import os
 from pathlib import Path
 from unittest.mock import patch, Mock
 from src.settings import load_settings
-from src.engine import Factory, bootstrap
+from src.factory import Factory, bootstrap
 from src.pipelines.train_pipeline import run_training
 from src.pipelines.inference_pipeline import run_batch_inference
 
