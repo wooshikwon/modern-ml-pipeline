@@ -180,5 +180,5 @@ class FeastAdapter(BaseAdapter):
         raise NotImplementedError("FeastAdapter does not support write operation.")
 
 # Self-registration
-from .._registry import AdapterRegistry
+from ..registry import AdapterRegistry
 AdapterRegistry.register("feature_store", FeastAdapter) 

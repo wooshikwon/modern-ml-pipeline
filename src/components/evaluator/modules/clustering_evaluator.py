@@ -15,5 +15,5 @@ class ClusteringEvaluator(BaseEvaluator):
         return metrics
 
 # Self-registration
-from .._registry import EvaluatorRegistry
+from ..registry import EvaluatorRegistry
 EvaluatorRegistry.register("clustering", ClusteringEvaluator)

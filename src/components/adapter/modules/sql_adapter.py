@@ -203,5 +203,5 @@ class SqlAdapter(BaseAdapter):
             raise
 
 # Self-registration
-from .._registry import AdapterRegistry
+from ..registry import AdapterRegistry
 AdapterRegistry.register("sql", SqlAdapter)

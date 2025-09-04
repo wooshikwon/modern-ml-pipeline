@@ -5,7 +5,7 @@ from ._modules.clustering_evaluator import ClusteringEvaluator
 from ._modules.causal_evaluator import CausalEvaluator
 
 # Import the registry for external use
-from ._registry import EvaluatorRegistry
+from .registry import EvaluatorRegistry
 
 __all__ = [
     "ClassificationEvaluator",

@@ -16,5 +16,5 @@ class RegressionEvaluator(BaseEvaluator):
         return metrics
 
 # Self-registration
-from .._registry import EvaluatorRegistry
+from ..registry import EvaluatorRegistry
 EvaluatorRegistry.register("regression", RegressionEvaluator)

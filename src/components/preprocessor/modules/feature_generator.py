@@ -5,7 +5,7 @@ from sklearn.preprocessing import OneHotEncoder, PolynomialFeatures
 import pandas as pd
 import numpy as np
 from typing import List
-from .._registry import PreprocessorStepRegistry
+from ..registry import PreprocessorStepRegistry
 
 class TreeBasedFeatureGenerator(BaseEstimator, TransformerMixin):
     """

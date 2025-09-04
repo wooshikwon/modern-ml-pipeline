@@ -150,5 +150,5 @@ class Trainer(BaseTrainer):
         return di.target_column if di.task_type == "classification" else di.treatment_column if di.task_type == "causal" else None
 
 # Self-registration
-from .._registry import TrainerRegistry
+from ..registry import TrainerRegistry
 TrainerRegistry.register("default", Trainer)

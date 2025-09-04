@@ -49,5 +49,5 @@ class StorageAdapter(BaseAdapter):
             df.to_parquet(uri, storage_options=self.storage_options, **kwargs)
 
 # Self-registration
-from .._registry import AdapterRegistry
+from ..registry import AdapterRegistry
 AdapterRegistry.register("storage", StorageAdapter)

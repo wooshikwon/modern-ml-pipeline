@@ -15,7 +15,7 @@ from typing import Dict, Any
 
 from src.components.adapter import AdapterRegistry
 from src.components.evaluator import EvaluatorRegistry
-from src.components.preprocessor._registry import PreprocessorStepRegistry
+from src.components.preprocessor.registry import PreprocessorStepRegistry
 from src.utils.system.catalog_parser import load_model_catalog
 from src.utils.system.logger import logger
 

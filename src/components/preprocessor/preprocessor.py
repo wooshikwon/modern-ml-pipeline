@@ -7,7 +7,7 @@ from sklearn.compose import ColumnTransformer
 
 from src.interface import BasePreprocessor
 from src.utils.system.logger import logger
-from ._registry import PreprocessorStepRegistry
+from .registry import PreprocessorStepRegistry
 
 if TYPE_CHECKING:
     from src.settings import Settings
