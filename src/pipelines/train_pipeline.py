@@ -88,51 +88,23 @@ def run_training(settings: Settings, context_params: Optional[Dict[str, Any]] = 
         # 모델 저장 시점의 패키지 의존성 캡처
         pip_reqs = get_pip_requirements()
         
-        if pyfunc_wrapper.signature and pyfunc_wrapper.data_schema:
-            # Phase 5 Enhanced 저장 로직 사용
-            from src.utils.integrations.mlflow_integration import log_enhanced_model_with_schema
-            
-            log_enhanced_model_with_schema(
-                python_model=pyfunc_wrapper,
-                signature=pyfunc_wrapper.signature,
-                data_schema=pyfunc_wrapper.data_schema,
-                input_example=df.head(5),  # 입력 예제
-                pip_requirements=pip_reqs
-            )
-            
-            model_name = getattr(settings.recipe.model, 'name', None) or settings.recipe.model.computed['run_name']
-            logger.info(f"✅ Enhanced Artifact '{model_name}' MLflow 저장 완료 (Phase 1-5 통합)")
-        else:
-            # Fallback: 기존 방식 (training_df가 없었던 경우)
-            logger.warning("⚠️ Enhanced 정보가 없어 기본 저장 방식 사용")
-            
-            # 기본 샘플 예측 및 signature 생성
-            sample_input = df.head(5)
-            sample_output = pyfunc_wrapper.predict(
-                context=None,
-                model_input=sample_input,
-                params={"run_mode": "batch", "return_intermediate": False}
-            )
-            
-            if not isinstance(sample_output, pd.DataFrame):
-                sample_output = pd.DataFrame(sample_output)
-            
-            signature = mlflow_utils.create_model_signature(
-                input_df=sample_input,
-                output_df=sample_output
-            )
-            
-            # 기존 MLflow 저장
-            mlflow.pyfunc.log_model(
-                artifact_path="model",
-                python_model=pyfunc_wrapper,
-                signature=signature,
-                input_example=sample_input,
-                pip_requirements=pip_reqs
-            )
-            
-            model_name = getattr(settings.recipe.model, 'name', None) or settings.recipe.model.computed['run_name']
-            logger.info(f"기본 모델 '{model_name}'을 MLflow에 저장했습니다.")
+        # Signature와 data_schema 검증
+        if not (pyfunc_wrapper.signature and pyfunc_wrapper.data_schema):
+            raise ValueError("Failed to generate signature and data_schema. This should not happen.")
+        
+        # Phase 5 Enhanced 저장 로직 사용
+        from src.utils.integrations.mlflow_integration import log_enhanced_model_with_schema
+        
+        log_enhanced_model_with_schema(
+            python_model=pyfunc_wrapper,
+            signature=pyfunc_wrapper.signature,
+            data_schema=pyfunc_wrapper.data_schema,
+            input_example=df.head(5),  # 입력 예제
+            pip_requirements=pip_reqs
+        )
+        
+        model_name = getattr(settings.recipe.model, 'name', None) or settings.recipe.model.computed['run_name']
+        logger.info(f"✅ Enhanced Artifact '{model_name}' MLflow 저장 완료 (Phase 1-5 통합)")
 
         # 7. (선택적) 메타데이터 저장
         metadata = {"run_id": run_id, "model_name": model_name}
