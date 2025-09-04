@@ -12,7 +12,7 @@ import numpy as np
 from unittest.mock import Mock, patch
 from sklearn.ensemble import RandomForestClassifier
 
-from src.components._trainer import Trainer
+from src.components.trainer import Trainer
 from src.interface import BaseFetcher, BasePreprocessor, BaseEvaluator
 
 
@@ -165,7 +165,7 @@ class TestTrainerBlueprintCompliance:
         trainer = Trainer(settings=classification_settings, factory_provider=mock_factory_provider)
         
         # When: 학습 수행
-        with patch('src.components._trainer._modules.data_handler.split_data') as mock_split:
+        with patch('src.components.trainer._modules.data_handler.split_data') as mock_split:
             # 80:20 분할 시뮬레이션
             train_size = int(len(sample_training_data) * 0.8)
             mock_split.return_value = (

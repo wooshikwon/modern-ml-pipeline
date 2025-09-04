@@ -65,7 +65,7 @@ class TestRealInfrastructureIntegration:
     @pytest.mark.requires_feast
     def test_feast_real_integration(self):
         """Feast Feature Store 실제 연동 테스트"""
-        with patch('src.components._adapter._modules.feast_adapter.FeastAdapter') as MockFeastAdapter:
+        with patch('src.components.adapter._modules.feast_adapter.FeastAdapter') as MockFeastAdapter:
             mock_feast_instance = MockFeastAdapter.return_value
             
             # Mock 피처 데이터

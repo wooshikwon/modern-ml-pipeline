@@ -13,7 +13,7 @@ from unittest.mock import Mock, patch
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 
-from src.components._preprocessor import Preprocessor
+from src.components.preprocessor import Preprocessor
 
 
 @pytest.mark.unit
@@ -185,7 +185,7 @@ class TestPreprocessorBlueprintCompliance:
         preprocessor = Preprocessor(classification_settings)
         
         # When: Registry에서 컴포넌트 생성 로직 확인
-        with patch('src.components._preprocessor._preprocessor.PreprocessorStepRegistry.create') as mock_create:
+        with patch('src.components.preprocessor.preprocessor.PreprocessorStepRegistry.create') as mock_create:
             mock_transformer = Mock()
             mock_create.return_value = mock_transformer
             

@@ -11,14 +11,14 @@ class FetcherRegistry:
     def register(cls, fetcher_type: str, fetcher_class: Type[BaseFetcher]):
         if not issubclass(fetcher_class, BaseFetcher):
             raise TypeError(f"{fetcher_class.__name__} must be a subclass of BaseFetcher")
-        cls._fetchers[fetcher_type] = fetcher_class
+        cls.fetchers[fetcher_type] = fetcher_class
         logger.debug(f"[components] Fetcher registered: {fetcher_type} -> {fetcher_class.__name__}")
 
     @classmethod
     def create(cls, fetcher_type: str, *args, **kwargs) -> BaseFetcher:
-        fetcher_class = cls._fetchers.get(fetcher_type)
+        fetcher_class = cls.fetchers.get(fetcher_type)
         if not fetcher_class:
-            available = list(cls._fetchers.keys())
+            available = list(cls.fetchers.keys())
             raise ValueError(f"Unknown fetcher type: '{fetcher_type}'. Available types: {available}")
         logger.debug(f"[components] Creating fetcher instance: {fetcher_type}")
         return fetcher_class(*args, **kwargs)
@@ -26,13 +26,13 @@ class FetcherRegistry:
     @classmethod
     def get_available_types(cls) -> list[str]:
         """등록된 모든 fetcher type 목록 반환."""
-        return list(cls._fetchers.keys())
+        return list(cls.fetchers.keys())
 
     @classmethod 
     def get_fetcher_class(cls, fetcher_type: str) -> Type[BaseFetcher]:
         """Fetcher type에 해당하는 Fetcher 클래스 반환."""
-        fetcher_class = cls._fetchers.get(fetcher_type)
+        fetcher_class = cls.fetchers.get(fetcher_type)
         if not fetcher_class:
-            available = list(cls._fetchers.keys())
+            available = list(cls.fetchers.keys())
             raise ValueError(f"Unknown fetcher type: '{fetcher_type}'. Available types: {available}")
         return fetcher_class

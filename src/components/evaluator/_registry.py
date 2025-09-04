@@ -11,14 +11,14 @@ class EvaluatorRegistry:
     def register(cls, task_type: str, evaluator_class: Type[BaseEvaluator]):
         if not issubclass(evaluator_class, BaseEvaluator):
             raise TypeError(f"{evaluator_class.__name__} must be a subclass of BaseEvaluator")
-        cls._evaluators[task_type] = evaluator_class
+        cls.evaluators[task_type] = evaluator_class
         logger.debug(f"[components] Evaluator registered: {task_type} -> {evaluator_class.__name__}")
 
     @classmethod
     def create(cls, task_type: str, *args, **kwargs) -> BaseEvaluator:
-        evaluator_class = cls._evaluators.get(task_type)
+        evaluator_class = cls.evaluators.get(task_type)
         if not evaluator_class:
-            available = list(cls._evaluators.keys())
+            available = list(cls.evaluators.keys())
             raise ValueError(f"Unknown task type for evaluator: '{task_type}'. Available types: {available}")
         logger.debug(f"[components] Creating evaluator instance for task: {task_type}")
         return evaluator_class(*args, **kwargs)
@@ -26,13 +26,13 @@ class EvaluatorRegistry:
     @classmethod
     def get_available_tasks(cls) -> list[str]:
         """등록된 모든 task type 목록 반환."""
-        return list(cls._evaluators.keys())
+        return list(cls.evaluators.keys())
 
     @classmethod 
     def get_evaluator_class(cls, task_type: str) -> Type[BaseEvaluator]:
         """Task type에 해당하는 Evaluator 클래스 반환."""
-        evaluator_class = cls._evaluators.get(task_type)
+        evaluator_class = cls.evaluators.get(task_type)
         if not evaluator_class:
-            available = list(cls._evaluators.keys())
+            available = list(cls.evaluators.keys())
             raise ValueError(f"Unknown task type: '{task_type}'. Available types: {available}")
         return evaluator_class

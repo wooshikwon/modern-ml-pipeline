@@ -18,7 +18,7 @@ import mlflow
 import shutil
 
 from src.factory.factory import Factory
-from src.components._fetcher import FeatureStorefetcher as fetcher
+from src.components.fetcher import FeatureStorefetcher as fetcher
 from src.pipelines.train_pipeline import run_training
 from src.serving.router import app, setup_api_context
 

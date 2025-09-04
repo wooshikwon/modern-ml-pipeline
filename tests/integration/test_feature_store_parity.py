@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 from src.factory.factory import Factory
-from src.components._fetcher import FeatureStorefetcher as fetcher
+from src.components.fetcher import FeatureStorefetcher as fetcher
 from src.settings import Settings
 
 # DEV 환경 Feature Store 패리티 테스트

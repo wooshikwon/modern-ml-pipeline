@@ -4,10 +4,10 @@ from typing import Optional, Dict, Any, TYPE_CHECKING, ClassVar
 
 import pandas as pd
 
-from src.components._fetcher import FetcherRegistry
-from src.components._preprocessor import Preprocessor, BasePreprocessor
-from src.components._adapter import AdapterRegistry
-from src.components._evaluator import EvaluatorRegistry
+from src.components.fetcher import FetcherRegistry
+from src.components.preprocessor import Preprocessor, BasePreprocessor
+from src.components.adapter import AdapterRegistry
+from src.components.evaluator import EvaluatorRegistry
 from src.interface import BaseAdapter
 from src.settings import Settings
 from src.utils.system.logger import logger
@@ -57,11 +57,11 @@ class Factory:
             
             # 컴포넌트 모듈들을 import하여 self-registration 트리거
             try:
-                import src.components._adapter
-                import src.components._evaluator
-                import src.components._fetcher
-                import src.components._trainer
-                import src.components._preprocessor
+                import src.components.adapter
+                import src.components.evaluator
+                import src.components.fetcher
+                import src.components.trainer
+                import src.components.preprocessor
             except ImportError as e:
                 logger.warning(f"Some components could not be imported: {e}")
             
