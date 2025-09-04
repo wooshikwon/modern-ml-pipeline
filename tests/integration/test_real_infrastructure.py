@@ -151,7 +151,7 @@ class TestEndToEndRealInfrastructure:
                         'validate_required_fields': lambda: None
                     })(),
                     'loader': type('Loader', (), {'source_uri': 'test.sql'})(),
-                    'fetcher': type('Aug', (), {'type': 'feature_store'})(),
+                    'fetcher': type('fetch', (), {'type': 'feature_store'})(),
                     'preprocessor': None,
                     'computed': {'run_name': 'test_run'}
                 })(),
