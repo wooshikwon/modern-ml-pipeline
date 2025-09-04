@@ -15,7 +15,7 @@ from typing import Optional, Dict, Union
 from unittest.mock import Mock, MagicMock
 import inspect
 
-from src.interface.base_fetcher import Basefetcher
+from src.interface.base_fetcher import BaseFetcher
 from src.interface.base_preprocessor import BasePreprocessor
 from src.interface.base_model import BaseModel
 from src.interface.base_adapter import BaseAdapter
@@ -27,7 +27,7 @@ class TestInterfaceContractCompliance:
     @pytest.mark.core
     @pytest.mark.unit
     def test_base_fetcher_interface_compliance(self, test_factories):
-        """Basefetcher 인터페이스 계약 준수 검증"""
+        """BaseFetcher 인터페이스 계약 준수 검증"""
         # Given: Mock fetcher (Factory 패턴 통합)
         fetcher = test_factories['mocks'].get_fetcher()
         
@@ -37,7 +37,7 @@ class TestInterfaceContractCompliance:
             assert hasattr(fetcher, method), f"fetcher must have '{method}' method"
             assert callable(getattr(fetcher, method)), f"'{method}' must be callable"
         
-        # fetch 메서드 시그니처 검증 (Basefetcher ABC 준수)
+        # fetch 메서드 시그니처 검증 (BaseFetcher ABC 준수)
         fetch_method = getattr(fetcher, 'fetch')
         assert fetch_method is not None
         
@@ -49,10 +49,10 @@ class TestInterfaceContractCompliance:
     @pytest.mark.core
     @pytest.mark.unit
     def test_base_fetcher_abc_signature_verification(self, test_factories):
-        """Basefetcher ABC 추상 메서드 시그니처 검증"""
-        # Given: Basefetcher ABC 클래스
+        """BaseFetcher ABC 추상 메서드 시그니처 검증"""
+        # Given: BaseFetcher ABC 클래스
         # When: 추상 메서드 시그니처 검사
-        fetch_method = Basefetcher.fetch
+        fetch_method = BaseFetcher.fetch
         
         # Then: 추상 메서드 검증
         assert hasattr(fetch_method, '__isabstractmethod__')
@@ -225,13 +225,13 @@ class TestInterfaceContractCompliance:
         """인터페이스 상속 구조 검증"""
         # Given/When: ABC 클래스들의 상속 구조 검증
         # Then: ABC를 상속받는지 확인
-        assert issubclass(Basefetcher, ABC)
+        assert issubclass(BaseFetcher, ABC)
         assert issubclass(BasePreprocessor, ABC)
         assert issubclass(BaseModel, ABC)
         assert issubclass(BaseAdapter, ABC)
         
         # 추상 메서드 보유 확인
-        assert len(Basefetcher.__abstractmethods__) >= 1
+        assert len(BaseFetcher.__abstractmethods__) >= 1
         assert len(BasePreprocessor.__abstractmethods__) >= 2  # fit, transform
         assert len(BaseModel.__abstractmethods__) >= 1
         assert len(BaseAdapter.__abstractmethods__) >= 2  # read, write
@@ -279,7 +279,7 @@ class TestInterfaceContractCompliance:
         # fetch 메서드 시그니처 검증
         assert hasattr(mock_fetcher, 'fetch')
         
-        # 실제 Basefetcher의 fetch와 호환되는 호출 방식 확인
+        # 실제 BaseFetcher의 fetch와 호환되는 호출 방식 확인
         test_data = pd.DataFrame({'test': [1]})
         
         # 다양한 호출 방식 지원 확인
@@ -295,15 +295,15 @@ class TestInterfaceContractCompliance:
         # Given: ABC 클래스들의 docstring 검증
         # When/Then: 각 추상 클래스와 메서드가 적절한 문서화를 가지고 있는지 확인
         
-        # Basefetcher 문서화 검증
-        assert Basefetcher.__doc__ is not None
-        assert len(Basefetcher.__doc__.strip()) > 0
+        # BaseFetcher 문서화 검증
+        assert BaseFetcher.__doc__ is not None
+        assert len(BaseFetcher.__doc__.strip()) > 0
         
         # BasePreprocessor 문서화 검증
         assert BasePreprocessor.__doc__ is not None
         assert len(BasePreprocessor.__doc__.strip()) > 0
         
         # 추상 메서드 문서화 검증
-        assert Basefetcher.fetch.__doc__ is not None
+        assert BaseFetcher.fetch.__doc__ is not None
         assert BasePreprocessor.fit.__doc__ is not None
         assert BasePreprocessor.transform.__doc__ is not None

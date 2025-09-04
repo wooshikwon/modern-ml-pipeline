@@ -6,7 +6,7 @@ import mlflow
 from src.utils.system.logger import logger
 
 if TYPE_CHECKING:
-    from src.interface import BasePreprocessor, Basefetcher
+    from src.interface import BasePreprocessor, BaseFetcher
     from src.settings import Settings
 
 class PyfuncWrapper(mlflow.pyfunc.PythonModel):
@@ -18,7 +18,7 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
         settings: Settings,
         trained_model: Any,
         trained_preprocessor: Optional[BasePreprocessor],
-        trained_fetcher: Optional[Basefetcher],
+        trained_fetcher: Optional[BaseFetcher],
         training_results: Optional[Dict[str, Any]] = None,
         signature: Optional[Any] = None, # mlflow.models.ModelSignature
         data_schema: Optional[Any] = None, # mlflow.types.Schema

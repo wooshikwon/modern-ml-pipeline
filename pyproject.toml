@@ -120,8 +120,9 @@ Homepage = "https://github.com/your-username/modern-ml-pipeline"
 Issues = "https://github.com/your-username/modern-ml-pipeline/issues"
 
 [project.scripts]
-modern-ml-pipeline = "src.cli.__main__:main"
-mmp = "src.cli.__main__:main"
+modern-ml-pipeline = "src.__main__:main"
+ml-pipeline = "src.__main__:main"
+mmp = "src.__main__:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src"]

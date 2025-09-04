@@ -449,5 +449,4 @@ def load_config_files(env_name: str) -> Dict[str, Any]:
     return config.dict()
 
 
-# 호환성 유지용 별칭
-load_settings_by_file = load_settings  # Deprecated 별칭
+# load_settings_by_file 별칭 제거됨 - 직접 load_settings 사용

@@ -8,7 +8,6 @@ import pandas as pd
 
 from src.settings import Settings
 from src.factory import Factory
-from src.factory import bootstrap
 from src.components._trainer import Trainer
 from src.utils.system.logger import logger
 from src.utils.integrations import mlflow_integration as mlflow_utils
@@ -22,8 +21,6 @@ def run_training(settings: Settings, context_params: Optional[Dict[str, Any]] = 
     Factory를 통해 데이터 어댑터와 모든 컴포넌트를 생성하고, 최종적으로
     순수 로직 PyfuncWrapper를 생성하여 MLflow에 저장합니다.
     """
-    # 부트스트랩(레지스트리 등록)
-    bootstrap(settings)
     # 재현성을 위한 전역 시드 설정
     seed = getattr(settings.recipe.model, 'computed', {}).get('seed', 42)
     set_global_seeds(seed)

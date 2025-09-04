@@ -11,7 +11,6 @@ from .loader import (
     create_settings_for_inference,
     load_config_files,
     resolve_env_variables,
-    load_settings_by_file,  # 호환성 별칭
 )
 
 # Config 모듈 - 인프라 설정 스키마
@@ -83,7 +82,6 @@ __all__ = [
     
     # ========== Loading Functions ==========
     "load_settings",
-    "load_settings_by_file",  # Deprecated 별칭
     "create_settings_for_inference",
     "load_config_files",
     "resolve_env_variables",

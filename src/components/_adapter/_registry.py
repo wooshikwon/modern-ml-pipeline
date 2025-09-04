@@ -52,7 +52,7 @@ class AdapterRegistry:
         return cls._adapters.copy()
     
     @classmethod
-    def create_adapter(cls, adapter_type: str, *args, **kwargs) -> BaseAdapter:
+    def create(cls, adapter_type: str, *args, **kwargs) -> BaseAdapter:
         """어댑터 인스턴스를 생성합니다.
         
         Args:
