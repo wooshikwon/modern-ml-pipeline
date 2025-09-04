@@ -19,7 +19,7 @@ import pandas as pd
 import numpy as np
 from unittest.mock import patch, Mock, MagicMock
 
-from src.models.custom._ft_transformer import FTTransformerClassifier, FTTransformerRegressor
+from src.models.custom.ft_transformer import FTTransformerClassifier, FTTransformerRegressor
 from src.interface import BaseModel
 
 

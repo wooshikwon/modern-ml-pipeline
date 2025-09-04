@@ -13,7 +13,7 @@ from src.settings import Settings
 from src.utils.system.logger import logger
 
 if TYPE_CHECKING:
-    from src.factory._artifact import PyfuncWrapper
+    from src.factory.artifact import PyfuncWrapper
     from src.interface import BaseFetcher
 
 
@@ -416,7 +416,7 @@ class Factory:
         training_results: Optional[Dict[str, Any]] = None
     ) -> PyfuncWrapper:
         """🔄 Phase 5: 완전한 스키마 정보가 캡슐화된 Enhanced Artifact 생성"""
-        from src.factory._artifact import PyfuncWrapper
+        from src.factory.artifact import PyfuncWrapper
         logger.info("Creating PyfuncWrapper artifact...")
         
         signature, data_schema = None, None

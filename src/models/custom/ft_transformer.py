@@ -7,7 +7,7 @@ from src.interface import BaseModel
 from sklearn.preprocessing import OrdinalEncoder, StandardScaler
 from sklearn.compose import ColumnTransformer
 
-class _FTTransformerWrapperBase(BaseModel):
+class FTTransformerWrapperBase(BaseModel):
     handles_own_preprocessing = True
 
     def __init__(self, **hyperparams: Any):
@@ -84,14 +84,14 @@ class _FTTransformerWrapperBase(BaseModel):
 
         return pd.DataFrame(predictions, index=X.index, columns=['prediction'])
 
-class FTTransformerClassifier(_FTTransformerWrapperBase):
+class FTTransformerClassifier(FTTransformerWrapperBase):
     def fit(self, X: pd.DataFrame, y: pd.Series, **kwargs: Any) -> 'FTTransformerClassifier':
         # 이진 분류든 다중 분류든 항상 y.nunique()를 사용
         d_out = y.nunique()
         super()._initialize_and_fit(X, y, d_out)
         return self
 
-class FTTransformerRegressor(_FTTransformerWrapperBase):
+class FTTransformerRegressor(FTTransformerWrapperBase):
     def fit(self, X: pd.DataFrame, y: pd.Series, **kwargs: Any) -> 'FTTransformerRegressor':
         d_out = 1
         super()._initialize_and_fit(X, y, d_out)
