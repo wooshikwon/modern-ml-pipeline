@@ -41,13 +41,15 @@ class Settings:
     
     def _validate(self) -> None:
         """Basic validation to ensure config and recipe are compatible."""
-        # Check that recipe's adapter exists in config
+        # Check that recipe's adapter exists in config (only if explicitly specified)
         adapter_name = self.recipe.data.loader.adapter
-        if adapter_name not in self.config.adapters:
-            raise ValueError(
-                f"Recipe references adapter '{adapter_name}' which is not defined in Config. "
-                f"Available adapters: {list(self.config.adapters.keys())}"
-            )
+        if adapter_name:  # Only validate if adapter is explicitly specified
+            if adapter_name not in self.config.adapters:
+                raise ValueError(
+                    f"Recipe references adapter '{adapter_name}' which is not defined in Config. "
+                    f"Available adapters: {list(self.config.adapters.keys())}"
+                )
+        # If no adapter specified, it will be auto-detected from source_uri pattern
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization."""

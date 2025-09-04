@@ -64,12 +64,12 @@ def init_command(project_name: Optional[str] = None) -> None:
         # 다음 단계 안내
         ui.show_panel(
             f"""cd {project_name}
-mmp get-config        # 환경 설정 생성
-mmp get-recipe        # 모델 레시피 생성
-mmp train -r recipes/<recipe>.yaml -e <env>  # 학습 실행""",
-            title="🚀 다음 단계",
-            style="green"
-        )
+            mmp get-config        # 환경 설정 생성
+            mmp get-recipe        # 모델 레시피 생성
+            mmp train -r recipes/<recipe>.yaml -e <env>  # 학습 실행""",
+                        title="🚀 다음 단계",
+                        style="green"
+                    )
         
     except KeyboardInterrupt:
         ui.show_error("프로젝트 초기화가 취소되었습니다.")

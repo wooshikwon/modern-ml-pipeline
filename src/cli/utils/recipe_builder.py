@@ -39,6 +39,27 @@ class RecipeBuilder:
         self.template_engine = TemplateEngine(templates_dir)
         self.catalog_dir = Path(__file__).parent.parent.parent / "models" / "catalog"
     
+    def _get_columns_hint(self, step_type: str) -> str:
+        """전처리 단계에 따른 기본 컬럼 힌트를 반환합니다."""
+        hints = {
+            # Scaler
+            "standard_scaler": "numerical_col1,numerical_col2",
+            "min_max_scaler": "numerical_col1,numerical_col2",
+            "robust_scaler": "numerical_col1,numerical_col2",
+            # Encoder
+            "one_hot_encoder": "categorical_col1,categorical_col2",
+            "ordinal_encoder": "ordinal_col1,ordinal_col2",
+            "catboost_encoder": "high_cardinality_col1,high_cardinality_col2",
+            # Imputer
+            "simple_imputer": "col_with_nulls1,col_with_nulls2",
+            # Feature Engineering
+            "polynomial_features": "numerical_col1,numerical_col2",
+            "tree_based_feature_generator": "all_features",
+            "missing_indicator": "col_with_nulls1,col_with_nulls2",
+            "kbins_discretizer": "continuous_col1,continuous_col2"
+        }
+        return hints.get(step_type, "col1,col2")
+    
     def run_interactive_flow(self) -> Dict[str, Any]:
         """
         대화형 Recipe 생성 플로우 실행.
@@ -142,8 +163,81 @@ class RecipeBuilder:
                 "데이터 파일 경로 (예: data/train.csv)",
                 default="data/train.csv"
             )
-        
+
         selections["source_uri"] = source_uri
+        
+        # 5. Fetcher 설정 (Feature Store Integration)
+        self.ui.print_divider()
+        self.ui.show_info("Feature Store 설정")
+        
+        use_feature_store = self.ui.confirm(
+            "Feature Store를 사용하시겠습니까? (Point-in-time join으로 피처 증강)",
+            default=False
+        )
+        
+        if use_feature_store:
+            selections["fetcher_type"] = "feature_store"
+            
+            # Entity columns 설정
+            self.ui.show_info("Entity Schema 설정 (Feature Store join keys)")
+            entity_columns = []
+            while True:
+                entity = self.ui.text_input(
+                    f"Entity column {len(entity_columns) + 1} (예: user_id, 빈 줄로 종료)",
+                    default=""
+                )
+                if not entity:
+                    break
+                entity_columns.append(entity)
+            
+            if not entity_columns:
+                entity_columns = ["user_id"]  # 기본값
+            
+            # Timestamp column
+            timestamp_column = self.ui.text_input(
+                "Timestamp column 이름 (point-in-time join 기준)",
+                default="event_timestamp"
+            )
+            
+            selections["entity_columns"] = entity_columns
+            selections["timestamp_column"] = timestamp_column
+            
+            # Feature 선택
+            self.ui.show_info("Feature Store에서 가져올 피처 설정")
+            feature_namespaces = []
+            
+            while True:
+                namespace = self.ui.text_input(
+                    f"Feature namespace {len(feature_namespaces) + 1} (예: user_features, 빈 줄로 종료)",
+                    default=""
+                )
+                if not namespace:
+                    break
+                    
+                features_str = self.ui.text_input(
+                    f"{namespace}에서 가져올 features (쉼표로 구분)",
+                    default="feature1,feature2"
+                )
+                features = [f.strip() for f in features_str.split(",")]
+                
+                feature_namespaces.append({
+                    "feature_namespace": namespace,
+                    "features": features
+                })
+            
+            if not feature_namespaces:
+                # 기본값 제공
+                feature_namespaces = [{
+                    "feature_namespace": "user_features",
+                    "features": ["feature1", "feature2"]
+                }]
+            
+            selections["feature_namespaces"] = feature_namespaces
+        else:
+            selections["fetcher_type"] = "pass_through"
+            selections["entity_columns"] = ["user_id"]  # 기본값
+            selections["timestamp_column"] = "event_timestamp"  # 기본값
+            selections["feature_namespaces"] = None
         
         # Target column
         target_column = self.ui.text_input(
@@ -152,43 +246,123 @@ class RecipeBuilder:
         )
         selections["target_column"] = target_column
         
-        # Entity schema
-        self.ui.show_info("Entity Schema 설정 (엔터로 구분하여 입력, 빈 줄로 종료)")
-        entity_schema = []
-        while True:
-            entity = self.ui.text_input(
-                f"Entity {len(entity_schema) + 1} (빈 줄로 종료)",
-                default=""
-            )
-            if not entity:
-                break
-            entity_schema.append(entity)
-        
-        if not entity_schema:
-            entity_schema = ["user_id", "timestamp"]  # 기본값
-        
-        selections["entity_schema"] = entity_schema
-        
         self.ui.print_divider()
         
         # 5. 전처리 설정
         self.ui.show_info("전처리 설정")
         
-        # 전처리 단계 선택
-        use_scaler = self.ui.confirm("StandardScaler를 사용하시겠습니까?", default=True)
-        use_encoder = self.ui.confirm("OneHotEncoder를 사용하시겠습니까?", default=True)
+        # 사용 가능한 전처리 모듈들
+        available_preprocessors = {
+            "Scaler": {
+                "standard_scaler": "StandardScaler (평균=0, 분산=1 정규화)",
+                "min_max_scaler": "MinMaxScaler (0-1 범위 정규화)",
+                "robust_scaler": "RobustScaler (이상치에 강건한 정규화)"
+            },
+            "Encoder": {
+                "one_hot_encoder": "OneHotEncoder (범주형 → 원핫 인코딩)",
+                "ordinal_encoder": "OrdinalEncoder (범주형 → 순서형 인코딩)",
+                "catboost_encoder": "CatBoostEncoder (Target 기반 인코딩)"
+            },
+            "Imputer": {
+                "simple_imputer": "SimpleImputer (결측값 채우기)"
+            },
+            "Feature Engineering": {
+                "polynomial_features": "PolynomialFeatures (다항 특성 생성)",
+                "tree_based_feature_generator": "TreeBasedFeatures (트리 기반 특성)",
+                "missing_indicator": "MissingIndicator (결측값 지시자)",
+                "kbins_discretizer": "KBinsDiscretizer (연속형 → 구간형)"
+            }
+        }
         
         preprocessor_steps = []
-        if use_scaler:
-            preprocessor_steps.append({
-                "type": "StandardScaler",
-                "columns": ["numerical_features"]  # 사용자가 수정 필요
-            })
-        if use_encoder:
-            preprocessor_steps.append({
-                "type": "OneHotEncoder",
-                "columns": ["categorical_features"]  # 사용자가 수정 필요
-            })
+        
+        # 각 카테고리별로 전처리 선택
+        for category, preprocessors in available_preprocessors.items():
+            if not self.ui.confirm(f"\n{category} 전처리를 사용하시겠습니까?", default=category in ["Scaler", "Encoder"]):
+                continue
+            
+            # 해당 카테고리의 전처리 방법 선택
+            if category == "Feature Engineering":
+                # Feature Engineering은 여러 개 선택 가능
+                self.ui.show_info("Feature Engineering은 여러 개 선택 가능합니다. 선택 완료 시 '완료' 선택")
+                selected_features = []
+                options = list(preprocessors.values()) + ["완료"]
+                while True:
+                    selected = self.ui.select_from_list(
+                        f"{category} 유형을 선택하세요 (현재 선택: {len(selected_features)}개)",
+                        options
+                    )
+                    if selected == "완료" or selected is None:
+                        break
+                    if selected in selected_features:
+                        self.ui.show_warning(f"{selected}는 이미 선택되었습니다.")
+                    else:
+                        selected_features.append(selected)
+                        # 선택된 항목을 리스트에서 제거
+                        options.remove(selected)
+                
+                # 선택된 Feature Engineering 처리
+                for sel in selected_features:
+                    step_type = [k for k, v in preprocessors.items() if v == sel][0]
+                    columns_hint = self._get_columns_hint(step_type)
+                    columns_str = self.ui.text_input(
+                        f"{sel}에 적용할 컬럼 (쉼표로 구분)",
+                        default=columns_hint
+                    )
+                    columns = [col.strip() for col in columns_str.split(",")]
+                    
+                    step_config = {
+                        "type": step_type,
+                        "columns": columns
+                    }
+                    
+                    # 특별한 파라미터가 필요한 경우
+                    if step_type == "polynomial_features":
+                        degree = self.ui.number_input("다항 차수", default=2, min_value=2, max_value=4)
+                        step_config["degree"] = degree
+                    elif step_type == "kbins_discretizer":
+                        n_bins = self.ui.number_input("구간 개수", default=5, min_value=2, max_value=10)
+                        step_config["n_bins"] = n_bins
+                    
+                    preprocessor_steps.append(step_config)
+            else:  # 단일 선택 (Scaler, Encoder, Imputer)
+                options = list(preprocessors.values())
+                selected = self.ui.select_from_list(
+                    f"{category} 유형을 선택하세요",
+                    options
+                )
+                
+                if selected:  # 사용자가 선택한 경우
+                    step_type = [k for k, v in preprocessors.items() if v == selected][0]
+                    columns_hint = self._get_columns_hint(step_type)
+                    columns_str = self.ui.text_input(
+                        f"{selected}에 적용할 컬럼 (쉼표로 구분)",
+                        default=columns_hint
+                    )
+                    columns = [col.strip() for col in columns_str.split(",")]
+                    
+                    step_config = {
+                        "type": step_type,
+                        "columns": columns
+                    }
+                    
+                    # 특별한 파라미터가 필요한 경우
+                    if step_type == "simple_imputer":
+                        strategy = self.ui.select_from_list(
+                            "결측값 대체 전략",
+                            ["mean", "median", "most_frequent", "constant"]
+                        )
+                        step_config["strategy"] = strategy
+                    elif step_type == "catboost_encoder":
+                        # CatBoostEncoder는 target이 필요함
+                        step_config["sigma"] = self.ui.number_input(
+                            "Regularization strength (sigma)",
+                            default=0.05,
+                            min_value=0.0,
+                            max_value=1.0
+                        )
+                    
+                    preprocessor_steps.append(step_config)
         
         selections["preprocessor_steps"] = preprocessor_steps
         
@@ -202,6 +376,11 @@ class RecipeBuilder:
         selections["metrics"] = metrics
         
         # Validation 설정
+        self.ui.show_info(
+            "📊 데이터 분할 전략:\n"
+            "• 기본: Train(80%) / Test(20%)\n"
+            "• Optuna 사용 시: Train을 다시 Train(64%) / Val(16%)로 분할하여 튜닝"
+        )
         test_size = self.ui.number_input(
             "Test set 비율 (0.1 ~ 0.5)",
             default=0.2,
@@ -212,7 +391,8 @@ class RecipeBuilder:
         
         # Hyperparameter tuning 설정
         enable_tuning = self.ui.confirm(
-            "Hyperparameter Tuning (Optuna)을 활성화하시겠습니까?",
+            "Hyperparameter Tuning (Optuna)을 활성화하시겠습니까?\n"
+            "(활성화 시 Train 데이터에서 Validation set 자동 생성)",
             default=False
         )
         selections["enable_tuning"] = enable_tuning

@@ -42,8 +42,8 @@ class Model(BaseModel):
 
 class Loader(BaseModel):
     """Data loader configuration."""
-    name: str = Field(..., description="Name of the data loader")
-    adapter: str = Field(..., description="Adapter name (must exist in Config)")
+    name: str = Field("data_loader", description="Name of the data loader")
+    adapter: Optional[str] = Field(None, description="Adapter name (optional, auto-detected from source_uri if not provided)")
     source_uri: str = Field(..., description="Data source URI or SQL query")
     cache_enabled: bool = Field(False, description="Whether to cache loaded data")
     

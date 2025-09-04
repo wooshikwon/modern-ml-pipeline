@@ -40,15 +40,15 @@ def run_training(settings: Settings, context_params: Optional[Dict[str, Any]] = 
         factory = Factory(settings)
 
         # 1. 데이터 어댑터를 사용하여 데이터 로딩
-        # 레시피의 loader.adapter를 우선 사용
-        data_adapter = factory.create_data_adapter(factory.model_config.loader.adapter)
-        df = data_adapter.read(settings.recipe.model.loader.source_uri)
+        # adapter 타입은 source_uri 패턴에서 자동 감지됨
+        data_adapter = factory.create_data_adapter()
+        df = data_adapter.read(settings.recipe.data.loader.source_uri)
 
         mlflow.log_metric("row_count", len(df))
         mlflow.log_metric("column_count", len(df.columns))
 
         # 2. 학습에 사용할 컴포넌트 생성
-        augmenter = factory.create_augmenter()
+        fetcher = factory.create_fetcher()
         preprocessor = factory.create_preprocessor()
         model = factory.create_model()
         evaluator = factory.create_evaluator()
@@ -58,7 +58,7 @@ def run_training(settings: Settings, context_params: Optional[Dict[str, Any]] = 
         trained_model, trained_preprocessor, metrics, training_results = trainer.train(
             df=df,
             model=model,
-            augmenter=augmenter,
+            fetcher=fetcher,
             preprocessor=preprocessor,
             evaluator=evaluator,
             context_params=context_params,
@@ -80,7 +80,7 @@ def run_training(settings: Settings, context_params: Optional[Dict[str, Any]] = 
         pyfunc_wrapper = factory.create_pyfunc_wrapper(
             trained_model=trained_model,
             trained_preprocessor=trained_preprocessor,
-            trained_augmenter=augmenter, # 학습에 사용된 augmenter를 직접 전달
+            trained_fetcher=fetcher, # 학습에 사용된 fetcher를 직접 전달
             training_df=df,
             training_results=training_results,
         )

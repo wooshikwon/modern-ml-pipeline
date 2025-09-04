@@ -4,7 +4,7 @@ from typing import Dict, Union
 import pandas as pd
 
 
-class BaseAugmenter(ABC):
+class BaseFetcher(ABC):
     """데이터 증강을 위한 추상 기본 클래스(ABC)."""
 
     @abstractmethod
