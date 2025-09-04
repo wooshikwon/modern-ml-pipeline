@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "modern-ml-pipeline"
 version = "0.2.0"
-description = "A modern, configuration-driven ML pipeline for multiple models."
+description = "A modern, yaml-driven ML pipeline for multiple models."
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.11,<3.12"
