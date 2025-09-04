@@ -12,6 +12,8 @@ import typer
 import tomllib
 from pathlib import Path
 from typing_extensions import Annotated
+from rich.console import Console
+from rich.text import Text
 
 # Command imports - 모든 로직은 별도 모듈에서 구현
 from src.cli.commands.init_command import init_command
@@ -30,6 +32,24 @@ from src.cli.commands.list_commands import (
     list_models
 )
 
+# ASCII Art Banner
+ASCII_BANNER = """
+███╗   ███╗███╗   ███╗████████╗ 
+████╗ ████║████╗ ████║██╔════██╗
+██╔████╔██║██╔████╔██║████████╔╝
+██║╚██╔╝██║██║╚██╔╝██║██╔═════╝ 
+██║ ╚═╝ ██║██║ ╚═╝ ██║██║     
+╚═╝     ╚═╝╚═╝     ╚═╝╚═╝     
+"""
+
+# Console for rich output
+console = Console()
+
+def show_banner():
+    """Display ASCII art banner when CLI is invoked."""
+    banner_text = Text(ASCII_BANNER, style="bold cyan")
+    console.print(banner_text)
+    console.print("[bold yellow]Modern ML Pipeline[/bold yellow] - CLI Tool for ML Workflows\n")
 
 def _get_version() -> str:
     """
@@ -51,12 +71,24 @@ def _get_version() -> str:
         return "unknown"
 
 
-# Main CLI App
+# Main CLI App with custom epilog for banner
+epilog_text = """
+[bold cyan]███╗   ███╗███╗   ███╗████████╗[/bold cyan]
+[bold cyan]████╗ ████║████╗ ████║██╔════██╗[/bold cyan]
+[bold cyan]██╔████╔██║██╔████╔██║████████╔╝[/bold cyan]
+[bold cyan]██║╚██╔╝██║██║╚██╔╝██║██╔═════╝[/bold cyan]
+[bold cyan]██║ ╚═╝ ██║██║ ╚═╝ ██║██║     [/bold cyan]
+[bold cyan]╚═╝     ╚═╝╚═╝     ╚═╝╚═╝     [/bold cyan]
+
+[bold yellow]Modern ML Pipeline[/bold yellow] - CLI Tool for ML Workflows
+"""
+
 app = typer.Typer(
     help="🚀 Modern ML Pipeline - Unified CLI Interface",
     context_settings={"help_option_names": ["-h", "--help"]},
     no_args_is_help=True,
-    rich_markup_mode="rich"
+    rich_markup_mode="rich",
+    epilog=epilog_text
 )
 
 
@@ -91,7 +123,7 @@ def main(
     Args:
         version: Show version information and exit
     """
-    pass
+    pass  # Main callback only handles version option
 
 
 # ═══════════════════════════════════════════════════
