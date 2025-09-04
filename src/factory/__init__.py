@@ -15,10 +15,11 @@ def bootstrap(settings) -> None:
 def _trigger_component_imports():
     """Trigger component imports to activate self-registration"""
     # Import component packages to trigger self-registration
-    import src.components._adapter
-    import src.components._evaluator
-    import src.components._fetcher
-    import src.components._trainer
+    import src.components.adapter
+    import src.components.evaluator
+    import src.components.fetcher
+    import src.components.preprocessor
+    import src.components.trainer
 
 __all__ = [
     "Factory",

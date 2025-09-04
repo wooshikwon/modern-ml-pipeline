@@ -16,7 +16,7 @@ from src.cli.utils.ml_metrics import (
     _get_metrics_by_dummy_call,
     EVALUATOR_REGISTRY
 )
-from src.components._evaluator import ClassificationEvaluator, RegressionEvaluator
+from src.components.evaluator import ClassificationEvaluator, RegressionEvaluator
 
 
 class TestRegistryEvaluationMetrics:

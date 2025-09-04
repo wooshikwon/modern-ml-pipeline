@@ -7,7 +7,7 @@ from src.utils.system.logger import logger
 from src.serving._context import app_context
 from src.serving._lifespan import lifespan, setup_api_context
 from src.serving import _endpoints as handlers
-from src.components._fetcher import PassThroughFetcher
+from src.components.fetcher import PassThroughFetcher
 from src.serving.schemas import (
     HealthCheckResponse,
     ModelMetadataResponse,

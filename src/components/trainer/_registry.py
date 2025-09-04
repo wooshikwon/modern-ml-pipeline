@@ -11,14 +11,14 @@ class TrainerRegistry:
     def register(cls, trainer_type: str, trainer_class: Type[BaseTrainer]):
         if not issubclass(trainer_class, BaseTrainer):
             raise TypeError(f"{trainer_class.__name__} must be a subclass of BaseTrainer")
-        cls._trainers[trainer_type] = trainer_class
+        cls.trainers[trainer_type] = trainer_class
         logger.debug(f"[components] Trainer registered: {trainer_type} -> {trainer_class.__name__}")
 
     @classmethod
     def create(cls, trainer_type: str, *args, **kwargs) -> BaseTrainer:
-        trainer_class = cls._trainers.get(trainer_type)
+        trainer_class = cls.trainers.get(trainer_type)
         if not trainer_class:
-            available = list(cls._trainers.keys())
+            available = list(cls.trainers.keys())
             raise ValueError(f"Unknown trainer type: '{trainer_type}'. Available types: {available}")
         logger.debug(f"[components] Creating trainer instance: {trainer_type}")
         return trainer_class(*args, **kwargs)
@@ -26,13 +26,13 @@ class TrainerRegistry:
     @classmethod
     def get_available_types(cls) -> list[str]:
         """등록된 모든 trainer type 목록 반환."""
-        return list(cls._trainers.keys())
+        return list(cls.trainers.keys())
 
     @classmethod 
     def get_trainer_class(cls, trainer_type: str = "default") -> Type[BaseTrainer]:
         """Trainer type에 해당하는 Trainer 클래스 반환."""
-        trainer_class = cls._trainers.get(trainer_type)
+        trainer_class = cls.trainers.get(trainer_type)
         if not trainer_class:
-            available = list(cls._trainers.keys())
+            available = list(cls.trainers.keys())
             raise ValueError(f"Unknown trainer type: '{trainer_type}'. Available types: {available}")
         return trainer_class

@@ -15,7 +15,7 @@ import pytest
 import pandas as pd
 
 from src.factory.factory import Factory
-from src.components._fetcher import PassThroughfetcher
+from src.components.fetcher import PassThroughfetcher
 from src.settings import load_settings
 
 
