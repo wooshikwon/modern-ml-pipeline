@@ -15,7 +15,7 @@ from typing_extensions import Annotated
 from pathlib import Path
 
 from src.settings import create_settings_for_inference, load_config_files
-from src.pipelines import run_batch_inference
+from src.pipelines.inference_pipeline import run_inference_pipeline
 from src.utils.system.logger import setup_logging, logger
 from src.cli.utils.config_loader import load_environment
 
@@ -74,7 +74,7 @@ def batch_inference_command(
         logger.info(f"Run ID: {run_id}")
         
         # 5. 배치 추론 실행
-        run_batch_inference(
+        run_inference_pipeline(
             settings=settings,
             run_id=run_id,
             context_params=params or {},
