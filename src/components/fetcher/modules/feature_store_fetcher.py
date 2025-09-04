@@ -63,5 +63,5 @@ class FeatureStoreFetcher(BaseFetcher):
             raise ValueError(f"Unsupported run_mode: {run_mode}")
 
 # Self-registration
-from .._registry import FetcherRegistry
+from ..registry import FetcherRegistry
 FetcherRegistry.register("feature_store", FeatureStoreFetcher)

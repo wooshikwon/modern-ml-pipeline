@@ -12,7 +12,7 @@ import pytest
 from unittest.mock import Mock, patch, MagicMock
 from typing import Dict, Any, Tuple
 
-from src.components.adapter._modules.sql_adapter import SqlAdapter
+from src.components.adapter.modules.sql_adapter import SqlAdapter
 from src.settings import Settings
 
 

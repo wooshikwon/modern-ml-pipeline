@@ -92,31 +92,31 @@ def _show_success_message(recipe_path: Path, selections: dict) -> None:
     """
     success_content = f"""✅ [bold green]Recipe가 성공적으로 생성되었습니다![/bold green]
 
-📄 [bold cyan]파일 경로:[/bold cyan] {recipe_path}
-🎯 [bold cyan]Task:[/bold cyan] {selections['task']}
-🤖 [bold cyan]모델:[/bold cyan] {selections['model_class']}
-📚 [bold cyan]라이브러리:[/bold cyan] {selections['model_library']}
+    📄 [bold cyan]파일 경로:[/bold cyan] {recipe_path}
+    🎯 [bold cyan]Task:[/bold cyan] {selections['task']}
+    🤖 [bold cyan]모델:[/bold cyan] {selections['model_class']}
+    📚 [bold cyan]라이브러리:[/bold cyan] {selections['model_library']}
 
-💡 [bold yellow]다음 단계:[/bold yellow]
+    💡 [bold yellow]다음 단계:[/bold yellow]
 
-1. Recipe 파일 확인 및 수정:
-   [cyan]cat {recipe_path}[/cyan]
-   
-2. 필요한 컬럼명 업데이트:
-   - target_column을 실제 타겟 컬럼명으로 변경
-   - entity_schema를 실제 엔티티 컬럼들로 변경
-   - preprocessor steps의 컬럼명 업데이트
+    1. Recipe 파일 확인 및 수정:
+    [cyan]cat {recipe_path}[/cyan]
+    
+    2. 필요한 컬럼명 업데이트:
+    - target_column을 실제 타겟 컬럼명으로 변경
+    - entity_schema를 실제 엔티티 컬럼들로 변경
+    - preprocessor steps의 컬럼명 업데이트
 
-3. 환경과 함께 학습 실행:
-   [cyan]mmp train --recipe-file {recipe_path} --env-name <환경명>[/cyan]
-   
-   예시:
-   [cyan]mmp train -r {recipe_path} -e local[/cyan]
-   [cyan]mmp train -r {recipe_path} -e dev[/cyan]
-   [cyan]mmp train -r {recipe_path} -e prod[/cyan]
+    3. 환경과 함께 학습 실행:
+    [cyan]mmp train --recipe-file {recipe_path} --env-name <환경명>[/cyan]
+    
+    예시:
+    [cyan]mmp train -r {recipe_path} -e local[/cyan]
+    [cyan]mmp train -r {recipe_path} -e dev[/cyan]
+    [cyan]mmp train -r {recipe_path} -e prod[/cyan]
 
-Recipe는 환경과 독립적이므로, 
-동일한 Recipe를 여러 환경에서 사용할 수 있습니다!"""
+    Recipe는 환경과 독립적이므로, 
+    동일한 Recipe를 여러 환경에서 사용할 수 있습니다!"""
     
     panel = Panel(
         success_content,

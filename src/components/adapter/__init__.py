@@ -5,14 +5,14 @@ Data Adapters Package - Registry pattern with self-registration.
 각 어댑터는 임포트 시점에 자동으로 레지스트리에 등록됩니다.
 """
 
-from ._registry import AdapterRegistry
+from .registry import AdapterRegistry
 
 # 어댑터 모듈들을 임포트하여 자동 등록을 트리거합니다
-from ._modules.storage_adapter import StorageAdapter
-from ._modules.sql_adapter import SqlAdapter
+from .modules.storage_adapter import StorageAdapter
+from .modules.sql_adapter import SqlAdapter
 
 try:
-    from ._modules.feast_adapter import FeastAdapter
+    from .modules.feast_adapter import FeastAdapter
 except ImportError:
     # Feast는 선택적 의존성이므로 임포트 실패 시 무시
     FeastAdapter = None

@@ -3,7 +3,7 @@ from ._modules.feature_store_fetcher import FeatureStoreFetcher
 from ._modules.pass_through_fetcher import PassThroughFetcher
 
 # Import the registry for external use
-from ._registry import FetcherRegistry
+from .registry import FetcherRegistry
 
 __all__ = [
     "FeatureStoreFetcher",

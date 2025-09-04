@@ -75,20 +75,20 @@ def _show_completion_message(env_name: str, config_path: Path, env_template_path
     next_steps = Panel.fit(
         f"""💡 [bold cyan]다음 단계:[/bold cyan]
         
-1. 환경 변수 파일 준비:
-   [cyan]cp {env_template_path} .env.{env_name}[/cyan]
-   
-2. .env.{env_name} 파일을 편집하여 실제 인증 정보 입력
+    1. 환경 변수 파일 준비:
+    [cyan]cp {env_template_path} .env.{env_name}[/cyan]
+    
+    2. .env.{env_name} 파일을 편집하여 실제 인증 정보 입력
 
-3. 시스템 연결 테스트:
-   [cyan]mmp system-check --env-name {env_name}[/cyan]
-   
-4. Recipe 생성:
-   [cyan]mmp get-recipe[/cyan]
-   
-5. 학습 실행:
-   [cyan]mmp train --recipe-file recipes/model.yaml --env-name {env_name}[/cyan]
-""",
+    3. 시스템 연결 테스트:
+    [cyan]mmp system-check --env-name {env_name}[/cyan]
+    
+    4. Recipe 생성:
+    [cyan]mmp get-recipe[/cyan]
+    
+    5. 학습 실행:
+    [cyan]mmp train --recipe-file recipes/model.yaml --env-name {env_name}[/cyan]
+    """,
         title="다음 단계",
         border_style="cyan"
     )

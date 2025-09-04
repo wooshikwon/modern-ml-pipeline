@@ -13,5 +13,5 @@ class CausalEvaluator(BaseEvaluator):
         return {"uplift_auc": 0.6} # Placeholder
 
 # Self-registration
-from .._registry import EvaluatorRegistry
+from ..registry import EvaluatorRegistry
 EvaluatorRegistry.register("causal", CausalEvaluator)

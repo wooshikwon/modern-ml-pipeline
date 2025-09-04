@@ -25,5 +25,5 @@ class PassThroughFetcher(BaseFetcher):
         return df
 
 # Self-registration  
-from .._registry import FetcherRegistry
+from ..registry import FetcherRegistry
 FetcherRegistry.register("pass_through", PassThroughFetcher) 

@@ -2,7 +2,7 @@
 from sklearn.impute import SimpleImputer
 from sklearn.base import BaseEstimator, TransformerMixin
 from typing import List
-from .._registry import PreprocessorStepRegistry
+from ..registry import PreprocessorStepRegistry
 
 class SimpleImputerWrapper(BaseEstimator, TransformerMixin):
     def __init__(self, strategy: str = 'mean', columns: List[str] = None):
