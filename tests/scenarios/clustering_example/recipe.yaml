@@ -21,7 +21,7 @@ model:
       entity_columns: ["customer_id"]
       timestamp_column: "analysis_date"
 
-  augmenter:
+  fetcher:
     type: "pass_through"
 
   preprocessor:

@@ -175,7 +175,7 @@ class TestTrainPipeline:
         mock_factory.create_data_adapter.assert_called_once_with('storage')
         
         # 추가 컴포넌트 생성 호출들도 검증 가능
-        # (augmenter, preprocessor, model, evaluator 등)
+        # (fetcher, preprocessor, model, evaluator 등)
 
     def test_run_training_settings_validation(self, test_factories):
         """Settings 검증 테스트 - 필수 필드 확인"""

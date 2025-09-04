@@ -18,7 +18,7 @@ import mlflow
 import shutil
 
 from src.factory.factory import Factory
-from src.components._fetcher import FeatureStoreAugmenter as Augmenter
+from src.components._fetcher import FeatureStorefetcher as fetcher
 from src.pipelines.train_pipeline import run_training
 from src.serving.router import app, setup_api_context
 
@@ -100,10 +100,10 @@ class TestFeatureStoreFlow:
     def test_data_consistency_between_offline_and_online(self, dev_test_settings):
         """
         [3단계: 데이터 일관성 검증]
-        동일한 엔티티에 대해 Augmenter를 통해 조회한 오프라인과 온라인 저장소의 피처 값이 일치하는지 검증한다.
+        동일한 엔티티에 대해 fetcher를 통해 조회한 오프라인과 온라인 저장소의 피처 값이 일치하는지 검증한다.
         """
         factory = Factory(dev_test_settings)
-        augmenter: Augmenter = factory.create_augmenter()
+        fetcher: fetcher = factory.create_fetcher()
 
         spine_df = pd.DataFrame([{
             "user_id": "u1003",
@@ -112,10 +112,10 @@ class TestFeatureStoreFlow:
         }])
         
         # 1. 오프라인 저장소에서 피처 조회 (batch 모드)
-        offline_augmented_df = augmenter.augment(spine_df, run_mode="batch")
+        offline_augmented_df = fetcher.augment(spine_df, run_mode="batch")
 
         # 2. 온라인 저장소에서 피처 조회 (serving 모드)
-        online_augmented_df = augmenter.augment(spine_df, run_mode="serving")
+        online_augmented_df = fetcher.augment(spine_df, run_mode="serving")
         
         # 3. 비교 검증
         assert not offline_augmented_df.empty, "오프라인 저장소에서 피처를 가져오지 못했습니다."
@@ -131,4 +131,4 @@ class TestFeatureStoreFlow:
         assert offline_brand == online_brand, \
             f"온라인-오프라인 데이터 불일치 (product_brand)! Offline: {offline_brand}, Online: {online_brand}"
 
-        print(f"\n✅ [Success] Augmenter 일관성 검증 완료: u1003/p2003 -> price={online_price}, brand='{online_brand}'") 
+        print(f"\n✅ [Success] fetcher 일관성 검증 완료: u1003/p2003 -> price={online_price}, brand='{online_brand}'") 

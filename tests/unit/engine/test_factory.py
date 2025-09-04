@@ -54,7 +54,7 @@ class TestFactoryBlueprintCompliance:
         # BLUEPRINT 원칙 4: 모듈화된 컴포넌트 생성 메서드들
         creation_methods = [
             'create_data_adapter',
-            'create_augmenter', 
+            'create_fetcher', 
             'create_preprocessor',
             'create_model',
             'create_evaluator'
@@ -94,17 +94,17 @@ class TestFactoryBlueprintCompliance:
 
     @pytest.mark.core
     @pytest.mark.unit
-    def test_factory_augmenter_creation_environment_driven(self, mock_settings):
-        """Factory Augmenter 생성 - 환경별 차등 기능 (BLUEPRINT 원칙 2)"""
+    def test_factory_fetcher_creation_environment_driven(self, mock_settings):
+        """Factory fetcher 생성 - 환경별 차등 기능 (BLUEPRINT 원칙 2)"""
         factory = Factory(mock_settings)
         
         # BLUEPRINT 원칙 2: 환경별 역할 분담
-        # Local 환경에서는 PassThroughAugmenter가 생성되어야 함
-        augmenter = factory.create_augmenter()
+        # Local 환경에서는 PassThroughfetcher가 생성되어야 함
+        fetcher = factory.create_fetcher()
         
-        assert augmenter is not None
-        # BLUEPRINT: Augmenter는 PIT 조인 인터페이스를 가져야 함
-        assert hasattr(augmenter, 'augment')
+        assert fetcher is not None
+        # BLUEPRINT: fetcher는 PIT 조인 인터페이스를 가져야 함
+        assert hasattr(fetcher, 'augment')
 
     def test_factory_error_handling_for_invalid_class_path(self, mock_settings):
         """Factory 오류 처리 - 존재하지 않는 클래스 경로"""
@@ -131,50 +131,50 @@ class TestFactoryBlueprintCompliance:
             # Registry 기반 오류는 명확한 메시지를 제공해야 함
             assert "adapter" in str(e).lower() or "registry" in str(e).lower()
     
-    def test_factory_augmenter_selection_policy_local_environment(self, mock_settings):
-        """Factory Augmenter 선택 정책 - Local 환경 (BLUEPRINT.md 148-155라인)"""
+    def test_factory_fetcher_selection_policy_local_environment(self, mock_settings):
+        """Factory fetcher 선택 정책 - Local 환경 (BLUEPRINT.md 148-155라인)"""
         factory = Factory(mock_settings)
         
-        # BLUEPRINT 원칙 2: Local 환경에서는 PassThroughAugmenter 사용
-        augmenter = factory.create_augmenter(run_mode="train")
+        # BLUEPRINT 원칙 2: Local 환경에서는 PassThroughfetcher 사용
+        fetcher = factory.create_fetcher(run_mode="train")
         
-        assert augmenter is not None
-        assert type(augmenter).__name__ == "PassThroughAugmenter"
+        assert fetcher is not None
+        assert type(fetcher).__name__ == "PassThroughfetcher"
         # PassThrough는 run_mode에 관계없이 동일하게 동작
-        assert hasattr(augmenter, 'augment')
+        assert hasattr(fetcher, 'augment')
         
-    def test_factory_augmenter_selection_policy_serving_restrictions(self, mock_settings):
-        """Factory Augmenter Serving 제약 정책 - BLUEPRINT.md 서빙 제약"""
+    def test_factory_fetcher_selection_policy_serving_restrictions(self, mock_settings):
+        """Factory fetcher Serving 제약 정책 - BLUEPRINT.md 서빙 제약"""
         factory = Factory(mock_settings)
         
         # BLUEPRINT: Serving에서는 PassThrough/SqlFallback 금지
         # Local 환경이라 PassThrough가 선택되지만, serving 모드에서는 예외 발생
         with pytest.raises(TypeError, match="Serving에서는.*금지"):
-            factory.create_augmenter(run_mode="serving")
+            factory.create_fetcher(run_mode="serving")
             
-    def test_factory_augmenter_selection_policy_comprehensive(self, mock_settings):
-        """Factory Augmenter 선택 정책 종합 테스트 - BLUEPRINT.md 정책 전체"""
+    def test_factory_fetcher_selection_policy_comprehensive(self, mock_settings):
+        """Factory fetcher 선택 정책 종합 테스트 - BLUEPRINT.md 정책 전체"""
         factory = Factory(mock_settings)
         
         # 1) Local 환경: PassThrough (run_mode 무관)
         for mode in ["train", "batch"]:
-            augmenter = factory.create_augmenter(run_mode=mode)
-            assert type(augmenter).__name__ == "PassThroughAugmenter"
+            fetcher = factory.create_fetcher(run_mode=mode)
+            assert type(fetcher).__name__ == "PassThroughfetcher"
             
         # 2) Serving 모드: 예외 발생
         with pytest.raises(TypeError):
-            factory.create_augmenter(run_mode="serving")
+            factory.create_fetcher(run_mode="serving")
             
-        # 3) 비지원 Augmenter type: 예외 발생  
+        # 3) 비지원 fetcher type: 예외 발생  
         # (mock_settings는 local 환경이라 정상 동작하거나, 비지원 설정에 대한 예외 처리 필요)
         
-    def test_factory_augmenter_policy_error_messages(self, mock_settings):
-        """Factory Augmenter 정책 에러 메시지 검증 - 명확한 디버깅 지원"""
+    def test_factory_fetcher_policy_error_messages(self, mock_settings):
+        """Factory fetcher 정책 에러 메시지 검증 - 명확한 디버깅 지원"""
         factory = Factory(mock_settings)
         
         # BLUEPRINT: 명확한 오류 메시지로 디버깅 지원
         try:
-            factory.create_augmenter(run_mode="serving")
+            factory.create_fetcher(run_mode="serving")
             assert False, "Serving 모드에서 예외가 발생해야 함"
         except TypeError as e:
             error_message = str(e).lower()

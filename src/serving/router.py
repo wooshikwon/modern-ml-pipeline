@@ -7,7 +7,7 @@ from src.utils.system.logger import logger
 from src.serving._context import app_context
 from src.serving._lifespan import lifespan, setup_api_context
 from src.serving import _endpoints as handlers
-from src.components._fetcher import PassThroughAugmenter
+from src.components._fetcher import PassThroughfetcher
 from src.serving.schemas import (
     HealthCheckResponse,
     ModelMetadataResponse,
@@ -72,8 +72,8 @@ def predict_generic(request: Dict[str, Any]) -> MinimalPredictionResponse:
         # 서빙 정책: pass_through/폴백 차단
         try:
             wrapped_model = app_context.model.unwrap_python_model()
-            if isinstance(wrapped_model.trained_augmenter, PassThroughAugmenter):
-                raise HTTPException(status_code=503, detail="Serving with 'pass_through' augmenter is not allowed.")
+            if isinstance(wrapped_model.trained_fetcher, PassThroughfetcher):
+                raise HTTPException(status_code=503, detail="Serving with 'pass_through' fetcher is not allowed.")
         except HTTPException:
             raise
         except Exception:
@@ -134,11 +134,11 @@ def run_api_server(settings: Settings, run_id: str, host: str = "0.0.0.0", port:
     # 서버 시작 시 컨텍스트 설정
     setup_api_context(run_id=run_id, settings=settings)
 
-    # [신규] Augmenter 타입 명시적 검증
+    # [신규] fetcher 타입 명시적 검증
     wrapped_model = app_context.model.unwrap_python_model()
-    if isinstance(wrapped_model.trained_augmenter, PassThroughAugmenter):
+    if isinstance(wrapped_model.trained_fetcher, PassThroughfetcher):
         raise TypeError(
-            "API serving is not supported when the augmenter is 'pass_through'. "
+            "API serving is not supported when the fetcher is 'pass_through'. "
             "A feature store connection is required."
         )
     # 정적 predict 엔드포인트 사용

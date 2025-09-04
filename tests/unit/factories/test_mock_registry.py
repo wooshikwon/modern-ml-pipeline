@@ -14,21 +14,21 @@ from tests.mocks.component_registry import MockComponentRegistry
 class TestMockComponentRegistry:
     """MockComponentRegistry 기능 검증"""
     
-    def test_get_augmenter_basic(self):
-        """Augmenter Mock 기본 기능 검증"""
-        augmenter = MockComponentRegistry.get_augmenter("pass_through")
+    def test_get_fetcher_basic(self):
+        """fetcher Mock 기본 기능 검증"""
+        fetcher = MockComponentRegistry.get_fetcher("pass_through")
         
-        assert augmenter is not None
-        assert hasattr(augmenter, 'augment')
-        assert callable(augmenter.augment)
+        assert fetcher is not None
+        assert hasattr(fetcher, 'augment')
+        assert callable(fetcher.augment)
     
-    def test_augmenter_blueprint_contract(self):
-        """Augmenter Mock Blueprint 계약 준수 검증"""
-        augmenter = MockComponentRegistry.get_augmenter("pass_through")
+    def test_fetcher_blueprint_contract(self):
+        """fetcher Mock Blueprint 계약 준수 검증"""
+        fetcher = MockComponentRegistry.get_fetcher("pass_through")
         
         # 테스트 데이터로 augment 호출
         test_data = TestDataFactory.create_minimal_entity_data(3)
-        result = augmenter.augment(test_data, run_mode="train")
+        result = fetcher.augment(test_data, run_mode="train")
         
         assert isinstance(result, pd.DataFrame)
         assert len(result) >= 1
@@ -111,7 +111,7 @@ class TestMockComponentRegistry:
         
         # Factory 인터페이스 확인
         expected_methods = [
-            'create_augmenter', 'create_preprocessor', 'create_model', 
+            'create_fetcher', 'create_preprocessor', 'create_model', 
             'create_evaluator', 'create_data_adapter'
         ]
         
@@ -132,14 +132,14 @@ class TestMockComponentRegistry:
         factory = test_factories['mocks'].get_factory(settings_dict)
         
         # 각 컴포넌트 생성
-        augmenter = factory.create_augmenter()
+        fetcher = factory.create_fetcher()
         preprocessor = factory.create_preprocessor()
         model = factory.create_model()
         evaluator = factory.create_evaluator()
         adapter = factory.create_data_adapter()
         
         # 기본 인터페이스 확인
-        assert hasattr(augmenter, 'augment')
+        assert hasattr(fetcher, 'augment')
         assert hasattr(preprocessor, 'fit_transform')
         assert hasattr(model, 'predict')
         assert hasattr(evaluator, 'evaluate')
@@ -150,9 +150,9 @@ class TestMockComponentRegistry:
         settings_dict = test_factories['settings'].create_classification_settings()
         factory = test_factories['mocks'].get_factory(settings_dict)
         
-        # Serving 모드에서는 pass_through augmenter 사용 금지
+        # Serving 모드에서는 pass_through fetcher 사용 금지
         with pytest.raises(TypeError, match="Serving에서는.*금지"):
-            factory.create_augmenter(run_mode="serving")
+            factory.create_fetcher(run_mode="serving")
     
     def test_settings_mock_nested_access(self, test_factories):
         """Settings Mock 중첩 접근 검증"""
@@ -191,20 +191,20 @@ class TestMockComponentRegistry:
     def test_registry_caching(self):
         """Registry 캐싱 기능 검증"""
         # 동일한 타입 요청 시 같은 인스턴스 반환
-        augmenter1 = MockComponentRegistry.get_augmenter("pass_through")
-        augmenter2 = MockComponentRegistry.get_augmenter("pass_through")
+        fetcher1 = MockComponentRegistry.get_fetcher("pass_through")
+        fetcher2 = MockComponentRegistry.get_fetcher("pass_through")
         
-        assert augmenter1 is augmenter2  # 동일한 객체
+        assert fetcher1 is fetcher2  # 동일한 객체
         
         # 다른 타입은 다른 인스턴스
-        augmenter3 = MockComponentRegistry.get_augmenter("feature_store")
-        assert augmenter1 is not augmenter3
+        fetcher3 = MockComponentRegistry.get_fetcher("feature_store")
+        assert fetcher1 is not fetcher3
     
     def test_registry_reset(self):
         """Registry 리셋 기능 검증"""
         # Mock 생성
-        augmenter = MockComponentRegistry.get_augmenter("pass_through")
-        assert augmenter is not None
+        fetcher = MockComponentRegistry.get_fetcher("pass_through")
+        assert fetcher is not None
         
         # 캐시 상태 확인
         stats_before = MockComponentRegistry.get_cache_stats()
@@ -218,8 +218,8 @@ class TestMockComponentRegistry:
         assert stats_after['total_cached_instances'] == 0
         
         # 새로 생성된 인스턴스는 기존과 다름
-        augmenter_new = MockComponentRegistry.get_augmenter("pass_through")
-        assert augmenter is not augmenter_new
+        fetcher_new = MockComponentRegistry.get_fetcher("pass_through")
+        assert fetcher is not fetcher_new
     
     def test_cache_stats(self):
         """캐시 통계 기능 검증"""
@@ -227,14 +227,14 @@ class TestMockComponentRegistry:
         MockComponentRegistry.reset_all()
         
         # 다양한 Mock 생성
-        MockComponentRegistry.get_augmenter("pass_through")
+        MockComponentRegistry.get_fetcher("pass_through")
         MockComponentRegistry.get_preprocessor("simple_scaler")
         MockComponentRegistry.get_model("classifier")
         
         stats = MockComponentRegistry.get_cache_stats()
         
         assert stats['total_cached_instances'] >= 3
-        assert 'augmenter' in stats['cached_types']
+        assert 'fetcher' in stats['cached_types']
         assert 'preprocessor' in stats['cached_types']
         assert 'model' in stats['cached_types']
         assert len(stats['cache_keys']) >= 3
@@ -245,17 +245,17 @@ class TestMockComponentRegistry:
         # 이 테스트는 실제 컴포넌트와 Mock의 인터페이스 일치성을 확인
         # Contract Testing의 기반이 됨
         
-        augmenter = MockComponentRegistry.get_augmenter("pass_through")
+        fetcher = MockComponentRegistry.get_fetcher("pass_through")
         preprocessor = MockComponentRegistry.get_preprocessor("simple_scaler")
         model = MockComponentRegistry.get_model("classifier")
         
         # 예상 인터페이스 검증
-        augmenter_methods = ['augment']
+        fetcher_methods = ['augment']
         preprocessor_methods = ['fit', 'transform', 'fit_transform']
         model_methods = ['fit', 'predict', 'predict_proba']
         
-        for method in augmenter_methods:
-            assert hasattr(augmenter, method)
+        for method in fetcher_methods:
+            assert hasattr(fetcher, method)
             
         for method in preprocessor_methods:
             assert hasattr(preprocessor, method)

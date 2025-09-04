@@ -33,8 +33,8 @@ model:
   hyperparameter_tuning:
     enabled: false  # LOCAL에서는 빠른 테스트용
 
-  # Augmenter 설정 (Factory.create_augmenter - LOCAL에서 자동 PassThrough)
-  augmenter:
+  # fetcher 설정 (Factory.create_fetcher - LOCAL에서 자동 PassThrough)
+  fetcher:
     type: "feature_store"
     features:
       - feature_namespace: "dummy"  # Pydantic 검증용

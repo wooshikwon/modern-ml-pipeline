@@ -5,7 +5,7 @@ from sklearn.model_selection import train_test_split
 
 from src.settings import Settings
 from src.utils.system.logger import logger
-from src.interface import BaseTrainer, BaseModel, BaseAugmenter, BasePreprocessor, BaseEvaluator
+from src.interface import BaseTrainer, BaseModel, Basefetcher, BasePreprocessor, BaseEvaluator
 from .data_handler import split_data, prepare_training_data
 from .optimizer import OptunaOptimizer
 
@@ -31,7 +31,7 @@ class Trainer(BaseTrainer):
         self,
         df: pd.DataFrame,
         model: Any,
-        augmenter: BaseAugmenter,
+        fetcher: Basefetcher,
         preprocessor: BasePreprocessor,
         evaluator: BaseEvaluator,
         context_params: Optional[Dict[str, Any]] = None,

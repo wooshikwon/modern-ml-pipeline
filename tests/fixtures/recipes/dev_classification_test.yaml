@@ -20,7 +20,7 @@ model:
       entity_columns: ["user_id"]
       timestamp_column: "event_timestamp"
 
-  augmenter:
+  fetcher:
     type: "feature_store"
     features:
       # 사용자 기본 정보 (DEV 환경에서 Feature Store 방식 시뮬레이션)

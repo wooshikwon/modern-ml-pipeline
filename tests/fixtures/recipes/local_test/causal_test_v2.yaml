@@ -35,8 +35,8 @@ model:
   hyperparameter_tuning:
     enabled: false
 
-  # LOCAL 환경: 자동으로 PassThroughAugmenter 사용됨
-  augmenter:
+  # LOCAL 환경: 자동으로 PassThroughfetcher 사용됨
+  fetcher:
     type: "feature_store"
     features: []
 

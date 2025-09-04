@@ -89,7 +89,7 @@ class SettingsFactory:
                             "timestamp_column": "event_timestamp"
                         }
                     },
-                    "augmenter": {
+                    "fetcher": {
                         "type": "pass_through"
                     },
                     "preprocessor": {
@@ -145,7 +145,7 @@ class SettingsFactory:
                             "timestamp_column": "event_timestamp"
                         }
                     },
-                    "augmenter": {
+                    "fetcher": {
                         "type": "pass_through"
                     },
                     "preprocessor": {
@@ -235,7 +235,7 @@ class SettingsFactory:
                             "timestamp_column": "event_timestamp"
                         }
                     },
-                    "augmenter": {"type": "pass_through"}
+                    "fetcher": {"type": "pass_through"}
                 }
             }
         }
@@ -257,7 +257,7 @@ class SettingsFactory:
             "recipe": {
                 "name": "test_feature_store_recipe",
                 "model": {
-                    "augmenter": {
+                    "fetcher": {
                         "type": "feature_store",
                         "provider": provider
                     }

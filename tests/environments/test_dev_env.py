@@ -64,16 +64,16 @@ class TestDevEnvironmentBlueprintCompliance:
             component = create_method()
             assert component is not None, f"Failed to create {component_name} in DEV environment"
 
-    def test_dev_environment_augmenter_interface_compliance(self, dev_settings):
-        """DEV 환경 Augmenter 인터페이스 준수 - BLUEPRINT 계약"""
+    def test_dev_environment_fetcher_interface_compliance(self, dev_settings):
+        """DEV 환경 fetcher 인터페이스 준수 - BLUEPRINT 계약"""
         factory = Factory(dev_settings)
         
-        # DEV 환경에서 Augmenter 생성 (실제 FS 연결은 스킵)
+        # DEV 환경에서 fetcher 생성 (실제 FS 연결은 스킵)
         try:
-            augmenter = factory.create_augmenter()
-            assert augmenter is not None
-            # BLUEPRINT: 모든 Augmenter는 동일한 인터페이스
-            assert hasattr(augmenter, 'augment')
+            fetcher = factory.create_fetcher()
+            assert fetcher is not None
+            # BLUEPRINT: 모든 fetcher는 동일한 인터페이스
+            assert hasattr(fetcher, 'augment')
         except Exception as e:
             # Feature Store 연결 실패는 예상되는 상황 (실제 인프라 없음)
             assert "feature" in str(e).lower() or "store" in str(e).lower()
@@ -105,7 +105,7 @@ class TestDevEnvironmentBlueprintCompliance:
         try:
             components = {
                 'preprocessor': factory.create_preprocessor(),
-                'augmenter': factory.create_augmenter(),
+                'fetcher': factory.create_fetcher(),
                 'model': factory.create_model(),
                 'evaluator': factory.create_evaluator()
             }

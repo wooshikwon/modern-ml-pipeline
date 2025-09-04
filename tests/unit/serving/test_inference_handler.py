@@ -242,7 +242,7 @@ class TestInferenceHandler:
         # HPO 정보 검증
         hpo = result.hyperparameter_optimization
         assert hpo.enabled is True
-        assert hpo.engine == "optuna"
+        assert hpo.factory == "optuna"
         assert hpo.best_params == {"n_estimators": 100}
         assert hpo.best_score == 0.95
         

@@ -322,7 +322,7 @@ mmp train --recipe-file recipes/model.yaml --env-name dev \
 ```yaml
 # recipes/feature_store_model.yaml
 preprocessor:
-  augmenter:
+  fetcher:
     type: "feature_store"
     features:
       - namespace: "user_demographics"

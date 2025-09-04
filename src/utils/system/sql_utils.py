@@ -87,14 +87,14 @@ def parse_select_columns(sql_snapshot: str) -> List[str]:
         return []
 
 
-def parse_feature_columns(augmenter_sql_snapshot: str) -> tuple[List[str], str]:
+def parse_feature_columns(fetcher_sql_snapshot: str) -> tuple[List[str], str]:
     """
-    🆕 Blueprint v17.0: augmenter_sql_snapshot에서 피처 컬럼과 JOIN 키 추출
+    🆕 Blueprint v17.0: fetcher_sql_snapshot에서 피처 컬럼과 JOIN 키 추출
     
     Feature Store 조회를 위한 컬럼 목록과 JOIN 키를 분석
     """
     try:
-        columns = get_selected_columns(augmenter_sql_snapshot)
+        columns = get_selected_columns(fetcher_sql_snapshot)
         
         # 일반적인 JOIN 키 패턴들
         join_key_patterns = ["user_id", "member_id", "customer_id", "product_id", "session_id"]
@@ -112,5 +112,5 @@ def parse_feature_columns(augmenter_sql_snapshot: str) -> tuple[List[str], str]:
         return columns, join_key
         
     except Exception as e:
-        logger.warning(f"Augmenter SQL 파싱 실패: {e}")
+        logger.warning(f"fetcher SQL 파싱 실패: {e}")
         return [], ""

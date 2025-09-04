@@ -1,6 +1,6 @@
 """Interface Module Public API"""
 from .base_adapter import BaseAdapter
-from .base_augmenter import BaseAugmenter
+from .base_fetcher import Basefetcher
 from .base_evaluator import BaseEvaluator
 from .base_factory import BaseFactory
 from .base_preprocessor import BasePreprocessor
@@ -9,7 +9,7 @@ from .base_model import BaseModel
 
 __all__ = [
     "BaseAdapter",
-    "BaseAugmenter",
+    "Basefetcher",
     "BaseEvaluator",
     "BaseFactory",
     "BasePreprocessor",

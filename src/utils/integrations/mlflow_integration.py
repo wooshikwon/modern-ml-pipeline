@@ -385,7 +385,7 @@ def log_enhanced_model_with_schema(
         },
         'phase_2': {
             'name': 'Point-in-Time 안전성', 
-            'achievements': ['ASOF JOIN 검증', 'Augmenter 현대화', '미래 데이터 누출 방지']
+            'achievements': ['ASOF JOIN 검증', 'fetcher 현대화', '미래 데이터 누출 방지']
         },
         'phase_3': {
             'name': '보안 강화 Dynamic SQL',

@@ -26,7 +26,7 @@ class TestEndToEndIntegration:
         assert hasattr(settings.model, 'name')
         assert hasattr(settings.model, 'hyperparameters')
         assert hasattr(settings.model, 'loader')
-        assert hasattr(settings.model, 'augmenter')
+        assert hasattr(settings.model, 'fetcher')
         
         # 인프라 정보 (환경 설정)
         assert hasattr(settings, 'data_sources')
@@ -77,35 +77,35 @@ class TestEndToEndIntegration:
         factory = Factory(xgboost_settings)
         
         # 생성된 컴포넌트들이 순수 로직만 포함하는지 확인
-        augmenter = factory.create_augmenter()
+        fetcher = factory.create_fetcher()
         preprocessor = factory.create_preprocessor()
         model = factory.create_model()
         
         # 컴포넌트들이 설정을 참조하지만 인프라 정보를 직접 포함하지 않는지 확인
-        assert augmenter.settings == xgboost_settings
+        assert fetcher.settings == xgboost_settings
         assert preprocessor.settings == xgboost_settings
         assert model.settings == xgboost_settings
         
         # 인프라 정보는 설정을 통해서만 접근 가능
-        assert not hasattr(augmenter, 'mlflow_uri')
+        assert not hasattr(fetcher, 'mlflow_uri')
         assert not hasattr(preprocessor, 'data_source_uri')
         assert not hasattr(model, 'database_config')
     
-    def test_blueprint_principle_5_single_augmenter_context_injection(self, xgboost_settings: Settings):
-        """Blueprint 원칙 5: 단일 Augmenter, 컨텍스트 주입"""
+    def test_blueprint_principle_5_single_fetcher_context_injection(self, xgboost_settings: Settings):
+        """Blueprint 원칙 5: 단일 fetcher, 컨텍스트 주입"""
         factory = Factory(xgboost_settings)
-        augmenter = factory.create_augmenter()
+        fetcher = factory.create_fetcher()
         
-        # 단일 Augmenter 인스턴스가 다른 컨텍스트로 동작하는지 확인
+        # 단일 fetcher 인스턴스가 다른 컨텍스트로 동작하는지 확인
         sample_data = pd.DataFrame({'member_id': ['a', 'b']})
         
-        with patch.object(augmenter, '_augment_batch') as mock_batch:
+        with patch.object(fetcher, '_augment_batch') as mock_batch:
             mock_batch.return_value = sample_data
-            augmenter.augment(sample_data, run_mode="batch")
+            fetcher.augment(sample_data, run_mode="batch")
             
-        with patch.object(augmenter, '_augment_realtime') as mock_realtime:
+        with patch.object(fetcher, '_augment_realtime') as mock_realtime:
             mock_realtime.return_value = sample_data
-            augmenter.augment(
+            fetcher.augment(
                 sample_data, 
                 run_mode="realtime",
                 feature_store_config={}
@@ -202,8 +202,8 @@ class TestEndToEndIntegration:
             return None
         
         # Mock 컴포넌트 설정
-        mock_augmenter = Mock()
-        mock_augmenter.augment.side_effect = track_augment
+        mock_fetcher = Mock()
+        mock_fetcher.augment.side_effect = track_augment
         
         mock_preprocessor = Mock()
         mock_preprocessor.fit.side_effect = track_fit
@@ -213,7 +213,7 @@ class TestEndToEndIntegration:
         mock_model.fit.side_effect = track_model_fit
         
         trainer.factory = Mock()
-        trainer.factory.create_augmenter.return_value = mock_augmenter
+        trainer.factory.create_fetcher.return_value = mock_fetcher
         trainer.factory.create_preprocessor.return_value = mock_preprocessor
         trainer.factory.create_model.return_value = mock_model
         
@@ -231,33 +231,33 @@ class TestEndToEndIntegration:
         
         # 각 단계에서 오류가 올바르게 전파되는지 확인
         
-        # 1. Augmenter 오류
-        mock_augmenter = Mock()
-        mock_augmenter.augment.side_effect = Exception("Augmentation failed")
+        # 1. fetcher 오류
+        mock_fetcher = Mock()
+        mock_fetcher.augment.side_effect = Exception("Augmentation failed")
         
         trainer.factory = Mock()
-        trainer.factory.create_augmenter.return_value = mock_augmenter
+        trainer.factory.create_fetcher.return_value = mock_fetcher
         
         with pytest.raises(Exception, match="Augmentation failed"):
             trainer.train(sample_data)
         
         # 2. Preprocessor 오류
-        mock_augmenter = Mock()
-        mock_augmenter.augment.return_value = sample_data
+        mock_fetcher = Mock()
+        mock_fetcher.augment.return_value = sample_data
         
         mock_preprocessor = Mock()
         mock_preprocessor.fit.side_effect = Exception("Preprocessing failed")
         
         trainer.factory = Mock()
-        trainer.factory.create_augmenter.return_value = mock_augmenter
+        trainer.factory.create_fetcher.return_value = mock_fetcher
         trainer.factory.create_preprocessor.return_value = mock_preprocessor
         
         with pytest.raises(Exception, match="Preprocessing failed"):
             trainer.train(sample_data)
         
         # 3. Model 오류
-        mock_augmenter = Mock()
-        mock_augmenter.augment.return_value = sample_data
+        mock_fetcher = Mock()
+        mock_fetcher.augment.return_value = sample_data
         
         mock_preprocessor = Mock()
         mock_preprocessor.fit.return_value = None
@@ -267,7 +267,7 @@ class TestEndToEndIntegration:
         mock_model.fit.side_effect = Exception("Model training failed")
         
         trainer.factory = Mock()
-        trainer.factory.create_augmenter.return_value = mock_augmenter
+        trainer.factory.create_fetcher.return_value = mock_fetcher
         trainer.factory.create_preprocessor.return_value = mock_preprocessor
         trainer.factory.create_model.return_value = mock_model
         
@@ -314,11 +314,11 @@ class TestEndToEndIntegration:
             'outcome': [0, 1, 0]
         })
         
-        # 1. Augmenter 처리
-        augmenter = factory.create_augmenter()
-        with patch.object(augmenter, '_augment_batch') as mock_augment:
+        # 1. fetcher 처리
+        fetcher = factory.create_fetcher()
+        with patch.object(fetcher, '_augment_batch') as mock_augment:
             mock_augment.return_value = sample_data
-            augmented_data = augmenter.augment(sample_data, run_mode="batch")
+            augmented_data = fetcher.augment(sample_data, run_mode="batch")
             
             # 데이터 무결성 확인
             assert len(augmented_data) == len(sample_data)
@@ -361,7 +361,7 @@ class TestEndToEndIntegration:
         
         # 1. 모든 컴포넌트가 올바르게 생성되는지 확인
         components = {
-            'augmenter': factory.create_augmenter(),
+            'fetcher': factory.create_fetcher(),
             'preprocessor': factory.create_preprocessor(),
             'trainer': factory.create_trainer(),
             'model': factory.create_model()
@@ -391,7 +391,7 @@ class TestEndToEndIntegration:
             'unified_data_adapter': all(hasattr(adapter, 'read') and hasattr(adapter, 'write') for adapter in adapters.values()),
             'uri_driven_operation': len(adapters) == 4,  # 4개의 스킴 지원
             'pure_logic_artifact': all(hasattr(comp, 'settings') for comp in components.values()),
-            'single_augmenter': components['augmenter'] is not None,
+            'single_fetcher': components['fetcher'] is not None,
             'self_describing_api': True  # API 스키마 생성 기능 존재
         }
         
@@ -440,7 +440,7 @@ def test_blueprint_v13_batch_inference_complete():
     # Mock Wrapped Artifact
     mock_wrapper = Mock()
     mock_wrapper.loader_sql_snapshot = "SELECT member_id, created_at FROM users"
-    mock_wrapper.augmenter_sql_snapshot = "SELECT member_id, feature1 FROM features"
+    mock_wrapper.fetcher_sql_snapshot = "SELECT member_id, feature1 FROM features"
     mock_wrapper.recipe_snapshot = {"class_path": "src.models.xgboost_x_learner.XGBoostXLearner"}
     
     # Mock 예측 결과 (중간 산출물 포함)
@@ -485,7 +485,7 @@ def test_blueprint_v13_api_serving_dynamic_schema():
     # Mock Wrapped Artifact
     mock_wrapper = Mock()
     mock_wrapper.loader_sql_snapshot = "SELECT member_id, product_id, created_at FROM users"
-    mock_wrapper.augmenter_sql_snapshot = "SELECT member_id, user_score, engagement FROM features"
+    mock_wrapper.fetcher_sql_snapshot = "SELECT member_id, user_score, engagement FROM features"
     mock_wrapper.predict.return_value = pd.DataFrame({"uplift_score": [0.85]})
     
     with patch('mlflow.pyfunc.load_model', return_value=mock_wrapper):
@@ -511,7 +511,7 @@ def test_blueprint_v13_api_serving_dynamic_schema():
                     
                     # 동적 스키마 생성 함수들이 호출되었는지 확인
                     mock_get_pk.assert_called_once_with(mock_wrapper.loader_sql_snapshot)
-                    mock_parse_features.assert_called_once_with(mock_wrapper.augmenter_sql_snapshot)
+                    mock_parse_features.assert_called_once_with(mock_wrapper.fetcher_sql_snapshot)
 
 def test_blueprint_v13_seven_principles_compliance():
     """
@@ -549,9 +549,9 @@ def test_blueprint_v13_seven_principles_compliance():
     wrapper = PyfuncWrapper(
         trained_model=Mock(),
         trained_preprocessor=Mock(),
-        trained_augmenter=Mock(),
+        trained_fetcher=Mock(),
         loader_sql_snapshot="SELECT test",
-        augmenter_sql_snapshot="SELECT features",
+        fetcher_sql_snapshot="SELECT features",
         recipe_yaml_snapshot="model: test",
         training_metadata={"timestamp": "2024-01-01"}
     )
@@ -561,7 +561,7 @@ def test_blueprint_v13_seven_principles_compliance():
     assert hasattr(wrapper, "training_metadata")  # 메타데이터 포함
     assert "timestamp" in wrapper.training_metadata  # 순수 정보만
     
-    # 원칙 5: 단일 Augmenter, 컨텍스트 주입 (이미 augmenter 테스트에서 검증)
+    # 원칙 5: 단일 fetcher, 컨텍스트 주입 (이미 fetcher 테스트에서 검증)
     
     # 원칙 6: 자기 기술 API (동적 스키마 테스트에서 검증)
     

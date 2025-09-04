@@ -18,7 +18,7 @@ class TestDataFactory:
     def create_classification_data(n_samples: int = 100, seed: int = 42) -> pd.DataFrame:
         """분류 작업용 표준 테스트 데이터
         
-        현재 test_augmenter.py, test_preprocessor.py에서 사용하는 패턴을 표준화
+        현재 test_fetcher.py, test_preprocessor.py에서 사용하는 패턴을 표준화
         - Entity 스키마 준수: user_id, event_timestamp
         - 숫자형/범주형 피처 포함
         - 분류 타겟 변수
@@ -76,7 +76,7 @@ class TestDataFactory:
     
     @staticmethod  
     def create_entity_data(entity_ids: List[str], start_date: str = '2024-01-01') -> pd.DataFrame:
-        """Entity 기반 기본 데이터 프레임 (현재 test_augmenter.py 패턴)"""
+        """Entity 기반 기본 데이터 프레임 (현재 test_fetcher.py 패턴)"""
         return pd.DataFrame({
             'user_id': entity_ids,
             'event_timestamp': pd.date_range(start_date, periods=len(entity_ids), freq='h')
