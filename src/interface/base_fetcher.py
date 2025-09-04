@@ -8,7 +8,7 @@ class BaseFetcher(ABC):
     """데이터 증강을 위한 추상 기본 클래스(ABC)."""
 
     @abstractmethod
-    def augment(self, data: Union[pd.DataFrame, Dict[str, pd.DataFrame]], run_mode: str = "batch") -> pd.DataFrame:
+    def fetch(self, data: Union[pd.DataFrame, Dict[str, pd.DataFrame]], run_mode: str = "batch") -> pd.DataFrame:
         """
         데이터를 증강하는 추상 메서드입니다.
         단일 또는 여러 개의 데이터프레임을 입력받아, 조인, 정제 등의 처리를 거친

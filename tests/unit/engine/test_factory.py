@@ -104,7 +104,7 @@ class TestFactoryBlueprintCompliance:
         
         assert fetcher is not None
         # BLUEPRINT: fetcher는 PIT 조인 인터페이스를 가져야 함
-        assert hasattr(fetcher, 'augment')
+        assert hasattr(fetcher, 'fetch')
 
     def test_factory_error_handling_for_invalid_class_path(self, mock_settings):
         """Factory 오류 처리 - 존재하지 않는 클래스 경로"""
@@ -141,7 +141,7 @@ class TestFactoryBlueprintCompliance:
         assert fetcher is not None
         assert type(fetcher).__name__ == "PassThroughfetcher"
         # PassThrough는 run_mode에 관계없이 동일하게 동작
-        assert hasattr(fetcher, 'augment')
+        assert hasattr(fetcher, 'fetch')
         
     def test_factory_fetcher_selection_policy_serving_restrictions(self, mock_settings):
         """Factory fetcher Serving 제약 정책 - BLUEPRINT.md 서빙 제약"""

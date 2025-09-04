@@ -80,7 +80,7 @@ class TestLocalEnvironmentBlueprintCompliance:
             'label': [1, 0]
         })
         
-        result = fetcher.augment(sample_data, run_mode="train")
+        result = fetcher.fetch(sample_data, run_mode="train")
         
         # BLUEPRINT: PassThrough는 입력과 동일한 출력
         assert isinstance(result, pd.DataFrame)

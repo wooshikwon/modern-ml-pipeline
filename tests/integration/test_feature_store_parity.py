@@ -251,16 +251,16 @@ class TestFeatureStoreParityValidation:
         spine_df = pd.DataFrame(parity_test_entities[:3])
         
         # 1. 배치 모드로 피처 증강
-        batch_augmented = fetcher.augment(spine_df, run_mode="batch")
+        batch_fetched = fetcher.fetch(spine_df, run_mode="batch")
         
         # 2. 서빙 모드로 피처 증강
-        serving_augmented = fetcher.augment(spine_df, run_mode="serving")
+        serving_fetched = fetcher.fetch(spine_df, run_mode="serving")
         
         # 3. 기본 검증
-        assert not batch_augmented.empty, "배치 모드 피처 증강 실패"
-        assert not serving_augmented.empty, "서빙 모드 피처 증강 실패"
-        assert len(batch_augmented) == len(serving_augmented), \
-            f"fetcher 모드별 결과 건수 불일치: 배치 {len(batch_augmented)}, 서빙 {len(serving_augmented)}"
+        assert not batch_fetched.empty, "배치 모드 피처 증강 실패"
+        assert not serving_fetched.empty, "서빙 모드 피처 증강 실패"
+        assert len(batch_fetched) == len(serving_fetched), \
+            f"fetcher 모드별 결과 건수 불일치: 배치 {len(batch_fetched)}, 서빙 {len(serving_fetched)}"
         
         # 4. 엔티티별 fetcher 패리티 검증
         fetcher_mismatches = []
@@ -270,13 +270,13 @@ class TestFeatureStoreParityValidation:
             user_id = entity["user_id"]
             product_id = entity["product_id"]
             
-            batch_row = batch_augmented[
-                (batch_augmented["user_id"] == user_id) & 
-                (batch_augmented["product_id"] == product_id)
+            batch_row = batch_fetched[
+                (batch_fetched["user_id"] == user_id) & 
+                (batch_fetched["product_id"] == product_id)
             ]
-            serving_row = serving_augmented[
-                (serving_augmented["user_id"] == user_id) & 
-                (serving_augmented["product_id"] == product_id)
+            serving_row = serving_fetched[
+                (serving_fetched["user_id"] == user_id) & 
+                (serving_fetched["product_id"] == product_id)
             ]
             
             if len(batch_row) > 0 and len(serving_row) > 0:

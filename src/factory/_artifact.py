@@ -86,8 +86,8 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
         self._validate_input_schema(model_input)
 
         # 2. 피처 증강 -> 전처리 -> 예측
-        augmented_df = self.trained_fetcher.augment(model_input, run_mode=run_mode)
-        preprocessed_df = self.trained_preprocessor.transform(augmented_df) if self.trained_preprocessor else augmented_df
+        fetched_df = self.trained_fetcher.fetch(model_input, run_mode=run_mode)
+        preprocessed_df = self.trained_preprocessor.transform(fetched_df) if self.trained_preprocessor else fetched_df
         predictions = self.trained_model.predict(preprocessed_df)
         
         result_df = pd.DataFrame(predictions, columns=['prediction'], index=model_input.index)

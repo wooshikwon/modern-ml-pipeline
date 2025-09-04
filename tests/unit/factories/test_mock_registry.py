@@ -19,16 +19,16 @@ class TestMockComponentRegistry:
         fetcher = MockComponentRegistry.get_fetcher("pass_through")
         
         assert fetcher is not None
-        assert hasattr(fetcher, 'augment')
-        assert callable(fetcher.augment)
+        assert hasattr(fetcher, 'fetch')
+        assert callable(fetcher.fetch)
     
     def test_fetcher_blueprint_contract(self):
         """fetcher Mock Blueprint 계약 준수 검증"""
         fetcher = MockComponentRegistry.get_fetcher("pass_through")
         
-        # 테스트 데이터로 augment 호출
+        # 테스트 데이터로 fetch 호출
         test_data = TestDataFactory.create_minimal_entity_data(3)
-        result = fetcher.augment(test_data, run_mode="train")
+        result = fetcher.fetch(test_data, run_mode="train")
         
         assert isinstance(result, pd.DataFrame)
         assert len(result) >= 1
@@ -139,7 +139,7 @@ class TestMockComponentRegistry:
         adapter = factory.create_data_adapter()
         
         # 기본 인터페이스 확인
-        assert hasattr(fetcher, 'augment')
+        assert hasattr(fetcher, 'fetch')
         assert hasattr(preprocessor, 'fit_transform')
         assert hasattr(model, 'predict')
         assert hasattr(evaluator, 'evaluate')
@@ -250,7 +250,7 @@ class TestMockComponentRegistry:
         model = MockComponentRegistry.get_model("classifier")
         
         # 예상 인터페이스 검증
-        fetcher_methods = ['augment']
+        fetcher_methods = ['fetch']
         preprocessor_methods = ['fit', 'transform', 'fit_transform']
         model_methods = ['fit', 'predict', 'predict_proba']
         

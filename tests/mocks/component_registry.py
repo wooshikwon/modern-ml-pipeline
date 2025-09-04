@@ -43,9 +43,9 @@ class MockComponentRegistry:
         
         # 캐시 miss - 새 인스턴스 생성
         cls._cache_stats['misses'] += 1
-        mock = Mock(spec=['augment'])
+        mock = Mock(spec=['fetch'])
         
-        def mock_augment(data, run_mode="train"):
+        def mock_fetch(data, run_mode="train"):
             """실제 fetcher와 동일한 인터페이스 Mock"""
             # Blueprint 데이터 계약: entity + timestamp 보존
             if isinstance(data, pd.DataFrame):
@@ -67,7 +67,7 @@ class MockComponentRegistry:
                     'feature1': [1.0]
                 })
         
-        mock.augment.side_effect = mock_augment
+        mock.fetch.side_effect = mock_fetch
         cls._add_to_cache(key, mock)
             
         return cls._instances[key]

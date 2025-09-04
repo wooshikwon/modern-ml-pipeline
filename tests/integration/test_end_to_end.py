@@ -99,13 +99,13 @@ class TestEndToEndIntegration:
         # 단일 fetcher 인스턴스가 다른 컨텍스트로 동작하는지 확인
         sample_data = pd.DataFrame({'member_id': ['a', 'b']})
         
-        with patch.object(fetcher, '_augment_batch') as mock_batch:
+        with patch.object(fetcher, '_fetch_batch') as mock_batch:
             mock_batch.return_value = sample_data
-            fetcher.augment(sample_data, run_mode="batch")
+            fetcher.fetch(sample_data, run_mode="batch")
             
-        with patch.object(fetcher, '_augment_realtime') as mock_realtime:
+        with patch.object(fetcher, '_fetch_realtime') as mock_realtime:
             mock_realtime.return_value = sample_data
-            fetcher.augment(
+            fetcher.fetch(
                 sample_data, 
                 run_mode="realtime",
                 feature_store_config={}
@@ -185,8 +185,8 @@ class TestEndToEndIntegration:
         # 컴포넌트 간 데이터 흐름 추적
         call_order = []
         
-        def track_augment(*args, **kwargs):
-            call_order.append('augment')
+        def track_fetch(*args, **kwargs):
+            call_order.append('fetch')
             return sample_data
         
         def track_fit(*args, **kwargs):
@@ -203,7 +203,7 @@ class TestEndToEndIntegration:
         
         # Mock 컴포넌트 설정
         mock_fetcher = Mock()
-        mock_fetcher.augment.side_effect = track_augment
+        mock_fetcher.fetch.side_effect = track_fetch
         
         mock_preprocessor = Mock()
         mock_preprocessor.fit.side_effect = track_fit
@@ -221,7 +221,7 @@ class TestEndToEndIntegration:
         trainer.train(sample_data)
         
         # 올바른 순서로 컴포넌트가 호출되었는지 확인
-        expected_order = ['augment', 'preprocess_fit', 'preprocess_transform', 'model_fit']
+        expected_order = ['fetch', 'preprocess_fit', 'preprocess_transform', 'model_fit']
         assert call_order == expected_order
     
     def test_error_propagation_and_handling(self, xgboost_settings: Settings):
@@ -233,17 +233,17 @@ class TestEndToEndIntegration:
         
         # 1. fetcher 오류
         mock_fetcher = Mock()
-        mock_fetcher.augment.side_effect = Exception("Augmentation failed")
+        mock_fetcher.fetch.side_effect = Exception("fetchation failed")
         
         trainer.factory = Mock()
         trainer.factory.create_fetcher.return_value = mock_fetcher
         
-        with pytest.raises(Exception, match="Augmentation failed"):
+        with pytest.raises(Exception, match="fetchation failed"):
             trainer.train(sample_data)
         
         # 2. Preprocessor 오류
         mock_fetcher = Mock()
-        mock_fetcher.augment.return_value = sample_data
+        mock_fetcher.fetch.return_value = sample_data
         
         mock_preprocessor = Mock()
         mock_preprocessor.fit.side_effect = Exception("Preprocessing failed")
@@ -257,7 +257,7 @@ class TestEndToEndIntegration:
         
         # 3. Model 오류
         mock_fetcher = Mock()
-        mock_fetcher.augment.return_value = sample_data
+        mock_fetcher.fetch.return_value = sample_data
         
         mock_preprocessor = Mock()
         mock_preprocessor.fit.return_value = None
@@ -316,13 +316,13 @@ class TestEndToEndIntegration:
         
         # 1. fetcher 처리
         fetcher = factory.create_fetcher()
-        with patch.object(fetcher, '_augment_batch') as mock_augment:
-            mock_augment.return_value = sample_data
-            augmented_data = fetcher.augment(sample_data, run_mode="batch")
+        with patch.object(fetcher, '_fetch_batch') as mock_fetch:
+            mock_fetch.return_value = sample_data
+            fetched_data = fetcher.fetch(sample_data, run_mode="batch")
             
             # 데이터 무결성 확인
-            assert len(augmented_data) == len(sample_data)
-            assert 'member_id' in augmented_data.columns
+            assert len(fetched_data) == len(sample_data)
+            assert 'member_id' in fetched_data.columns
         
         # 2. Preprocessor 처리
         preprocessor = factory.create_preprocessor()
@@ -446,7 +446,7 @@ def test_blueprint_v13_batch_inference_complete():
     # Mock 예측 결과 (중간 산출물 포함)
     mock_prediction_results = {
         "final_results": pd.DataFrame({"member_id": [1, 2], "uplift_score": [0.5, 0.7]}),
-        "augmented_data": pd.DataFrame({"member_id": [1, 2], "feature1": [10, 20]}),
+        "fetched_data": pd.DataFrame({"member_id": [1, 2], "feature1": [10, 20]}),
         "preprocessed_data": pd.DataFrame({"member_id": [1, 2], "processed_feature": [1.0, 2.0]})
     }
     mock_wrapper.predict.return_value = mock_prediction_results
@@ -473,7 +473,7 @@ def test_blueprint_v13_batch_inference_complete():
                 assert call_args[1]["params"]["return_intermediate"]
                 
                 # 중간 산출물들이 모두 저장되었는지 확인
-                assert mock_save.call_count == 3  # augmented, preprocessed, final
+                assert mock_save.call_count == 3  # fetched, preprocessed, final
 
 def test_blueprint_v13_api_serving_dynamic_schema():
     """

@@ -32,18 +32,18 @@ class TestInterfaceContractCompliance:
         fetcher = test_factories['mocks'].get_fetcher()
         
         # Then: 필수 인터페이스 보유 검증
-        required_methods = ['augment']
+        required_methods = ['fetch']
         for method in required_methods:
             assert hasattr(fetcher, method), f"fetcher must have '{method}' method"
             assert callable(getattr(fetcher, method)), f"'{method}' must be callable"
         
-        # augment 메서드 시그니처 검증 (Basefetcher ABC 준수)
-        augment_method = getattr(fetcher, 'augment')
-        assert augment_method is not None
+        # fetch 메서드 시그니처 검증 (Basefetcher ABC 준수)
+        fetch_method = getattr(fetcher, 'fetch')
+        assert fetch_method is not None
         
         # Mock을 통한 호출 가능성 검증
         test_data = pd.DataFrame({'user_id': ['test'], 'event_timestamp': [pd.Timestamp.now()]})
-        result = fetcher.augment(test_data, run_mode="train")
+        result = fetcher.fetch(test_data, run_mode="train")
         assert result is not None
     
     @pytest.mark.core
@@ -52,14 +52,14 @@ class TestInterfaceContractCompliance:
         """Basefetcher ABC 추상 메서드 시그니처 검증"""
         # Given: Basefetcher ABC 클래스
         # When: 추상 메서드 시그니처 검사
-        augment_method = Basefetcher.augment
+        fetch_method = Basefetcher.fetch
         
         # Then: 추상 메서드 검증
-        assert hasattr(augment_method, '__isabstractmethod__')
-        assert augment_method.__isabstractmethod__ is True
+        assert hasattr(fetch_method, '__isabstractmethod__')
+        assert fetch_method.__isabstractmethod__ is True
         
         # 시그니처 검증
-        sig = inspect.signature(augment_method)
+        sig = inspect.signature(fetch_method)
         params = list(sig.parameters.keys())
         
         assert 'self' in params
@@ -188,11 +188,11 @@ class TestInterfaceContractCompliance:
         # When/Then: 지원되는 run_mode들 검증
         supported_modes = ["train", "batch", "serving"]
         for mode in supported_modes:
-            result = fetcher.augment(test_data, run_mode=mode)
+            result = fetcher.fetch(test_data, run_mode=mode)
             assert result is not None, f"fetcher must support run_mode='{mode}'"
         
         # 기본값 검증 (run_mode 생략 시 "batch"가 기본값)
-        default_result = fetcher.augment(test_data)
+        default_result = fetcher.fetch(test_data)
         assert default_result is not None
     
     @pytest.mark.core
@@ -252,8 +252,8 @@ class TestInterfaceContractCompliance:
         # Then: 모든 컴포넌트가 예상 인터페이스를 제공하는지 검증
         
         # fetcher 인터페이스 검증
-        assert hasattr(fetcher, 'augment')
-        assert callable(fetcher.augment)
+        assert hasattr(fetcher, 'fetch')
+        assert callable(fetcher.fetch)
         
         # Preprocessor 인터페이스 검증
         assert hasattr(preprocessor, 'fit')
@@ -276,15 +276,15 @@ class TestInterfaceContractCompliance:
         
         # When/Then: Mock이 예상되는 인터페이스를 제공하는지 검증
         
-        # augment 메서드 시그니처 검증
-        assert hasattr(mock_fetcher, 'augment')
+        # fetch 메서드 시그니처 검증
+        assert hasattr(mock_fetcher, 'fetch')
         
-        # 실제 Basefetcher의 augment와 호환되는 호출 방식 확인
+        # 실제 Basefetcher의 fetch와 호환되는 호출 방식 확인
         test_data = pd.DataFrame({'test': [1]})
         
         # 다양한 호출 방식 지원 확인
-        result1 = mock_fetcher.augment(test_data)
-        result2 = mock_fetcher.augment(test_data, run_mode="train")
+        result1 = mock_fetcher.fetch(test_data)
+        result2 = mock_fetcher.fetch(test_data, run_mode="train")
         
         assert result1 is not None
         assert result2 is not None
@@ -304,6 +304,6 @@ class TestInterfaceContractCompliance:
         assert len(BasePreprocessor.__doc__.strip()) > 0
         
         # 추상 메서드 문서화 검증
-        assert Basefetcher.augment.__doc__ is not None
+        assert Basefetcher.fetch.__doc__ is not None
         assert BasePreprocessor.fit.__doc__ is not None
         assert BasePreprocessor.transform.__doc__ is not None

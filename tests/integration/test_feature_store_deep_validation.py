@@ -146,7 +146,7 @@ class TestFeatureStoreDataIngestionDeep:
         spine_df["event_timestamp"] = datetime.now()
         
         # Feast를 통해 피처 조회
-        augmented_df = feature_store_adapter.get_historical_features(
+        fetched_df = feature_store_adapter.get_historical_features(
             spine_df, ["user_demographics:age", "user_demographics:country_code", 
                       "product_details:price", "product_details:category", "product_details:brand"]
         )
@@ -161,7 +161,7 @@ class TestFeatureStoreDataIngestionDeep:
             for row in source_data_snapshot["product_details"]["data"]
         }
         
-        for _, row in augmented_df.iterrows():
+        for _, row in fetched_df.iterrows():
             user_id = row["user_id"]
             product_id = row["product_id"]
             
@@ -376,18 +376,18 @@ class TestFeatureStoreDataIngestionDeep:
         spine_df = pd.DataFrame(test_combinations)
         
         # 3. Feature Store를 통해 피처 조회
-        augmented_df = feature_store_adapter.get_historical_features(
+        fetched_df = feature_store_adapter.get_historical_features(
             spine_df, ["user_demographics:age", "user_demographics:country_code", 
                       "product_details:price", "product_details:category"]
         )
         
         # 4. 완전성 검증
-        assert len(augmented_df) == len(test_combinations), \
-            f"데이터 손실 발생: 요청 {len(test_combinations)}건, 응답 {len(augmented_df)}건"
+        assert len(fetched_df) == len(test_combinations), \
+            f"데이터 손실 발생: 요청 {len(test_combinations)}건, 응답 {len(fetched_df)}건"
         
         # 5. 각 조합별 피처 존재 여부 확인
         missing_features = []
-        for _, row in augmented_df.iterrows():
+        for _, row in fetched_df.iterrows():
             user_id = row["user_id"]
             product_id = row["product_id"]
             

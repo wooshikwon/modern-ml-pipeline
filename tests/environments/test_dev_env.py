@@ -73,7 +73,7 @@ class TestDevEnvironmentBlueprintCompliance:
             fetcher = factory.create_fetcher()
             assert fetcher is not None
             # BLUEPRINT: 모든 fetcher는 동일한 인터페이스
-            assert hasattr(fetcher, 'augment')
+            assert hasattr(fetcher, 'fetch')
         except Exception as e:
             # Feature Store 연결 실패는 예상되는 상황 (실제 인프라 없음)
             assert "feature" in str(e).lower() or "store" in str(e).lower()
