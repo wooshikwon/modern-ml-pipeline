@@ -107,25 +107,25 @@ class Factory:
         mode = (run_mode or "batch").lower()
         env = self.settings.environment.env_name if hasattr(self.settings, "environment") else "local"
         provider = (self.settings.feature_store.provider if getattr(self.settings, "feature_store", None) else "none")
-        aug_conf = getattr(self.settings.recipe.model, "fetcher", None)
-        aug_type = getattr(aug_conf, "type", None) if aug_conf else None
+        fetch_conf = getattr(self.settings.recipe.model, "fetcher", None)
+        fetch_type = getattr(fetch_conf, "type", None) if fetch_conf else None
 
         # serving에서는 PassThrough/SqlFallback 금지
         if mode == "serving":
-            if aug_type in (None, "pass_through") or provider in (None, "none"):
+            if fetch_type in (None, "pass_through") or provider in (None, "none"):
                 raise TypeError("Serving에서는 pass_through/feature_store 미구성 사용이 금지됩니다. Feature Store 연결이 필요합니다.")
 
         # local 또는 provider=none 또는 명시적 pass_through → PassThrough
-        if env == "local" or provider == "none" or aug_type == "pass_through" or not aug_conf:
-            return FetcherRegistry.create(aug_type)
+        if env == "local" or provider == "none" or fetch_type == "pass_through" or not fetch_conf:
+            return FetcherRegistry.create(fetch_type)
 
         # Feature Store 요청 + provider OK → FeatureStorefetcher
-        if aug_type == "feature_store" and provider in {"feast", "mock", "dynamic"}:
-            return FetcherRegistry.create(aug_type, settings=self.settings, factory=self)
+        if fetch_type == "feature_store" and provider in {"feast", "mock", "dynamic"}:
+            return FetcherRegistry.create(fetch_type, settings=self.settings, factory=self)
 
 
         raise ValueError(
-            f"적절한 fetcher를 선택할 수 없습니다. env={env}, provider={provider}, aug_type={aug_type}, mode={mode}"
+            f"적절한 fetcher를 선택할 수 없습니다. env={env}, provider={provider}, fetch_type={fetch_type}, mode={mode}"
         )
 
     def create_preprocessor(self) -> Optional[BasePreprocessor]:
