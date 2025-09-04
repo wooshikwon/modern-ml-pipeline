@@ -7,7 +7,7 @@ from src.utils.system.logger import logger
 from src.serving._context import app_context
 from src.serving._lifespan import lifespan, setup_api_context
 from src.serving import _endpoints as handlers
-from src.components._fetcher import PassThroughfetcher
+from src.components._fetcher import PassThroughFetcher
 from src.serving.schemas import (
     HealthCheckResponse,
     ModelMetadataResponse,
@@ -72,7 +72,7 @@ def predict_generic(request: Dict[str, Any]) -> MinimalPredictionResponse:
         # 서빙 정책: pass_through/폴백 차단
         try:
             wrapped_model = app_context.model.unwrap_python_model()
-            if isinstance(wrapped_model.trained_fetcher, PassThroughfetcher):
+            if isinstance(wrapped_model.trained_fetcher, PassThroughFetcher):
                 raise HTTPException(status_code=503, detail="Serving with 'pass_through' fetcher is not allowed.")
         except HTTPException:
             raise
@@ -136,7 +136,7 @@ def run_api_server(settings: Settings, run_id: str, host: str = "0.0.0.0", port:
 
     # [신규] fetcher 타입 명시적 검증
     wrapped_model = app_context.model.unwrap_python_model()
-    if isinstance(wrapped_model.trained_fetcher, PassThroughfetcher):
+    if isinstance(wrapped_model.trained_fetcher, PassThroughFetcher):
         raise TypeError(
             "API serving is not supported when the fetcher is 'pass_through'. "
             "A feature store connection is required."

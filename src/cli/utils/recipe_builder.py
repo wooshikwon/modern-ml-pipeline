@@ -523,10 +523,13 @@ class RecipeBuilder:
             "metrics": selections["metrics"],
             "source_uri": selections["source_uri"],
             "target_column": selections["target_column"],
-            "entity_schema": selections["entity_schema"],
+            "entity_columns": selections["entity_columns"],
+            "timestamp_column": selections["timestamp_column"],
             "preprocessor_steps": selections["preprocessor_steps"],
             "test_size": selections["test_size"],
-            "enable_tuning": selections["enable_tuning"]
+            "enable_tuning": selections["enable_tuning"],
+            "fetcher_type": selections.get("fetcher_type", "pass_through"),
+            "feature_namespaces": selections.get("feature_namespaces", None)
         }
         
         # 하이퍼파라미터 설정
@@ -586,7 +589,7 @@ Task: {selections['task']}
 라이브러리: {selections['model_library']}
 데이터 소스: {selections['source_uri']}
 Target Column: {selections['target_column']}
-Entity Schema: {', '.join(selections['entity_schema'])}
+Entity Schema: {', '.join(selections.get('entity_columns', []))}
 평가 메트릭: {', '.join(selections['metrics'])}
 Test Size: {selections['test_size']}
 Hyperparameter Tuning: {'활성화' if selections.get('enable_tuning') else '비활성화'}

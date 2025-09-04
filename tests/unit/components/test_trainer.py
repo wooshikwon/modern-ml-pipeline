@@ -13,7 +13,7 @@ from unittest.mock import Mock, patch
 from sklearn.ensemble import RandomForestClassifier
 
 from src.components._trainer import Trainer
-from src.interface import Basefetcher, BasePreprocessor, BaseEvaluator
+from src.interface import BaseFetcher, BasePreprocessor, BaseEvaluator
 
 
 @pytest.mark.unit
@@ -70,7 +70,7 @@ class TestTrainerBlueprintCompliance:
     @pytest.fixture
     def mock_components(self):
         """모든 컴포넌트 Mock 객체"""
-        fetcher = Mock(spec=Basefetcher)
+        fetcher = Mock(spec=BaseFetcher)
         fetcher.fetch = Mock(side_effect=lambda df, **kwargs: df)  # 패스스루
         
         preprocessor = Mock(spec=BasePreprocessor)

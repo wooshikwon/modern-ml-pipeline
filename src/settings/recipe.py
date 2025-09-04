@@ -4,7 +4,7 @@ Optuna 튜닝, Feature Store 통합 등 신규 기능 포함
 완전히 재작성됨 - CLI recipe.yaml.j2와 100% 호환
 """
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from typing import Dict, List, Any, Optional, Union, Literal
 
 
@@ -25,11 +25,11 @@ class HyperparametersTuning(BaseModel):
     # 튜닝 비활성화시 사용
     values: Optional[Dict[str, Any]] = Field(None, description="튜닝 비활성화시 사용할 고정값")
     
-    @validator('fixed', 'tunable')
-    def validate_tuning_params(cls, v, values, field):
+    @field_validator('fixed', 'tunable')
+    def validate_tuning_params(cls, v, info):
         """튜닝 활성화시 fixed/tunable 검증"""
-        if values.get('tuning_enabled'):
-            if field.name == 'tunable' and v:
+        if info.data.get('tuning_enabled'):
+            if info.field_name == 'tunable' and v:
                 # tunable 파라미터 구조 검증
                 for param, spec in v.items():
                     if 'type' not in spec:
@@ -41,10 +41,10 @@ class HyperparametersTuning(BaseModel):
                         raise ValueError(f"{param}의 type은 int/float/categorical 중 하나여야 합니다")
         return v
     
-    @validator('values')
-    def validate_fixed_values(cls, v, values):
+    @field_validator('values')
+    def validate_fixed_values(cls, v, info):
         """튜닝 비활성화시 values 검증"""
-        if not values.get('tuning_enabled') and not v:
+        if not info.data.get('tuning_enabled') and not v:
             # 튜닝이 비활성화되었는데 values가 없으면 경고
             pass  # 빈 딕셔너리라도 허용
         return v
@@ -108,14 +108,14 @@ class Fetcher(BaseModel):
         description="Feature Store에서 가져올 피처 정의"
     )
     
-    @validator('features')
-    def validate_features(cls, v, values):
+    @field_validator('features')
+    def validate_features(cls, v, info):
         """feature_store 타입일 때 features 필수"""
-        if values.get('type') == 'feature_store':
+        if info.data.get('type') == 'feature_store':
             if not v:
                 # 빈 리스트라도 허용
                 return []
-        elif values.get('type') == 'pass_through':
+        elif info.data.get('type') == 'pass_through':
             if v:
                 # pass_through인데 features가 있으면 무시
                 pass
@@ -177,24 +177,24 @@ class PreprocessorStep(BaseModel):
     n_bins: Optional[int] = Field(None, ge=2, le=20, description="KBinsDiscretizer 구간 개수")
     sigma: Optional[float] = Field(None, ge=0.0, le=1.0, description="CatBoostEncoder regularization")
     
-    @validator('strategy')
-    def validate_strategy(cls, v, values):
+    @field_validator('strategy')
+    def validate_strategy(cls, v, info):
         """simple_imputer일 때만 strategy 필요"""
-        if values.get('type') == 'simple_imputer' and not v:
+        if info.data.get('type') == 'simple_imputer' and not v:
             raise ValueError("simple_imputer는 strategy가 필요합니다")
         return v
     
-    @validator('degree')
-    def validate_degree(cls, v, values):
+    @field_validator('degree')
+    def validate_degree(cls, v, info):
         """polynomial_features일 때만 degree 필요"""
-        if values.get('type') == 'polynomial_features' and not v:
+        if info.data.get('type') == 'polynomial_features' and not v:
             return 2  # 기본값
         return v
     
-    @validator('n_bins')
-    def validate_n_bins(cls, v, values):
+    @field_validator('n_bins')
+    def validate_n_bins(cls, v, info):
         """kbins_discretizer일 때만 n_bins 필요"""
-        if values.get('type') == 'kbins_discretizer' and not v:
+        if info.data.get('type') == 'kbins_discretizer' and not v:
             return 5  # 기본값
         return v
 
@@ -219,10 +219,10 @@ class ValidationConfig(BaseModel):
     # Cross validation용 (선택)
     n_folds: Optional[int] = Field(None, ge=2, le=10, description="Cross validation fold 수")
     
-    @validator('n_folds')
-    def validate_n_folds(cls, v, values):
+    @field_validator('n_folds')
+    def validate_n_folds(cls, v, info):
         """cross_validation일 때 n_folds 필수"""
-        if values.get('method') == 'cross_validation' and not v:
+        if info.data.get('method') == 'cross_validation' and not v:
             return 5  # 기본값
         return v
 
@@ -235,7 +235,7 @@ class Evaluation(BaseModel):
         description="검증 설정"
     )
     
-    @validator('metrics')
+    @field_validator('metrics')
     def validate_metrics(cls, v):
         """메트릭 이름 정규화"""
         if not v:

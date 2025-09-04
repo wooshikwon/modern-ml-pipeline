@@ -19,8 +19,7 @@ if TYPE_CHECKING:
 
 class FeastAdapter(BaseAdapter):
     """
-    Feast 라이브러리를 직접 사용하는 가벼운 Feature Store 어댑터.
-    복잡한 임시 파일 생성 로직을 제거하고, Feast의 네이티브 기능을 활용합니다.
+    Feast 라이브러리를 직접 사용하는 Feature Store 어댑터.
     """
     def __init__(self, settings: Settings, **kwargs):
         if not FEAST_AVAILABLE:
