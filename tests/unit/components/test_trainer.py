@@ -71,7 +71,7 @@ class TestTrainerBlueprintCompliance:
     def mock_components(self):
         """모든 컴포넌트 Mock 객체"""
         fetcher = Mock(spec=Basefetcher)
-        fetcher.augment = Mock(side_effect=lambda df, **kwargs: df)  # 패스스루
+        fetcher.fetch = Mock(side_effect=lambda df, **kwargs: df)  # 패스스루
         
         preprocessor = Mock(spec=BasePreprocessor)
         preprocessor.fit = Mock()

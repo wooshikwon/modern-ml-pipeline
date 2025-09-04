@@ -54,7 +54,7 @@ class TestFeatureStoreFlow:
     DEV 환경에서 Feature Store의 오프라인/온라인 흐름을 완벽하게 검증하는 통합 테스트.
     """
 
-    def test_offline_store_augmentation(self, dev_test_settings):
+    def test_offline_store_fetchation(self, dev_test_settings):
         """
         [1단계: 오프라인 저장소 검증]
         학습 파이프라인이 PostgreSQL 오프라인 저장소에서 Point-in-time으로
@@ -63,16 +63,16 @@ class TestFeatureStoreFlow:
         result_artifact = run_training(settings=dev_test_settings)
         assert result_artifact is not None, "학습 파이프라인이 아티팩트를 반환해야 합니다."
         
-        augmented_df = result_artifact.get_pandas_dataframe("augmented_data")
+        fetched_df = result_artifact.get_pandas_dataframe("fetched_data")
         expected_features = [
             "user_total_purchase_amount_7d", "user_total_purchase_amount_30d",
             "product_price", "product_category", "product_brand"
         ]
         
         for feature in expected_features:
-            assert feature in augmented_df.columns, f"오프라인 저장소 피처 '{feature}'가 누락되었습니다."
+            assert feature in fetched_df.columns, f"오프라인 저장소 피처 '{feature}'가 누락되었습니다."
             
-        user1001_first_event = augmented_df[augmented_df["user_id"] == "u1001"].sort_values("event_timestamp").iloc[0]
+        user1001_first_event = fetched_df[fetched_df["user_id"] == "u1001"].sort_values("event_timestamp").iloc[0]
         assert user1001_first_event["user_total_purchase_amount_7d"] == 150.0, \
             "Point-in-time join이 과거 시점의 피처를 정확하게 가져오지 못했습니다."
 
@@ -112,22 +112,22 @@ class TestFeatureStoreFlow:
         }])
         
         # 1. 오프라인 저장소에서 피처 조회 (batch 모드)
-        offline_augmented_df = fetcher.augment(spine_df, run_mode="batch")
+        offline_fetched_df = fetcher.fetch(spine_df, run_mode="batch")
 
         # 2. 온라인 저장소에서 피처 조회 (serving 모드)
-        online_augmented_df = fetcher.augment(spine_df, run_mode="serving")
+        online_fetched_df = fetcher.fetch(spine_df, run_mode="serving")
         
         # 3. 비교 검증
-        assert not offline_augmented_df.empty, "오프라인 저장소에서 피처를 가져오지 못했습니다."
-        assert not online_augmented_df.empty, "온라인 저장소에서 피처를 가져오지 못했습니다."
+        assert not offline_fetched_df.empty, "오프라인 저장소에서 피처를 가져오지 못했습니다."
+        assert not online_fetched_df.empty, "온라인 저장소에서 피처를 가져오지 못했습니다."
         
-        offline_price = offline_augmented_df["product_price"].iloc[0]
-        online_price = online_augmented_df["product_price"].iloc[0]
+        offline_price = offline_fetched_df["product_price"].iloc[0]
+        online_price = online_fetched_df["product_price"].iloc[0]
         assert offline_price == online_price, \
             f"온라인-오프라인 데이터 불일치 (product_price)! Offline: {offline_price}, Online: {online_price}"
             
-        offline_brand = offline_augmented_df["product_brand"].iloc[0]
-        online_brand = online_augmented_df["product_brand"].iloc[0]
+        offline_brand = offline_fetched_df["product_brand"].iloc[0]
+        online_brand = online_fetched_df["product_brand"].iloc[0]
         assert offline_brand == online_brand, \
             f"온라인-오프라인 데이터 불일치 (product_brand)! Offline: {offline_brand}, Online: {online_brand}"
 

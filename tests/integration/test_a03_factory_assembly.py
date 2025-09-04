@@ -146,7 +146,7 @@ class TestFactoryBasedComponentAssembly:
         # 각 컴포넌트가 필요한 메서드를 가지고 있는지 확인
         component_methods = {
             'data_adapter': ['load', 'save'],  # 예상 메서드
-            'fetcher': ['augment'],
+            'fetcher': ['fetch'],
             'preprocessor': ['fit', 'transform'],
             'model': ['fit', 'predict']
         }

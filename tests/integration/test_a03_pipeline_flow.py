@@ -192,18 +192,18 @@ class TestPipelineFlow:
             
             # fetcher를 통한 데이터 변환 무결성
             fetcher = factory.create_fetcher()
-            augmented_data = fetcher.augment(loaded_data, run_mode="batch")
+            fetched_data = fetcher.fetch(loaded_data, run_mode="batch")
             
-            assert len(augmented_data) == len(loaded_data), "Row count should be preserved through augmentation"
-            assert 'PassengerId' in augmented_data.columns, "Entity columns should survive augmentation"
+            assert len(fetched_data) == len(loaded_data), "Row count should be preserved through fetchation"
+            assert 'PassengerId' in fetched_data.columns, "Entity columns should survive fetchation"
             
             # Preprocessor 무결성 (None일 수 있음)
             preprocessor = factory.create_preprocessor()
             if preprocessor:
-                preprocessor.fit(augmented_data)
-                processed_data = preprocessor.transform(augmented_data)
+                preprocessor.fit(fetched_data)
+                processed_data = preprocessor.transform(fetched_data)
                 
-                assert len(processed_data) == len(augmented_data), "Row count should be preserved through preprocessing"
+                assert len(processed_data) == len(fetched_data), "Row count should be preserved through preprocessing"
     
     def test_blueprint_reproducibility_principle(self):
         """Blueprint 재현성 원칙 검증 (RED)"""
@@ -282,18 +282,18 @@ class TestPipelineFlow:
                 
                 # 2. fetcher (local 환경에서는 PassThroughfetcher 사용)
                 fetcher = factory.create_fetcher()
-                augmented_data = fetcher.augment(raw_data, run_mode="batch")
-                interaction_log.append(f"fetcher processed {len(augmented_data)} rows")
+                fetched_data = fetcher.fetch(raw_data, run_mode="batch")
+                interaction_log.append(f"fetcher processed {len(fetched_data)} rows")
                 
                 # 3. Preprocessor (if exists)
                 preprocessor = factory.create_preprocessor()
                 if preprocessor:
-                    preprocessor.fit(augmented_data)
-                    processed_data = preprocessor.transform(augmented_data)
+                    preprocessor.fit(fetched_data)
+                    processed_data = preprocessor.transform(fetched_data)
                     interaction_log.append(f"Preprocessor transformed {len(processed_data)} rows")
                     final_data = processed_data
                 else:
-                    final_data = augmented_data
+                    final_data = fetched_data
                     interaction_log.append("Preprocessor: None (skipped)")
                 
                 # 4. Model - 간단한 파라미터로 직접 생성

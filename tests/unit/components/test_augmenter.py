@@ -41,15 +41,15 @@ class TestfetcherBlueprintCompliance:
         
         assert fetcher is not None
         # BLUEPRINT: fetcher는 PIT 조인 인터페이스를 가져야 함
-        assert hasattr(fetcher, 'augment')
-        assert callable(getattr(fetcher, 'augment'))
+        assert hasattr(fetcher, 'fetch')
+        assert callable(getattr(fetcher, 'fetch'))
 
     def test_pass_through_fetcher_blueprint_contract(self, mock_settings_local, sample_entity_data):
         """PassThroughfetcher 데이터 계약 - BLUEPRINT PIT 조인 규격"""
         fetcher = PassThroughfetcher()
         
         # BLUEPRINT: PassThrough는 입력 그대로 반환 (로컬 환경 편의성)
-        result = fetcher.augment(sample_entity_data, run_mode="train")
+        result = fetcher.fetch(sample_entity_data, run_mode="train")
         
         assert isinstance(result, pd.DataFrame)
         # BLUEPRINT: 입력과 동일한 스키마 유지
@@ -65,9 +65,9 @@ class TestfetcherBlueprintCompliance:
         fetcher = PassThroughfetcher()
         
         # BLUEPRINT: PassThrough는 train/batch/serving 모드와 무관하게 동일 동작
-        train_result = fetcher.augment(sample_entity_data, run_mode="train")
-        batch_result = fetcher.augment(sample_entity_data, run_mode="batch")
-        serving_result = fetcher.augment(sample_entity_data, run_mode="serving")
+        train_result = fetcher.fetch(sample_entity_data, run_mode="train")
+        batch_result = fetcher.fetch(sample_entity_data, run_mode="batch")
+        serving_result = fetcher.fetch(sample_entity_data, run_mode="serving")
         
         # 모든 모드에서 동일한 결과
         pd.testing.assert_frame_equal(train_result, batch_result)
@@ -91,7 +91,7 @@ class TestfetcherBlueprintCompliance:
         
         # BLUEPRINT: 명확한 오류 메시지로 디버깅 지원
         with pytest.raises(ValueError, match="run_mode"):
-            fetcher.augment(sample_entity_data, run_mode="invalid_mode")
+            fetcher.fetch(sample_entity_data, run_mode="invalid_mode")
 
     @pytest.mark.blueprint_principle_2
     def test_fetcher_environment_driven_behavior(self, mock_settings_local):
@@ -102,7 +102,7 @@ class TestfetcherBlueprintCompliance:
         # 실제 Feature Store 연결 없이도 동작해야 함
         sample_data = TestDataFactory.create_minimal_entity_data(entity_count=1)
         
-        result = fetcher.augment(sample_data, run_mode="train")
+        result = fetcher.fetch(sample_data, run_mode="train")
         assert result is not None
         assert len(result) == 1
 
@@ -113,7 +113,7 @@ class TestfetcherBlueprintCompliance:
         # BLUEPRINT: entity + timestamp는 반드시 보존되어야 함
         input_data = TestDataFactory.create_minimal_entity_data(entity_count=2)
         
-        result = fetcher.augment(input_data, run_mode="train")
+        result = fetcher.fetch(input_data, run_mode="train")
         
         # 핵심 계약: entity와 timestamp 컬럼 보존
         assert 'user_id' in result.columns
