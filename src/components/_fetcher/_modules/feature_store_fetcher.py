@@ -1,16 +1,16 @@
 from __future__ import annotations
 import pandas as pd
 from typing import TYPE_CHECKING, List, Dict, Any
-from src.interface import BaseAugmenter
+from src.interface import BaseFetcher
 from src.utils.system.logger import logger
 
 if TYPE_CHECKING:
     from src.settings import Settings
 
 
-class FeatureStoreAugmenter(BaseAugmenter):
+class FeatureStoreFetcher(BaseFetcher):
     """
-    Feature Store(Feast)를 사용하여 피처를 증강하는 Augmenter.
+    Feature Store(Feast)를 사용하여 피처를 증강하는 fetcher.
     DEV/PROD 환경에서 사용됩니다.
     """
     def __init__(self, settings: Settings, factory: Any):
@@ -18,18 +18,18 @@ class FeatureStoreAugmenter(BaseAugmenter):
         self.factory = factory
         self.feature_store_adapter = self.factory.create_feature_store_adapter()
 
-    def augment(self, df: pd.DataFrame, run_mode: str = "batch") -> pd.DataFrame:
+    def fetch(self, df: pd.DataFrame, run_mode: str = "batch") -> pd.DataFrame:
         logger.info("Feature Store를 통해 피처 증강을 시작합니다.")
 
         model_cfg = self.settings.recipe.model
         entity_schema = model_cfg.loader.entity_schema
-        augmenter_cfg = model_cfg.augmenter
+        fetcher_cfg = model_cfg.fetcher
         data_interface = model_cfg.data_interface
 
         # features 리스트 구성 (namespace별 features -> 평탄화 문자열 리스트)
         features: List[str] = []
-        if augmenter_cfg and augmenter_cfg.features:
-            for ns in augmenter_cfg.features:
+        if fetcher_cfg and fetcher_cfg.features:
+            for ns in fetcher_cfg.features:
                 for f in ns.features:
                     features.append(f"{ns.feature_namespace}:{f}")
 
@@ -64,4 +64,4 @@ class FeatureStoreAugmenter(BaseAugmenter):
 
 # Self-registration
 from .._registry import FetcherRegistry
-FetcherRegistry.register("feature_store", FeatureStoreAugmenter)
+FetcherRegistry.register("feature_store", FeatureStoreFetcher)

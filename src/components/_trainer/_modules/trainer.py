@@ -83,7 +83,12 @@ class Trainer(BaseTrainer):
         return trained_model, preprocessor, metrics, self.training_results
 
     def _single_training_iteration(self, train_df, params, seed):
-        """Data Leakage 방지를 보장하는 단일 학습/검증 사이클."""
+        """
+        Data Leakage 방지를 보장하는 단일 학습/검증 사이클.
+        
+        Optuna 튜닝 시에만 사용되며, 이미 분할된 Train 데이터를
+        다시 Train(80%) / Validation(20%)로 분할하여 튜닝합니다.
+        """
         train_data, val_data = train_test_split(
             train_df, test_size=0.2, random_state=seed, stratify=train_df.get(self._get_stratify_col())
         )
@@ -130,12 +135,14 @@ class Trainer(BaseTrainer):
             raise ValueError(f"지원하지 않는 task_type: {task_type}")
 
     def _get_training_methodology(self):
+        """학습 방법론 메타데이터를 반환합니다."""
         return {
             'train_test_split_method': 'stratified',
-            'train_ratio': 0.8,
-            'validation_strategy': 'train_validation_split',
+            'train_ratio': 0.8,  # Train 80% / Test 20%
+            'validation_strategy': 'train_validation_split',  # Optuna 시 Train에서 Val 20% 추가 분할
             'random_state': 42,
-            'preprocessing_fit_scope': 'train_only'
+            'preprocessing_fit_scope': 'train_only',
+            'note': 'Optuna 사용 시 Train을 다시 Train(80%)/Val(20%)로 분할'
         }
 
     def _get_stratify_col(self):

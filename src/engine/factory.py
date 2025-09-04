@@ -4,7 +4,7 @@ from typing import Optional, Dict, Any, TYPE_CHECKING
 
 import pandas as pd
 
-from src.components._fetcher import FeatureStoreAugmenter, PassThroughAugmenter
+from src.components._fetcher import FetcherRegistry
 from src.components._preprocessor import Preprocessor, BasePreprocessor
 from src.components._adapter import AdapterRegistry
 from src.components._evaluator import EvaluatorRegistry
@@ -14,7 +14,7 @@ from src.utils.system.logger import logger
 
 if TYPE_CHECKING:
     from src.engine._artifact import PyfuncWrapper
-    from src.interface import BaseAugmenter
+    from src.interface import BaseFetcher
 
 
 class Factory:
@@ -35,11 +35,62 @@ class Factory:
         """현재 모델 설정 반환 (현대화된 Recipe.model)"""
         return self.settings.recipe.model
 
+    def _detect_adapter_type_from_uri(self, source_uri: str) -> str:
+        """
+        source_uri 패턴을 분석하여 필요한 어댑터 타입을 자동으로 결정합니다.
+        
+        패턴:
+        - .sql 파일 또는 SQL 쿼리 → 'sql'
+        - .csv, .parquet, .json → 'storage'
+        - s3://, gs://, az:// → 'storage'
+        - bigquery:// → 'bigquery'
+        """
+        uri_lower = source_uri.lower()
+        
+        # SQL 패턴
+        if uri_lower.endswith('.sql') or 'select' in uri_lower or 'from' in uri_lower:
+            return 'sql'
+        
+        # BigQuery 패턴
+        if uri_lower.startswith('bigquery://'):
+            return 'bigquery'
+        
+        # Cloud Storage 패턴
+        if any(uri_lower.startswith(prefix) for prefix in ['s3://', 'gs://', 'az://']):
+            return 'storage'
+        
+        # File 패턴
+        if any(uri_lower.endswith(ext) for ext in ['.csv', '.parquet', '.json', '.tsv']):
+            return 'storage'
+        
+        # 기본값
+        logger.warning(f"source_uri 패턴을 인식할 수 없습니다: {source_uri}. 'storage' 어댑터를 사용합니다.")
+        return 'storage'
+    
     def create_data_adapter(self, adapter_type: Optional[str] = None) -> "BaseAdapter":
         """
-        데이터 어댑터 생성. 인자 우선, 미지정 시 레시피의 loader.adapter 사용.
+        데이터 어댑터 생성. 
+        1. 인자로 전달된 adapter_type 우선
+        2. Recipe에 adapter 필드가 있으면 사용 (backward compatibility)
+        3. 없으면 source_uri 패턴으로 자동 감지
         """
-        target_type = adapter_type or self.settings.recipe.model.loader.adapter
+        # 우선순위 1: 명시적 인자
+        if adapter_type:
+            target_type = adapter_type
+        else:
+            # Recipe에서 loader 정보 가져오기
+            loader = self.settings.recipe.data.loader
+            
+            # 우선순위 2: Recipe에 adapter 필드가 있으면 사용 (backward compatibility)
+            if hasattr(loader, 'adapter') and loader.adapter:
+                target_type = loader.adapter
+                logger.debug(f"Recipe에서 adapter 타입 사용: '{target_type}'")
+            else:
+                # 우선순위 3: source_uri 패턴으로 자동 감지
+                source_uri = loader.source_uri
+                target_type = self._detect_adapter_type_from_uri(source_uri)
+                logger.info(f"source_uri '{source_uri}'에서 adapter 타입 자동 감지: '{target_type}'")
+        
         logger.debug(f"DataAdapter 생성: type='{target_type}'")
         try:
             return AdapterRegistry.create_adapter(target_type, self.settings)
@@ -49,14 +100,14 @@ class Factory:
                 f"지원하지 않는 DataAdapter 타입입니다: '{target_type}'. 사용 가능한 어댑터: {available}"
             ) from e
     
-    def create_augmenter(self, run_mode: Optional[str] = None):
+    def create_fetcher(self, run_mode: Optional[str] = None):
         """
-        설정과 실행 모드에 따라 적절한 Augmenter 인스턴스를 생성합니다.
+        설정과 실행 모드에 따라 적절한 fetcher 인스턴스를 생성합니다.
         """
         mode = (run_mode or "batch").lower()
         env = self.settings.environment.env_name if hasattr(self.settings, "environment") else "local"
         provider = (self.settings.feature_store.provider if getattr(self.settings, "feature_store", None) else "none")
-        aug_conf = getattr(self.settings.recipe.model, "augmenter", None)
+        aug_conf = getattr(self.settings.recipe.model, "fetcher", None)
         aug_type = getattr(aug_conf, "type", None) if aug_conf else None
 
         # serving에서는 PassThrough/SqlFallback 금지
@@ -66,15 +117,15 @@ class Factory:
 
         # local 또는 provider=none 또는 명시적 pass_through → PassThrough
         if env == "local" or provider == "none" or aug_type == "pass_through" or not aug_conf:
-            return PassThroughAugmenter()
+            return FetcherRegistry.create(aug_type)
 
-        # Feature Store 요청 + provider OK → FeatureStoreAugmenter
+        # Feature Store 요청 + provider OK → FeatureStorefetcher
         if aug_type == "feature_store" and provider in {"feast", "mock", "dynamic"}:
-            return FeatureStoreAugmenter(settings=self.settings, factory=self)
+            return FetcherRegistry.create(aug_type, settings=self.settings, factory=self)
 
 
         raise ValueError(
-            f"적절한 Augmenter를 선택할 수 없습니다. env={env}, provider={provider}, aug_type={aug_type}, mode={mode}"
+            f"적절한 fetcher를 선택할 수 없습니다. env={env}, provider={provider}, aug_type={aug_type}, mode={mode}"
         )
 
     def create_preprocessor(self) -> Optional[BasePreprocessor]:
@@ -136,7 +187,7 @@ class Factory:
         self, 
         trained_model: Any, 
         trained_preprocessor: Optional[BasePreprocessor],
-        trained_augmenter: Optional['BaseAugmenter'],
+        trained_fetcher: Optional['BaseFetcher'],
         training_df: Optional[pd.DataFrame] = None,
         training_results: Optional[Dict[str, Any]] = None
     ) -> PyfuncWrapper:
@@ -181,7 +232,7 @@ class Factory:
             settings=self.settings,
             trained_model=trained_model,
             trained_preprocessor=trained_preprocessor,
-            trained_augmenter=trained_augmenter,
+            trained_fetcher=trained_fetcher,
             training_results=training_results,
             signature=signature,
             data_schema=data_schema,

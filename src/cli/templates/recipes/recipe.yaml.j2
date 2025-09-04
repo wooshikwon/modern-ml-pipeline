@@ -8,6 +8,7 @@ name: {{ recipe_name }}
 model:
   class_path: {{ model_class }}
   library: {{ model_library }}
+  
   hyperparameters:
     tuning_enabled: {{ enable_tuning | lower }}
     {% if enable_tuning %}
@@ -34,25 +35,61 @@ data:
   loader:
     # source_uri 패턴을 보고 어댑터가 자동 결정됨
     # .sql → SQL adapter, .csv/.parquet → Storage adapter
-    source_uri: sql/train_data.sql  # TODO: 실제 데이터 경로로 수정
+    source_uri: {{ source_uri }}
+    entity_schema:
+      entity_columns: {{ entity_columns }}
+      timestamp_column: {{ timestamp_column }}
   
+  # Fetcher 설정 (Feature Store 연동)
+  fetcher:
+    type: {{ fetcher_type }}
+    {% if fetcher_type == "feature_store" and feature_namespaces %}
+    features:
+      {% for ns in feature_namespaces %}
+      - feature_namespace: {{ ns.feature_namespace }}
+        features: {{ ns.features }}
+      {% endfor %}
+    {% else %}
+    features: null
+    {% endif %}
+  
+  # Data interface 설정
   data_interface:
     task_type: {{ task|lower }}
-    target_column: target  # TODO: 실제 타겟 컬럼명으로 수정
+    target_column: {{ target_column }}
     feature_columns: null  # null이면 target 제외 모든 컬럼 사용
     id_column: null        # 필요시 ID 컬럼 지정
 
-# 전처리 파이프라인 (필요시 수정)
+# 전처리 파이프라인
+{% if preprocessor_steps %}
 preprocessor:
   steps:
-    - type: StandardScaler
-      columns: [numerical_features]  # TODO: 실제 수치형 컬럼으로 수정
-    - type: OneHotEncoder
-      columns: [categorical_features]  # TODO: 실제 범주형 컬럼으로 수정
+    {% for step in preprocessor_steps %}
+    - type: {{ step.type }}
+      columns: {{ step.columns }}
+      {% if step.strategy is defined %}
+      strategy: {{ step.strategy }}
+      {% endif %}
+      {% if step.degree is defined %}
+      degree: {{ step.degree }}
+      {% endif %}
+      {% if step.n_bins is defined %}
+      n_bins: {{ step.n_bins }}
+      {% endif %}
+    {% endfor %}
+{% else %}
+# preprocessor 설정 없음 (전처리 단계 생략)
+preprocessor: null
+{% endif %}
 
 evaluation:
   metrics: {{ metrics }}
   validation:
+    # 데이터 분할 전략:
+    # - 기본 학습: Train({{ (1 - test_size) * 100 }}%) / Test({{ test_size * 100 }}%)
+    {% if enable_tuning %}
+    # - Optuna 튜닝: Train을 다시 Train({{ (1 - test_size) * 0.8 * 100 }}%) / Val({{ (1 - test_size) * 0.2 * 100 }}%)로 분할
+    {% endif %}
     method: train_test_split
     test_size: {{ test_size }}
     random_state: 42
@@ -62,5 +99,5 @@ metadata:
   created_at: {{ timestamp }}
   description: "{{ task }} task using {{ model_library }}"
   {% if enable_tuning %}
-  tuning_note: "Optuna 하이퍼파라미터 튜닝이 활성화됨. Config의 optuna 설정을 확인하세요."
+  tuning_note: "Optuna 하이퍼파라미터 튜닝이 활성화됨."
   {% endif %}

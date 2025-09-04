@@ -6,7 +6,7 @@ import mlflow
 from src.utils.system.logger import logger
 
 if TYPE_CHECKING:
-    from src.interface import BasePreprocessor, BaseAugmenter
+    from src.interface import BasePreprocessor, Basefetcher
     from src.settings import Settings
 
 class PyfuncWrapper(mlflow.pyfunc.PythonModel):
@@ -18,7 +18,7 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
         settings: Settings,
         trained_model: Any,
         trained_preprocessor: Optional[BasePreprocessor],
-        trained_augmenter: Optional[BaseAugmenter],
+        trained_fetcher: Optional[Basefetcher],
         training_results: Optional[Dict[str, Any]] = None,
         signature: Optional[Any] = None, # mlflow.models.ModelSignature
         data_schema: Optional[Any] = None, # mlflow.types.Schema
@@ -26,7 +26,7 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
         self.settings = settings
         self.trained_model = trained_model
         self.trained_preprocessor = trained_preprocessor
-        self.trained_augmenter = trained_augmenter
+        self.trained_fetcher = trained_fetcher
         self.training_results = training_results or {}
         self.signature = signature
         self.data_schema = data_schema
@@ -56,9 +56,9 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
         return self.settings.recipe.model.loader.source_uri
 
     @property
-    def augmenter_config_snapshot(self) -> Dict[str, Any]:
-        if self.settings.recipe.model.augmenter:
-            return self.settings.recipe.model.augmenter.model_dump()
+    def fetcher_config_snapshot(self) -> Dict[str, Any]:
+        if self.settings.recipe.model.fetcher:
+            return self.settings.recipe.model.fetcher.model_dump()
         return {}
 
     @property
@@ -86,7 +86,7 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
         self._validate_input_schema(model_input)
 
         # 2. 피처 증강 -> 전처리 -> 예측
-        augmented_df = self.trained_augmenter.augment(model_input, run_mode=run_mode)
+        augmented_df = self.trained_fetcher.augment(model_input, run_mode=run_mode)
         preprocessed_df = self.trained_preprocessor.transform(augmented_df) if self.trained_preprocessor else augmented_df
         predictions = self.trained_model.predict(preprocessed_df)
         
