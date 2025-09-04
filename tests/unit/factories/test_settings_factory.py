@@ -50,8 +50,8 @@ class TestSettingsFactory:
         assert model['data_interface']['task_type'] == 'classification'
         assert model['data_interface']['target_column'] == 'target'
         
-        # Augmenter
-        assert model['augmenter']['type'] == 'pass_through'
+        # fetcher
+        assert model['fetcher']['type'] == 'pass_through'
     
     def test_create_regression_settings(self):
         """회귀 설정 생성 검증"""
@@ -133,10 +133,10 @@ class TestSettingsFactory:
         assert settings['environment']['env_name'] == 'dev'
         assert settings['feature_store']['provider'] == 'feast'
         
-        # Feature Store Augmenter 설정
+        # Feature Store fetcher 설정
         model = settings['recipe']['model']
-        assert model['augmenter']['type'] == 'feature_store'
-        assert model['augmenter']['provider'] == 'feast'
+        assert model['fetcher']['type'] == 'feature_store'
+        assert model['fetcher']['provider'] == 'feast'
     
     def test_standard_helpers(self):
         """표준 헬퍼 메서드 검증"""

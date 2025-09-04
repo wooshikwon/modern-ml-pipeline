@@ -4,7 +4,7 @@ A03-1: Factory 기반 컴포넌트 조립 통합 테스트
 DEV_PLANS.md A03-1 구현:
 - Factory가 Settings 기반으로 컴포넌트를 올바르게 조립하는지 검증
 - Blueprint 원칙에 따른 의존성 주입 확인
-- 환경별 Augmenter 선택 정책 통합 테스트
+- 환경별 fetcher 선택 정책 통합 테스트
 """
 
 import pytest
@@ -46,8 +46,8 @@ class TestFactoryBasedComponentAssembly:
             components['data_adapter'] = factory.create_data_adapter()
             assert components['data_adapter'] is not None, "data_adapter should not be None"
             
-            components['augmenter'] = factory.create_augmenter()
-            assert components['augmenter'] is not None, "augmenter should not be None"
+            components['fetcher'] = factory.create_fetcher()
+            assert components['fetcher'] is not None, "fetcher should not be None"
             
             components['preprocessor'] = factory.create_preprocessor()
             # preprocessor는 None일 수 있음 (설정에 따라)
@@ -61,7 +61,7 @@ class TestFactoryBasedComponentAssembly:
             pytest.fail(f"Factory should create core components successfully, but failed with: {e}")
         
         # 필수 컴포넌트들이 생성되었는지 확인
-        required_components = ['data_adapter', 'augmenter', 'model']
+        required_components = ['data_adapter', 'fetcher', 'model']
         for comp_name in required_components:
             assert comp_name in components, f"{comp_name} should be created by Factory"
             assert components[comp_name] is not None, f"{comp_name} should not be None"
@@ -78,7 +78,7 @@ class TestFactoryBasedComponentAssembly:
         
         # 각 컴포넌트 생성 (create_trainer는 Factory에 없으므로 제외)
         components = {
-            'augmenter': factory.create_augmenter(),
+            'fetcher': factory.create_fetcher(),
             'preprocessor': factory.create_preprocessor(),
             'model': factory.create_model()
         }
@@ -90,19 +90,19 @@ class TestFactoryBasedComponentAssembly:
             elif hasattr(component, '_settings'):
                 assert component._settings is settings, f"{comp_name} should have the same settings instance via _settings"
     
-    def test_augmenter_selection_policy_integration(self):
-        """환경별 Augmenter 선택 정책 통합 테스트 (RED)"""
+    def test_fetcher_selection_policy_integration(self):
+        """환경별 fetcher 선택 정책 통합 테스트 (RED)"""
         # 다양한 환경 설정으로 테스트
         test_cases = [
             {
                 'env': 'local',
-                'expected_type': 'PassThroughAugmenter',
-                'description': 'Local 환경에서는 PassThroughAugmenter 사용'
+                'expected_type': 'PassThroughfetcher',
+                'description': 'Local 환경에서는 PassThroughfetcher 사용'
             },
             {
                 'env': 'dev', 
-                'expected_type': 'FeatureStoreAugmenter',
-                'description': 'Dev 환경에서는 FeatureStoreAugmenter 사용'
+                'expected_type': 'FeatureStorefetcher',
+                'description': 'Dev 환경에서는 FeatureStorefetcher 사용'
             }
         ]
         
@@ -116,10 +116,10 @@ class TestFactoryBasedComponentAssembly:
                 
                 factory = Factory(settings)
                 
-                augmenter = factory.create_augmenter()
+                fetcher = factory.create_fetcher()
                 
-                # Augmenter 타입이 환경에 맞게 선택되었는지 확인
-                actual_type = augmenter.__class__.__name__
+                # fetcher 타입이 환경에 맞게 선택되었는지 확인
+                actual_type = fetcher.__class__.__name__
                 assert case['expected_type'] in actual_type or actual_type == case['expected_type'], \
                     f"{case['description']}: Expected {case['expected_type']}, got {actual_type}"
     
@@ -135,7 +135,7 @@ class TestFactoryBasedComponentAssembly:
         
         # 컴포넌트들 생성 (Factory에서 제공하는 메서드만)
         data_adapter = factory.create_data_adapter()
-        augmenter = factory.create_augmenter()
+        fetcher = factory.create_fetcher()
         preprocessor = factory.create_preprocessor()
         model = factory.create_model()
         # trainer는 Factory에서 직접 제공하지 않음
@@ -146,14 +146,14 @@ class TestFactoryBasedComponentAssembly:
         # 각 컴포넌트가 필요한 메서드를 가지고 있는지 확인
         component_methods = {
             'data_adapter': ['load', 'save'],  # 예상 메서드
-            'augmenter': ['augment'],
+            'fetcher': ['augment'],
             'preprocessor': ['fit', 'transform'],
             'model': ['fit', 'predict']
         }
         
         components = {
             'data_adapter': data_adapter,
-            'augmenter': augmenter, 
+            'fetcher': fetcher, 
             'preprocessor': preprocessor,
             'model': model
         }
@@ -183,7 +183,7 @@ class TestFactoryBasedComponentAssembly:
         # 에러 발생 후에도 Factory가 계속 사용 가능한지 확인
         # (정상적인 컴포넌트는 계속 생성 가능해야 함)
         try:
-            augmenter = factory.create_augmenter()  # 이는 성공해야 함
-            assert augmenter is not None
+            fetcher = factory.create_fetcher()  # 이는 성공해야 함
+            assert fetcher is not None
         except Exception as e:
             pytest.fail(f"Factory should remain functional after partial failure, but got: {e}")

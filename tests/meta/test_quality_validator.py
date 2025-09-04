@@ -143,18 +143,18 @@ class TestQualityValidator:
         registry.reset_all()
         
         # 다양한 컴포넌트 생성하여 캐시 테스트
-        augmenter1 = registry.get_augmenter("pass_through")
+        fetcher1 = registry.get_fetcher("pass_through")
         model1 = registry.get_model("classifier") 
         preprocessor1 = registry.get_preprocessor("simple_scaler")
         
         # 동일 요청으로 캐시 히트 확인
-        augmenter2 = registry.get_augmenter("pass_through")
+        fetcher2 = registry.get_fetcher("pass_through")
         
         stats_after = registry.get_cache_stats()
         
         # Phase 4에서 구현한 실제 Mock Registry 동작에 맞는 검증
         assert stats_after["total_requests"] >= 2, f"요청 카운트 추적: {stats_after['total_requests']}"
-        assert augmenter1 is augmenter2, "LRU 캐시 동작 실패 - 동일 객체여야 함"
+        assert fetcher1 is fetcher2, "LRU 캐시 동작 실패 - 동일 객체여야 함"
         
         # 캐시 기능 존재 여부만 확인 (실제 동작은 구현에 따라 다를 수 있음)
         assert "hits" in stats_after, "캐시 히트 통계 필드 누락"
@@ -189,7 +189,7 @@ class TestQualityValidator:
         for _ in range(10):
             data = TestDataFactory.create_classification_data(n_samples=50)
             settings = SettingsFactory.create_minimal_settings()
-            augmenter = MockComponentRegistry.get_augmenter()
+            fetcher = MockComponentRegistry.get_fetcher()
         
         elapsed = time.time() - start_time
         

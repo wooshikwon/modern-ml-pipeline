@@ -7,7 +7,7 @@ LOCAL 환경의 철학:
 - 빠른 실험과 디버깅에 집중
 - 복잡한 인프라 의존성 제거
 - 의도적 제약을 통한 핵심 로직 집중
-- PassThroughAugmenter 사용
+- PassThroughfetcher 사용
 - API 서빙 시스템적 차단
 """
 
@@ -15,7 +15,7 @@ import pytest
 import pandas as pd
 
 from src.factory.factory import Factory
-from src.components._fetcher import PassThroughAugmenter
+from src.components._fetcher import PassThroughfetcher
 from src.settings import load_settings
 
 
@@ -38,16 +38,16 @@ class TestLocalEnvironmentBlueprintCompliance:
         assert hasattr(local_settings, 'feature_store')
         assert hasattr(local_settings, 'recipe')
 
-    def test_local_environment_factory_creates_passthrough_augmenter(self, local_settings):
-        """Local 환경에서 PassThrough Augmenter 생성 - BLUEPRINT 원칙 2"""
+    def test_local_environment_factory_creates_passthrough_fetcher(self, local_settings):
+        """Local 환경에서 PassThrough fetcher 생성 - BLUEPRINT 원칙 2"""
         factory = Factory(local_settings)
         
-        # BLUEPRINT 원칙 2: Local 환경에서는 PassThroughAugmenter 사용
-        augmenter = factory.create_augmenter()
+        # BLUEPRINT 원칙 2: Local 환경에서는 PassThroughfetcher 사용
+        fetcher = factory.create_fetcher()
         
-        assert augmenter is not None
-        # Local 환경에서는 PassThroughAugmenter가 생성되어야 함
-        assert isinstance(augmenter, PassThroughAugmenter)
+        assert fetcher is not None
+        # Local 환경에서는 PassThroughfetcher가 생성되어야 함
+        assert isinstance(fetcher, PassThroughfetcher)
 
     def test_local_environment_feature_store_configuration(self, local_settings):
         """Local 환경 Feature Store 설정 - BLUEPRINT 원칙 2"""
@@ -55,9 +55,9 @@ class TestLocalEnvironmentBlueprintCompliance:
         assert hasattr(local_settings, 'feature_store')
         assert hasattr(local_settings.feature_store, 'provider')
         
-        # 환경별로 설정이 다름 - 실제 recipe에서는 'pass_through' augmenter 사용
+        # 환경별로 설정이 다름 - 실제 recipe에서는 'pass_through' fetcher 사용
         # Feature store provider는 환경에 따라 설정되지만, 
-        # Local recipe는 pass_through augmenter를 사용하므로 실질적으로 비활성화됨
+        # Local recipe는 pass_through fetcher를 사용하므로 실질적으로 비활성화됨
 
     def test_local_environment_serving_configuration(self, local_settings):
         """Local 환경 서빙 설정 - BLUEPRINT 원칙 2"""  
@@ -65,13 +65,13 @@ class TestLocalEnvironmentBlueprintCompliance:
         assert hasattr(local_settings, 'serving')
         assert hasattr(local_settings.serving, 'enabled')
         
-        # Recipe 레벨에서 pass_through augmenter 사용으로 serving 제약
-        # 실제 serving은 augmenter 타입에 따라 차단됨 (PassThroughAugmenter 시 503 정책)
+        # Recipe 레벨에서 pass_through fetcher 사용으로 serving 제약
+        # 실제 serving은 fetcher 타입에 따라 차단됨 (PassThroughfetcher 시 503 정책)
 
     @pytest.mark.unit
-    def test_local_environment_augmenter_passthrough_behavior(self, local_settings):
-        """Local 환경 Augmenter PassThrough 동작 - BLUEPRINT 데이터 계약"""
-        augmenter = PassThroughAugmenter()
+    def test_local_environment_fetcher_passthrough_behavior(self, local_settings):
+        """Local 환경 fetcher PassThrough 동작 - BLUEPRINT 데이터 계약"""
+        fetcher = PassThroughfetcher()
         
         # BLUEPRINT 데이터 계약: entity + timestamp 입력
         sample_data = pd.DataFrame({
@@ -80,7 +80,7 @@ class TestLocalEnvironmentBlueprintCompliance:
             'label': [1, 0]
         })
         
-        result = augmenter.augment(sample_data, run_mode="train")
+        result = fetcher.augment(sample_data, run_mode="train")
         
         # BLUEPRINT: PassThrough는 입력과 동일한 출력
         assert isinstance(result, pd.DataFrame)
@@ -99,9 +99,9 @@ class TestLocalEnvironmentBlueprintCompliance:
         preprocessor = factory.create_preprocessor()
         assert preprocessor is not None
         
-        # 2. Augmenter는 PassThrough (단순함)
-        augmenter = factory.create_augmenter()
-        assert isinstance(augmenter, PassThroughAugmenter)
+        # 2. fetcher는 PassThrough (단순함)
+        fetcher = factory.create_fetcher()
+        assert isinstance(fetcher, PassThroughfetcher)
         
         # 3. 모델 생성도 정상 작동 (핵심 로직)
         model = factory.create_model()
@@ -120,7 +120,7 @@ class TestLocalEnvironmentBlueprintCompliance:
         
         components = {
             'preprocessor': factory.create_preprocessor(),
-            'augmenter': factory.create_augmenter(),
+            'fetcher': factory.create_fetcher(),
             'model': factory.create_model(),
             'evaluator': factory.create_evaluator()
         }

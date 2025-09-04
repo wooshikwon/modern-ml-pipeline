@@ -13,7 +13,7 @@ from unittest.mock import Mock, patch
 from sklearn.ensemble import RandomForestClassifier
 
 from src.components._trainer import Trainer
-from src.interface import BaseAugmenter, BasePreprocessor, BaseEvaluator
+from src.interface import Basefetcher, BasePreprocessor, BaseEvaluator
 
 
 @pytest.mark.unit
@@ -70,8 +70,8 @@ class TestTrainerBlueprintCompliance:
     @pytest.fixture
     def mock_components(self):
         """모든 컴포넌트 Mock 객체"""
-        augmenter = Mock(spec=BaseAugmenter)
-        augmenter.augment = Mock(side_effect=lambda df, **kwargs: df)  # 패스스루
+        fetcher = Mock(spec=Basefetcher)
+        fetcher.augment = Mock(side_effect=lambda df, **kwargs: df)  # 패스스루
         
         preprocessor = Mock(spec=BasePreprocessor)
         preprocessor.fit = Mock()
@@ -89,7 +89,7 @@ class TestTrainerBlueprintCompliance:
         model.fit = Mock()
         
         return {
-            'augmenter': augmenter,
+            'fetcher': fetcher,
             'preprocessor': preprocessor, 
             'evaluator': evaluator,
             'model': model
@@ -125,7 +125,7 @@ class TestTrainerBlueprintCompliance:
         trained_model, fitted_preprocessor, metrics, training_results = trainer.train(
             df=sample_training_data,
             model=mock_components['model'],
-            augmenter=mock_components['augmenter'],
+            fetcher=mock_components['fetcher'],
             preprocessor=mock_components['preprocessor'],
             evaluator=mock_components['evaluator']
         )
@@ -150,7 +150,7 @@ class TestTrainerBlueprintCompliance:
         _, _, _, training_results = trainer.train(
             df=sample_training_data,
             model=mock_components['model'],
-            augmenter=mock_components['augmenter'], 
+            fetcher=mock_components['fetcher'], 
             preprocessor=mock_components['preprocessor'],
             evaluator=mock_components['evaluator']
         )
@@ -176,7 +176,7 @@ class TestTrainerBlueprintCompliance:
             _, _, _, training_results = trainer.train(
                 df=sample_training_data,
                 model=mock_components['model'],
-                augmenter=mock_components['augmenter'],
+                fetcher=mock_components['fetcher'],
                 preprocessor=mock_components['preprocessor'],
                 evaluator=mock_components['evaluator']
             )

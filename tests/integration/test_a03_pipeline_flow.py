@@ -190,9 +190,9 @@ class TestPipelineFlow:
             assert 'timestamp' in loaded_data.columns, "Timestamp column should be preserved"
             assert 'Survived' in loaded_data.columns, "Target column should be preserved"
             
-            # Augmenter를 통한 데이터 변환 무결성
-            augmenter = factory.create_augmenter()
-            augmented_data = augmenter.augment(loaded_data, run_mode="batch")
+            # fetcher를 통한 데이터 변환 무결성
+            fetcher = factory.create_fetcher()
+            augmented_data = fetcher.augment(loaded_data, run_mode="batch")
             
             assert len(augmented_data) == len(loaded_data), "Row count should be preserved through augmentation"
             assert 'PassengerId' in augmented_data.columns, "Entity columns should survive augmentation"
@@ -243,15 +243,15 @@ class TestPipelineFlow:
                                         "Identical settings should produce identical data loading results")
             
             # 컴포넌트 타입 동일성 검증
-            augmenter1 = factory1.create_augmenter()
-            augmenter2 = factory2.create_augmenter()
+            fetcher1 = factory1.create_fetcher()
+            fetcher2 = factory2.create_fetcher()
             
-            assert type(augmenter1) is type(augmenter2), "Same settings should create same augmenter type"
-            assert augmenter1.__class__.__name__ == augmenter2.__class__.__name__, "Augmenter types should be identical"
+            assert type(fetcher1) is type(fetcher2), "Same settings should create same fetcher type"
+            assert fetcher1.__class__.__name__ == fetcher2.__class__.__name__, "fetcher types should be identical"
     
     def test_factory_component_interaction_in_pipeline(self):
         """Factory 컴포넌트들의 파이프라인 내 상호작용 검증 (RED)"""
-        # Feature Store 의존성을 피하고 PassThroughAugmenter를 사용하기 위해 local 환경 설정
+        # Feature Store 의존성을 피하고 PassThroughfetcher를 사용하기 위해 local 환경 설정
         with patch.dict(os.environ, {'ENV_NAME': 'local'}):
             test_data = pd.DataFrame({
                 'PassengerId': [1, 2, 3, 4],
@@ -280,10 +280,10 @@ class TestPipelineFlow:
                 raw_data = data_adapter.read(settings.recipe.model.loader.source_uri)
                 interaction_log.append(f"DataAdapter loaded {len(raw_data)} rows")
                 
-                # 2. Augmenter (local 환경에서는 PassThroughAugmenter 사용)
-                augmenter = factory.create_augmenter()
-                augmented_data = augmenter.augment(raw_data, run_mode="batch")
-                interaction_log.append(f"Augmenter processed {len(augmented_data)} rows")
+                # 2. fetcher (local 환경에서는 PassThroughfetcher 사용)
+                fetcher = factory.create_fetcher()
+                augmented_data = fetcher.augment(raw_data, run_mode="batch")
+                interaction_log.append(f"fetcher processed {len(augmented_data)} rows")
                 
                 # 3. Preprocessor (if exists)
                 preprocessor = factory.create_preprocessor()
@@ -358,6 +358,6 @@ class TestPipelineFlow:
                     print(f"  {log_entry}")
                 
                 # 최종 검증: 모든 단계가 성공적으로 실행되었는지 확인
-                expected_steps = ["DataAdapter loaded", "Augmenter processed", "Model fit successful", "Model prediction successful"]
+                expected_steps = ["DataAdapter loaded", "fetcher processed", "Model fit successful", "Model prediction successful"]
                 for expected_step in expected_steps:
                     assert any(expected_step in log for log in interaction_log), f"Missing interaction step: {expected_step}"

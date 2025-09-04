@@ -30,7 +30,7 @@ model:
     enabled: false
 
   # LOCAL 환경: Feature Store 없이 Passthrough
-  augmenter:
+  fetcher:
     type: "passthrough"
     features: []
 

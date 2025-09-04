@@ -29,9 +29,9 @@ class MockComponentRegistry:
     _access_times = {}  # 접근 시간 추적
     
     @classmethod
-    def get_augmenter(cls, augmenter_type: str = "pass_through") -> Mock:
-        """Augmenter Mock 제공 - Blueprint 계약 준수"""
-        key = f"augmenter_{augmenter_type}"
+    def get_fetcher(cls, fetcher_type: str = "pass_through") -> Mock:
+        """fetcher Mock 제공 - Blueprint 계약 준수"""
+        key = f"fetcher_{fetcher_type}"
         cls._cache_stats['total_requests'] += 1
         
         if key in cls._instances:
@@ -46,10 +46,10 @@ class MockComponentRegistry:
         mock = Mock(spec=['augment'])
         
         def mock_augment(data, run_mode="train"):
-            """실제 Augmenter와 동일한 인터페이스 Mock"""
+            """실제 fetcher와 동일한 인터페이스 Mock"""
             # Blueprint 데이터 계약: entity + timestamp 보존
             if isinstance(data, pd.DataFrame):
-                # 실제 PassThroughAugmenter처럼 입력 데이터 그대로 반환
+                # 실제 PassThroughfetcher처럼 입력 데이터 그대로 반환
                 result = data.copy()
                 
                 # Entity 스키마 보존 확인
@@ -170,7 +170,7 @@ class MockComponentRegistry:
         
         if key not in cls._instances:
             mock = Mock(spec=[
-                'create_augmenter', 'create_preprocessor', 'create_model', 
+                'create_fetcher', 'create_preprocessor', 'create_model', 
                 'create_evaluator', 'create_data_adapter'
             ])
             
@@ -178,17 +178,17 @@ class MockComponentRegistry:
             mock.settings = cls._create_settings_mock(settings_dict)
             
             # 컴포넌트 생성 메서드 Mock 설정
-            def create_augmenter(run_mode=None):
-                augmenter_type = "pass_through"  # 기본값
+            def create_fetcher(run_mode=None):
+                fetcher_type = "pass_through"  # 기본값
                 if hasattr(mock.settings, 'recipe') and hasattr(mock.settings.recipe, 'model'):
-                    if hasattr(mock.settings.recipe.model, 'augmenter'):
-                        augmenter_type = getattr(mock.settings.recipe.model.augmenter, 'type', 'pass_through')
+                    if hasattr(mock.settings.recipe.model, 'fetcher'):
+                        fetcher_type = getattr(mock.settings.recipe.model.fetcher, 'type', 'pass_through')
                 
                 # Serving 모드 제약 검증 (Blueprint 정책)
-                if run_mode == "serving" and augmenter_type == "pass_through":
+                if run_mode == "serving" and fetcher_type == "pass_through":
                     raise TypeError("Serving에서는 pass_through 사용이 금지됩니다. Feature Store 연결이 필요합니다.")
                 
-                return cls.get_augmenter(augmenter_type)
+                return cls.get_fetcher(fetcher_type)
             
             def create_preprocessor():
                 preprocessor_name = "simple_scaler"  # 기본값
@@ -213,7 +213,7 @@ class MockComponentRegistry:
             def create_data_adapter(adapter_type=None):
                 return Mock(spec=['read', 'write'])
             
-            mock.create_augmenter.side_effect = create_augmenter
+            mock.create_fetcher.side_effect = create_fetcher
             mock.create_preprocessor.side_effect = create_preprocessor
             mock.create_model.side_effect = create_model
             mock.create_evaluator.side_effect = create_evaluator
@@ -315,7 +315,7 @@ class MockComponentRegistry:
     def warm_cache(cls):
         """자주 사용되는 Mock 객체들을 미리 캐시에 로드"""
         # 기본 컴포넌트들 미리 로드
-        cls.get_augmenter("pass_through")
+        cls.get_fetcher("pass_through")
         cls.get_preprocessor("simple_scaler") 
         cls.get_model("classifier")
         cls.get_model("regressor")

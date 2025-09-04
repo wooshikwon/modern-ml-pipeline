@@ -174,7 +174,7 @@ class SchemaConsistencyValidator:
                 f"🚨 Inference 데이터에 Training 시 필수 컬럼이 없습니다: {missing_cols}\n"
                 f"Training 스키마: {required_cols}\n"
                 f"현재 스키마: {list(inference_df.columns)}\n"
-                f"💡 해결방안: 누락된 컬럼을 데이터에 추가하거나 preprocessor/augmenter 설정을 확인하세요."
+                f"💡 해결방안: 누락된 컬럼을 데이터에 추가하거나 preprocessor/fetcher 설정을 확인하세요."
             )
         
         # 추가 컬럼은 경고만 (새로운 피처 추가 가능성)

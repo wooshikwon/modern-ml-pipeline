@@ -14,7 +14,7 @@ model:
     entity_schema:
       entity_columns: ["user_id"]
       timestamp_column: "event_timestamp"
-  augmenter:
+  fetcher:
     type: pass_through
   preprocessor:
     name: simple_scaler

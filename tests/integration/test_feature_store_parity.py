@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 from src.factory.factory import Factory
-from src.components._fetcher import FeatureStoreAugmenter as Augmenter
+from src.components._fetcher import FeatureStorefetcher as fetcher
 from src.settings import Settings
 
 # DEV 환경 Feature Store 패리티 테스트
@@ -241,29 +241,29 @@ class TestFeatureStoreParityValidation:
         # 정확히 동일한 타입
         return type1 == type2
 
-    def test_augmenter_parity_through_pipeline(self, dev_test_settings: Settings, parity_test_entities):
+    def test_fetcher_parity_through_pipeline(self, dev_test_settings: Settings, parity_test_entities):
         """
-        [파이프라인 패리티] Augmenter를 통한 배치/서빙 모드 간 패리티 검증
+        [파이프라인 패리티] fetcher를 통한 배치/서빙 모드 간 패리티 검증
         """
         factory = Factory(dev_test_settings)
-        augmenter: Augmenter = factory.create_augmenter()
+        fetcher: fetcher = factory.create_fetcher()
         
         spine_df = pd.DataFrame(parity_test_entities[:3])
         
         # 1. 배치 모드로 피처 증강
-        batch_augmented = augmenter.augment(spine_df, run_mode="batch")
+        batch_augmented = fetcher.augment(spine_df, run_mode="batch")
         
         # 2. 서빙 모드로 피처 증강
-        serving_augmented = augmenter.augment(spine_df, run_mode="serving")
+        serving_augmented = fetcher.augment(spine_df, run_mode="serving")
         
         # 3. 기본 검증
         assert not batch_augmented.empty, "배치 모드 피처 증강 실패"
         assert not serving_augmented.empty, "서빙 모드 피처 증강 실패"
         assert len(batch_augmented) == len(serving_augmented), \
-            f"Augmenter 모드별 결과 건수 불일치: 배치 {len(batch_augmented)}, 서빙 {len(serving_augmented)}"
+            f"fetcher 모드별 결과 건수 불일치: 배치 {len(batch_augmented)}, 서빙 {len(serving_augmented)}"
         
-        # 4. 엔티티별 Augmenter 패리티 검증
-        augmenter_mismatches = []
+        # 4. 엔티티별 fetcher 패리티 검증
+        fetcher_mismatches = []
         
         for i in range(len(spine_df)):
             entity = spine_df.iloc[i]
@@ -298,21 +298,21 @@ class TestFeatureStoreParityValidation:
                     
                     # 값 일치성 검증
                     if batch_val != serving_val:
-                        augmenter_mismatches.append({
+                        fetcher_mismatches.append({
                             "entity": f"{user_id}/{product_id}",
                             "feature": col,
                             "batch_value": batch_val,
                             "serving_value": serving_val
                         })
         
-        if augmenter_mismatches:
-            augmenter_details = "\n".join([
+        if fetcher_mismatches:
+            fetcher_details = "\n".join([
                 f"  {m['entity']} {m['feature']}: 배치={m['batch_value']} != 서빙={m['serving_value']}"
-                for m in augmenter_mismatches[:5]
+                for m in fetcher_mismatches[:5]
             ])
-            pytest.fail(f"Augmenter 배치/서빙 모드 패리티 위반 ({len(augmenter_mismatches)}건):\n{augmenter_details}")
+            pytest.fail(f"fetcher 배치/서빙 모드 패리티 위반 ({len(fetcher_mismatches)}건):\n{fetcher_details}")
         
-        print("✅ Augmenter 파이프라인 패리티 검증 완료")
+        print("✅ fetcher 파이프라인 패리티 검증 완료")
 
     def test_timestamp_handling_parity(self, dev_test_settings: Settings):
         """
