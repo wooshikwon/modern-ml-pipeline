@@ -20,6 +20,7 @@ class TestClusteringEvaluatorInitialization:
         """Test that ClusteringEvaluator properly inherits from BaseEvaluator."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["user_id"],
             task_type="clustering",
             target_column=None,
             feature_columns=["x", "y", "z"]
@@ -36,6 +37,7 @@ class TestClusteringEvaluatorInitialization:
         """Test that initialization properly stores settings and task type."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["user_id"],
             task_type="clustering",
             target_column=None,
             feature_columns=["feature1", "feature2", "feature3"]
@@ -54,6 +56,7 @@ class TestClusteringEvaluatorInitialization:
         """Test initialization with minimal required configuration."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["user_id"],
             task_type="clustering"
         )
         
@@ -73,6 +76,7 @@ class TestClusteringEvaluatorEvaluate:
         """Test successful clustering evaluation with K-means."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["user_id"],
             task_type="clustering",
             feature_columns=["x", "y"]
         )
@@ -107,6 +111,7 @@ class TestClusteringEvaluatorEvaluate:
         """Test evaluation with different numbers of clusters."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["user_id"],
             task_type="clustering",
             feature_columns=["feature1", "feature2", "feature3"]
         )
@@ -137,6 +142,7 @@ class TestClusteringEvaluatorEvaluate:
         """Test evaluation with optional source_df parameter."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["user_id"],
             task_type="clustering",
             feature_columns=["x", "y"]
         )
@@ -169,6 +175,7 @@ class TestClusteringEvaluatorEvaluate:
         """Test that model.labels_ is accessed correctly."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["user_id"],
             task_type="clustering",
             feature_columns=["x", "y"]
         )
@@ -196,6 +203,7 @@ class TestClusteringEvaluatorMetrics:
         """Test evaluation with well-separated clusters (high silhouette score)."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["user_id"],
             task_type="clustering",
             feature_columns=["x", "y"]
         )
@@ -222,6 +230,7 @@ class TestClusteringEvaluatorMetrics:
         """Test evaluation with poorly separated clusters."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["user_id"],
             task_type="clustering",
             feature_columns=["feature"]
         )
@@ -249,6 +258,7 @@ class TestClusteringEvaluatorMetrics:
         """Test evaluation when all points belong to single cluster."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["user_id"],
             task_type="clustering",
             feature_columns=["x", "y"]
         )
@@ -269,6 +279,7 @@ class TestClusteringEvaluatorMetrics:
         """Test evaluation with outlier labels (-1)."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["user_id"],
             task_type="clustering",
             feature_columns=["x", "y"]
         )
@@ -296,6 +307,7 @@ class TestClusteringEvaluatorErrorHandling:
         """Test evaluation when model doesn't have labels_ attribute."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["user_id"],
             task_type="clustering",
             feature_columns=["feature"]
         )
@@ -316,6 +328,7 @@ class TestClusteringEvaluatorErrorHandling:
         """Test evaluation with mismatched X and labels shapes."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["user_id"],
             task_type="clustering",
             feature_columns=["x", "y"]
         )
@@ -338,6 +351,7 @@ class TestClusteringEvaluatorErrorHandling:
         """Test evaluation when labels_ is not numpy array."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["user_id"],
             task_type="clustering",
             feature_columns=["feature"]
         )
@@ -364,6 +378,7 @@ class TestClusteringEvaluatorIntegration:
         """Test evaluation with realistic customer segmentation scenario."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["customer_id"],
             task_type="clustering",
             feature_columns=["age", "income", "spending_score"]
         )
@@ -396,6 +411,7 @@ class TestClusteringEvaluatorIntegration:
         """Test evaluation with high-dimensional feature space."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["user_id"],
             task_type="clustering",
             feature_columns=[f"feature_{i}" for i in range(10)]
         )
@@ -433,6 +449,7 @@ class TestClusteringEvaluatorSelfRegistration:
         
         # Verify can create instance through registry
         data_interface = DataInterface(
+            entity_columns=["user_id"],
             task_type="clustering",
             feature_columns=["feature1", "feature2"]
         )
