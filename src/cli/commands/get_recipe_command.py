@@ -47,10 +47,10 @@ def get_recipe_command() -> None:
         ui.show_panel(
             """🚀 환경 독립적인 Recipe 생성을 시작합니다!
             
-Recipe는 환경 설정과 분리되어 있어,
-다양한 환경에서 재사용할 수 있습니다.""",
-            title="Recipe Generator",
-            style="green"
+        Recipe는 환경 설정과 분리되어 있어,
+        다양한 환경에서 재사용할 수 있습니다.""",
+                    title="Recipe Generator",
+                    style="green"
         )
         
         # Recipe Builder 초기화

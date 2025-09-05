@@ -53,12 +53,12 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
 
     @property
     def loader_sql_snapshot(self) -> str:
-        return self.settings.recipe.model.loader.source_uri
+        return self.settings.recipe.data.loader.source_uri
 
     @property
     def fetcher_config_snapshot(self) -> Dict[str, Any]:
-        if self.settings.recipe.model.fetcher:
-            return self.settings.recipe.model.fetcher.model_dump()
+        if self.settings.recipe.data.fetcher:
+            return self.settings.recipe.data.fetcher.model_dump()
         return {}
 
     @property
