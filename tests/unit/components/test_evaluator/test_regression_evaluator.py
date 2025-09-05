@@ -20,6 +20,7 @@ class TestRegressionEvaluatorInitialization:
         """Test that RegressionEvaluator properly inherits from BaseEvaluator."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["property_id"],
             task_type="regression",
             target_column="price",
             feature_columns=["size", "location", "age"]
@@ -36,6 +37,7 @@ class TestRegressionEvaluatorInitialization:
         """Test that initialization properly stores settings and task type."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["product_id"],
             task_type="regression",
             target_column="sales",
             feature_columns=["advertising", "price", "season"]
@@ -54,6 +56,7 @@ class TestRegressionEvaluatorInitialization:
         """Test initialization with minimal required configuration."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["user_id"],
             task_type="regression",
             target_column="y"
         )
@@ -74,6 +77,7 @@ class TestRegressionEvaluatorEvaluate:
         """Test successful regression evaluation with perfect predictions."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["user_id"],
             task_type="regression",
             target_column="target",
             feature_columns=["feature1", "feature2"]
@@ -107,6 +111,7 @@ class TestRegressionEvaluatorEvaluate:
         """Test evaluation with realistic predictions having some error."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["house_id"],
             task_type="regression",
             target_column="house_price",
             feature_columns=["sqft", "bedrooms", "age"]
@@ -148,6 +153,7 @@ class TestRegressionEvaluatorEvaluate:
         """Test evaluation with optional source_df parameter."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["user_id"],
             task_type="regression",
             target_column="target",
             feature_columns=["x"]
@@ -182,6 +188,7 @@ class TestRegressionEvaluatorEvaluate:
         """Test that model.predict is called with correct parameters."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["user_id"],
             task_type="regression",
             target_column="y",
             feature_columns=["x1", "x2"]
@@ -218,6 +225,7 @@ class TestRegressionEvaluatorMetrics:
         """Test evaluation with negative R² score (worse than mean prediction)."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["user_id"],
             task_type="regression",
             target_column="target",
             feature_columns=["feature"]
@@ -244,6 +252,7 @@ class TestRegressionEvaluatorMetrics:
         """Test evaluation when target has zero variance (constant values)."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["user_id"],
             task_type="regression",
             target_column="constant_target",
             feature_columns=["x"]
@@ -270,6 +279,7 @@ class TestRegressionEvaluatorMetrics:
         """Test evaluation with large prediction errors."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["user_id"],
             task_type="regression",
             target_column="target",
             feature_columns=["feature"]
@@ -299,6 +309,7 @@ class TestRegressionEvaluatorErrorHandling:
         """Test evaluation when model.predict raises an error."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["user_id"],
             task_type="regression",
             target_column="target",
             feature_columns=["feature"]
@@ -320,6 +331,7 @@ class TestRegressionEvaluatorErrorHandling:
         """Test evaluation with mismatched X and y shapes."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["user_id"],
             task_type="regression",
             target_column="target",
             feature_columns=["feature"]
@@ -341,6 +353,7 @@ class TestRegressionEvaluatorErrorHandling:
         """Test evaluation when model predictions contain NaN values."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["user_id"],
             task_type="regression",
             target_column="target",
             feature_columns=["feature"]
@@ -371,6 +384,7 @@ class TestRegressionEvaluatorIntegration:
         """Test evaluation with realistic house price prediction scenario."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["house_id"],
             task_type="regression",
             target_column="price",
             feature_columns=["sqft", "bedrooms", "bathrooms", "age"]
@@ -409,6 +423,7 @@ class TestRegressionEvaluatorIntegration:
         """Test evaluation with single data sample."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["user_id"],
             task_type="regression",
             target_column="target",
             feature_columns=["x"]
@@ -446,6 +461,7 @@ class TestRegressionEvaluatorSelfRegistration:
         
         # Verify can create instance through registry
         data_interface = DataInterface(
+            entity_columns=["user_id"],
             task_type="regression",
             target_column="target",
             feature_columns=["feature"]

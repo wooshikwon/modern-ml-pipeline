@@ -103,49 +103,6 @@ def run_inference_pipeline(settings: Settings, run_id: str, context_params: dict
         mlflow.log_artifact(target_path.replace("file://", ""))
         mlflow.log_metric("inference_row_count", len(predictions_df))
 
-
-def _save_dataset(
-    factory: Factory,
-    df: pd.DataFrame,
-    store_name: str,
-    settings: Settings,
-    options: Optional[Dict[str, Any]] = None,
-):
-    """
-    Factory를 통해 적절한 데이터 어댑터를 생성하고, DataFrame을 저장합니다.
-    (기존 artifact_utils.save_dataset 로직을 직접 구현)
-    """
-    if df.empty:
-        logger.warning(f"DataFrame이 비어있어, '{store_name}' 아티팩트 저장을 건너뜁니다.")
-        return
-
-    # artifact_store 설정 확인 (현재 Config 스키마는 단일 artifact_store만 지원)
-    store_config = settings.config.artifact_store
-    if not store_config:
-        logger.error(f"아티팩트 스토어 설정이 없습니다.")
-        raise ValueError("artifact_store가 설정되지 않았습니다.")
-
-    # artifact_store는 enabled 필드가 없음 - config가 있으면 활성화된 것으로 간주
-    base_uri = store_config.config.get('base_uri', './artifacts')
-    
-    # ✅ Blueprint 원칙 3: URI 기반 동작 및 동적 팩토리 완전 구현
-    # Factory가 환경별 분기와 어댑터 선택을 전담
-    adapter = factory.create_data_adapter("storage")
-
-    # 저장될 최종 경로(테이블명 또는 파일명) 생성
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    # inference에서는 model.name이 없으므로 run_id 기반으로 식별자 생성
-    model_identifier = "batch_inference"
-    artifact_name = f"{model_identifier}_{timestamp}"
-    
-    # ✅ Blueprint 원칙 3: Factory가 URI 해석 처리 - 단순한 artifact 이름만 전달
-    final_target = f"{base_uri.rstrip('/')}/{artifact_name}"
-
-    logger.info(f"'{store_name}' 아티팩트 저장 시작: {final_target}")
-    adapter.write(df, final_target, options)
-    logger.info(f"'{store_name}' 아티팩트 저장 완료: {final_target}")
-
-
 def _is_jinja_template(sql: str) -> bool:
     """
     🆕 Phase 3: SQL 문자열이 Jinja2 템플릿인지 감지

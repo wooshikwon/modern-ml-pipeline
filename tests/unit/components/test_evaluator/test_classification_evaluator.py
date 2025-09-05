@@ -20,6 +20,7 @@ class TestClassificationEvaluatorInitialization:
         """Test that ClassificationEvaluator properly inherits from BaseEvaluator."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["user_id"],
             task_type="classification",
             target_column="target",
             feature_columns=["feature1", "feature2"]
@@ -36,6 +37,7 @@ class TestClassificationEvaluatorInitialization:
         """Test that initialization properly stores settings and task type."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["user_id"],
             task_type="classification",
             target_column="label",
             feature_columns=["x1", "x2", "x3"]
@@ -54,6 +56,7 @@ class TestClassificationEvaluatorInitialization:
         """Test initialization with minimal settings for classification."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["user_id"],
             task_type="classification",
             target_column="category",
             feature_columns=["f1", "f2"]
@@ -74,6 +77,7 @@ class TestClassificationEvaluatorEvaluate:
         """Test successful binary classification evaluation with class-wise metrics."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["user_id"],
             task_type="classification",
             target_column="target",
             feature_columns=["feature1", "feature2"]
@@ -127,6 +131,7 @@ class TestClassificationEvaluatorEvaluate:
         """Test successful multiclass classification evaluation with class-wise metrics."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["user_id"],
             task_type="classification",
             target_column="category",
             feature_columns=["f1", "f2", "f3"]
@@ -175,6 +180,7 @@ class TestClassificationEvaluatorEvaluate:
         """Test evaluation with optional source_df parameter."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["user_id"],
             task_type="classification",
             target_column="target",
             feature_columns=["feature1"]
@@ -209,6 +215,7 @@ class TestClassificationEvaluatorEvaluate:
         """Test that model.predict is called with correct parameters."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["user_id"],
             task_type="classification",
             target_column="label",
             feature_columns=["x", "y"]
@@ -247,6 +254,7 @@ class TestClassificationEvaluatorMetrics:
         """Test evaluation with perfect predictions."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["user_id"],
             task_type="classification",
             target_column="target",
             feature_columns=["feature"]
@@ -282,6 +290,7 @@ class TestClassificationEvaluatorMetrics:
         """Test evaluation with worst case predictions."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["user_id"],
             task_type="classification",
             target_column="target",
             feature_columns=["feature"]
@@ -319,6 +328,7 @@ class TestClassificationEvaluatorMetrics:
         """Test that evaluation produces consistent class-wise results for multiclass."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["user_id"],
             task_type="classification",
             target_column="category",
             feature_columns=["x"]
@@ -356,6 +366,7 @@ class TestClassificationEvaluatorErrorHandling:
         """Test evaluation when model.predict raises an error."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["user_id"],
             task_type="classification",
             target_column="target",
             feature_columns=["feature"]
@@ -377,6 +388,7 @@ class TestClassificationEvaluatorErrorHandling:
         """Test evaluation with mismatched X and y shapes."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["user_id"],
             task_type="classification",
             target_column="target",
             feature_columns=["feature"]
@@ -402,6 +414,7 @@ class TestClassificationEvaluatorIntegration:
         """Test evaluation with realistic data scenario."""
         # Arrange
         data_interface = DataInterface(
+            entity_columns=["email_id"],
             task_type="classification",
             target_column="spam",
             feature_columns=["word_count", "exclamation_count", "caps_ratio"]
@@ -460,6 +473,7 @@ class TestClassificationEvaluatorSelfRegistration:
         
         # Verify can create instance through registry
         data_interface = DataInterface(
+            entity_columns=["user_id"],
             task_type="classification",
             target_column="target",
             feature_columns=["feature"]
