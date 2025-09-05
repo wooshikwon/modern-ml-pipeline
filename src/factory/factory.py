@@ -202,7 +202,7 @@ class Factory:
         # 일관된 접근 패턴으로 설정 접근
         env = self._config.environment.env_name if hasattr(self._config, "environment") else "local"
         provider = self.settings.feature_store.provider if self.settings.feature_store else "none"
-        fetch_conf = self._model.fetcher if hasattr(self._model, "fetcher") else None
+        fetch_conf = self._recipe.data.fetcher if hasattr(self._recipe.data, "fetcher") else None
         fetch_type = fetch_conf.type if fetch_conf else None
 
         # serving 모드 검증
@@ -255,7 +255,7 @@ class Factory:
             return self._component_cache[cache_key]
         
         # 일관된 접근 패턴
-        preprocessor_config = getattr(self._model, "preprocessor", None)
+        preprocessor_config = getattr(self._recipe, "preprocessor", None)
         
         if not preprocessor_config:
             logger.info("No preprocessor configured")
@@ -323,7 +323,7 @@ class Factory:
             return self._component_cache[cache_key]
         
         # 일관된 접근 패턴
-        data_interface = self._model.data_interface
+        data_interface = self._recipe.data.data_interface
         task_type = data_interface.task_type
         
         try:
@@ -425,7 +425,7 @@ class Factory:
             from src.utils.integrations.mlflow_integration import create_enhanced_model_signature_with_schema
             
             entity_schema = self._data.loader.entity_schema
-            data_interface = self._model.data_interface
+            data_interface = self._recipe.data.data_interface
             
             # 학습 시점에 timestamp 컬럼을 datetime으로 변환하여 스키마 일관성 확보
             try:

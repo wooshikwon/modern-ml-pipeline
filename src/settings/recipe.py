@@ -4,7 +4,7 @@ Optuna 튜닝, Feature Store 통합 등 신규 기능 포함
 완전히 재작성됨 - CLI recipe.yaml.j2와 100% 호환
 """
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Dict, List, Any, Optional, Union, Literal
 
 
@@ -177,26 +177,22 @@ class PreprocessorStep(BaseModel):
     n_bins: Optional[int] = Field(None, ge=2, le=20, description="KBinsDiscretizer 구간 개수")
     sigma: Optional[float] = Field(None, ge=0.0, le=1.0, description="CatBoostEncoder regularization")
     
-    @field_validator('strategy')
-    def validate_strategy(cls, v, info):
-        """simple_imputer일 때만 strategy 필요"""
-        if info.data.get('type') == 'simple_imputer' and not v:
+    @model_validator(mode='after')
+    def validate_step_params(self):
+        """전처리 타입별 필수 파라미터 검증 및 기본값 설정"""
+        # simple_imputer는 strategy가 필수
+        if self.type == 'simple_imputer' and not self.strategy:
             raise ValueError("simple_imputer는 strategy가 필요합니다")
-        return v
-    
-    @field_validator('degree')
-    def validate_degree(cls, v, info):
-        """polynomial_features일 때만 degree 필요"""
-        if info.data.get('type') == 'polynomial_features' and not v:
-            return 2  # 기본값
-        return v
-    
-    @field_validator('n_bins')
-    def validate_n_bins(cls, v, info):
-        """kbins_discretizer일 때만 n_bins 필요"""
-        if info.data.get('type') == 'kbins_discretizer' and not v:
-            return 5  # 기본값
-        return v
+        
+        # polynomial_features는 degree 기본값 설정
+        if self.type == 'polynomial_features' and self.degree is None:
+            self.degree = 2
+        
+        # kbins_discretizer는 n_bins 기본값 설정
+        if self.type == 'kbins_discretizer' and self.n_bins is None:
+            self.n_bins = 5
+        
+        return self
 
 
 class Preprocessor(BaseModel):
@@ -219,12 +215,12 @@ class ValidationConfig(BaseModel):
     # Cross validation용 (선택)
     n_folds: Optional[int] = Field(None, ge=2, le=10, description="Cross validation fold 수")
     
-    @field_validator('n_folds')
-    def validate_n_folds(cls, v, info):
-        """cross_validation일 때 n_folds 필수"""
-        if info.data.get('method') == 'cross_validation' and not v:
-            return 5  # 기본값
-        return v
+    @model_validator(mode='after')
+    def validate_cross_validation(self):
+        """cross_validation일 때 n_folds 기본값 설정"""
+        if self.method == 'cross_validation' and self.n_folds is None:
+            self.n_folds = 5  # 기본값
+        return self
 
 
 class Evaluation(BaseModel):
