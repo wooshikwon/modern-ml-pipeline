@@ -2,9 +2,10 @@
 from sklearn.preprocessing import StandardScaler, RobustScaler, MinMaxScaler
 from sklearn.base import BaseEstimator, TransformerMixin
 from typing import List
+from src.interface import BasePreprocessor
 from ..registry import PreprocessorStepRegistry
 
-class StandardScalerWrapper(BaseEstimator, TransformerMixin):
+class StandardScalerWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
     def __init__(self, columns: List[str] = None):
         self.columns = columns
         self.scaler = StandardScaler()
@@ -16,7 +17,7 @@ class StandardScalerWrapper(BaseEstimator, TransformerMixin):
     def transform(self, X):
         return self.scaler.transform(X)
 
-class MinMaxScalerWrapper(BaseEstimator, TransformerMixin):
+class MinMaxScalerWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
     """scikit-learn의 MinMaxScaler를 위한 래퍼입니다."""
     def __init__(self, columns: List[str] = None):
         self.columns = columns
@@ -29,7 +30,7 @@ class MinMaxScalerWrapper(BaseEstimator, TransformerMixin):
     def transform(self, X):
         return self.scaler.transform(X)
 
-class RobustScalerWrapper(BaseEstimator, TransformerMixin):
+class RobustScalerWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
     """
     scikit-learn의 RobustScaler를 위한 래퍼입니다.
     중앙값과 사분위수를 사용하여 스케일링하므로, 이상치(outlier)에
