@@ -5,7 +5,7 @@ from src.utils.system.logger import logger
 
 class FetcherRegistry:
     """컴포넌트 레벨 피처 페처 레지스트리 (엔진 의존성 제거)."""
-    _fetchers: Dict[str, Type[BaseFetcher]] = {}
+    fetchers: Dict[str, Type[BaseFetcher]] = {}
 
     @classmethod
     def register(cls, fetcher_type: str, fetcher_class: Type[BaseFetcher]):

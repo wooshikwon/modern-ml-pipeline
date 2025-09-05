@@ -1,12 +1,12 @@
 # Import trainer modules to trigger self-registration
-from ._modules.trainer import Trainer
+from .modules.trainer import Trainer
 
 # Import the registry for external use (optional)
 from .registry import TrainerRegistry
 
 # Also import utility modules
-from ._modules.data_handler import split_data, prepare_training_data
-from ._modules.optimizer import OptunaOptimizer
+from .modules.data_handler import split_data, prepare_training_data
+from .modules.optimizer import OptunaOptimizer
 
 __all__ = [
     "Trainer",
