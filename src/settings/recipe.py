@@ -133,6 +133,10 @@ class DataInterface(BaseModel):
         None, 
         description="피처 컬럼 목록 (None이면 target 제외 모든 컬럼)"
     )
+    treatment_column: Optional[str] = Field(
+        None, 
+        description="처치 변수 컬럼 (causal task에서만 사용)"
+    )
     id_column: Optional[str] = Field(None, description="ID 컬럼 (추적용)")
 
 
