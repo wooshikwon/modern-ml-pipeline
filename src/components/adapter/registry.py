@@ -11,7 +11,7 @@ from src.utils.system.logger import logger
 class AdapterRegistry:
     """Data Adapter 등록 및 관리 클래스"""
     
-    _adapters: Dict[str, Type[BaseAdapter]] = {}
+    adapters: Dict[str, Type[BaseAdapter]] = {}
     
     @classmethod
     def register(cls, adapter_type: str, adapter_class: Type[BaseAdapter]):

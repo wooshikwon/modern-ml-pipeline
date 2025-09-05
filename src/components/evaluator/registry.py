@@ -5,7 +5,7 @@ from src.utils.system.logger import logger
 
 class EvaluatorRegistry:
     """컴포넌트 레벨 평가자 레지스트리 (엔진 의존성 제거)."""
-    _evaluators: Dict[str, Type[BaseEvaluator]] = {}
+    evaluators: Dict[str, Type[BaseEvaluator]] = {}
 
     @classmethod
     def register(cls, task_type: str, evaluator_class: Type[BaseEvaluator]):

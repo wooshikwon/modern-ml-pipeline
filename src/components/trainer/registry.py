@@ -5,7 +5,7 @@ from src.utils.system.logger import logger
 
 class TrainerRegistry:
     """컴포넌트 레벨 트레이너 레지스트리 (엔진 의존성 제거)."""
-    _trainers: Dict[str, Type[BaseTrainer]] = {}
+    trainers: Dict[str, Type[BaseTrainer]] = {}
 
     @classmethod
     def register(cls, trainer_type: str, trainer_class: Type[BaseTrainer]):

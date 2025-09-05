@@ -8,6 +8,7 @@ CLI 템플릿과 완벽 호환되는 새로운 API
 from .loader import (
     Settings,
     load_settings,
+    create_settings_for_inference,
     load_config_files,
     resolve_env_variables,
 )
@@ -56,19 +57,7 @@ from .validator import (
 )
 
 
-# 추론/서빙 전용 함수 (기존 API 호환성)
-def create_settings_for_inference(config_data):
-    """
-    추론/서빙용 최소 Settings 생성 (호환성 유지)
-    
-    Args:
-        config_data: Config 딕셔너리 데이터
-        
-    Returns:
-        최소 Settings 객체
-    """
-    from .loader import create_settings_for_inference as _create
-    return _create(config_data)
+# create_settings_for_inference는 loader에서 직접 import됨
 
 
 # 주요 클래스/함수 export
