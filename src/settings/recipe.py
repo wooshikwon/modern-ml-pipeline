@@ -66,16 +66,15 @@ class Model(BaseModel):
     )
 
 
-class EntitySchema(BaseModel):
-    """엔티티 스키마 - Feature Store Point-in-time join용"""
-    entity_columns: List[str] = Field(..., description="엔티티 컬럼 목록 (예: user_id, item_id)")
-    timestamp_column: str = Field(..., description="타임스탬프 컬럼 (point-in-time join 기준)")
+class FeatureView(BaseModel):
+    """Feast FeatureView 정의 (개별 피처 그룹)"""
+    join_key: str = Field(..., description="Join할 기준 컬럼 (user_id, item_id 등)")
+    features: List[str] = Field(..., description="해당 FeatureView에서 가져올 피처 목록")
 
 
 class Loader(BaseModel):
     """데이터 로더 설정"""
     source_uri: str = Field(..., description="데이터 소스 URI (SQL 파일 경로 또는 데이터 파일 경로)")
-    entity_schema: EntitySchema = Field(..., description="엔티티 스키마 정의")
     
     def get_adapter_type(self) -> str:
         """source_uri에서 어댑터 타입 자동 추론"""
@@ -92,33 +91,28 @@ class Loader(BaseModel):
             return 'sql'
 
 
-class FeatureNamespace(BaseModel):
-    """Feature Store 네임스페이스"""
-    feature_namespace: str = Field(..., description="피처 네임스페이스 이름")
-    features: List[str] = Field(..., description="해당 네임스페이스에서 가져올 피처 목록")
-
-
 class Fetcher(BaseModel):
-    """
-    피처 페처 설정 - Feature Store 통합
-    """
+    """피처 페처 설정 - Feature Store 통합"""
     type: Literal["feature_store", "pass_through"] = Field(..., description="페처 타입")
-    features: Optional[List[FeatureNamespace]] = Field(
+    
+    # 새로운 구조: feature_views
+    feature_views: Optional[Dict[str, FeatureView]] = Field(
         None, 
-        description="Feature Store에서 가져올 피처 정의"
+        description="Feast FeatureView 설정 (feature_store 타입에서 사용)"
     )
     
-    @field_validator('features')
-    def validate_features(cls, v, info):
-        """feature_store 타입일 때 features 필수"""
+    # 새로운 필드: timestamp_column
+    timestamp_column: Optional[str] = Field(
+        None,
+        description="Point-in-time join 기준 타임스탬프 컬럼"
+    )
+    
+    @field_validator('feature_views')
+    def validate_feature_views(cls, v, info):
+        """feature_store 타입일 때 feature_views 검증"""
         if info.data.get('type') == 'feature_store':
             if not v:
-                # 빈 리스트라도 허용
-                return []
-        elif info.data.get('type') == 'pass_through':
-            if v:
-                # pass_through인데 features가 있으면 무시
-                pass
+                return {}  # 빈 dict 반환
         return v
 
 
@@ -129,15 +123,19 @@ class DataInterface(BaseModel):
         description="ML 태스크 타입"
     )
     target_column: str = Field(..., description="타겟 컬럼 이름")
+    
     feature_columns: Optional[List[str]] = Field(
         None, 
-        description="피처 컬럼 목록 (None이면 target 제외 모든 컬럼)"
+        description="피처 컬럼 목록 (None이면 target, treatment, entity 제외 모든 컬럼 사용)"
     )
+    
     treatment_column: Optional[str] = Field(
         None, 
         description="처치 변수 컬럼 (causal task에서만 사용)"
     )
-    id_column: Optional[str] = Field(None, description="ID 컬럼 (추적용)")
+    
+    # id_column → entity_columns 변경
+    entity_columns: List[str] = Field(..., description="엔티티 컬럼 목록 (user_id, item_id 등)")
 
 
 class Data(BaseModel):

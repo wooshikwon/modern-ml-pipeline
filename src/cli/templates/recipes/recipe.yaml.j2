@@ -58,8 +58,11 @@ data:
     {% if task|lower == "causal" %}
     treatment_column: {{ treatment_column }}  # 처치 변수 (causal task 전용)
     {% endif %}
-    entity_columns: null        # 필요시 ID 컬럼 지정
-    feature_columns: null  # null이면 target 제외 모든 컬럼 사용
+    entity_columns:
+      {% for col in entity_columns %}
+      - {{ col }}
+      {% endfor %}
+    feature_columns: null # null 입력 시, target, treatment, entity columns 제외 모든 컬럼 사용
 
 # 전처리 파이프라인
 {% if preprocessor_steps %}

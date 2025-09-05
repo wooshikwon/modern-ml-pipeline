@@ -250,6 +250,23 @@ class RecipeBuilder:
         else:
             selections["treatment_column"] = None
         
+        # Entity columns 설정 (새로 추가)
+        self.ui.show_info("🔗 Entity Columns 설정")
+        entity_columns_str = self.ui.text_input(
+            "Entity column(s) 이름 (쉼표로 구분, 예: user_id,item_id)",
+            default="user_id"
+        )
+        entity_columns = [col.strip() for col in entity_columns_str.split(",")]
+        selections["entity_columns"] = entity_columns
+        
+        # Feature columns 처리 방법 안내
+        self.ui.show_info("📊 Feature Columns 자동 처리")
+        self.ui.show_info(
+            "💡 Feature columns는 자동으로 처리됩니다:\n"
+            "   - Target, Treatment, Entity columns를 제외한 모든 컬럼이 자동으로 feature로 사용됩니다\n"
+            "   - 별도 설정이 필요하지 않습니다"
+        )
+        
         self.ui.print_divider()
         
         # 5. 전처리 설정
@@ -526,8 +543,10 @@ class RecipeBuilder:
             "hyperparameters": {},
             "metrics": selections["metrics"],
             "source_uri": selections["source_uri"],
+            "entity_columns": selections["entity_columns"],  # ✅ entity_columns 추가
             "target_column": selections["target_column"],
             "treatment_column": selections.get("treatment_column", None),
+            "feature_columns": selections.get("feature_columns", None),  # ✅ feature_columns 추가 (null 허용)
             "timestamp_column": selections["timestamp_column"],
             "preprocessor_steps": selections["preprocessor_steps"],
             "test_size": selections["test_size"],

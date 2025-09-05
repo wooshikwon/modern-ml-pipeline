@@ -424,23 +424,22 @@ class Factory:
             logger.info("Generating model signature and data schema from training_df...")
             from src.utils.integrations.mlflow_integration import create_enhanced_model_signature_with_schema
             
-            entity_schema = self._data.loader.entity_schema
+            # ✅ 새로운 구조에서 데이터 수집
+            fetcher_conf = self._recipe.data.fetcher
             data_interface = self._recipe.data.data_interface
             
-            # 학습 시점에 timestamp 컬럼을 datetime으로 변환하여 스키마 일관성 확보
-            try:
-                ts_col = entity_schema.timestamp_column
-                if ts_col and ts_col in training_df.columns:
-                    import pandas as pd
-                    if not pd.api.types.is_datetime64_any_dtype(training_df[ts_col]):
-                        training_df = training_df.copy()
-                        training_df[ts_col] = pd.to_datetime(training_df[ts_col], errors='coerce')
-            except Exception:
-                pass
+            # Timestamp 컬럼 처리
+            ts_col = fetcher_conf.timestamp_column if fetcher_conf else None
+            if ts_col and ts_col in training_df.columns:
+                import pandas as pd
+                if not pd.api.types.is_datetime64_any_dtype(training_df[ts_col]):
+                    training_df = training_df.copy()
+                    training_df[ts_col] = pd.to_datetime(training_df[ts_col], errors='coerce')
 
+            # ✅ 새로운 구조로 data_interface_config 구성
             data_interface_config = {
-                'entity_columns': entity_schema.entity_columns,
-                'timestamp_column': entity_schema.timestamp_column,
+                'entity_columns': data_interface.entity_columns,
+                'timestamp_column': ts_col,
                 'task_type': data_interface.task_type,
                 'target_column': data_interface.target_column,
                 'treatment_column': getattr(data_interface, 'treatment_column', None),

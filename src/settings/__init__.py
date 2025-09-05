@@ -35,9 +35,8 @@ from .recipe import (
     HyperparametersTuning,
     Data,
     Loader,
-    EntitySchema,
+    FeatureView,  # ✅ EntitySchema → FeatureView 변경
     Fetcher,
-    FeatureNamespace,
     DataInterface,
     Preprocessor,
     PreprocessorStep,
@@ -91,9 +90,8 @@ __all__ = [
     "HyperparametersTuning",
     "Data",
     "Loader",
-    "EntitySchema",
+    "FeatureView",  # ✅ EntitySchema → FeatureView 변경
     "Fetcher",
-    "FeatureNamespace",
     "DataInterface",
     "Preprocessor",
     "PreprocessorStep",
