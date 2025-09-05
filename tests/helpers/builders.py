@@ -12,7 +12,7 @@ import string
 
 from src.settings import Settings, Config, Recipe
 from src.settings.config import Environment, MLflow, DataSource, FeatureStore
-from src.settings.recipe import Model, Data, Loader, EntitySchema, DataInterface, Fetcher
+from src.settings.recipe import Model, Data, Loader, DataInterface, Fetcher, FeatureView
 
 
 class ConfigBuilder:
@@ -93,7 +93,6 @@ class RecipeBuilder:
         recipe_dict = {
             'name': name,
             'model': {
-                'name': f'{name}_model',
                 'class_path': model_class_path,
                 'library': model_class_path.split('.')[0],
                 'hyperparameters': {
@@ -101,46 +100,31 @@ class RecipeBuilder:
                     'values': {
                         'random_state': 42
                     }
-                },
-                'data_interface': {
-                    'task_type': task_type,
-                    'target_column': 'target',
-                    'feature_columns': ['feature1', 'feature2']
-                },
-                'loader': {
-                    'adapter': 'storage',
-                    'source_uri': source_uri,
-                    'entity_schema': {
-                        'entity_columns': ['user_id'],
-                        'timestamp_column': 'event_timestamp'
-                    }
-                },
-                'fetcher': {
-                    'type': fetcher_type
                 }
             },
             'data': {
                 'loader': {
-                    'adapter': 'storage',
-                    'source_uri': source_uri,
-                    'entity_schema': {
-                        'entity_columns': ['user_id'],
-                        'timestamp_column': 'event_timestamp'
-                    }
+                    'source_uri': source_uri
                 },
                 'fetcher': {
-                    'type': fetcher_type
+                    'type': fetcher_type,
+                    'timestamp_column': 'event_timestamp'
                 },
                 'data_interface': {
                     'task_type': task_type,
                     'target_column': 'target',
-                    'feature_columns': ['feature1', 'feature2']
+                    'feature_columns': ['feature1', 'feature2'],
+                    'entity_columns': ['user_id']
+                }
+            },
+            'training': {
+                'validation': {
+                    'type': 'train_test_split',
+                    'test_size': 0.2
                 }
             },
             'evaluation': {
-                'metrics': ['accuracy', 'precision', 'recall', 'f1'],
-                'split_strategy': 'time_based_split',
-                'test_size': 0.2
+                'metrics': ['accuracy', 'precision', 'recall', 'f1']
             }
         }
         # Apply overrides

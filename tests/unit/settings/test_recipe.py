@@ -8,8 +8,8 @@ from typing import Dict, Any
 from pydantic import ValidationError
 
 from src.settings.recipe import (
-    Recipe, Model, HyperparametersTuning, Data, Loader, EntitySchema,
-    Fetcher, FeatureNamespace, DataInterface, Preprocessor, PreprocessorStep,
+    Recipe, Model, HyperparametersTuning, Data, Loader,
+    Fetcher, FeatureView, DataInterface, Preprocessor, PreprocessorStep,
     Evaluation, ValidationConfig, Metadata
 )
 from tests.helpers.builders import RecipeBuilder
@@ -115,27 +115,27 @@ class TestModel:
             Model(library="sklearn")
 
 
-class TestEntitySchema:
-    """Test the EntitySchema configuration class."""
+class TestFeatureView:
+    """Test the FeatureView configuration class."""
     
-    def test_entity_schema_creation(self):
-        """Test creating an EntitySchema object."""
-        schema = EntitySchema(
-            entity_columns=["user_id", "item_id"],
-            timestamp_column="event_timestamp"
+    def test_feature_view_creation(self):
+        """Test creating a FeatureView object."""
+        view = FeatureView(
+            join_key="user_id",
+            features=["age", "gender", "location"]
         )
-        assert schema.entity_columns == ["user_id", "item_id"]
-        assert schema.timestamp_column == "event_timestamp"
+        assert view.join_key == "user_id"
+        assert view.features == ["age", "gender", "location"]
     
-    def test_entity_schema_validation(self):
-        """Test EntitySchema validation."""
+    def test_feature_view_validation(self):
+        """Test FeatureView validation."""
         with pytest.raises(ValidationError):
-            # entity_columns is required
-            EntitySchema(timestamp_column="timestamp")
+            # join_key is required
+            FeatureView(features=["age"])
         
         with pytest.raises(ValidationError):
-            # timestamp_column is required
-            EntitySchema(entity_columns=["user_id"])
+            # features is required
+            FeatureView(join_key="user_id")
 
 
 class TestLoader:
@@ -144,11 +144,7 @@ class TestLoader:
     def test_loader_with_sql_file(self):
         """Test Loader with SQL file source."""
         loader = Loader(
-            source_uri="queries/train_data.sql",
-            entity_schema=EntitySchema(
-                entity_columns=["user_id"],
-                timestamp_column="created_at"
-            )
+            source_uri="queries/train_data.sql"
         )
         assert loader.source_uri == "queries/train_data.sql"
         assert loader.get_adapter_type() == "sql"
@@ -156,11 +152,7 @@ class TestLoader:
     def test_loader_with_csv_file(self):
         """Test Loader with CSV file source."""
         loader = Loader(
-            source_uri="data/train_data.csv",
-            entity_schema=EntitySchema(
-                entity_columns=["id"],
-                timestamp_column="timestamp"
-            )
+            source_uri="data/train_data.csv"
         )
         assert loader.get_adapter_type() == "storage"
     
@@ -175,11 +167,7 @@ class TestLoader:
     def test_loader_adapter_type_detection(self, file_ext, expected_type):
         """Test automatic adapter type detection from source URI."""
         loader = Loader(
-            source_uri=f"path/to/data{file_ext}",
-            entity_schema=EntitySchema(
-                entity_columns=["id"],
-                timestamp_column="ts"
-            )
+            source_uri=f"path/to/data{file_ext}"
         )
         assert loader.get_adapter_type() == expected_type
 
@@ -191,30 +179,31 @@ class TestFetcher:
         """Test Fetcher with pass_through type."""
         fetcher = Fetcher(type="pass_through")
         assert fetcher.type == "pass_through"
-        assert fetcher.features is None
+        assert fetcher.feature_views is None
     
     def test_fetcher_feature_store(self):
         """Test Fetcher with feature_store type."""
         fetcher = Fetcher(
             type="feature_store",
-            features=[
-                FeatureNamespace(
-                    feature_namespace="user_features",
+            timestamp_column="event_timestamp",
+            feature_views={
+                "user_features": FeatureView(
+                    join_key="user_id",
                     features=["age", "gender", "location"]
                 )
-            ]
+            }
         )
         assert fetcher.type == "feature_store"
-        assert len(fetcher.features) == 1
-        assert fetcher.features[0].feature_namespace == "user_features"
-        assert "age" in fetcher.features[0].features
+        assert fetcher.timestamp_column == "event_timestamp"
+        assert "user_features" in fetcher.feature_views
+        assert fetcher.feature_views["user_features"].join_key == "user_id"
     
     def test_fetcher_feature_store_empty_features(self):
-        """Test Fetcher with feature_store type and empty features."""
-        # Empty features list should be allowed
-        fetcher = Fetcher(type="feature_store", features=[])
+        """Test Fetcher with feature_store type and empty feature_views."""
+        # Empty feature_views dict should be allowed
+        fetcher = Fetcher(type="feature_store", feature_views={})
         assert fetcher.type == "feature_store"
-        assert fetcher.features == []
+        assert fetcher.feature_views == {}
     
     def test_fetcher_validation(self):
         """Test Fetcher validation."""
@@ -232,29 +221,25 @@ class TestDataInterface:
         di = DataInterface(
             task_type=task_type,
             target_column="target",
-            feature_columns=["f1", "f2", "f3"]
+            feature_columns=["f1", "f2", "f3"],
+            entity_columns=["id"]
         )
         assert di.task_type == task_type
         assert di.target_column == "target"
         assert di.feature_columns == ["f1", "f2", "f3"]
+        assert di.entity_columns == ["id"]
     
     def test_data_interface_no_feature_columns(self):
         """Test DataInterface without explicit feature columns."""
         di = DataInterface(
             task_type="classification",
-            target_column="label"
+            target_column="label",
+            entity_columns=["id"]
             # feature_columns is optional (None means all except target)
         )
         assert di.feature_columns is None
+        assert di.entity_columns == ["id"]
     
-    def test_data_interface_with_id_column(self):
-        """Test DataInterface with ID column."""
-        di = DataInterface(
-            task_type="regression",
-            target_column="value",
-            id_column="transaction_id"
-        )
-        assert di.id_column == "transaction_id"
     
     def test_data_interface_validation(self):
         """Test DataInterface validation."""
@@ -262,7 +247,8 @@ class TestDataInterface:
             # Invalid task_type
             DataInterface(
                 task_type="invalid",
-                target_column="target"
+                target_column="target",
+                entity_columns=["id"]
             )
 
 
@@ -531,16 +517,13 @@ class TestData:
         """Test creating a Data object."""
         data = Data(
             loader=Loader(
-                source_uri="data.csv",
-                entity_schema=EntitySchema(
-                    entity_columns=["id"],
-                    timestamp_column="ts"
-                )
+                source_uri="data.csv"
             ),
-            fetcher=Fetcher(type="pass_through"),
+            fetcher=Fetcher(type="pass_through", timestamp_column="ts"),
             data_interface=DataInterface(
                 task_type="classification",
-                target_column="label"
+                target_column="label",
+                entity_columns=["id"]
             )
         )
         assert data.loader.source_uri == "data.csv"
@@ -561,18 +544,21 @@ class TestRecipe:
             ),
             data=Data(
                 loader=Loader(
-                    source_uri="train.csv",
-                    entity_schema=EntitySchema(
-                        entity_columns=["id"],
-                        timestamp_column="ts"
-                    )
+                    source_uri="train.csv"
                 ),
-                fetcher=Fetcher(type="pass_through"),
+                fetcher=Fetcher(type="pass_through", timestamp_column="ts"),
                 data_interface=DataInterface(
                     task_type="classification",
-                    target_column="target"
+                    target_column="target",
+                    entity_columns=["id"]
                 )
             ),
+            training={
+                "validation": {
+                    "type": "train_test_split",
+                    "test_size": 0.2
+                }
+            },
             evaluation=Evaluation(metrics=["accuracy"])
         )
         assert_recipe_valid(recipe)
@@ -597,26 +583,23 @@ class TestRecipe:
             ),
             data=Data(
                 loader=Loader(
-                    source_uri="query.sql",
-                    entity_schema=EntitySchema(
-                        entity_columns=["user_id", "item_id"],
-                        timestamp_column="timestamp"
-                    )
+                    source_uri="query.sql"
                 ),
                 fetcher=Fetcher(
                     type="feature_store",
-                    features=[
-                        FeatureNamespace(
-                            feature_namespace="user_features",
+                    timestamp_column="timestamp",
+                    feature_views={
+                        "user_features": FeatureView(
+                            join_key="user_id",
                             features=["age", "gender"]
                         )
-                    ]
+                    }
                 ),
                 data_interface=DataInterface(
                     task_type="classification",
                     target_column="clicked",
                     feature_columns=["f1", "f2"],
-                    id_column="event_id"
+                    entity_columns=["user_id", "item_id"]
                 )
             ),
             preprocessor=Preprocessor(
@@ -627,6 +610,12 @@ class TestRecipe:
                     )
                 ]
             ),
+            training={
+                "validation": {
+                    "type": "train_test_split",
+                    "test_size": 0.2
+                }
+            },
             evaluation=Evaluation(
                 metrics=["accuracy", "f1", "roc_auc"],
                 validation=ValidationConfig(
@@ -658,16 +647,22 @@ class TestRecipe:
             },
             "data": {
                 "loader": {
-                    "source_uri": "data.parquet",
-                    "entity_schema": {
-                        "entity_columns": ["id"],
-                        "timestamp_column": "ts"
-                    }
+                    "source_uri": "data.parquet"
                 },
-                "fetcher": {"type": "pass_through"},
+                "fetcher": {
+                    "type": "pass_through",
+                    "timestamp_column": "ts"
+                },
                 "data_interface": {
                     "task_type": "classification",
-                    "target_column": "y"
+                    "target_column": "y",
+                    "entity_columns": ["id"]
+                }
+            },
+            "training": {
+                "validation": {
+                    "type": "train_test_split",
+                    "test_size": 0.2
                 }
             },
             "evaluation": {
@@ -723,18 +718,21 @@ class TestRecipe:
             ),
             data=Data(
                 loader=Loader(
-                    source_uri="train.csv",
-                    entity_schema=EntitySchema(
-                        entity_columns=["id"],
-                        timestamp_column="ts"
-                    )
+                    source_uri="train.csv"
                 ),
-                fetcher=Fetcher(type="pass_through"),
+                fetcher=Fetcher(type="pass_through", timestamp_column="ts"),
                 data_interface=DataInterface(
                     task_type="regression",
-                    target_column="value"
+                    target_column="value",
+                    entity_columns=["id"]
                 )
             ),
+            training={
+                "validation": {
+                    "type": "train_test_split",
+                    "test_size": 0.2
+                }
+            },
             evaluation=Evaluation(metrics=["rmse", "mae"])
         )
         

@@ -4,11 +4,12 @@ import numpy as np
 from typing import Dict, Any, Tuple
 from sklearn.model_selection import train_test_split
 from src.settings import Settings
+from src.utils.system.logger import logger  # ✅ logger import 추가
 
 
 def split_data(df: pd.DataFrame, settings: Settings) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """Train/Test 분할 (조건부 stratify)"""
-    data_interface = settings.recipe.model.data_interface
+    data_interface = settings.recipe.data.data_interface  # ✅ 경로 수정
     test_size = 0.2
 
     stratify_series = None
@@ -51,55 +52,88 @@ def _get_exclude_columns(settings: Settings, df: pd.DataFrame) -> list:
     params = getattr(preproc, "params", None) if preproc else None
     recipe_exclude = params.get("exclude_cols", []) if isinstance(params, dict) else []
 
-    # 엔티티/타임스탬프 컬럼은 기본적으로 제외
-    loader = settings.recipe.model.loader
+    # ✅ 새로운 구조에서 엔티티/타임스탬프 컬럼 수집
+    data_interface = settings.recipe.data.data_interface
+    fetcher_conf = settings.recipe.data.fetcher
+    
     default_exclude = []
+    
+    # Entity columns 추가
     try:
-        default_exclude.extend(list(getattr(loader.entity_schema, "entity_columns", []) or []))
+        default_exclude.extend(data_interface.entity_columns or [])
     except Exception:
         pass
+    
+    # Timestamp column 추가
     try:
-        ts_col = getattr(loader.entity_schema, "timestamp_column", None)
+        ts_col = fetcher_conf.timestamp_column if fetcher_conf else None
         if ts_col:
             default_exclude.append(ts_col)
     except Exception:
         pass
 
-    # 교차만 적용
+    # 교차 적용
     candidates = set(default_exclude) | set(recipe_exclude)
     return [c for c in candidates if c in df.columns]
 
 
 def prepare_training_data(df: pd.DataFrame, settings: Settings) -> Tuple[pd.DataFrame, pd.Series, Dict[str, Any]]:
-    """동적 데이터 준비 (task_type에 따라 다름). 레시피의 exclude_cols를 반영하여 불필요 컬럼 제거."""
-    data_interface = settings.recipe.model.data_interface
+    """동적 데이터 준비 + feature_columns null 처리"""
+    data_interface = settings.recipe.data.data_interface  # ✅ 경로 수정
     task_type = data_interface.task_type
     exclude_cols = _get_exclude_columns(settings, df)
     
     if task_type in ["classification", "regression"]:
         target_col = data_interface.target_column
-        drop_cols = [c for c in [target_col] + exclude_cols if c in df.columns]
-        X = df.drop(columns=drop_cols)
+        
+        # ✅ feature_columns null 처리 로직
+        if data_interface.feature_columns is None:
+            # 자동 선택: target, treatment, entity 제외 모든 컬럼
+            auto_exclude = [target_col] + exclude_cols
+            if data_interface.treatment_column:
+                auto_exclude.append(data_interface.treatment_column)
+            
+            X = df.drop(columns=[c for c in auto_exclude if c in df.columns])
+            logger.info(f"Feature columns 자동 선택: {list(X.columns)}")
+        else:
+            # 명시적 선택
+            X = df[data_interface.feature_columns]
+            
         # 숫자형 컬럼만 사용하여 모델 입력 구성
         X = X.select_dtypes(include=[np.number])
         y = df[target_col]
         additional_data = {}
+        
     elif task_type == "clustering":
-        drop_cols = exclude_cols
-        X = df.drop(columns=drop_cols) if drop_cols else df.copy()
+        # ✅ feature_columns null 처리
+        if data_interface.feature_columns is None:
+            auto_exclude = exclude_cols
+            X = df.drop(columns=[c for c in auto_exclude if c in df.columns])
+            logger.info(f"Feature columns 자동 선택 (clustering): {list(X.columns)}")
+        else:
+            X = df[data_interface.feature_columns]
+            
         X = X.select_dtypes(include=[np.number])
         y = None
         additional_data = {}
+        
     elif task_type == "causal":
         target_col = data_interface.target_column
         treatment_col = data_interface.treatment_column
-        drop_cols = [c for c in [target_col, treatment_col] + exclude_cols if c in df.columns]
-        X = df.drop(columns=drop_cols)
+        
+        # ✅ feature_columns null 처리
+        if data_interface.feature_columns is None:
+            auto_exclude = [target_col, treatment_col] + exclude_cols
+            X = df.drop(columns=[c for c in auto_exclude if c in df.columns])
+            logger.info(f"Feature columns 자동 선택 (causal): {list(X.columns)}")
+        else:
+            X = df[data_interface.feature_columns]
+            
         X = X.select_dtypes(include=[np.number])
         y = df[target_col]
         additional_data = {
             'treatment': df[treatment_col],
-            'treatment_value': data_interface.treatment_value
+            'treatment_value': getattr(data_interface, 'treatment_value', 1)
         }
     else:
         raise ValueError(f"지원하지 않는 task_type: {task_type}")

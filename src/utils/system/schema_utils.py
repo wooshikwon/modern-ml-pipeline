@@ -22,23 +22,24 @@ def validate_schema(df: pd.DataFrame, settings: "Settings", for_training: bool =
     """
     logger.info(f"모델 입력 데이터 스키마를 검증합니다... (for_training: {for_training})")
 
-    # 27개 Recipe 구조: 필수 컬럼들 확인
-    entity_schema = settings.recipe.model.loader.entity_schema
-    data_interface = settings.recipe.model.data_interface
+    # ✅ 새로운 구조에서 설정 수집
+    data_interface = settings.recipe.data.data_interface
+    fetcher_conf = settings.recipe.data.fetcher
     
     errors = []
     required_columns = []
     
     if not for_training:
-        # 원본 데이터 검증: 모든 컬럼 요구
-        # 1. Entity + Timestamp 컬럼 검증
-        required_columns = entity_schema.entity_columns + [entity_schema.timestamp_column]
+        # 원본 데이터 검증: Entity + Timestamp 필수
+        required_columns = data_interface.entity_columns[:]
+        if fetcher_conf and fetcher_conf.timestamp_column:
+            required_columns.append(fetcher_conf.timestamp_column)
         
-        # 2. Target 컬럼 검증 (clustering 제외)
+        # Target 컬럼 (clustering 제외)
         if data_interface.task_type != "clustering" and data_interface.target_column:
             required_columns.append(data_interface.target_column)
     else:
-        # 모델 학습용 데이터 검증: entity_schema 컬럼들 제외
+        # 모델 학습용 데이터: entity/timestamp 제외
         logger.info("모델 학습용 데이터 검증: entity_columns, timestamp_column 제외")
         required_columns = []
         
@@ -53,16 +54,15 @@ def validate_schema(df: pd.DataFrame, settings: "Settings", for_training: bool =
         if col not in df.columns:
             errors.append(f"- 필수 컬럼 누락: '{col}' (task_type: {data_interface.task_type})")
     
-    # 기본 데이터 타입 검증 (timestamp 컬럼)
-    if entity_schema.timestamp_column in df.columns:
-        timestamp_col = entity_schema.timestamp_column
-        if not pd.api.types.is_datetime64_any_dtype(df[timestamp_col]):
+    # Timestamp 타입 검증
+    ts_col = fetcher_conf.timestamp_column if fetcher_conf else None
+    if ts_col and ts_col in df.columns:
+        if not pd.api.types.is_datetime64_any_dtype(df[ts_col]):
             try:
-                # 자동 변환 시도
-                pd.to_datetime(df[timestamp_col])
-                logger.info(f"Timestamp 컬럼 '{timestamp_col}' 자동 변환 가능")
+                pd.to_datetime(df[ts_col])
+                logger.info(f"Timestamp 컬럼 '{ts_col}' 자동 변환 가능")
             except Exception:
-                errors.append(f"- Timestamp 컬럼 '{timestamp_col}' 타입 오류: datetime 변환 불가")
+                errors.append(f"- Timestamp 컬럼 '{ts_col}' 타입 오류: datetime 변환 불가")
 
     if errors:
         error_message = "모델 입력 데이터 스키마 검증 실패:\n" + "\n".join(errors)

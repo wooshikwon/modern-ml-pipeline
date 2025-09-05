@@ -21,21 +21,21 @@ class FeatureStoreFetcher(BaseFetcher):
     def fetch(self, df: pd.DataFrame, run_mode: str = "batch") -> pd.DataFrame:
         logger.info("Feature Store를 통해 피처 증강을 시작합니다.")
 
-        model_cfg = self.settings.recipe.model
-        entity_schema = model_cfg.loader.entity_schema
-        fetcher_cfg = model_cfg.fetcher
-        data_interface = model_cfg.data_interface
+        # ✅ 새로운 구조에서 설정 수집
+        data_interface = self.settings.recipe.data.data_interface
+        fetcher_conf = self.settings.recipe.data.fetcher
 
-        # features 리스트 구성 (namespace별 features -> 평탄화 문자열 리스트)
+        # ✅ 새로운 feature_views 구조에서 features 리스트 구성
         features: List[str] = []
-        if fetcher_cfg and fetcher_cfg.features:
-            for ns in fetcher_cfg.features:
-                for f in ns.features:
-                    features.append(f"{ns.feature_namespace}:{f}")
+        if fetcher_conf and fetcher_conf.feature_views:
+            for view_name, view_config in fetcher_conf.feature_views.items():
+                for feature in view_config.features:
+                    features.append(f"{view_name}:{feature}")
 
+        # ✅ 새로운 구조로 data_interface_config 구성
         data_interface_config: Dict[str, Any] = {
-            'entity_columns': entity_schema.entity_columns,
-            'timestamp_column': entity_schema.timestamp_column,
+            'entity_columns': data_interface.entity_columns,
+            'timestamp_column': fetcher_conf.timestamp_column if fetcher_conf else None,
             'task_type': data_interface.task_type,
             'target_column': data_interface.target_column,
             'treatment_column': getattr(data_interface, 'treatment_column', None),
@@ -52,7 +52,7 @@ class FeatureStoreFetcher(BaseFetcher):
             return result
         elif run_mode == "serving":
             # 온라인 조회: entity_rows(dict list)로 변환 필요
-            entity_rows = df[entity_schema.entity_columns].to_dict(orient="records")
+            entity_rows = df[data_interface.entity_columns].to_dict(orient="records")
             result = self.feature_store_adapter.get_online_features(
                 entity_rows=entity_rows,
                 features=features,

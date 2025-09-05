@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.settings import Settings, Config, Recipe
 from src.settings.config import Environment, MLflow, DataSource, FeatureStore
-from src.settings.recipe import Model, Data, Loader, EntitySchema, DataInterface
+from src.settings.recipe import Model, Data, Loader, DataInterface, FeatureView
 from src.factory import Factory
 from src.components.adapter import AdapterRegistry
 from src.components.fetcher import FetcherRegistry
