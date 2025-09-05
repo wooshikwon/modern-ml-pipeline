@@ -60,7 +60,8 @@ def run_inference_pipeline(settings: Settings, run_id: str, context_params: dict
             # 정적 SQL + context_params 없음 → 정상 처리
             rendered_sql = loader_sql_template
         
-        data_adapter = factory.create_data_adapter(factory.model_config.loader.adapter)
+        # 데이터 어댑터 타입 자동 감지 (Factory가 처리)
+        data_adapter = factory.create_data_adapter()
         df = data_adapter.read(rendered_sql)
         
         # 4. 예측 실행 (PyfuncWrapper가 내부적으로 스키마 검증을 수행)
@@ -73,29 +74,31 @@ def run_inference_pipeline(settings: Settings, run_id: str, context_params: dict
         
         # 6. 결과 저장
         storage_adapter = factory.create_data_adapter("storage")
-        target_path = f"{settings.artifact_stores['prediction_results'].base_uri}/preds_{run.info.run_id}.parquet"
+        # artifact_store 설정 사용 (없으면 기본 로컬 경로)
+        if settings.config.artifact_store:
+            base_uri = settings.config.artifact_store.config.get('base_uri', './artifacts')
+        else:
+            base_uri = './artifacts'
+        target_path = f"{base_uri}/predictions/preds_{run.info.run_id}.parquet"
         storage_adapter.write(predictions_df, target_path)
 
-        # 7. PostgreSQL 저장 (설정이 활성화된 경우)
-        prediction_config = settings.artifact_stores['prediction_results']
-        
-        if hasattr(prediction_config, 'postgres_storage') and prediction_config.postgres_storage:
-            postgres_config = prediction_config.postgres_storage
-            
-            if postgres_config.enabled:
-                try:
-                    # SQL 어댑터로 PostgreSQL에 저장
-                    sql_adapter = factory.create_data_adapter("sql") 
-                    table_name = postgres_config.table_name
-                    
-                    # DataFrame을 PostgreSQL 테이블에 저장 (append 모드)
-                    sql_adapter.write(predictions_df, table_name, if_exists='append', index=False)
-                    logger.info(f"배치 추론 결과를 PostgreSQL 테이블 '{table_name}'에 저장 완료 ({len(predictions_df)}행)")
-                    
-                    mlflow.log_metric("postgres_rows_saved", len(predictions_df))
-                except Exception as e:
-                    logger.error(f"PostgreSQL 저장 실패: {e}")
-                    # PostgreSQL 저장 실패해도 파일 저장은 성공했으므로 계속 진행
+        # 7. PostgreSQL 저장 (data_source가 SQL인 경우)
+        # Config의 data_source가 SQL 타입이면 결과를 DB에도 저장할 수 있음
+        if settings.config.data_source.adapter_type == "sql":
+            try:
+                # SQL 어댑터로 PostgreSQL에 저장
+                sql_adapter = factory.create_data_adapter("sql")
+                # 테이블 이름은 환경별로 다르게 설정
+                table_name = f"predictions_{settings.config.environment.name}"
+                
+                # DataFrame을 PostgreSQL 테이블에 저장 (append 모드)
+                sql_adapter.write(predictions_df, table_name, if_exists='append', index=False)
+                logger.info(f"배치 추론 결과를 PostgreSQL 테이블 '{table_name}'에 저장 완료 ({len(predictions_df)}행)")
+                
+                mlflow.log_metric("postgres_rows_saved", len(predictions_df))
+            except Exception as e:
+                logger.error(f"PostgreSQL 저장 실패: {e}")
+                # PostgreSQL 저장 실패해도 파일 저장은 성공했으므로 계속 진행
 
         mlflow.log_artifact(target_path.replace("file://", ""))
         mlflow.log_metric("inference_row_count", len(predictions_df))
@@ -116,18 +119,14 @@ def _save_dataset(
         logger.warning(f"DataFrame이 비어있어, '{store_name}' 아티팩트 저장을 건너뜁니다.")
         return
 
-    try:
-        # 올바른 접근 방식 적용: dict['키'] -> 결과는 Pydantic 모델
-        store_config = settings.artifact_stores[store_name]
-    except KeyError:
-        logger.error(f"'{store_name}'에 해당하는 아티팩트 스토어 설정을 찾을 수 없습니다.")
-        raise
+    # artifact_store 설정 확인 (현재 Config 스키마는 단일 artifact_store만 지원)
+    store_config = settings.config.artifact_store
+    if not store_config:
+        logger.error(f"아티팩트 스토어 설정이 없습니다.")
+        raise ValueError("artifact_store가 설정되지 않았습니다.")
 
-    if not store_config.enabled:
-        logger.info(f"'{store_name}' 아티팩트 스토어가 비활성화되어 있어 저장을 건너뜁니다.")
-        return
-
-    base_uri = store_config.base_uri
+    # artifact_store는 enabled 필드가 없음 - config가 있으면 활성화된 것으로 간주
+    base_uri = store_config.config.get('base_uri', './artifacts')
     
     # ✅ Blueprint 원칙 3: URI 기반 동작 및 동적 팩토리 완전 구현
     # Factory가 환경별 분기와 어댑터 선택을 전담
