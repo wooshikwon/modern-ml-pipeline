@@ -1,8 +1,8 @@
 # Import all evaluator modules to trigger self-registration
-from ._modules.classification_evaluator import ClassificationEvaluator
-from ._modules.regression_evaluator import RegressionEvaluator
-from ._modules.clustering_evaluator import ClusteringEvaluator
-from ._modules.causal_evaluator import CausalEvaluator
+from .modules.classification_evaluator import ClassificationEvaluator
+from .modules.regression_evaluator import RegressionEvaluator
+from .modules.clustering_evaluator import ClusteringEvaluator
+from .modules.causal_evaluator import CausalEvaluator
 
 # Import the registry for external use
 from .registry import EvaluatorRegistry

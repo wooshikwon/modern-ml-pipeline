@@ -1,4 +1,4 @@
-# src/serving/handlers.py
+# src/serving/_endpoints.py
 
 import pandas as pd
 from fastapi import HTTPException

@@ -424,8 +424,8 @@ class Factory:
             logger.info("Generating model signature and data schema from training_df...")
             from src.utils.integrations.mlflow_integration import create_enhanced_model_signature_with_schema
             
-            entity_schema = self.model_config.loader.entity_schema
-            data_interface = self.model_config.data_interface
+            entity_schema = self._data.loader.entity_schema
+            data_interface = self._model.data_interface
             
             # 학습 시점에 timestamp 컬럼을 datetime으로 변환하여 스키마 일관성 확보
             try:
