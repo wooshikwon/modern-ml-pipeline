@@ -178,66 +178,59 @@ class RecipeBuilder:
         if use_feature_store:
             selections["fetcher_type"] = "feature_store"
             
-            # Entity columns 설정
-            self.ui.show_info("Entity Schema 설정 (Feature Store join keys)")
-            entity_columns = []
-            while True:
-                entity = self.ui.text_input(
-                    f"Entity column {len(entity_columns) + 1} (예: user_id, 빈 줄로 종료)",
-                    default=""
-                )
-                if not entity:
-                    break
-                entity_columns.append(entity)
-            
-            if not entity_columns:
-                entity_columns = ["user_id"]  # 기본값
-            
-            # Timestamp column
+            # Timestamp column (PIT join 기준)
             timestamp_column = self.ui.text_input(
-                "Timestamp column 이름 (point-in-time join 기준)",
+                "Timestamp column 이름 (Point-in-Time join 기준)",
                 default="event_timestamp"
             )
-            
-            selections["entity_columns"] = entity_columns
             selections["timestamp_column"] = timestamp_column
             
-            # Feature 선택
-            self.ui.show_info("Feature Store에서 가져올 피처 설정")
-            feature_namespaces = []
+            # FeatureView 설정 (Feast 표준)
+            self.ui.show_info("Feast FeatureView 설정")
+            feature_views = {}
             
             while True:
-                namespace = self.ui.text_input(
-                    f"Feature namespace {len(feature_namespaces) + 1} (예: user_features, 빈 줄로 종료)",
+                feature_view_name = self.ui.text_input(
+                    f"FeatureView 이름 {len(feature_views) + 1} (예: user_features, 빈 줄로 종료)",
                     default=""
                 )
-                if not namespace:
+                if not feature_view_name:
                     break
-                    
+                
+                # Join key 설정
+                join_key = self.ui.text_input(
+                    f"{feature_view_name}의 join key column (예: user_id)",
+                    default=f"{feature_view_name.replace('_features', '')}_id"
+                )
+                
+                # Features 설정
                 features_str = self.ui.text_input(
-                    f"{namespace}에서 가져올 features (쉼표로 구분)",
-                    default="feature1,feature2"
+                    f"{feature_view_name}에서 가져올 features (쉼표로 구분)",
+                    default="feature1,feature2,feature3"
                 )
                 features = [f.strip() for f in features_str.split(",")]
                 
-                feature_namespaces.append({
-                    "feature_namespace": namespace,
+                feature_views[feature_view_name] = {
+                    "join_key": join_key,
                     "features": features
-                })
+                }
+                
+                self.ui.show_info(f"✓ {feature_view_name} 설정 완료")
             
-            if not feature_namespaces:
+            if not feature_views:
                 # 기본값 제공
-                feature_namespaces = [{
-                    "feature_namespace": "user_features",
-                    "features": ["feature1", "feature2"]
-                }]
+                feature_views = {
+                    "user_features": {
+                        "join_key": "user_id",
+                        "features": ["feature1", "feature2"]
+                    }
+                }
             
-            selections["feature_namespaces"] = feature_namespaces
+            selections["feature_views"] = feature_views
         else:
             selections["fetcher_type"] = "pass_through"
-            selections["entity_columns"] = ["user_id"]  # 기본값
             selections["timestamp_column"] = "event_timestamp"  # 기본값
-            selections["feature_namespaces"] = None
+            selections["feature_views"] = None
         
         # Target column
         target_column = self.ui.text_input(
@@ -245,6 +238,17 @@ class RecipeBuilder:
             default="target"
         )
         selections["target_column"] = target_column
+        
+        # Treatment column (causal task에서만)
+        if task.lower() == "causal":
+            self.ui.show_info("🧪 Causal Inference 설정")
+            treatment_column = self.ui.text_input(
+                "Treatment column 이름 (처치 변수, 예: campaign_exposure)",
+                default="treatment"
+            )
+            selections["treatment_column"] = treatment_column
+        else:
+            selections["treatment_column"] = None
         
         self.ui.print_divider()
         
@@ -523,13 +527,13 @@ class RecipeBuilder:
             "metrics": selections["metrics"],
             "source_uri": selections["source_uri"],
             "target_column": selections["target_column"],
-            "entity_columns": selections["entity_columns"],
+            "treatment_column": selections.get("treatment_column", None),
             "timestamp_column": selections["timestamp_column"],
             "preprocessor_steps": selections["preprocessor_steps"],
             "test_size": selections["test_size"],
             "enable_tuning": selections["enable_tuning"],
             "fetcher_type": selections.get("fetcher_type", "pass_through"),
-            "feature_namespaces": selections.get("feature_namespaces", None)
+            "feature_views": selections.get("feature_views", None)
         }
         
         # 하이퍼파라미터 설정
@@ -582,6 +586,19 @@ class RecipeBuilder:
         Args:
             selections: 사용자 선택 사항
         """
+        # FeatureView 요약 생성
+        feature_store_info = ""
+        if selections.get("feature_views"):
+            feature_views_summary = []
+            for view_name, config in selections["feature_views"].items():
+                feature_views_summary.append(f"{view_name} (join_key: {config['join_key']})")
+            feature_store_info = f"FeatureViews: {', '.join(feature_views_summary)}\n"
+
+        # Treatment column 정보 (causal task에서만)
+        treatment_info = ""
+        if selections.get("treatment_column"):
+            treatment_info = f"Treatment Column: {selections['treatment_column']}\n"
+
         summary = f"""
 Recipe 이름: {selections['recipe_name']}
 Task: {selections['task']}
@@ -589,8 +606,7 @@ Task: {selections['task']}
 라이브러리: {selections['model_library']}
 데이터 소스: {selections['source_uri']}
 Target Column: {selections['target_column']}
-Entity Schema: {', '.join(selections.get('entity_columns', []))}
-평가 메트릭: {', '.join(selections['metrics'])}
+{treatment_info}{feature_store_info}평가 메트릭: {', '.join(selections['metrics'])}
 Test Size: {selections['test_size']}
 Hyperparameter Tuning: {'활성화' if selections.get('enable_tuning') else '비활성화'}
 """

@@ -36,29 +36,30 @@ data:
     # source_uri 패턴을 보고 어댑터가 자동 결정됨
     # .sql → SQL adapter, .csv/.parquet → Storage adapter
     source_uri: {{ source_uri }}
-    entity_schema:
-      entity_columns: {{ entity_columns }}
-      timestamp_column: {{ timestamp_column }}
   
   # Fetcher 설정 (Feature Store 연동)
   fetcher:
     type: {{ fetcher_type }}
-    {% if fetcher_type == "feature_store" and feature_namespaces %}
-    features:
-      {% for ns in feature_namespaces %}
-      - feature_namespace: {{ ns.feature_namespace }}
-        features: {{ ns.features }}
+    {% if fetcher_type == "feature_store" and feature_views %}
+    # Feast FeatureView 설정
+    feature_views:
+      {% for view_name, view_config in feature_views.items() %}
+      {{ view_name }}:
+        join_key: {{ view_config.join_key }}
+        features: {{ view_config.features }}
       {% endfor %}
-    {% else %}
-    features: null
+    timestamp_column: {{ timestamp_column }}
     {% endif %}
   
   # Data interface 설정
   data_interface:
     task_type: {{ task|lower }}
     target_column: {{ target_column }}
+    {% if task|lower == "causal" %}
+    treatment_column: {{ treatment_column }}  # 처치 변수 (causal task 전용)
+    {% endif %}
+    entity_columns: null        # 필요시 ID 컬럼 지정
     feature_columns: null  # null이면 target 제외 모든 컬럼 사용
-    id_column: null        # 필요시 ID 컬럼 지정
 
 # 전처리 파이프라인
 {% if preprocessor_steps %}
