@@ -4,7 +4,7 @@ from src.settings import DataInterface
 
 class CausalEvaluator(BaseEvaluator):
     def __init__(self, data_interface_settings: DataInterface):
-        self.settings = data_interface_settings
+        super().__init__(data_interface_settings)
 
     def evaluate(self, model, X, y, source_df=None):
         # CausalML 모델들은 별도의 평가 함수를 가질 수 있습니다.

@@ -5,7 +5,7 @@ from src.settings import DataInterface
 
 class ClusteringEvaluator(BaseEvaluator):
     def __init__(self, data_interface_settings: DataInterface):
-        self.settings = data_interface_settings
+        super().__init__(data_interface_settings)
 
     def evaluate(self, model, X, y=None, source_df=None):
         labels = model.labels_

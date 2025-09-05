@@ -2,9 +2,10 @@
 from sklearn.preprocessing import KBinsDiscretizer
 from sklearn.base import BaseEstimator, TransformerMixin
 from typing import List
+from src.interface import BasePreprocessor
 from ..registry import PreprocessorStepRegistry
 
-class KBinsDiscretizerWrapper(BaseEstimator, TransformerMixin):
+class KBinsDiscretizerWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
     """
     scikit-learn의 KBinsDiscretizer를 위한 래퍼입니다.
     연속적인 수치형 변수를 여러 구간(bin)으로 나누어 범주형 변수처럼 만듭니다.

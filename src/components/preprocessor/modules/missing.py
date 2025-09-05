@@ -3,9 +3,10 @@ from sklearn.impute import MissingIndicator
 from sklearn.base import BaseEstimator, TransformerMixin
 from typing import List
 import numpy as np
+from src.interface import BasePreprocessor
 from ..registry import PreprocessorStepRegistry
 
-class MissingIndicatorWrapper(BaseEstimator, TransformerMixin):
+class MissingIndicatorWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
     """
     scikit-learn의 MissingIndicator를 위한 래퍼입니다.
     결측치가 있었는지 여부를 나타내는 새로운 바이너리(0/1) 컬럼을 추가하여,

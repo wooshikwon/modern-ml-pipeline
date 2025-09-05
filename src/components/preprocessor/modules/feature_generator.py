@@ -5,9 +5,10 @@ from sklearn.preprocessing import OneHotEncoder, PolynomialFeatures
 import pandas as pd
 import numpy as np
 from typing import List
+from src.interface import BasePreprocessor
 from ..registry import PreprocessorStepRegistry
 
-class TreeBasedFeatureGenerator(BaseEstimator, TransformerMixin):
+class TreeBasedFeatureGenerator(BasePreprocessor, BaseEstimator, TransformerMixin):
     """
     트리 앙상블 모델을 사용하여 피처를 생성합니다.
     각 데이터 포인트가 트리의 어떤 '잎사귀' 노드에 도달하는지를 원-핫 인코딩하여
@@ -47,7 +48,7 @@ class TreeBasedFeatureGenerator(BaseEstimator, TransformerMixin):
         """변환 후의 피처 이름을 반환합니다."""
         return self.one_hot_encoder_.get_feature_names_out()
 
-class PolynomialFeaturesWrapper(BaseEstimator, TransformerMixin):
+class PolynomialFeaturesWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
     """
     scikit-learn의 PolynomialFeatures를 위한 래퍼입니다.
     기존 피처들을 조합하여 고차항(e.g., x^2, xy)을 새로운 피처로 추가하여,

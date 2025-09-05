@@ -186,7 +186,7 @@ class SqlAdapter(BaseAdapter):
         logger.info(f"Executing SQL query:\n{sql_query[:200]}...")
         try:
             # Pandas + SQLAlchemy 2.x 호환: 엔진 객체를 직접 전달
-            return pd.read_sql_query(sql_query, self.factory, **kwargs)
+            return pd.read_sql_query(sql_query, self.engine, **kwargs)
         except Exception as e:
             snippet = sql_query[:200].replace('\n', ' ')
             logger.error(f"SQL read 작업 실패: {e} | SQL(head): {snippet}", exc_info=True)
@@ -196,7 +196,7 @@ class SqlAdapter(BaseAdapter):
         """DataFrame을 지정된 테이블에 씁니다."""
         logger.info(f"Writing DataFrame to table: {table_name}")
         try:
-            df.to_sql(table_name, self.factory, **kwargs)
+            df.to_sql(table_name, self.engine, **kwargs)
             logger.info(f"Successfully wrote {len(df)} rows to {table_name}.")
         except Exception as e:
             logger.error(f"SQL write 작업 실패: {e}", exc_info=True)
