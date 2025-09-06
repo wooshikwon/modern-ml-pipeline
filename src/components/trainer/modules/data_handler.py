@@ -48,19 +48,18 @@ def _get_stratify_column_data(df: pd.DataFrame, data_interface):
 
 
 def _get_exclude_columns(settings: Settings, df: pd.DataFrame) -> list:
-    preproc = getattr(settings.recipe.model, "preprocessor", None)
-    params = getattr(preproc, "params", None) if preproc else None
-    recipe_exclude = params.get("exclude_cols", []) if isinstance(params, dict) else []
-
-    # ✅ 새로운 구조에서 엔티티/타임스탬프 컬럼 수집
+    """
+    데이터에서 제외할 컬럼 목록 반환
+    Entity columns와 timestamp columns만 제외 (Recipe v3.0 구조에 맞게 수정)
+    """
     data_interface = settings.recipe.data.data_interface
     fetcher_conf = settings.recipe.data.fetcher
     
-    default_exclude = []
+    exclude_columns = []
     
     # Entity columns 추가
     try:
-        default_exclude.extend(data_interface.entity_columns or [])
+        exclude_columns.extend(data_interface.entity_columns or [])
     except Exception:
         pass
     
@@ -68,13 +67,12 @@ def _get_exclude_columns(settings: Settings, df: pd.DataFrame) -> list:
     try:
         ts_col = fetcher_conf.timestamp_column if fetcher_conf else None
         if ts_col:
-            default_exclude.append(ts_col)
+            exclude_columns.append(ts_col)
     except Exception:
         pass
 
-    # 교차 적용
-    candidates = set(default_exclude) | set(recipe_exclude)
-    return [c for c in candidates if c in df.columns]
+    # 실제 존재하는 컬럼만 반환
+    return [c for c in exclude_columns if c in df.columns]
 
 
 def prepare_training_data(df: pd.DataFrame, settings: Settings) -> Tuple[pd.DataFrame, pd.Series, Dict[str, Any]]:

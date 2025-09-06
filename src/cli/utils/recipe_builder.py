@@ -32,6 +32,30 @@ class RecipeBuilder:
         "Causal": ["ate", "att", "confidence_intervals"]
     }
     
+    # Optuna 최적화를 위한 metric별 방향 매핑
+    METRIC_DIRECTIONS = {
+        # Classification - 모두 maximize
+        "accuracy": "maximize",
+        "precision": "maximize", 
+        "recall": "maximize",
+        "f1": "maximize",
+        "roc_auc": "maximize",
+        # Regression - MSE, RMSE, MAE, MAPE는 minimize, R2는 maximize
+        "mae": "minimize",
+        "mse": "minimize", 
+        "rmse": "minimize",
+        "r2": "maximize",
+        "mape": "minimize",
+        # Clustering - silhouette_score, calinski_harabasz는 maximize, davies_bouldin은 minimize
+        "silhouette_score": "maximize",
+        "davies_bouldin": "minimize",
+        "calinski_harabasz": "maximize",
+        # Causal - 기본적으로 maximize (domain specific)
+        "ate": "maximize",
+        "att": "maximize", 
+        "confidence_intervals": "maximize"
+    }
+    
     def __init__(self):
         """RecipeBuilder 초기화."""
         self.ui = InteractiveUI()
@@ -422,6 +446,31 @@ class RecipeBuilder:
             self.ui.show_info("Hyperparameter Tuning이 활성화되었습니다.")
             self.ui.show_info("학습 시 Optuna가 자동으로 최적의 하이퍼파라미터를 찾습니다.")
             
+            # 최적화할 metric 선택
+            self.ui.show_info(f"🎯 {task} Task의 최적화 기준 지표 선택")
+            available_metrics = self.TASK_METRICS.get(task, ["accuracy"])
+            
+            # 각 metric의 최적화 방향을 표시
+            metric_descriptions = []
+            for metric in available_metrics:
+                direction = self.METRIC_DIRECTIONS.get(metric, "maximize")
+                direction_symbol = "📈" if direction == "maximize" else "📉"
+                metric_descriptions.append(f"{metric} {direction_symbol} ({direction})")
+            
+            selected_metric_desc = self.ui.select_from_list(
+                f"{task}에서 최적화할 지표를 선택하세요 (방향키 사용)",
+                metric_descriptions
+            )
+            
+            # 선택된 metric 이름 추출
+            optimization_metric = selected_metric_desc.split(" ")[0]
+            optimization_direction = self.METRIC_DIRECTIONS.get(optimization_metric, "maximize")
+            
+            selections["optimization_metric"] = optimization_metric
+            # direction은 recipe 생성 시 자동으로 결정되므로 제거
+            
+            self.ui.show_info(f"✓ 선택된 최적화 기준: {optimization_metric} ({optimization_direction})")
+            
             n_trials = self.ui.number_input(
                 "Tuning trials 수",
                 default=10,
@@ -551,6 +600,7 @@ class RecipeBuilder:
             "preprocessor_steps": selections["preprocessor_steps"],
             "test_size": selections["test_size"],
             "enable_tuning": selections["enable_tuning"],
+            "optimization_metric": selections.get("optimization_metric", "accuracy"),
             "fetcher_type": selections.get("fetcher_type", "pass_through"),
             "feature_views": selections.get("feature_views", None)
         }
@@ -564,6 +614,8 @@ class RecipeBuilder:
             # 튜닝 활성화시: fixed와 tunable 분리
             context["fixed_params"] = {}
             context["tunable_specs"] = {}
+            context["n_trials"] = selections.get("n_trials", 10)
+            context["tuning_timeout"] = selections.get("tuning_timeout", 300)
             
             # Fixed 파라미터 (튜닝하지 않음)
             if "fixed" in hyperparams:
@@ -619,14 +671,14 @@ class RecipeBuilder:
             treatment_info = f"Treatment Column: {selections['treatment_column']}\n"
 
         summary = f"""
-Recipe 이름: {selections['recipe_name']}
-Task: {selections['task']}
-모델: {selections['model_class']}
-라이브러리: {selections['model_library']}
-데이터 소스: {selections['source_uri']}
-Target Column: {selections['target_column']}
-{treatment_info}{feature_store_info}평가 메트릭: {', '.join(selections['metrics'])}
-Test Size: {selections['test_size']}
-Hyperparameter Tuning: {'활성화' if selections.get('enable_tuning') else '비활성화'}
-"""
+        Recipe 이름: {selections['recipe_name']}
+        Task: {selections['task']}
+        모델: {selections['model_class']}
+        라이브러리: {selections['model_library']}
+        데이터 소스: {selections['source_uri']}
+        Target Column: {selections['target_column']}
+        {treatment_info}{feature_store_info}평가 메트릭: {', '.join(selections['metrics'])}
+        Test Size: {selections['test_size']}
+        Hyperparameter Tuning: {'활성화' if selections.get('enable_tuning') else '비활성화'}
+        """
         self.ui.show_panel(summary, title="📋 Recipe 설정 요약", style="cyan")

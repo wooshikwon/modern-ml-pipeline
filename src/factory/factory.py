@@ -383,8 +383,8 @@ class Factory:
             logger.debug(f"Returning cached Optuna integration")
             return self._component_cache[cache_key]
         
-        # 일관된 접근 패턴
-        tuning_config = getattr(self._model, "hyperparameter_tuning", None)
+        # 일관된 접근 패턴 (Recipe hyperparameters 구조 사용)
+        tuning_config = getattr(self._model, "hyperparameters", None)
         
         if not tuning_config:
             raise ValueError("Hyperparameter tuning settings are not configured.")

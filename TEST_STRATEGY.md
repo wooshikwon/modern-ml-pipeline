@@ -117,14 +117,14 @@ tests/
 - [x] 목표 커버리지: 25% → **달성: 25%**
 - [x] **소스 코드 개선**: `src/factory/artifact.py` 경로 오류 수정
 
-### Phase 3: Component 단위 테스트 (4-5일) ✅ 완료
+### Phase 3: Component 단위 테스트 (4-5일)
 - [x] 각 컴포넌트 Registry 테스트
 - [x] adapter/ (storage, sql, feature_store)
 - [x] fetcher/ (pass_through, feature_store)
 - [x] evaluator/ (classification, regression, clustering, causal)
-- [x] trainer/ (Registry 중심 완료; data_handler/optimizer는 추후 보강 가능)
-- [x] preprocessor/ (PreprocessorStepRegistry)
-- [x] 목표 커버리지: 60% (정책상 목표, 실제치는 별도 측정)
+- [ ] trainer/ 
+- [ ] preprocessor/ 
+- [ ] 목표 커버리지: 60%
 
 ### Phase 4: 통합 테스트 (3-4일)
 - [ ] Registry 자기등록 메커니즘 테스트

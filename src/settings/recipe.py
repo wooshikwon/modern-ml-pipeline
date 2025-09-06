@@ -15,6 +15,12 @@ class HyperparametersTuning(BaseModel):
     """
     tuning_enabled: bool = Field(False, description="Optuna 하이퍼파라미터 튜닝 활성화")
     
+    # Optuna 튜닝 메타 설정 (tuning_enabled=True일 때만)
+    optimization_metric: Optional[str] = Field(None, description="최적화할 평가 지표")
+    direction: Optional[Literal["minimize", "maximize"]] = Field(None, description="최적화 방향")
+    n_trials: Optional[int] = Field(None, ge=1, le=1000, description="튜닝 trial 수")
+    timeout: Optional[int] = Field(None, ge=10, description="튜닝 타임아웃(초)")
+    
     # 튜닝 활성화시 사용
     fixed: Optional[Dict[str, Any]] = Field(None, description="튜닝시에도 고정할 파라미터")
     tunable: Optional[Dict[str, Dict[str, Any]]] = Field(
