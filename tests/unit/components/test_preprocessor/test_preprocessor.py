@@ -20,6 +20,7 @@ from src.interface import BasePreprocessor
 from src.settings import Settings
 from tests.helpers.config_builder import ConfigBuilder
 from tests.helpers.recipe_builder import RecipeBuilder
+from tests.helpers.dataframe_builder import DataFrameBuilder
 
 # Preprocessor 모듈들을 import하여 Registry에 자동 등록되도록 함
 import src.components.preprocessor.modules.scaler  # 스케일러 등록
@@ -33,33 +34,8 @@ except ImportError:
     pass
 
 
-class PreprocessorTestDataBuilder:
-    """Preprocessor 테스트용 데이터 빌더"""
-    
-    @staticmethod
-    def build_mixed_dataframe(n_samples: int = 100) -> pd.DataFrame:
-        """숫자형/범주형 피처가 혼합된 테스트 데이터프레임"""
-        np.random.seed(42)
-        return pd.DataFrame({
-            # 숫자형 피처 (스케일링 대상)
-            'num_feature_1': np.random.normal(100, 15, n_samples),
-            'num_feature_2': np.random.uniform(0, 1, n_samples),  
-            'num_feature_3': np.random.exponential(2, n_samples),
-            
-            # 범주형 피처 (인코딩 대상)
-            'cat_feature_1': np.random.choice(['A', 'B', 'C'], n_samples),
-            'cat_feature_2': np.random.choice(['X', 'Y'], n_samples),
-            
-            # 결측값 포함 피처 (임퓨터 대상)
-            'missing_feature': np.where(
-                np.random.random(n_samples) > 0.8, 
-                np.nan, 
-                np.random.normal(50, 10, n_samples)
-            ),
-            
-            # 타겟 변수
-            'target': np.random.choice([0, 1], n_samples)
-        })
+class PreprocessorRecipeBuilder:
+    """Preprocessor Recipe 빌더 (RecipeBuilder 확장)"""
     
     @staticmethod  
     def build_preprocessor_recipe_config(**overrides) -> Dict[str, Any]:
@@ -122,7 +98,7 @@ class TestPreprocessorInitialization:
     def test_preprocessor_initialization_with_settings(self):
         """Settings를 사용한 정상적인 초기화 테스트"""
         # Arrange
-        recipe_config = PreprocessorTestDataBuilder.build_preprocessor_recipe_config()
+        recipe_config = PreprocessorRecipeBuilder.build_preprocessor_recipe_config()
         recipe = RecipeBuilder.build(**recipe_config)
         config = ConfigBuilder.build()
         settings = Settings(config=config, recipe=recipe)
@@ -156,12 +132,12 @@ class TestPreprocessorPipelineCreation:
     def test_pipeline_creation_from_recipe_steps(self):
         """Recipe 설정에서 파이프라인 생성 테스트"""
         # Arrange
-        recipe_config = PreprocessorTestDataBuilder.build_preprocessor_recipe_config()
+        recipe_config = PreprocessorRecipeBuilder.build_preprocessor_recipe_config()
         recipe = RecipeBuilder.build(**recipe_config)
         config = ConfigBuilder.build()
         settings = Settings(config=config, recipe=recipe)
         
-        test_data = PreprocessorTestDataBuilder.build_mixed_dataframe(50)
+        test_data = DataFrameBuilder.build_mixed_preprocessor_data(50)
         preprocessor = Preprocessor(settings)
         
         # Act
@@ -179,7 +155,7 @@ class TestPreprocessorPipelineCreation:
     def test_dynamic_step_configuration(self):
         """동적으로 다른 step 구성 테스트"""
         # Arrange - 스케일러만 포함
-        recipe_config = PreprocessorTestDataBuilder.build_preprocessor_recipe_config()
+        recipe_config = PreprocessorRecipeBuilder.build_preprocessor_recipe_config()
         recipe_config['preprocessor']['steps'] = [
             {
                 'type': 'min_max_scaler',
@@ -191,7 +167,7 @@ class TestPreprocessorPipelineCreation:
         config = ConfigBuilder.build()  
         settings = Settings(config=config, recipe=recipe)
         
-        test_data = PreprocessorTestDataBuilder.build_mixed_dataframe(30)
+        test_data = DataFrameBuilder.build_mixed_preprocessor_data(30)
         preprocessor = Preprocessor(settings)
         
         # Act
@@ -210,13 +186,13 @@ class TestPreprocessorFitTransform:
     def test_fit_transform_pipeline_execution(self):
         """전체 fit -> transform 파이프라인 실행 테스트"""
         # Arrange
-        recipe_config = PreprocessorTestDataBuilder.build_preprocessor_recipe_config()
+        recipe_config = PreprocessorRecipeBuilder.build_preprocessor_recipe_config()
         recipe = RecipeBuilder.build(**recipe_config)
         config = ConfigBuilder.build()
         settings = Settings(config=config, recipe=recipe)
         
-        train_data = PreprocessorTestDataBuilder.build_mixed_dataframe(80)
-        test_data = PreprocessorTestDataBuilder.build_mixed_dataframe(20)
+        train_data = DataFrameBuilder.build_mixed_preprocessor_data(80)
+        test_data = DataFrameBuilder.build_mixed_preprocessor_data(20)
         
         preprocessor = Preprocessor(settings)
         
@@ -233,12 +209,12 @@ class TestPreprocessorFitTransform:
     def test_transform_before_fit_raises_error(self):
         """fit 전에 transform 호출 시 에러 발생 테스트"""
         # Arrange  
-        recipe_config = PreprocessorTestDataBuilder.build_preprocessor_recipe_config()
+        recipe_config = PreprocessorRecipeBuilder.build_preprocessor_recipe_config()
         recipe = RecipeBuilder.build(**recipe_config)
         config = ConfigBuilder.build()
         settings = Settings(config=config, recipe=recipe)
         
-        test_data = PreprocessorTestDataBuilder.build_mixed_dataframe(20)
+        test_data = DataFrameBuilder.build_mixed_preprocessor_data(20)
         preprocessor = Preprocessor(settings)
         
         # Act & Assert
@@ -248,12 +224,12 @@ class TestPreprocessorFitTransform:
     def test_transform_with_missing_columns_handled(self):
         """transform 시 필요 컬럼이 없을 때 자동 생성 테스트"""
         # Arrange
-        recipe_config = PreprocessorTestDataBuilder.build_preprocessor_recipe_config()
+        recipe_config = PreprocessorRecipeBuilder.build_preprocessor_recipe_config()
         recipe = RecipeBuilder.build(**recipe_config)
         config = ConfigBuilder.build()
         settings = Settings(config=config, recipe=recipe)
         
-        full_data = PreprocessorTestDataBuilder.build_mixed_dataframe(50)
+        full_data = DataFrameBuilder.build_mixed_preprocessor_data(50)
         incomplete_data = full_data.drop(columns=['num_feature_3'])  # 필요 컬럼 제거
         
         preprocessor = Preprocessor(settings)
@@ -273,7 +249,7 @@ class TestPreprocessorErrorHandling:
     def test_invalid_step_type_raises_error(self):
         """존재하지 않는 step type 사용 시 에러 테스트"""
         # Arrange - Mock을 사용하여 Recipe validation을 우회
-        recipe_config = PreprocessorTestDataBuilder.build_preprocessor_recipe_config()
+        recipe_config = PreprocessorRecipeBuilder.build_preprocessor_recipe_config()
         recipe = RecipeBuilder.build(**recipe_config)
         config = ConfigBuilder.build()
         settings = Settings(config=config, recipe=recipe)
@@ -287,7 +263,7 @@ class TestPreprocessorErrorHandling:
         
         settings.recipe.preprocessor.steps = [invalid_step]
         
-        test_data = PreprocessorTestDataBuilder.build_mixed_dataframe(30)
+        test_data = DataFrameBuilder.build_mixed_preprocessor_data(30)
         preprocessor = Preprocessor(settings)
         
         # Act & Assert
@@ -297,14 +273,14 @@ class TestPreprocessorErrorHandling:
     def test_empty_column_transforms_configuration(self):
         """빈 column_transforms 설정 처리 테스트"""
         # Arrange
-        recipe_config = PreprocessorTestDataBuilder.build_preprocessor_recipe_config()
+        recipe_config = PreprocessorRecipeBuilder.build_preprocessor_recipe_config()
         recipe_config['preprocessor']['steps'] = []  # 빈 steps 리스트
         
         recipe = RecipeBuilder.build(**recipe_config)
         config = ConfigBuilder.build()
         settings = Settings(config=config, recipe=recipe)
         
-        test_data = PreprocessorTestDataBuilder.build_mixed_dataframe(20)
+        test_data = DataFrameBuilder.build_mixed_preprocessor_data(20)
         preprocessor = Preprocessor(settings)
         
         # Act
@@ -322,14 +298,14 @@ class TestPreprocessorIntegration:
     def test_complete_preprocessing_workflow_classification(self):
         """분류 태스크 전체 전처리 워크플로우 테스트"""
         # Arrange
-        recipe_config = PreprocessorTestDataBuilder.build_preprocessor_recipe_config()
+        recipe_config = PreprocessorRecipeBuilder.build_preprocessor_recipe_config()
         recipe = RecipeBuilder.build(**recipe_config)
         config = ConfigBuilder.build()
         settings = Settings(config=config, recipe=recipe)
         
         # 현실적인 크기의 데이터
-        train_data = PreprocessorTestDataBuilder.build_mixed_dataframe(200)
-        test_data = PreprocessorTestDataBuilder.build_mixed_dataframe(50)
+        train_data = DataFrameBuilder.build_mixed_preprocessor_data(200)
+        test_data = DataFrameBuilder.build_mixed_preprocessor_data(50)
         
         preprocessor = Preprocessor(settings)
         
