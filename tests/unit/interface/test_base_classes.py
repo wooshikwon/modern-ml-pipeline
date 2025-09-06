@@ -37,11 +37,11 @@ class TestBaseAdapter:
             def __init__(self, settings):
                 super().__init__(settings)
             
-            def load_data(self, source_uri: str, **kwargs) -> pd.DataFrame:
+            def read(self, source: str, params: Optional[Dict[str, Any]] = None, **kwargs) -> pd.DataFrame:
                 return pd.DataFrame({'test': [1, 2, 3]})
             
-            def save_data(self, data: pd.DataFrame, target_uri: str, **kwargs) -> None:
-                pass
+            def write(self, df: pd.DataFrame, target: str, options: Optional[Dict[str, Any]] = None, **kwargs):
+                return None
             
             def get_connection_info(self) -> Dict[str, Any]:
                 return {"type": "test"}
@@ -49,8 +49,8 @@ class TestBaseAdapter:
         settings = Mock(spec=Settings)
         adapter = ConcreteAdapter(settings)
         
-        assert hasattr(adapter, 'load_data')
-        assert hasattr(adapter, 'save_data')
+        assert hasattr(adapter, 'read')
+        assert hasattr(adapter, 'write')
         assert hasattr(adapter, 'get_connection_info')
         assert adapter.settings == settings
     
@@ -364,6 +364,15 @@ class TestBaseFactory:
             
             def validate_configuration(self, config: Dict[str, Any]) -> bool:
                 return "component_type" in config
+            
+            def create_model(self):
+                return Mock()
+            
+            def create_pyfunc_wrapper(self, model, preprocessor):
+                class _W:
+                    def predict(self, context, model_input):
+                        return model_input
+                return _W()
         
         settings = Mock(spec=Settings)
         factory = ConcreteFactory(settings)

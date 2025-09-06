@@ -11,6 +11,29 @@ from unittest.mock import Mock, MagicMock, patch
 from src.components.evaluator.modules.classification_evaluator import ClassificationEvaluator
 from src.interface.base_evaluator import BaseEvaluator
 from src.settings.recipe import DataInterface
+from tests.helpers.builders import DataFrameBuilder, RecipeBuilder
+
+
+# Builder-only shim: replace direct DataInterface constructor with RecipeBuilder-backed factory
+def DataInterface(
+    entity_columns=None,
+    task_type=None,
+    target_column=None,
+    feature_columns=None,
+    treatment_column=None,
+):
+    overrides = {}
+    if entity_columns is not None:
+        overrides['data.data_interface.entity_columns'] = entity_columns
+    if target_column is not None:
+        overrides['data.data_interface.target_column'] = target_column
+    if feature_columns is not None:
+        overrides['data.data_interface.feature_columns'] = feature_columns
+    if treatment_column is not None:
+        overrides['data.data_interface.treatment_column'] = treatment_column
+    task = task_type or 'classification'
+    recipe = RecipeBuilder.build(task_type=task, **overrides)
+    return recipe.data.data_interface
 
 
 class TestClassificationEvaluatorInitialization:
@@ -89,12 +112,16 @@ class TestClassificationEvaluatorEvaluate:
         mock_model = Mock()
         mock_model.predict.return_value = np.array([0, 1, 1, 0, 1])
         
-        # Test data
-        X = pd.DataFrame({
-            'feature1': [1, 2, 3, 4, 5],
-            'feature2': [0.1, 0.2, 0.3, 0.4, 0.5]
-        })
-        y = pd.Series([0, 1, 1, 0, 1])  # Perfect predictions
+        # Use DataFrameBuilder for test data
+        df = DataFrameBuilder.build_classification_data(
+            n_samples=5,
+            n_features=2,
+            n_classes=2,
+            add_entity_column=False
+        )
+        X = df[['feature_0', 'feature_1']]
+        X.columns = ['feature1', 'feature2']
+        y = pd.Series([0, 1, 1, 0, 1])  # Perfect predictions to match mock
         
         # Act
         result = evaluator.evaluate(mock_model, X, y)
@@ -144,12 +171,15 @@ class TestClassificationEvaluatorEvaluate:
         predictions = np.array([0, 1, 2, 1, 0, 2])
         mock_model.predict.return_value = predictions
         
-        # Test data
-        X = pd.DataFrame({
-            'f1': [1, 2, 3, 4, 5, 6],
-            'f2': [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
-            'f3': [10, 20, 30, 40, 50, 60]
-        })
+        # Use DataFrameBuilder for test data
+        df = DataFrameBuilder.build_classification_data(
+            n_samples=6,
+            n_features=3,
+            n_classes=3,
+            add_entity_column=False
+        )
+        X = df[['feature_0', 'feature_1', 'feature_2']]
+        X.columns = ['f1', 'f2', 'f3']
         y = pd.Series([0, 1, 2, 2, 0, 1])  # Some misclassifications
         
         # Act
@@ -226,11 +256,16 @@ class TestClassificationEvaluatorEvaluate:
         mock_model = Mock()
         mock_model.predict.return_value = np.array([0, 1, 1])
         
-        X_test = pd.DataFrame({
-            'x': [1.0, 2.0, 3.0],
-            'y': [0.5, 1.5, 2.5]
-        })
-        y_test = pd.Series([0, 1, 1])
+        # Use DataFrameBuilder for test data
+        df = DataFrameBuilder.build_classification_data(
+            n_samples=3,
+            n_features=2,
+            n_classes=2,
+            add_entity_column=False
+        )
+        X_test = df[['feature_0', 'feature_1']]
+        X_test.columns = ['x', 'y']
+        y_test = df['target']
         
         # Act
         result = evaluator.evaluate(mock_model, X_test, y_test)
@@ -266,7 +301,15 @@ class TestClassificationEvaluatorMetrics:
         perfect_predictions = np.array([1, 0, 1, 0, 1])
         mock_model.predict.return_value = perfect_predictions
         
-        X = pd.DataFrame({'feature': [1, 2, 3, 4, 5]})
+        # Use DataFrameBuilder for test data
+        df = DataFrameBuilder.build_classification_data(
+            n_samples=5,
+            n_features=1,
+            n_classes=2,
+            add_entity_column=False
+        )
+        X = df[['feature_0']]
+        X.columns = ['feature']
         y = pd.Series([1, 0, 1, 0, 1])  # Same as predictions
         
         # Act - Use real sklearn metrics for perfect case
@@ -303,7 +346,15 @@ class TestClassificationEvaluatorMetrics:
         worst_predictions = np.array([0, 1, 0, 1, 0])
         mock_model.predict.return_value = worst_predictions
         
-        X = pd.DataFrame({'feature': [1, 2, 3, 4, 5]})
+        # Use DataFrameBuilder for test data
+        df = DataFrameBuilder.build_classification_data(
+            n_samples=5,
+            n_features=1,
+            n_classes=2,
+            add_entity_column=False
+        )
+        X = df[['feature_0']]
+        X.columns = ['feature']
         y = pd.Series([1, 0, 1, 0, 1])  # Opposite of predictions
         
         # Act
@@ -339,7 +390,15 @@ class TestClassificationEvaluatorMetrics:
         mock_model = Mock()
         mock_model.predict.return_value = np.array([0, 1, 2, 0, 1, 2])
         
-        X = pd.DataFrame({'x': [1, 2, 3, 4, 5, 6]})
+        # Use DataFrameBuilder for test data
+        df = DataFrameBuilder.build_classification_data(
+            n_samples=6,
+            n_features=1,
+            n_classes=3,
+            add_entity_column=False
+        )
+        X = df[['feature_0']]
+        X.columns = ['x']
         y = pd.Series([0, 1, 2, 0, 1, 2])  # Perfect predictions
         
         # Act
@@ -427,11 +486,15 @@ class TestClassificationEvaluatorIntegration:
         # Simulate some correct and some incorrect predictions
         mock_model.predict.return_value = np.array([1, 0, 1, 1, 0, 0, 1, 0])
         
-        X = pd.DataFrame({
-            'word_count': [50, 10, 100, 75, 8, 15, 120, 5],
-            'exclamation_count': [5, 0, 8, 3, 0, 1, 10, 0],
-            'caps_ratio': [0.3, 0.05, 0.6, 0.2, 0.0, 0.1, 0.8, 0.02]
-        })
+        # Use DataFrameBuilder for realistic test data
+        df = DataFrameBuilder.build_classification_data(
+            n_samples=8,
+            n_features=3,
+            n_classes=2,
+            add_entity_column=False
+        )
+        X = df[['feature_0', 'feature_1', 'feature_2']]
+        X.columns = ['word_count', 'exclamation_count', 'caps_ratio']
         y = pd.Series([1, 0, 1, 0, 0, 0, 1, 0])  # 7 correct out of 8
         
         # Act

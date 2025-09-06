@@ -27,6 +27,13 @@ from src.components.fetcher import FetcherRegistry
 from src.components.evaluator import EvaluatorRegistry
 from src.components.preprocessor.registry import PreprocessorStepRegistry
 from src.components.trainer.registry import TrainerRegistry
+from tests.helpers.builders import (
+    ConfigBuilder,
+    RecipeBuilder,
+    SettingsBuilder,
+    DataFrameBuilder,
+    FileBuilder,
+)
 
 
 # ============================================================================
@@ -59,121 +66,16 @@ def temp_workspace() -> Generator[Path, None, None]:
 @pytest.fixture
 def sample_csv_data(temp_workspace: Path) -> Path:
     """Create a sample CSV file for testing."""
-    data = pd.DataFrame({
-        'user_id': [1, 2, 3, 4, 5],
-        'feature1': [0.1, 0.2, 0.3, 0.4, 0.5],
-        'feature2': [1.0, 2.0, 3.0, 4.0, 5.0],
-        'target': [0, 1, 0, 1, 0]
-    })
-    
-    csv_path = temp_workspace / "data" / "sample.csv"
-    data.to_csv(csv_path, index=False)
-    return csv_path
+    # Use FileBuilder to create and cleanup CSV
+    with FileBuilder.build_csv_file_context(
+        data=DataFrameBuilder.build_classification_data(n_samples=5, n_features=2)
+    ) as csv_path:
+        # Move file into temp_workspace/data to keep previous semantics
+        dest = temp_workspace / "data" / Path(csv_path).name
+        dest.parent.mkdir(exist_ok=True, parents=True)
+        Path(csv_path).replace(dest)
+        yield dest
 
-
-# ============================================================================
-# Configuration Fixtures
-# ============================================================================
-
-@pytest.fixture
-def test_config_dict() -> Dict[str, Any]:
-    """Provide a test configuration dictionary."""
-    return {
-        'environment': {
-            'name': 'test'
-        },
-        'mlflow': {
-            'tracking_uri': './mlruns',
-            'experiment_name': 'test_experiment'
-        },
-        'data_source': {
-            'name': 'test_storage',
-            'adapter_type': 'storage',
-            'config': {
-                'base_path': './data'
-            }
-        },
-        'feature_store': {
-            'provider': 'none'
-        }
-    }
-
-
-@pytest.fixture
-def test_config(test_config_dict: Dict[str, Any]) -> Config:
-    """Provide a test Config object."""
-    return Config(**test_config_dict)
-
-
-@pytest.fixture
-def test_recipe_dict() -> Dict[str, Any]:
-    """Provide a test recipe dictionary."""
-    return {
-        'name': 'test_recipe',
-        'model': {
-            'name': 'test_model',
-            'class_path': 'sklearn.ensemble.RandomForestClassifier',
-            'library': 'sklearn',
-            'hyperparameters': {
-                'tuning_enabled': False,
-                'values': {
-                    'n_estimators': 100,
-                    'random_state': 42
-                }
-            },
-            'data_interface': {
-                'task_type': 'classification',
-                'target_column': 'target',
-                'feature_columns': ['feature1', 'feature2']
-            },
-            'loader': {
-                'adapter': 'storage',
-                'source_uri': './data/sample.csv',
-                'entity_schema': {
-                    'entity_columns': ['user_id'],
-                    'timestamp_column': 'event_timestamp'  # Add required field
-                }
-            },
-            'fetcher': {
-                'type': 'pass_through'
-            }
-        },
-        'data': {
-            'loader': {
-                'adapter': 'storage',
-                'source_uri': './data/sample.csv',
-                'entity_schema': {
-                    'entity_columns': ['user_id'],
-                    'timestamp_column': 'event_timestamp'  # Add required field
-                }
-            },
-            'fetcher': {
-                'type': 'pass_through'
-            },
-            'data_interface': {  # Add required field
-                'task_type': 'classification',
-                'target_column': 'target',
-                'feature_columns': ['feature1', 'feature2']
-            }
-        },
-        'evaluation': {  # Add required field
-            'metrics': ['accuracy', 'precision', 'recall', 'f1'],
-            'split_strategy': 'time_based_split',
-            'test_size': 0.2
-        }
-    }
-
-
-@pytest.fixture
-def test_recipe(test_recipe_dict: Dict[str, Any]) -> Recipe:
-    """Provide a test Recipe object."""
-    return Recipe(**test_recipe_dict)
-
-
-@pytest.fixture
-def test_settings(test_config: Config, test_recipe: Recipe) -> Settings:
-    """Provide a test Settings object."""
-    return Settings(config=test_config, recipe=test_recipe)
 
 
 # ============================================================================
@@ -260,20 +162,6 @@ def event_loop():
     loop = asyncio.get_event_loop_policy().new_event_loop()
     yield loop
     loop.close()
-
-
-@pytest.fixture
-async def async_client(test_settings: Settings):
-    """Provide async test client for FastAPI."""
-    from httpx import AsyncClient
-    from src.serving.router import app
-    
-    # Setup API context with test settings
-    from src.serving._lifespan import setup_api_context
-    setup_api_context(test_settings)
-    
-    async with AsyncClient(app=app, base_url="http://test") as client:
-        yield client
 
 
 # ============================================================================
@@ -377,53 +265,7 @@ def mock_filesystem():
 # Data Generation Fixtures
 # ============================================================================
 
-@pytest.fixture
-def sample_dataframe() -> pd.DataFrame:
-    """Generate a sample dataframe for testing."""
-    return pd.DataFrame({
-        'user_id': range(100),
-        'feature1': [i * 0.1 for i in range(100)],
-        'feature2': [i * 0.5 for i in range(100)],
-        'feature3': [i % 10 for i in range(100)],
-        'target': [i % 2 for i in range(100)]
-    })
-
-
-@pytest.fixture
-def classification_data() -> tuple[pd.DataFrame, pd.Series]:
-    """Generate classification dataset for testing."""
-    from sklearn.datasets import make_classification
-    
-    X, y = make_classification(
-        n_samples=100,
-        n_features=5,
-        n_informative=3,
-        n_redundant=1,
-        random_state=42
-    )
-    
-    df_X = pd.DataFrame(X, columns=[f'feature_{i}' for i in range(5)])
-    series_y = pd.Series(y, name='target')
-    
-    return df_X, series_y
-
-
-@pytest.fixture
-def regression_data() -> tuple[pd.DataFrame, pd.Series]:
-    """Generate regression dataset for testing."""
-    from sklearn.datasets import make_regression
-    
-    X, y = make_regression(
-        n_samples=100,
-        n_features=5,
-        n_informative=3,
-        random_state=42
-    )
-    
-    df_X = pd.DataFrame(X, columns=[f'feature_{i}' for i in range(5)])
-    series_y = pd.Series(y, name='target')
-    
-    return df_X, series_y
+# removed: data generation fixtures; use DataFrameBuilder directly in tests
 
 
 # ============================================================================
