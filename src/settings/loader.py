@@ -410,7 +410,8 @@ def create_settings_for_inference(config_data: Dict[str, Any]) -> Settings:
             },
             "data_interface": {
                 "task_type": "classification",
-                "target_column": "target"
+                "target_column": "target",
+                "entity_columns": ["id"]
             }
         },
         evaluation={

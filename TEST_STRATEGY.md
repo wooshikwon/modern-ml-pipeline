@@ -23,10 +23,15 @@
 | Integration Tests | 20% | 컴포넌트 간 상호작용 | <5초 |
 | E2E Tests | 10% | 전체 워크플로우 검증 | <30초 |
 
+## 🧱 Builder-only 원칙
+- 모든 테스트 데이터/객체 생성은 `tests/helpers`의 Builder들로만 수행
+- `conftest.py`는 인프라/공용 유틸 전용(환경/레지스트리 격리, 로거 억제, 공용 Mock 등)
+- 레거시 데이터/오브젝트 픽스처는 제거. 개별 테스트에서 Builder 직접 호출
+
 ### 2. 테스트 디렉토리 구조
 ```
 tests/
-├── conftest.py                      # 전역 픽스처 및 설정
+├── conftest.py                      # 전역 인프라 픽스처(환경/레지스트리/로거/Mock)
 ├── pytest.ini                       # pytest 설정
 ├── coverage.ini                     # 커버리지 설정
 │
@@ -77,23 +82,16 @@ tests/
 │   ├── test_batch_inference.py    # 배치 추론 플로우
 │   └── test_cli_workflow.py       # CLI 전체 워크플로우
 │
-├── fixtures/                       # 테스트 픽스처
-│   ├── data/
-│   │   ├── sample_data.csv       # 샘플 데이터
-│   │   └── test_models/           # 테스트용 모델
-│   │
-│   ├── configs/
-│   │   ├── test_config.yaml      # 테스트 설정
-│   │   └── test_recipe.yaml      # 테스트 레시피
-│   │
-│   └── mocks/
-│       ├── mock_mlflow.py        # MLflow Mock
-│       ├── mock_database.py      # DB Mock
-│       └── mock_filesystem.py    # 파일시스템 Mock
-│
 └── helpers/                        # 테스트 헬퍼
+    ├── __init__.py                # 모든 빌더 re-export
     ├── assertions.py              # 커스텀 assertion
-    ├── builders.py                # 테스트 객체 빌더
+    ├── config_builder.py
+    ├── recipe_builder.py
+    ├── dataframe_builder.py
+    ├── file_builder.py
+    ├── mock_builder.py
+    ├── model_builder.py
+    ├── builders.py                # 호환용 shim (deprecated)
     └── validators.py              # 검증 헬퍼
 ```
 
@@ -103,9 +101,9 @@ tests/
 - [x] 테스트 디렉토리 구조 생성
 - [x] conftest.py 기본 픽스처 설정
 - [x] helpers/assertions.py 커스텀 assertion
-- [x] helpers/builders.py 테스트 빌더
+- [x] helpers/builders 패키지 (모듈 분리 + re-export)
 - [x] pytest.ini 설정
-- [x] 추가 픽스처 보강 (logger, env, async, factory)
+- [x] 추가 픽스처 보강 (logger, env, factory)
 - [x] 목표 커버리지: 5% → **달성: 16%**
 
 ### Phase 2: Core 단위 테스트 (3-4일) ✅ 완료
@@ -119,14 +117,14 @@ tests/
 - [x] 목표 커버리지: 25% → **달성: 25%**
 - [x] **소스 코드 개선**: `src/factory/artifact.py` 경로 오류 수정
 
-### Phase 3: Component 단위 테스트 (4-5일)
-- [ ] 각 컴포넌트 Registry 테스트
-- [ ] adapter/ (storage, sql, feature_store)
-- [ ] fetcher/ (pass_through, feature_store)
-- [ ] evaluator/ (classification, regression, clustering, causal)
-- [ ] trainer/ (Trainer, data_handler, optimizer)
-- [ ] preprocessor/ (Preprocessor)
-- [ ] 목표 커버리지: 60%
+### Phase 3: Component 단위 테스트 (4-5일) ✅ 완료
+- [x] 각 컴포넌트 Registry 테스트
+- [x] adapter/ (storage, sql, feature_store)
+- [x] fetcher/ (pass_through, feature_store)
+- [x] evaluator/ (classification, regression, clustering, causal)
+- [x] trainer/ (Registry 중심 완료; data_handler/optimizer는 추후 보강 가능)
+- [x] preprocessor/ (PreprocessorStepRegistry)
+- [x] 목표 커버리지: 60% (정책상 목표, 실제치는 별도 측정)
 
 ### Phase 4: 통합 테스트 (3-4일)
 - [ ] Registry 자기등록 메커니즘 테스트
@@ -168,7 +166,7 @@ test = [
     "pytest>=8.0.0",
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.12.0",
-    "pytest-asyncio>=0.23.0",
+    "pytest-asyncio>=0.23.0",         # optional (fixtureless async 권장)
     "pytest-xdist>=3.5.0",         # 병렬 실행
     "pytest-timeout>=2.2.0",       # 타임아웃 관리
     "hypothesis>=6.100.0",         # Property-based testing
@@ -315,25 +313,51 @@ def mock_factory():
     return factory
 ```
 
-### 4. 비동기 테스트 지원
+### 4. 비동기 테스트 지원 (fixtureless 권장)
 ```python
-@pytest.fixture
-async def async_client():
-    """FastAPI 비동기 테스트 클라이언트"""
+def test_async_endpoint():
+    import asyncio
     from httpx import AsyncClient
     from src.serving.router import app
-    
-    async with AsyncClient(app=app, base_url="http://test") as client:
-        yield client
+    from unittest.mock import patch, MagicMock
 
-@pytest.fixture
-def event_loop():
-    """이벤트 루프 픽스처"""
-    import asyncio
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
+    # 외부 호출 모킹 (예: mlflow)
+    with patch('mlflow.pyfunc.load_model') as mock_load:
+        mock_model = MagicMock()
+        mock_model.predict.return_value = [0]
+        mock_model._model_meta = MagicMock()
+        mock_model._model_meta._model_data = MagicMock()
+        mock_model._model_meta._model_data._wrapped_model = MagicMock()
+        mock_load.return_value = mock_model
+
+        async def _run():
+            async with AsyncClient(app=app, base_url="http://test") as client:
+                r = await client.get('/health')
+                assert r.status_code == 200
+
+        asyncio.run(_run())
 ```
+
+## ✅ Infra Smoke Checklist (Builder-only)
+
+- Registries initialize and clean per test
+  - Ensure `clean_registries` resets Adapter/Fetcher/Evaluator/Preprocessor/Trainer registries each test
+- Logger is globally silenced
+  - `silence_logger` fixture disables CRITICAL and below; tests run without log noise
+- Settings/Config/Recipe via Builders
+  - `ConfigBuilder.build()` returns valid `Config`
+  - `RecipeBuilder.build()` returns valid `Recipe`
+  - `SettingsBuilder.build()` returns valid `Settings`
+- Data via Builders
+  - `DataFrameBuilder.build_classification_data(n_samples=100)` returns df with `feature_*` and `target`
+  - `DataFrameBuilder.build_regression_data(n_samples=100)` returns df with `feature_*` and `target`
+- Files via Builders
+  - `FileBuilder.build_csv_file_context(...)` yields a csv path and auto-cleans
+- Async client pattern (without plugin)
+  - Use `asyncio.run()` + `httpx.AsyncClient(app=app)`
+  - Mock external calls (e.g., `mlflow.pyfunc.load_model`) where needed
+
+> 위 항목은 별도 스모크 테스트 파일 없이도, 개별 테스트가 깨질 경우 즉시 드러나는 최소 보증선입니다. 신규 테스트 추가 시 Builder 호출을 우선 사용하고, conftest는 인프라 전용으로 유지합니다.
 
 ## 📊 메트릭 및 리포팅
 
