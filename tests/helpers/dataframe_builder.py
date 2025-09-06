@@ -119,3 +119,120 @@ class DataFrameBuilder:
         outcome_binary = (outcome > np.median(outcome)).astype(int)
         data['outcome_binary'] = outcome_binary.tolist()
         return pd.DataFrame(data)
+
+    @staticmethod
+    def build_numeric_data(n_samples: int = 100, random_state: int = 42) -> pd.DataFrame:
+        """스케일링용 숫자형 데이터프레임 생성"""
+        np.random.seed(random_state)
+        return pd.DataFrame({
+            'feature_1': np.random.normal(100, 15, n_samples),  # 평균 100, 표준편차 15
+            'feature_2': np.random.uniform(0, 1000, n_samples),  # 0-1000 균등분포
+            'feature_3': np.random.exponential(5, n_samples),   # 지수분포 (이상치 포함)
+            'feature_4': np.random.normal(0, 1, n_samples)      # 표준정규분포
+        })
+    
+    @staticmethod
+    def build_extreme_values_data(n_samples: int = 50, random_state: int = 42) -> pd.DataFrame:
+        """이상치가 포함된 극단값 데이터프레임 생성"""
+        np.random.seed(random_state)
+        data = pd.DataFrame({
+            'normal_feature': np.random.normal(10, 2, n_samples),
+            'extreme_feature': np.concatenate([
+                np.random.normal(5, 1, n_samples-10),  # 정상값
+                np.array([100, -50, 200, -80, 150, 300, -100, 250, -90, 180])  # 극단값
+            ])
+        })
+        return data
+
+    @staticmethod
+    def build_categorical_data(n_samples: int = 100, random_state: int = 42) -> pd.DataFrame:
+        """인코딩용 범주형 데이터프레임 생성"""
+        np.random.seed(random_state)
+        return pd.DataFrame({
+            # 기본 범주형 피처들
+            'category_low_card': np.random.choice(['A', 'B', 'C'], n_samples),  # 낮은 카디널리티
+            'category_medium_card': np.random.choice(['Red', 'Green', 'Blue', 'Yellow', 'Purple'], n_samples),  # 중간 카디널리티
+            'category_high_card': np.random.choice([f'Item_{i}' for i in range(20)], n_samples),  # 높은 카디널리티
+            
+            # 순서가 있는 범주형 피처
+            'ordinal_feature': np.random.choice(['Low', 'Medium', 'High'], n_samples),
+            
+            # 타겟 변수 (supervised encoding용)
+            'target': np.random.choice([0, 1], n_samples)
+        })
+    
+    @staticmethod
+    def build_mixed_categorical_data(n_samples: int = 100, random_state: int = 42) -> pd.DataFrame:
+        """숫자형 + 범주형 혼합 데이터프레임 생성"""
+        np.random.seed(random_state)
+        return pd.DataFrame({
+            # 숫자형 피처
+            'numeric_1': np.random.normal(0, 1, n_samples),
+            'numeric_2': np.random.uniform(-1, 1, n_samples),
+            
+            # 범주형 피처  
+            'category_1': np.random.choice(['Type_A', 'Type_B', 'Type_C'], n_samples),
+            'category_2': np.random.choice(['Small', 'Large'], n_samples),
+            
+            # 타겟 변수
+            'target': np.random.randint(0, 3, n_samples)  # 다중 클래스
+        })
+    
+    @staticmethod
+    def build_mixed_preprocessor_data(n_samples: int = 100, random_state: int = 42) -> pd.DataFrame:
+        """전처리용 숫자형/범주형/결측값이 혼합된 데이터프레임 생성"""
+        np.random.seed(random_state)
+        return pd.DataFrame({
+            # 숫자형 피처 (스케일링 대상)
+            'num_feature_1': np.random.normal(100, 15, n_samples),
+            'num_feature_2': np.random.uniform(0, 1, n_samples),  
+            'num_feature_3': np.random.exponential(2, n_samples),
+            
+            # 범주형 피처 (인코딩 대상)
+            'cat_feature_1': np.random.choice(['A', 'B', 'C'], n_samples),
+            'cat_feature_2': np.random.choice(['X', 'Y'], n_samples),
+            
+            # 결측값 포함 피처 (임퓨터 대상)
+            'missing_feature': np.where(
+                np.random.random(n_samples) > 0.8, 
+                np.nan, 
+                np.random.normal(50, 10, n_samples)
+            ),
+            
+            # 타겟 변수
+            'target': np.random.choice([0, 1], n_samples)
+        })
+    
+    @staticmethod
+    def build_missing_values_data(n_samples: int = 100, random_state: int = 42) -> pd.DataFrame:
+        """결측값이 포함된 임퓨터 테스트용 데이터프레임 생성"""
+        np.random.seed(random_state)
+        return pd.DataFrame({
+            # 결측값이 있는 숫자형 피처들 (다양한 결측 패턴)
+            'numeric_few_missing': np.where(
+                np.random.random(n_samples) > 0.9,  # 10% 결측
+                np.nan, 
+                np.random.normal(10, 3, n_samples)
+            ),
+            'numeric_many_missing': np.where(
+                np.random.random(n_samples) > 0.6,  # 40% 결측
+                np.nan, 
+                np.random.uniform(0, 100, n_samples)
+            ),
+            'numeric_extreme_missing': np.where(
+                np.random.random(n_samples) > 0.2,  # 80% 결측 (극단적)
+                np.nan, 
+                np.random.exponential(5, n_samples)
+            ),
+            
+            # 결측값이 있는 범주형 피처들
+            'category_missing': np.where(
+                np.random.random(n_samples) > 0.85,  # 15% 결측
+                np.nan, 
+                np.random.choice(['A', 'B', 'C', 'D'], n_samples)
+            ),
+            
+            # 결측값이 없는 피처 (비교용)
+            'numeric_complete': np.random.normal(50, 10, n_samples),
+            'category_complete': np.random.choice(['X', 'Y', 'Z'], n_samples)
+        })

@@ -45,6 +45,7 @@ dependencies = [
     "rtdl-revisiting-models>=0.0.2",
     "pytest-xdist>=3.8.0",
     "pytest-cov>=6.2.1",
+    "category-encoders>=2.8.1",
 ]
 
 [project.optional-dependencies]
