@@ -13,6 +13,9 @@ model:
     tuning_enabled: {{ enable_tuning | lower }}
     {% if enable_tuning %}
     # Optuna 튜닝 설정
+    optimization_metric: {{ optimization_metric }}
+    n_trials: {{ n_trials }}
+    timeout: {{ tuning_timeout }}
     fixed:
       {% for param, value in fixed_params.items() %}
       {{ param }}: {{ value }}

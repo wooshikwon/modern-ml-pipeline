@@ -48,24 +48,18 @@ class Trainer(BaseTrainer):
             X_train = preprocessor.transform(X_train)
             X_test = preprocessor.transform(X_test)
 
-        # 하이퍼파라미터 최적화 또는 직접 학습
-        global_tuning_enabled = self.settings.hyperparameter_tuning.enabled
-        recipe_tuning_config = self.settings.recipe.model.hyperparameter_tuning
-        is_tuning_enabled_in_recipe = recipe_tuning_config and recipe_tuning_config.enabled
-
-        use_tuning = global_tuning_enabled and is_tuning_enabled_in_recipe
+        # 하이퍼파라미터 최적화 또는 직접 학습 (Recipe 설정만 사용)
+        recipe_hyperparams = self.settings.recipe.model.hyperparameters
+        use_tuning = recipe_hyperparams and getattr(recipe_hyperparams, 'tuning_enabled', False)
 
         if use_tuning:
-            logger.info("하이퍼파라미터 최적화를 시작합니다. (전역 및 레시피 설정 모두에서 활성화됨)")
+            logger.info("하이퍼파라미터 최적화를 시작합니다. (Recipe에서 활성화됨)")
             optimizer = OptunaOptimizer(settings=self.settings, factory_provider=self._get_factory)
             best = optimizer.optimize(train_df, self._single_training_iteration)
             self.training_results['hyperparameter_optimization'] = best
             trained_model = best['model']
         else:
-            if not global_tuning_enabled:
-                logger.info("하이퍼파라미터 튜닝을 건너뜁니다. 이유: 전역 설정(config)에서 비활성화되었습니다.")
-            elif not is_tuning_enabled_in_recipe:
-                logger.info("하이퍼파라미터 튜닝을 건너뜁니다. 이유: 레시피(recipe)에서 비활성화되었거나 설정이 없습니다.")
+            logger.info("하이퍼파라미터 튜닝을 건너뜁니다. 이유: Recipe에서 비활성화되었거나 설정이 없습니다.")
             logger.info("고정된 하이퍼파라미터로 모델을 학습합니다.")
             model.fit(X_train, y_train)
             trained_model = model
@@ -113,7 +107,8 @@ class Trainer(BaseTrainer):
         evaluator = factory.create_evaluator()
         metrics = evaluator.evaluate(model_instance, X_val_processed, y_val, val_data)
         
-        score = metrics.get(self.settings.recipe.model.hyperparameter_tuning.metric, 0.0)
+        optimization_metric = self.settings.recipe.model.hyperparameters.optimization_metric or "accuracy"
+        score = metrics.get(optimization_metric, 0.0)
         
         return {'model': model_instance, 'preprocessor': preprocessor, 'score': score}
 
@@ -124,7 +119,7 @@ class Trainer(BaseTrainer):
             if not (is_classifier(model) or is_regressor(model) or hasattr(model, 'fit')):
                  raise TypeError("전달된 모델 객체는 BaseModel 인터페이스를 따르거나 scikit-learn 호환 모델이어야 합니다.")
         
-        task_type = self.settings.recipe.model.data_interface.task_type
+        task_type = self.settings.recipe.data.data_interface.task_type
         if task_type in ["classification", "regression"]:
             model.fit(X, y)
         elif task_type == "clustering":
@@ -146,7 +141,7 @@ class Trainer(BaseTrainer):
         }
 
     def _get_stratify_col(self):
-        di = self.settings.recipe.model.data_interface
+        di = self.settings.recipe.data.data_interface
         return di.target_column if di.task_type == "classification" else di.treatment_column if di.task_type == "causal" else None
 
 # Self-registration
