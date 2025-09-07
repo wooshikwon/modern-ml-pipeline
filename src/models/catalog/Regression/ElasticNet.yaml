@@ -1,48 +1,61 @@
-class_path: "sklearn.linear_model.ElasticNet"
-description: "Elastic Net Regression combining L1 and L2 regularization."
-library: "scikit-learn"
+class_path: sklearn.linear_model.ElasticNet
+description: Elastic Net Regression combining L1 and L2 regularization.
+library: scikit-learn
 hyperparameters:
-  # 고정 파라미터 (모든 환경 동일)
   fixed:
     random_state: 42
     copy_X: true
-  # Optuna 최적화 대상 파라미터 (범위 지정)
   tunable:
     alpha:
-      type: "float"
-      range: [0.001, 10.0]
+      type: float
+      range:
+      - 0.001
+      - 10.0
       default: 1.0
     l1_ratio:
-      type: "float"
-      range: [0.0, 1.0]
+      type: float
+      range:
+      - 0.0
+      - 1.0
       default: 0.5
     fit_intercept:
-      type: "categorical"
-      range: [true, false]
+      type: categorical
+      range:
+      - true
+      - false
       default: true
     max_iter:
-      type: "int"
-      range: [100, 5000]
+      type: int
+      range:
+      - 100
+      - 5000
       default: 1000
     tol:
-      type: "float"
-      range: [1e-6, 1e-2]
+      type: float
+      range:
+      - 1e-6
+      - 1e-2
       default: 1e-4
     positive:
-      type: "categorical"
-      range: [true, false]
+      type: categorical
+      range:
+      - true
+      - false
       default: false
     selection:
-      type: "categorical"
-      range: ["cyclic", "random"]
-      default: "cyclic"
+      type: categorical
+      range:
+      - cyclic
+      - random
+      default: cyclic
     warm_start:
-      type: "categorical"
-      range: [true, false]
+      type: categorical
+      range:
+      - true
+      - false
       default: false
-  # 환경별 기본값
-supported_tasks: ["regression"]
 feature_requirements:
   numerical: true
   categorical: false
   text: false
+data_handler: tabular

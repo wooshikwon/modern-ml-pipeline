@@ -114,36 +114,47 @@ def run_inference_pipeline(settings: Settings, run_id: str, data_path: str = Non
         predictions_df['inference_run_id'] = run.info.run_id  # 현재 배치 추론 실행 ID
         predictions_df['inference_timestamp'] = datetime.now()  # 예측 수행 시각
         
-        # 6. 결과 저장
-        storage_adapter = factory.create_data_adapter("storage")
-        # artifact_store 설정 사용 (없으면 기본 로컬 경로)
-        if settings.config.artifact_store:
-            base_uri = settings.config.artifact_store.config.get('base_uri', './artifacts')
-        else:
-            base_uri = './artifacts'
-        target_path = f"{base_uri}/predictions/preds_{run.info.run_id}.parquet"
-        storage_adapter.write(predictions_df, target_path)
-
-        # 7. PostgreSQL 저장 (data_source가 SQL인 경우)
-        # Config의 data_source가 SQL 타입이면 결과를 DB에도 저장할 수 있음
-        if settings.config.data_source.adapter_type == "sql":
+        # 6. 결과 저장 (Output 설정 기반)
+        output_cfg = getattr(settings.config, 'output', None)
+        if output_cfg and getattr(output_cfg.inference, 'enabled', True):
             try:
-                # SQL 어댑터로 PostgreSQL에 저장
-                sql_adapter = factory.create_data_adapter("sql")
-                # 테이블 이름은 환경별로 다르게 설정
-                table_name = f"predictions_{settings.config.environment.name}"
-                
-                # DataFrame을 PostgreSQL 테이블에 저장 (append 모드)
-                sql_adapter.write(predictions_df, table_name, if_exists='append', index=False)
-                logger.info(f"배치 추론 결과를 PostgreSQL 테이블 '{table_name}'에 저장 완료 ({len(predictions_df)}행)")
-                
-                mlflow.log_metric("postgres_rows_saved", len(predictions_df))
+                target = output_cfg.inference
+                if target.adapter_type == "storage":
+                    storage_adapter = factory.create_data_adapter("storage")
+                    base_path = target.config.get('base_path', './artifacts/predictions')
+                    target_path = f"{base_path}/preds_{run.info.run_id}.parquet"
+                    storage_adapter.write(predictions_df, target_path)
+                    # 로컬 경로만 MLflow artifact로 로깅
+                    if not target_path.startswith("s3://") and not target_path.startswith("gs://"):
+                        mlflow.log_artifact(target_path.replace("file://", ""))
+                elif target.adapter_type == "sql":
+                    sql_adapter = factory.create_data_adapter("sql")
+                    table = target.config.get('table')
+                    if not table:
+                        raise ValueError("output.inference.config.table이 필요합니다.")
+                    sql_adapter.write(predictions_df, table, if_exists='append', index=False)
+                elif target.adapter_type == "bigquery":
+                    bq_adapter = factory.create_data_adapter("bigquery")
+                    project_id = target.config.get('project_id')
+                    dataset = target.config.get('dataset_id')
+                    table = target.config.get('table')
+                    location = target.config.get('location')
+                    if not (project_id and dataset and table):
+                        raise ValueError("BigQuery 출력에는 project_id, dataset_id, table이 필요합니다.")
+                    bq_adapter.write(
+                        predictions_df,
+                        f"{dataset}.{table}",
+                        options={"project_id": project_id, "location": location, "if_exists": "append"}
+                    )
+                else:
+                    logger.warning(f"알 수 없는 output 어댑터 타입: {target.adapter_type}. 저장을 스킵합니다.")
             except Exception as e:
-                logger.error(f"PostgreSQL 저장 실패: {e}")
-                # PostgreSQL 저장 실패해도 파일 저장은 성공했으므로 계속 진행
-
-        mlflow.log_artifact(target_path.replace("file://", ""))
+                logger.error(f"출력 저장 중 오류 발생: {e}", exc_info=True)
+        else:
+            logger.info("Output 설정이 비활성화되어 저장을 스킵합니다.")
+        
         mlflow.log_metric("inference_row_count", len(predictions_df))
+
 
 def _is_jinja_template(sql: str) -> bool:
     """

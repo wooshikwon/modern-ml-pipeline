@@ -144,3 +144,76 @@ artifact_store:
   {%- endif %}
 {%- endif %}
 
+
+# Output targets configuration
+output:
+  inference:
+    name: InferenceOutput
+    enabled: ${INFER_OUTPUT_ENABLED:true}
+    {%- if inference_output_source in ["Local Files", "S3", "GCS"] %}
+    adapter_type: storage
+    config:
+      {%- if inference_output_source == "Local Files" %}
+      base_path: "${INFER_OUTPUT_BASE_PATH:./artifacts/predictions}"
+      storage_options: {}
+      {%- elif inference_output_source == "S3" %}
+      base_path: "s3://${INFER_OUTPUT_S3_BUCKET:mmp-out}/${INFER_OUTPUT_S3_PREFIX:{{ env_name }}/preds}"
+      storage_options:
+        aws_access_key_id: "${AWS_ACCESS_KEY_ID:}"
+        aws_secret_access_key: "${AWS_SECRET_ACCESS_KEY:}"
+        region_name: "${AWS_REGION:us-east-1}"
+      {%- elif inference_output_source == "GCS" %}
+      base_path: "gs://${INFER_OUTPUT_GCS_BUCKET:mmp-out}/${INFER_OUTPUT_GCS_PREFIX:{{ env_name }}/preds}"
+      storage_options:
+        project: "${GCP_PROJECT_ID:{{ gcp_project|default('') }}}"
+        token: "${GOOGLE_APPLICATION_CREDENTIALS:}"
+      {%- endif %}
+    {%- elif inference_output_source == "PostgreSQL" %}
+    adapter_type: sql
+    config:
+      connection_uri: "postgresql://${DB_USER:postgres}:${DB_PASSWORD:postgres}@${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:mmp_db}"
+      table: "${INFER_OUTPUT_PG_TABLE:predictions_{{ env_name }}}"
+    {%- elif inference_output_source == "BigQuery" %}
+    adapter_type: bigquery
+    config:
+      project_id: "${GCP_PROJECT_ID:{{ gcp_project|default('') }}}"
+      dataset_id: "${INFER_OUTPUT_BQ_DATASET:analytics}"
+      table: "${INFER_OUTPUT_BQ_TABLE:predictions_{{ env_name }}}"
+      location: "${BQ_LOCATION:US}"
+    {%- endif %}
+
+  preprocessed:
+    name: PreprocessedOutput
+    enabled: ${PREPROC_OUTPUT_ENABLED:true}
+    {%- if preproc_output_source in ["Local Files", "S3", "GCS"] %}
+    adapter_type: storage
+    config:
+      {%- if preproc_output_source == "Local Files" %}
+      base_path: "${PREPROC_OUTPUT_BASE_PATH:./artifacts/preprocessed}"
+      storage_options: {}
+      {%- elif preproc_output_source == "S3" %}
+      base_path: "s3://${PREPROC_OUTPUT_S3_BUCKET:mmp-out}/${PREPROC_OUTPUT_S3_PREFIX:{{ env_name }}/preproc}"
+      storage_options:
+        aws_access_key_id: "${AWS_ACCESS_KEY_ID:}"
+        aws_secret_access_key: "${AWS_SECRET_ACCESS_KEY:}"
+        region_name: "${AWS_REGION:us-east-1}"
+      {%- elif preproc_output_source == "GCS" %}
+      base_path: "gs://${PREPROC_OUTPUT_GCS_BUCKET:mmp-out}/${PREPROC_OUTPUT_GCS_PREFIX:{{ env_name }}/preproc}"
+      storage_options:
+        project: "${GCP_PROJECT_ID:{{ gcp_project|default('') }}}"
+        token: "${GOOGLE_APPLICATION_CREDENTIALS:}"
+      {%- endif %}
+    {%- elif preproc_output_source == "PostgreSQL" %}
+    adapter_type: sql
+    config:
+      connection_uri: "postgresql://${DB_USER:postgres}:${DB_PASSWORD:postgres}@${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:mmp_db}"
+      table: "${PREPROC_OUTPUT_PG_TABLE:preprocessed_{{ env_name }}}"
+    {%- elif preproc_output_source == "BigQuery" %}
+    adapter_type: bigquery
+    config:
+      project_id: "${GCP_PROJECT_ID:{{ gcp_project|default('') }}}"
+      dataset_id: "${PREPROC_OUTPUT_BQ_DATASET:feature_store}"
+      table: "${PREPROC_OUTPUT_BQ_TABLE:preprocessed_{{ env_name }}}"
+      location: "${BQ_LOCATION:US}"
+    {%- endif %}
+

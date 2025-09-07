@@ -1,38 +1,51 @@
-class_path: "sklearn.cluster.DBSCAN"
-description: "DBSCAN Clustering from scikit-learn."
-library: "scikit-learn"
+class_path: sklearn.cluster.DBSCAN
+description: DBSCAN Clustering from scikit-learn.
+library: scikit-learn
 hyperparameters:
-  # 고정 파라미터 (모든 환경 동일)
   fixed: {}
-  # Optuna 최적화 대상 파라미터 (범위 지정)
   tunable:
     eps:
-      type: "float"
-      range: [0.1, 2.0]
+      type: float
+      range:
+      - 0.1
+      - 2.0
       default: 0.5
     min_samples:
-      type: "int"
-      range: [2, 20]
+      type: int
+      range:
+      - 2
+      - 20
       default: 5
     metric:
-      type: "categorical"
-      range: ["euclidean", "manhattan", "chebyshev", "minkowski"]
-      default: "euclidean"
+      type: categorical
+      range:
+      - euclidean
+      - manhattan
+      - chebyshev
+      - minkowski
+      default: euclidean
     algorithm:
-      type: "categorical"
-      range: ["auto", "ball_tree", "kd_tree", "brute"]
-      default: "auto"
+      type: categorical
+      range:
+      - auto
+      - ball_tree
+      - kd_tree
+      - brute
+      default: auto
     leaf_size:
-      type: "int"
-      range: [10, 100]
+      type: int
+      range:
+      - 10
+      - 100
       default: 30
     p:
-      type: "float"
-      range: [1.0, 2.0]
+      type: float
+      range:
+      - 1.0
+      - 2.0
       default: 2.0
-  # 환경별 기본값
-supported_tasks: ["clustering"]
 feature_requirements:
   numerical: true
   categorical: false
   text: false
+data_handler: tabular

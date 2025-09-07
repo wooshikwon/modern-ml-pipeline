@@ -124,10 +124,6 @@ class Fetcher(BaseModel):
 
 class DataInterface(BaseModel):
     """데이터 인터페이스 설정"""
-    task_type: Literal["classification", "regression", "clustering", "causal", "timeseries"] = Field(
-        ..., 
-        description="ML 태스크 타입"
-    )
     target_column: str = Field(..., description="타겟 컬럼 이름")
     
     feature_columns: Optional[List[str]] = Field(
@@ -146,13 +142,7 @@ class DataInterface(BaseModel):
     # ✅ Timeseries 전용 필드들
     timestamp_column: Optional[str] = Field(None, description="시계열 타임스탬프 컬럼 (timeseries task에서 필수)")
     
-    @model_validator(mode='after')
-    def validate_timeseries_fields(self):
-        """timeseries task일 때 필수 필드 검증"""
-        if self.task_type == "timeseries":
-            if not self.timestamp_column:
-                raise ValueError("timeseries task에서는 timestamp_column이 필수입니다")
-        return self
+    # validation 로직은 Recipe 레벨로 이동
 
 
 class Data(BaseModel):
@@ -317,15 +307,37 @@ class Recipe(BaseModel):
     CLI recipe.yaml.j2 템플릿과 100% 호환
     """
     name: str = Field(..., description="레시피 이름")
+    task_choice: Literal["classification", "regression", "clustering", "causal", "timeseries"] = Field(
+        ..., 
+        description="사용자가 Recipe Builder에서 선택한 ML 태스크"
+    )
     model: Model = Field(..., description="모델 설정")
     data: Data = Field(..., description="데이터 설정")
     preprocessor: Optional[Preprocessor] = Field(None, description="전처리 파이프라인")
     evaluation: Evaluation = Field(..., description="평가 설정")
     metadata: Optional[Metadata] = Field(None, description="메타데이터")
     
+    @model_validator(mode='after')
+    def validate_task_choice_compatibility(self):
+        """task_choice와 다른 설정들의 호환성 검증"""
+        task = self.task_choice
+        data_interface = self.data.data_interface
+        
+        # Timeseries task 검증
+        if task == "timeseries":
+            if not data_interface.timestamp_column:
+                raise ValueError("Timeseries task에는 timestamp_column이 필수입니다")
+        
+        # Causal task 검증  
+        if task == "causal":
+            if not data_interface.treatment_column:
+                raise ValueError("Causal task에는 treatment_column이 필수입니다")
+        
+        return self
+    
     def get_task_type(self) -> str:
-        """ML 태스크 타입 반환"""
-        return self.data.data_interface.task_type
+        """ML 태스크 타입 반환 (task_choice 기반)"""
+        return self.task_choice
     
     def get_metrics(self) -> List[str]:
         """평가 메트릭 목록 반환"""
@@ -357,6 +369,7 @@ class Recipe(BaseModel):
         json_schema_extra = {
             "example": {
                 "name": "classification_rf",
+                "task_choice": "classification",
                 "model": {
                     "class_path": "sklearn.ensemble.RandomForestClassifier",
                     "library": "sklearn",
@@ -396,8 +409,8 @@ class Recipe(BaseModel):
                         ]
                     },
                     "data_interface": {
-                        "task_type": "classification",
                         "target_column": "label",
+                        "entity_columns": ["user_id"],
                         "feature_columns": None
                     }
                 },

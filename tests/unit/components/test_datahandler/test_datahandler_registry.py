@@ -58,8 +58,7 @@ class TestDataHandlerRegistryBasicOperations:
             def split_data(self, df):
                 return Mock(), Mock()
         
-        mock_settings = Mock(spec=Settings)
-        mock_settings.recipe.data.data_interface = Mock()
+        mock_settings = MagicMock()
         
         DataHandlerRegistry.register("test_handler", MockDataHandler)
         
@@ -74,7 +73,7 @@ class TestDataHandlerRegistryBasicOperations:
     def test_create_nonexistent_handler_raises_error(self):
         """Test that creating non-existent handler raises ValueError."""
         # Arrange
-        mock_settings = Mock(spec=Settings)
+        mock_settings = MagicMock()
         
         # Act & Assert
         with pytest.raises(ValueError) as exc_info:
@@ -111,8 +110,7 @@ class TestDataHandlerRegistryTaskMapping:
     def test_get_handler_for_classification_task(self):
         """Test that classification maps to tabular handler."""
         # Arrange
-        mock_settings = Mock(spec=Settings)
-        mock_settings.recipe.data.data_interface = Mock()
+        mock_settings = MagicMock()
         
         # Act
         handler = DataHandlerRegistry.get_handler_for_task("classification", mock_settings)
@@ -123,8 +121,7 @@ class TestDataHandlerRegistryTaskMapping:
     def test_get_handler_for_regression_task(self):
         """Test that regression maps to tabular handler."""
         # Arrange
-        mock_settings = Mock(spec=Settings)
-        mock_settings.recipe.data.data_interface = Mock()
+        mock_settings = MagicMock()
         
         # Act
         handler = DataHandlerRegistry.get_handler_for_task("regression", mock_settings)
@@ -135,8 +132,7 @@ class TestDataHandlerRegistryTaskMapping:
     def test_get_handler_for_clustering_task(self):
         """Test that clustering maps to tabular handler."""
         # Arrange
-        mock_settings = Mock(spec=Settings)
-        mock_settings.recipe.data.data_interface = Mock()
+        mock_settings = MagicMock()
         
         # Act
         handler = DataHandlerRegistry.get_handler_for_task("clustering", mock_settings)
@@ -147,8 +143,7 @@ class TestDataHandlerRegistryTaskMapping:
     def test_get_handler_for_causal_task(self):
         """Test that causal maps to tabular handler."""
         # Arrange
-        mock_settings = Mock(spec=Settings)
-        mock_settings.recipe.data.data_interface = Mock()
+        mock_settings = MagicMock()
         
         # Act
         handler = DataHandlerRegistry.get_handler_for_task("causal", mock_settings)
@@ -159,8 +154,7 @@ class TestDataHandlerRegistryTaskMapping:
     def test_get_handler_for_timeseries_task(self):
         """Test that timeseries maps to timeseries handler."""
         # Arrange
-        mock_settings = Mock(spec=Settings)
-        mock_settings.recipe.data.data_interface = Mock()
+        mock_settings = MagicMock()
         
         # Act
         handler = DataHandlerRegistry.get_handler_for_task("timeseries", mock_settings)
@@ -171,8 +165,7 @@ class TestDataHandlerRegistryTaskMapping:
     def test_get_handler_for_unknown_task_falls_back_to_tabular(self):
         """Test that unknown task types fall back to tabular handler."""
         # Arrange
-        mock_settings = Mock(spec=Settings)
-        mock_settings.recipe.data.data_interface = Mock()
+        mock_settings = MagicMock()
         
         # Act
         handler = DataHandlerRegistry.get_handler_for_task("unknown_task", mock_settings)

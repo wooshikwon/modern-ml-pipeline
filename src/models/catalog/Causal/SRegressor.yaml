@@ -1,66 +1,85 @@
-class_path: "causalml.inference.meta.SRegressor"
-description: "S-Learner (Single Model) for Causal Inference."
-library: "causalml"
+class_path: causalml.inference.meta.SRegressor
+description: S-Learner (Single Model) for Causal Inference.
+library: causalml
 hyperparameters:
-  # 고정 파라미터 (모든 환경 동일)
   fixed:
     random_state: 42
-    control_name: "control"
-  # Optuna 최적화 대상 파라미터 (범위 지정)
+    control_name: control
   tunable:
-    # Base learner hyperparameters (assuming XGBoost as base)
     n_estimators:
-      type: "int"
-      range: [10, 300]
+      type: int
+      range:
+      - 10
+      - 300
       default: 100
     learning_rate:
-      type: "float"
-      range: [0.01, 0.3]
+      type: float
+      range:
+      - 0.01
+      - 0.3
       default: 0.1
     max_depth:
-      type: "int"
-      range: [3, 15]
+      type: int
+      range:
+      - 3
+      - 15
       default: 6
     min_child_weight:
-      type: "int"
-      range: [1, 10]
+      type: int
+      range:
+      - 1
+      - 10
       default: 1
     subsample:
-      type: "float"
-      range: [0.6, 1.0]
+      type: float
+      range:
+      - 0.6
+      - 1.0
       default: 1.0
     colsample_bytree:
-      type: "float"
-      range: [0.6, 1.0]
+      type: float
+      range:
+      - 0.6
+      - 1.0
       default: 1.0
     gamma:
-      type: "float"
-      range: [0.0, 5.0]
+      type: float
+      range:
+      - 0.0
+      - 5.0
       default: 0.0
     reg_alpha:
-      type: "float"
-      range: [0.0, 1.0]
+      type: float
+      range:
+      - 0.0
+      - 1.0
       default: 0.0
     reg_lambda:
-      type: "float"
-      range: [0.0, 1.0]
+      type: float
+      range:
+      - 0.0
+      - 1.0
       default: 1.0
-    # S-Learner specific parameters
     ate_alpha:
-      type: "float"
-      range: [0.01, 0.1]
+      type: float
+      range:
+      - 0.01
+      - 0.1
       default: 0.05
     n_bootstraps:
-      type: "int"
-      range: [50, 500]
+      type: int
+      range:
+      - 50
+      - 500
       default: 100
     bootstrap_size:
-      type: "int"
-      range: [1000, 10000]
+      type: int
+      range:
+      - 1000
+      - 10000
       default: 5000
-  # 환경별 기본값
-supported_tasks: ["causal_inference", "average_treatment_effect"]
 feature_requirements:
   numerical: true
   categorical: true
   text: false
+data_handler: tabular

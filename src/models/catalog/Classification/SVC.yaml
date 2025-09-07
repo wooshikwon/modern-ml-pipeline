@@ -1,52 +1,69 @@
-class_path: "sklearn.svm.SVC"
-description: "Support Vector Machine Classifier from scikit-learn."
-library: "scikit-learn"
+class_path: sklearn.svm.SVC
+description: Support Vector Machine Classifier from scikit-learn.
+library: scikit-learn
 hyperparameters:
-  # 고정 파라미터 (모든 환경 동일)
   fixed:
     random_state: 42
     probability: false
-  # Optuna 최적화 대상 파라미터 (범위 지정)
   tunable:
     C:
-      type: "float"
-      range: [0.001, 100.0]
+      type: float
+      range:
+      - 0.001
+      - 100.0
       default: 1.0
     kernel:
-      type: "categorical"
-      range: ["linear", "rbf", "poly", "sigmoid"]
-      default: "rbf"
+      type: categorical
+      range:
+      - linear
+      - rbf
+      - poly
+      - sigmoid
+      default: rbf
     gamma:
-      type: "categorical"
-      range: ["scale", "auto"]
-      default: "scale"
+      type: categorical
+      range:
+      - scale
+      - auto
+      default: scale
     degree:
-      type: "int"
-      range: [2, 5]
+      type: int
+      range:
+      - 2
+      - 5
       default: 3
     coef0:
-      type: "float"
-      range: [0.0, 10.0]
+      type: float
+      range:
+      - 0.0
+      - 10.0
       default: 0.0
     tol:
-      type: "float"
-      range: [1e-5, 1e-2]
+      type: float
+      range:
+      - 1e-5
+      - 1e-2
       default: 1e-3
     shrinking:
-      type: "categorical"
-      range: [true, false]
+      type: categorical
+      range:
+      - true
+      - false
       default: true
     decision_function_shape:
-      type: "categorical"
-      range: ["ovr", "ovo"]
-      default: "ovr"
+      type: categorical
+      range:
+      - ovr
+      - ovo
+      default: ovr
     break_ties:
-      type: "categorical"
-      range: [true, false]
+      type: categorical
+      range:
+      - true
+      - false
       default: false
-  # 환경별 기본값
-supported_tasks: ["binary_classification", "multiclass_classification"]
 feature_requirements:
   numerical: true
   categorical: true
   text: false
+data_handler: tabular

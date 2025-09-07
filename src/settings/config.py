@@ -102,6 +102,20 @@ class ArtifactStore(BaseModel):
     # TODO: Pydantic V2 validator
 
 
+class OutputTarget(BaseModel):
+    """출력 타겟 설정 - 데이터 소스 스타일과 동일한 adapter_type + config 구조"""
+    name: str = Field(..., description="출력 타겟 이름")
+    enabled: bool = Field(True, description="저장 활성화 여부")
+    adapter_type: Literal["storage", "sql", "bigquery"] = Field(..., description="저장 어댑터 타입")
+    config: Dict[str, Any] = Field(default_factory=dict, description="어댑터별 설정 (base_path/table 등)")
+
+
+class Output(BaseModel):
+    """출력 설정 - inference 결과 및 전처리 결과"""
+    inference: OutputTarget = Field(..., description="배치 추론 출력 설정")
+    preprocessed: OutputTarget = Field(..., description="전처리 결과 출력 설정")
+
+
 class Config(BaseModel):
     """
     루트 인프라 설정 (configs/*.yaml)
@@ -116,6 +130,7 @@ class Config(BaseModel):
     )
     serving: Optional[Serving] = Field(None, description="API 서빙 설정")
     artifact_store: Optional[ArtifactStore] = Field(None, description="아티팩트 저장소 설정")
+    output: Optional[Output] = Field(None, description="출력 저장 설정 (선택 사항)")
     
     def get_adapter_config(self) -> Dict[str, Any]:
         """데이터 소스에서 어댑터 설정 추출 (호환성용)"""

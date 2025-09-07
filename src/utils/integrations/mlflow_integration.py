@@ -21,13 +21,13 @@ def setup_mlflow(settings: "Settings") -> None:
     """
     주입된 settings 객체를 기반으로 MLflow 클라이언트를 설정합니다.
     """
-    mlflow.set_tracking_uri(settings.mlflow.tracking_uri)
-    mlflow.set_experiment(settings.mlflow.experiment_name)
+    mlflow.set_tracking_uri(settings.config.mlflow.tracking_uri)
+    mlflow.set_experiment(settings.config.mlflow.experiment_name)
     
     logger.info("MLflow 설정 완료:")
-    logger.info(f"  - Tracking URI: {settings.mlflow.tracking_uri}")
-    logger.info(f"  - Experiment: {settings.mlflow.experiment_name}")
-    logger.info(f"  - Environment: {settings.environment.env_name}")
+    logger.info(f"  - Tracking URI: {settings.config.mlflow.tracking_uri}")
+    logger.info(f"  - Experiment: {settings.config.mlflow.experiment_name}")
+    logger.info(f"  - Environment: {settings.config.environment.name}")
 
 @contextmanager
 def start_run(settings: "Settings", run_name: str) -> "Run":
@@ -36,9 +36,9 @@ def start_run(settings: "Settings", run_name: str) -> "Run":
     외부 환경 변수의 영향을 받지 않도록 tracking_uri를 명시적으로 설정합니다.
     """
     # 외부에서 지정된 tracking_uri(예: 테스트)가 있다면 존중하고, 실험명만 설정
-    mlflow.set_experiment(settings.mlflow.experiment_name)
+    mlflow.set_experiment(settings.config.mlflow.experiment_name)
     with mlflow.start_run(run_name=run_name) as run:
-        logger.info(f"MLflow Run started: {run.info.run_id} ({run_name}) for experiment '{settings.mlflow.experiment_name}'")
+        logger.info(f"MLflow Run started: {run.info.run_id} ({run_name}) for experiment '{settings.config.mlflow.experiment_name}'")
         try:
             yield run
             mlflow.set_tag("status", "success")
@@ -103,7 +103,7 @@ def load_pyfunc_model(settings: "Settings", model_uri: str) -> "PyFuncModel":
                     raise ValueError(f"'{uri}'는 올바른 'runs:/' URI가 아닙니다.")
                 return match.group(1), match.group(2)
 
-            client = MlflowClient(tracking_uri=settings.mlflow.tracking_uri)
+            client = MlflowClient(tracking_uri=settings.config.mlflow.tracking_uri)
             run_id, artifact_path = _parse_runs_uri(model_uri)
             
             local_path = client.download_artifacts(run_id=run_id, path=artifact_path)
@@ -111,7 +111,7 @@ def load_pyfunc_model(settings: "Settings", model_uri: str) -> "PyFuncModel":
             return mlflow.pyfunc.load_model(model_uri=local_path)
         else:
             # 일반 경로(local file, GCS, S3 등)는 기존 방식 사용
-            mlflow.set_tracking_uri(settings.mlflow.tracking_uri)
+            mlflow.set_tracking_uri(settings.config.mlflow.tracking_uri)
             return mlflow.pyfunc.load_model(model_uri=model_uri)
     except Exception as e:
         logger.error(f"모델 로딩 실패: {model_uri}, 오류: {e}", exc_info=True)
@@ -121,7 +121,7 @@ def download_artifacts(settings: "Settings", run_id: str, artifact_path: str, ds
     """
     지정된 Run ID에서 특정 아티팩트를 다운로드하고, 로컬 경로를 반환합니다.
     """
-    mlflow.set_tracking_uri(settings.mlflow.tracking_uri)
+    mlflow.set_tracking_uri(settings.config.mlflow.tracking_uri)
     logger.info(f"아티팩트 다운로드 시작: '{artifact_path}' (Run ID: '{run_id}')")
     try:
         local_path = mlflow.artifacts.download_artifacts(

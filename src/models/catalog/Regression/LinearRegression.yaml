@@ -1,23 +1,24 @@
-class_path: "sklearn.linear_model.LinearRegression"
-description: "Linear Regression from scikit-learn."
-library: "scikit-learn"
+class_path: sklearn.linear_model.LinearRegression
+description: Linear Regression from scikit-learn.
+library: scikit-learn
 hyperparameters:
-  # 고정 파라미터 (모든 환경 동일)
   fixed:
     copy_X: true
-  # Optuna 최적화 대상 파라미터 (범위 지정)
   tunable:
     fit_intercept:
-      type: "categorical"
-      range: [true, false]
+      type: categorical
+      range:
+      - true
+      - false
       default: true
     positive:
-      type: "categorical"
-      range: [true, false]
+      type: categorical
+      range:
+      - true
+      - false
       default: false
-  # 환경별 기본값
-supported_tasks: ["regression"]
 feature_requirements:
   numerical: true
   categorical: false
   text: false
+data_handler: tabular

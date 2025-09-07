@@ -1,30 +1,40 @@
-class_path: "sklearn.cluster.AgglomerativeClustering"
-description: "Hierarchical Agglomerative Clustering from scikit-learn."
-library: "scikit-learn"
+class_path: sklearn.cluster.AgglomerativeClustering
+description: Hierarchical Agglomerative Clustering from scikit-learn.
+library: scikit-learn
 hyperparameters:
-  # 고정 파라미터 (모든 환경 동일)
   fixed: {}
-  # Optuna 최적화 대상 파라미터 (범위 지정)
   tunable:
     n_clusters:
-      type: "int"
-      range: [2, 20]
+      type: int
+      range:
+      - 2
+      - 20
       default: 2
     metric:
-      type: "categorical"
-      range: ["euclidean", "l1", "l2", "manhattan", "cosine"]
-      default: "euclidean"
+      type: categorical
+      range:
+      - euclidean
+      - l1
+      - l2
+      - manhattan
+      - cosine
+      default: euclidean
     linkage:
-      type: "categorical"
-      range: ["ward", "complete", "average", "single"]
-      default: "ward"
+      type: categorical
+      range:
+      - ward
+      - complete
+      - average
+      - single
+      default: ward
     distance_threshold:
-      type: "float"
-      range: [0.0, 10.0]
+      type: float
+      range:
+      - 0.0
+      - 10.0
       default: 0.0
-  # 환경별 기본값
-supported_tasks: ["clustering"]
 feature_requirements:
   numerical: true
   categorical: false
   text: false
+data_handler: tabular

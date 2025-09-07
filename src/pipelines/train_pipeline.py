@@ -25,7 +25,7 @@ def run_train_pipeline(settings: Settings, context_params: Optional[Dict[str, An
     set_global_seeds(seed)
 
     logger.info(f"['{settings.recipe.model.computed['run_name']}'] 모델 학습 파이프라인 시작")
-    logger.info(f"MLflow Tracking URI (from settings): {settings.mlflow.tracking_uri}") # 경로 검증 로그 추가
+    logger.info(f"MLflow Tracking URI (from settings): {settings.config.mlflow.tracking_uri}") # 경로 검증 로그 추가
     context_params = context_params or {}
 
     # MLflow 실행 컨텍스트 시작
