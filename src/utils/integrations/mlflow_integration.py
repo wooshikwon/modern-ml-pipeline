@@ -16,18 +16,21 @@ if TYPE_CHECKING:
     from mlflow.pyfunc import PyFuncModel
 
 from src.utils.system.logger import logger
+from src.utils.system.console_manager import RichConsoleManager
 
 def setup_mlflow(settings: "Settings") -> None:
     """
     주입된 settings 객체를 기반으로 MLflow 클라이언트를 설정합니다.
     """
+    console = RichConsoleManager()
+    
     mlflow.set_tracking_uri(settings.config.mlflow.tracking_uri)
     mlflow.set_experiment(settings.config.mlflow.experiment_name)
     
-    logger.info("MLflow 설정 완료:")
-    logger.info(f"  - Tracking URI: {settings.config.mlflow.tracking_uri}")
-    logger.info(f"  - Experiment: {settings.config.mlflow.experiment_name}")
-    logger.info(f"  - Environment: {settings.config.environment.name}")
+    console.log_milestone("MLflow setup completed", "mlflow")
+    console.print(f"Tracking URI: [cyan]{settings.config.mlflow.tracking_uri}[/cyan]")
+    console.print(f"Experiment: [cyan]{settings.config.mlflow.experiment_name}[/cyan]")
+    console.print(f"Environment: [cyan]{settings.config.environment.name}[/cyan]")
 
 @contextmanager
 def start_run(settings: "Settings", run_name: str) -> "Run":
@@ -35,16 +38,19 @@ def start_run(settings: "Settings", run_name: str) -> "Run":
     MLflow 실행을 시작하고 관리하는 컨텍스트 매니저.
     외부 환경 변수의 영향을 받지 않도록 tracking_uri를 명시적으로 설정합니다.
     """
+    console = RichConsoleManager()
+    
     # 외부에서 지정된 tracking_uri(예: 테스트)가 있다면 존중하고, 실험명만 설정
     mlflow.set_experiment(settings.config.mlflow.experiment_name)
     with mlflow.start_run(run_name=run_name) as run:
-        logger.info(f"MLflow Run started: {run.info.run_id} ({run_name}) for experiment '{settings.config.mlflow.experiment_name}'")
+        console.log_milestone(f"MLflow Run started: {run.info.run_id} ({run_name})", "mlflow")
         try:
             yield run
             mlflow.set_tag("status", "success")
-            logger.info("MLflow Run finished successfully.")
+            console.log_milestone("MLflow Run finished successfully", "success")
         except Exception as e:
             mlflow.set_tag("status", "failed")
+            console.log_milestone(f"MLflow Run failed: {e}", "error")
             logger.error(f"MLflow Run failed: {e}", exc_info=True)
             raise
 
@@ -329,82 +335,97 @@ def log_enhanced_model_with_schema(
         data_schema (dict): 완전한 스키마 메타데이터
         input_example (pd.DataFrame): 입력 예제 데이터
     """
+    console = RichConsoleManager()
     
-    # 1. 기존 MLflow 저장 로직 활용 (검증된 기능 보존)
-    logger.info("🔄 기존 MLflow 모델 저장 로직 활용 중...")
-    mlflow.pyfunc.log_model(
-        artifact_path="model",
-        python_model=python_model,
-        signature=signature,
-        pip_requirements=pip_requirements,
-        input_example=input_example,
-        metadata={"data_schema": json.dumps(data_schema)}
-    )
+    # Track artifact upload progress
+    artifacts = ["model", "data_schema", "compatibility_info", "phase_integration_summary"]
     
-    # 2. 🆕 완전한 스키마 메타데이터 저장
-    logger.info("🆕 완전한 스키마 메타데이터 저장 중...")
-    mlflow.log_dict(data_schema, "model/data_schema.json")
+    console.log_phase("MLflow Experiment Tracking", "📤")
     
-    # 3. 🆕 호환성 및 버전 정보 저장
-    logger.info("🆕 호환성 및 버전 정보 저장 중...")
-    compatibility_info = {
-        'artifact_version': '2.0',
-        'creation_timestamp': pd.Timestamp.now().isoformat(),
-        'mlflow_version': mlflow.__version__,
-        'schema_validator_version': '2.0',
+    with console.progress_tracker("mlflow_artifacts", len(artifacts), f"Uploading {len(artifacts)} artifacts") as update:
+        # 1. 기존 MLflow 저장 로직 활용 (검증된 기능 보존)
+        mlflow.pyfunc.log_model(
+            artifact_path="model",
+            python_model=python_model,
+            signature=signature,
+            pip_requirements=pip_requirements,
+            input_example=input_example,
+            metadata={"data_schema": json.dumps(data_schema)}
+        )
+        update(1)
+        console.print("✅ Model logged")
         
-        # Phase별 기능 활성화 상태
-        'features_enabled': {
-            'entity_timestamp_schema': True,  # Phase 1
-            'point_in_time_correctness': True,  # Phase 2
-            'sql_injection_protection': True,  # Phase 3
-            'automatic_schema_validation': True,  # Phase 4
-            'self_descriptive_artifact': True  # Phase 5
-        },
+        # 2. 🆕 완전한 스키마 메타데이터 저장
+        mlflow.log_dict(data_schema, "model/data_schema.json")
+        update(2)
+        console.print("✅ Data schema saved")
         
-        # 호환성 정보
-        'backward_compatibility': {
-            'supports_legacy_models': False,  # Phase 5는 완전한 새 구조만 지원
-            'requires_enhanced_pipeline': True
-        },
-        
-        # 품질 보증 정보
-        'quality_assurance': {
-            'schema_drift_protection': True,
-            'data_leakage_prevention': True,
-            'reproducibility_guaranteed': True
+        # 3. 🆕 호환성 및 버전 정보 저장
+        compatibility_info = {
+            'artifact_version': '2.0',
+            'creation_timestamp': pd.Timestamp.now().isoformat(),
+            'mlflow_version': mlflow.__version__,
+            'schema_validator_version': '2.0',
+            
+            # Phase별 기능 활성화 상태
+            'features_enabled': {
+                'entity_timestamp_schema': True,  # Phase 1
+                'point_in_time_correctness': True,  # Phase 2
+                'sql_injection_protection': True,  # Phase 3
+                'automatic_schema_validation': True,  # Phase 4
+                'self_descriptive_artifact': True  # Phase 5
+            },
+            
+            # 호환성 정보
+            'backward_compatibility': {
+                'supports_legacy_models': False,  # Phase 5는 완전한 새 구조만 지원
+                'requires_enhanced_pipeline': True
+            },
+            
+            # 품질 보증 정보
+            'quality_assurance': {
+                'schema_drift_protection': True,
+                'data_leakage_prevention': True,
+                'reproducibility_guaranteed': True
+            }
         }
-    }
-    mlflow.log_dict(compatibility_info, "model/compatibility_info.json")
-    
-    # 4. 🆕 Phase 통합 요약 정보 저장
-    phase_summary = {
-        'phase_1': {
-            'name': 'Schema-First 설계',
-            'achievements': ['Entity+Timestamp 필수화', 'EntitySchema 구현', 'Recipe 구조 현대화']
-        },
-        'phase_2': {
-            'name': 'Point-in-Time 안전성', 
-            'achievements': ['ASOF JOIN 검증', 'fetcher 현대화', '미래 데이터 누출 방지']
-        },
-        'phase_3': {
-            'name': '보안 강화 Dynamic SQL',
-            'achievements': ['SQL Injection 방지', '화이트리스트 검증', '보안 템플릿 표준화']
-        },
-        'phase_4': {
-            'name': '일관성 자동 검증',
-            'achievements': ['Schema Drift 조기 발견', '타입 호환성 엔진', '자동 검증 통합']
-        },
-        'phase_5': {
-            'name': '완전 자기 기술 Artifact',
-            'achievements': ['100% 재현성 보장', '완전한 메타데이터 캡슐화', '자기 기술적 구조']
+        mlflow.log_dict(compatibility_info, "model/compatibility_info.json")
+        update(3)
+        console.print("✅ Compatibility info uploaded")
+        
+        # 4. 🆕 Phase 통합 요약 정보 저장
+        phase_summary = {
+            'phase_1': {
+                'name': 'Schema-First 설계',
+                'achievements': ['Entity+Timestamp 필수화', 'EntitySchema 구현', 'Recipe 구조 현대화']
+            },
+            'phase_2': {
+                'name': 'Point-in-Time 안전성', 
+                'achievements': ['ASOF JOIN 검증', 'fetcher 현대화', '미래 데이터 누출 방지']
+            },
+            'phase_3': {
+                'name': '보안 강화 Dynamic SQL',
+                'achievements': ['SQL Injection 방지', '화이트리스트 검증', '보안 템플릿 표준화']
+            },
+            'phase_4': {
+                'name': '일관성 자동 검증',
+                'achievements': ['Schema Drift 조기 발견', '타입 호환성 엔진', '자동 검증 통합']
+            },
+            'phase_5': {
+                'name': '완전 자기 기술 Artifact',
+                'achievements': ['100% 재현성 보장', '완전한 메타데이터 캡슐화', '자기 기술적 구조']
+            }
         }
-    }
-    mlflow.log_dict(phase_summary, "model/phase_integration_summary.json")
+        mlflow.log_dict(phase_summary, "model/phase_integration_summary.json")
+        update(4)
+        console.print("✅ Phase integration summary uploaded")
     
-    logger.info("✅ Enhanced Model + 완전한 메타데이터 MLflow 저장 완료")
-    logger.info("   - 기본 모델: model/ 경로에 저장")
-    logger.info("   - 스키마 메타데이터: model/data_schema.json")
-    logger.info("   - 호환성 정보: model/compatibility_info.json") 
-    logger.info("   - Phase 통합 요약: model/phase_integration_summary.json")
-    logger.info("   🎉 모든 Phase 혁신 기능이 통합된 자기 기술적 Artifact 완성!") 
+    # Display run information
+    run = mlflow.active_run()
+    if run:
+        console.display_run_info(
+            run_id=run.info.run_id,
+            model_uri=f"runs:/{run.info.run_id}/model"
+        )
+    
+    console.log_milestone("Enhanced Model + metadata MLflow storage completed", "success") 

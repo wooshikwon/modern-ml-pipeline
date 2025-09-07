@@ -106,8 +106,8 @@ class OutputTarget(BaseModel):
     """출력 타겟 설정 - 데이터 소스 스타일과 동일한 adapter_type + config 구조"""
     name: str = Field(..., description="출력 타겟 이름")
     enabled: bool = Field(True, description="저장 활성화 여부")
-    adapter_type: Literal["storage", "sql", "bigquery"] = Field(..., description="저장 어댑터 타입")
-    config: Dict[str, Any] = Field(default_factory=dict, description="어댑터별 설정 (base_path/table 등)")
+    adapter_type: Optional[Literal["storage", "sql", "bigquery"]] = Field(None, description="저장 어댑터 타입")
+    config: Optional[Dict[str, Any]] = Field(default=None, description="어댑터별 설정 (base_path/table 등)")
 
 
 class Output(BaseModel):

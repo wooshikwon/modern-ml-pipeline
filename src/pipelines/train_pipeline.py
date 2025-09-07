@@ -9,6 +9,7 @@ import pandas as pd
 from src.settings import Settings
 from src.factory import Factory
 from src.utils.system.logger import logger
+from src.utils.system.console_manager import RichConsoleManager
 from src.utils.integrations import mlflow_integration as mlflow_utils
 from src.utils.system.environment_check import get_pip_requirements
 from src.utils.system.reproducibility import set_global_seeds
@@ -20,47 +21,59 @@ def run_train_pipeline(settings: Settings, context_params: Optional[Dict[str, An
     Factory를 통해 데이터 어댑터와 모든 컴포넌트를 생성하고, 최종적으로
     순수 로직 PyfuncWrapper를 생성하여 MLflow에 저장합니다.
     """
+    console = RichConsoleManager()
+    
     # 재현성을 위한 전역 시드 설정
     seed = getattr(settings.recipe.model, 'computed', {}).get('seed', 42)
     set_global_seeds(seed)
 
-    logger.info(f"['{settings.recipe.model.computed['run_name']}'] 모델 학습 파이프라인 시작")
-    logger.info(f"MLflow Tracking URI (from settings): {settings.config.mlflow.tracking_uri}") # 경로 검증 로그 추가
-    context_params = context_params or {}
+    # Pipeline context start
+    task_type = settings.recipe.data.data_interface.task_type
+    model_name = getattr(settings.recipe.model, 'class_path', 'Unknown')
+    pipeline_description = f"Environment: {settings.config.environment.name} | Task: {task_type} | Model: {model_name.split('.')[-1]}"
+    
+    with console.pipeline_context("Training Pipeline", pipeline_description):
+        context_params = context_params or {}
 
-    # MLflow 실행 컨텍스트 시작
-    with mlflow_utils.start_run(settings, run_name=settings.recipe.model.computed["run_name"]) as run:
-        run_id = run.info.run_id
-        
-        # Factory 생성
-        factory = Factory(settings)
+        # MLflow 실행 컨텍스트 시작
+        with mlflow_utils.start_run(settings, run_name=settings.recipe.model.computed["run_name"]) as run:
+            run_id = run.info.run_id
+            
+            # Factory 생성
+            factory = Factory(settings)
 
-        # 1. 데이터 어댑터를 사용하여 데이터 로딩
-        # adapter 타입은 source_uri 패턴에서 자동 감지됨
-        data_adapter = factory.create_data_adapter()
-        df = data_adapter.read(settings.recipe.data.loader.source_uri)
+            # 1. 데이터 어댑터를 사용하여 데이터 로딩
+            console.log_phase("Data Loading", "📊")
+            with console.progress_tracker("data_loading", 100, "Loading and preparing data") as update:
+                data_adapter = factory.create_data_adapter()
+                df = data_adapter.read(settings.recipe.data.loader.source_uri)
+                update(100)
+            
+            console.log_milestone(f"Data loaded successfully: {len(df)} rows, {len(df.columns)} columns", "success")
 
-        mlflow.log_metric("row_count", len(df))
-        mlflow.log_metric("column_count", len(df.columns))
+            mlflow.log_metric("row_count", len(df))
+            mlflow.log_metric("column_count", len(df.columns))
 
-        # 2. 학습에 사용할 컴포넌트 생성
-        fetcher = factory.create_fetcher()
-        datahandler = factory.create_datahandler()  # 일관된 Factory 패턴
-        preprocessor = factory.create_preprocessor()
-        model = factory.create_model()
-        evaluator = factory.create_evaluator()
-        trainer = factory.create_trainer()  # 일관된 Factory 패턴
+            # 2. 학습에 사용할 컴포넌트 생성
+            console.log_phase("Component Initialization", "🔧")
+            fetcher = factory.create_fetcher()
+            datahandler = factory.create_datahandler()  # 일관된 Factory 패턴
+            preprocessor = factory.create_preprocessor()
+            model = factory.create_model()
+            evaluator = factory.create_evaluator()
+            trainer = factory.create_trainer()  # 일관된 Factory 패턴
 
-        # 3. 모델 학습
-        trained_model, trained_preprocessor, metrics, training_results = trainer.train(
-            df=df,
-            model=model,
-            fetcher=fetcher,
-            datahandler=datahandler,  # 일관된 Factory 패턴
-            preprocessor=preprocessor,
-            evaluator=evaluator,
-            context_params=context_params,
-        )
+            # 3. 모델 학습
+            console.log_phase("Model Training", "🤖")
+            trained_model, trained_preprocessor, metrics, training_results = trainer.train(
+                df=df,
+                model=model,
+                fetcher=fetcher,
+                datahandler=datahandler,  # 일관된 Factory 패턴
+                preprocessor=preprocessor,
+                evaluator=evaluator,
+                context_params=context_params,
+            )
         
         # 4. 결과 로깅 (확장)
         if metrics:  # 🔄 수정: 'metrics' key가 아닌 직접 metrics 객체 사용

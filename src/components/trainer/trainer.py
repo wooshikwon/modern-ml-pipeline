@@ -149,29 +149,29 @@ class Trainer(BaseTrainer):
         return {'model': model_instance, 'preprocessor': preprocessor, 'score': score}
 
     def _fit_model(self, model, X, y, additional_data):
-        """task_type에 따라 모델을 학습시킵니다."""
+        """task_choice에 따라 모델을 학습시킵니다."""
         if not isinstance(model, BaseModel):
             from sklearn.base import is_classifier, is_regressor
             if not (is_classifier(model) or is_regressor(model) or hasattr(model, 'fit')):
                  raise TypeError("전달된 모델 객체는 BaseModel 인터페이스를 따르거나 scikit-learn 호환 모델이어야 합니다.")
         
-        task_type = self.settings.recipe.data.data_interface.task_type
-        if task_type in ["classification", "regression"]:
+        task_choice = self.settings.recipe.task_choice
+        if task_choice in ["classification", "regression"]:
             model.fit(X, y)
-        elif task_type == "clustering":
+        elif task_choice == "clustering":
             model.fit(X)
-        elif task_type == "causal":
+        elif task_choice == "causal":
             model.fit(X, additional_data['treatment'], y)
-        elif task_type == "timeseries":
+        elif task_choice == "timeseries":
             model.fit(X, y)
         else:
-            raise ValueError(f"지원하지 않는 task_type: {task_type}")
+            raise ValueError(f"지원하지 않는 task_choice: {task_choice}")
 
     def _get_training_methodology(self):
         """학습 방법론 메타데이터를 반환합니다."""
         validation_config = self.settings.recipe.evaluation.validation
         hyperparams_config = self.settings.recipe.model.hyperparameters
-        task_type = self.settings.recipe.data.data_interface.task_type
+        task_choice = self.settings.recipe.task_choice
         
         # stratification 여부 결정
         stratify_col = self._get_stratify_col()
@@ -192,7 +192,7 @@ class Trainer(BaseTrainer):
             'validation_strategy': validation_strategy,
             'random_state': validation_config.random_state,
             'stratify_column': stratify_col,
-            'task_type': task_type,
+            'task_choice': task_choice,
             'preprocessing_fit_scope': 'train_only',
             'hyperparameter_optimization': hyperparams_config.tuning_enabled,
             'n_trials': hyperparams_config.n_trials if hyperparams_config.tuning_enabled else None,
@@ -202,7 +202,8 @@ class Trainer(BaseTrainer):
 
     def _get_stratify_col(self):
         di = self.settings.recipe.data.data_interface
-        return di.target_column if di.task_type == "classification" else di.treatment_column if di.task_type == "causal" else None
+        task_choice = self.settings.recipe.task_choice
+        return di.target_column if task_choice == "classification" else di.treatment_column if task_choice == "causal" else None
 
 # Self-registration
 from .registry import TrainerRegistry
