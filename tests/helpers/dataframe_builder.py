@@ -228,11 +228,43 @@ class DataFrameBuilder:
             # 결측값이 있는 범주형 피처들
             'category_missing': np.where(
                 np.random.random(n_samples) > 0.85,  # 15% 결측
-                np.nan, 
+                None,  # None을 사용하여 dtype 이슈 해결
                 np.random.choice(['A', 'B', 'C', 'D'], n_samples)
             ),
             
             # 결측값이 없는 피처 (비교용)
             'numeric_complete': np.random.normal(50, 10, n_samples),
             'category_complete': np.random.choice(['X', 'Y', 'Z'], n_samples)
+        })
+    
+    @staticmethod
+    def build_feature_generation_data(n_samples: int = 100, random_state: int = 42) -> pd.DataFrame:
+        """피처 생성용 데이터프레임 생성 (TreeBased, Polynomial 테스트용)"""
+        np.random.seed(random_state)
+        return pd.DataFrame({
+            # 피처 생성용 숫자형 피처들
+            'feature_1': np.random.uniform(-2, 2, n_samples),
+            'feature_2': np.random.uniform(-1, 3, n_samples),
+            'feature_3': np.random.normal(0, 1, n_samples),
+            
+            # 비선형 관계를 가진 타겟 (TreeBased 테스트용)
+            'target': np.where(
+                (np.random.uniform(-2, 2, n_samples) * np.random.uniform(-1, 3, n_samples)) > 0,
+                1, 0
+            )
+        })
+    
+    @staticmethod
+    def build_discretization_data(n_samples: int = 100, random_state: int = 42) -> pd.DataFrame:
+        """구간화(Discretization) 테스트용 연속형 데이터프레임 생성"""
+        np.random.seed(random_state)
+        return pd.DataFrame({
+            # 다양한 분포의 연속형 변수들
+            'uniform_dist': np.random.uniform(0, 100, n_samples),
+            'normal_dist': np.random.normal(50, 15, n_samples),
+            'exponential_dist': np.random.exponential(2, n_samples),
+            'bimodal_dist': np.concatenate([
+                np.random.normal(20, 5, n_samples//2),
+                np.random.normal(80, 8, n_samples - n_samples//2)
+            ])
         })
