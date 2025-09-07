@@ -238,8 +238,9 @@ class Preprocessor(BasePreprocessor):
                 mapped_columns.append(col)
             else:
                 # 컬럼이 존재하지 않는 경우 - 전처리기에서 처리하도록 그대로 전달
-                # Use logger for internal column mapping (not user-facing operation)
-                logger.info(f"컬럼 '{col}'이 현재 데이터에 없습니다. 전처리기에서 처리될 예정입니다.")
+                # Use console for internal column mapping information
+                self.console.info(f"컬럼 '{col}'이 현재 데이터에 없습니다. 전처리기에서 처리될 예정입니다.",
+                                 rich_message=f"🔍 Column [yellow]'{col}'[/yellow] not found → will be processed by preprocessor")
                 mapped_columns.append(col)
             
         return mapped_columns

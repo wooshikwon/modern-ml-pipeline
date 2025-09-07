@@ -4,7 +4,8 @@ import numpy as np
 from typing import Dict, Any, Tuple
 from sklearn.model_selection import train_test_split
 from src.settings import Settings
-from src.utils.system.logger import logger  # ✅ logger import 추가
+from src.utils.system.logger import logger
+from src.utils.system.console_manager import get_console
 
 
 def split_data(df: pd.DataFrame, settings: Settings) -> Tuple[pd.DataFrame, pd.DataFrame]:
@@ -94,7 +95,8 @@ def prepare_training_data(df: pd.DataFrame, settings: Settings) -> Tuple[pd.Data
                 auto_exclude.append(data_interface.treatment_column)
             
             X = df.drop(columns=[c for c in auto_exclude if c in df.columns])
-            logger.info(f"Feature columns 자동 선택: {list(X.columns)}")
+            console = get_console()
+            console.info(f"Feature columns 자동 선택: {list(X.columns)}", rich_message=f"🎯 Auto-selected features: [cyan]{len(X.columns)}[/cyan] columns")
         else:
             # 명시적 선택 - 금지된 컬럼 validation
             forbidden_cols = [target_col] + exclude_cols
@@ -123,7 +125,8 @@ def prepare_training_data(df: pd.DataFrame, settings: Settings) -> Tuple[pd.Data
         if data_interface.feature_columns is None:
             auto_exclude = exclude_cols
             X = df.drop(columns=[c for c in auto_exclude if c in df.columns])
-            logger.info(f"Feature columns 자동 선택 (clustering): {list(X.columns)}")
+            console = get_console()
+            console.info(f"Feature columns 자동 선택 (clustering): {list(X.columns)}", rich_message=f"🎯 Auto-selected clustering features: [cyan]{len(X.columns)}[/cyan] columns")
         else:
             # 명시적 선택 - 금지된 컬럼 validation
             forbidden_cols = exclude_cols  # entity, timestamp 컬럼만
@@ -151,7 +154,8 @@ def prepare_training_data(df: pd.DataFrame, settings: Settings) -> Tuple[pd.Data
         if data_interface.feature_columns is None:
             auto_exclude = [target_col, treatment_col] + exclude_cols
             X = df.drop(columns=[c for c in auto_exclude if c in df.columns])
-            logger.info(f"Feature columns 자동 선택 (causal): {list(X.columns)}")
+            console = get_console()
+            console.info(f"Feature columns 자동 선택 (causal): {list(X.columns)}", rich_message=f"🎯 Auto-selected causal features: [cyan]{len(X.columns)}[/cyan] columns")
         else:
             # 명시적 선택 - 금지된 컬럼 validation
             forbidden_cols = [target_col, treatment_col] + exclude_cols
@@ -203,13 +207,17 @@ def _check_missing_values_warning(X: pd.DataFrame, threshold: float = 0.05):
                 'total_rows': len(X)
             })
     
+    console = get_console()
     if missing_info:
-        logger.warning("⚠️  결측치가 많은 컬럼이 발견되었습니다:")
+        console.warning(f"결측치가 많은 컬럼이 발견되었습니다: {len(missing_info)}개 컬럼",
+                       rich_message=f"⚠️  Missing data detected: [red]{len(missing_info)}[/red] columns")
         for info in missing_info:
-            logger.warning(
-                f"   - {info['column']}: {info['missing_count']:,}개 ({info['missing_ratio']:.1%}) "
-                f"/ 전체 {info['total_rows']:,}개 행"
+            console.warning(
+                f"   - {info['column']}: {info['missing_count']:,}개 ({info['missing_ratio']:.1%}) / 전체 {info['total_rows']:,}개 행",
+                rich_message=f"   - [yellow]{info['column']}[/yellow]: [red]{info['missing_count']:,}[/red] ({info['missing_ratio']:.1%})"
             )
-        logger.warning("   💡 전처리 단계에서 결측치 처리를 고려해보세요 (Imputation, 컬럼 제거 등)")
+        console.warning("전처리 단계에서 결측치 처리를 고려해보세요 (Imputation, 컬럼 제거 등)",
+                       rich_message="💡 Consider preprocessing: [blue]Imputation, column removal, etc.[/blue]")
     else:
-        logger.info(f"✅ 모든 특성 컬럼의 결측치 비율이 {threshold:.0%} 미만입니다.")
+        console.info(f"모든 특성 컬럼의 결측치 비율이 {threshold:.0%} 미만입니다.",
+                    rich_message=f"✅ All feature columns have <[green]{threshold:.0%}[/green] missing data")

@@ -3,7 +3,7 @@ import pandas as pd
 from typing import Any, Dict, Optional
 
 from src.interface.base_adapter import BaseAdapter
-from src.utils.system.logger import logger
+from src.utils.system.console_manager import get_console
 
 
 class BigQueryAdapter(BaseAdapter):
@@ -51,7 +51,9 @@ class BigQueryAdapter(BaseAdapter):
         if not project_id:
             raise ValueError("BigQuery project_id가 필요합니다. config 또는 환경변수를 확인하세요.")
 
-        logger.info(f"BigQuery에 쓰기 시작: target={target}, if_exists={if_exists}, project_id={project_id}, location={location}")
+        console = get_console()
+        console.info(f"BigQuery에 쓰기 시작: target={target}, if_exists={if_exists}, project_id={project_id}, location={location}",
+                    rich_message=f"📝 BigQuery write: [cyan]{target}[/cyan] mode=[yellow]{if_exists}[/yellow]")
         to_gbq(
             dataframe=df,
             destination_table=target,
@@ -59,7 +61,8 @@ class BigQueryAdapter(BaseAdapter):
             if_exists=if_exists,
             location=location,
         )
-        logger.info(f"BigQuery 쓰기 완료: rows={len(df)}")
+        console.info(f"BigQuery 쓰기 완료: rows={len(df)}",
+                    rich_message=f"✅ BigQuery write complete: [green]{len(df)}[/green] rows")
 
 
 # Self-registration

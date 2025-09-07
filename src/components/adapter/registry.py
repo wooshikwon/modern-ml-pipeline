@@ -5,7 +5,7 @@ Adapter Registry - Self-registration pattern for data adapters.
 
 from typing import Dict, Type, Any
 from src.interface.base_adapter import BaseAdapter
-from src.utils.system.logger import logger
+from src.utils.system.console_manager import get_console
 
 
 class AdapterRegistry:
@@ -25,7 +25,14 @@ class AdapterRegistry:
             raise TypeError(f"어댑터 클래스는 BaseAdapter를 상속해야 합니다: {adapter_class}")
             
         cls.adapters[adapter_type] = adapter_class
-        logger.debug(f"Adapter registered: {adapter_type} -> {adapter_class.__name__}")
+        console = get_console()
+        try:
+            console.debug(f"Adapter registered: {adapter_type} -> {adapter_class.__name__}",
+                         rich_message=f"🔌 Adapter registered: [cyan]{adapter_type}[/cyan] → [green]{adapter_class.__name__}[/green]")
+        except AttributeError:
+            # debug 메서드가 없으면 info 사용
+            console.info(f"Adapter registered: {adapter_type} -> {adapter_class.__name__}",
+                        rich_message=f"🔌 Adapter registered: [cyan]{adapter_type}[/cyan] → [green]{adapter_class.__name__}[/green]")
     
     @classmethod
     def get_adapter(cls, adapter_type: str) -> Type[BaseAdapter]:

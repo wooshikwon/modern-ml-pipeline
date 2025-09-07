@@ -10,9 +10,11 @@ import tempfile
 import shutil
 import os
 import mlflow
+from types import SimpleNamespace
+
 from src.settings import Settings
-from src.settings.config import Config, Environment, MLflow as MLflowConfig, DataSource, FeatureStore
-from src.settings.recipe import Recipe
+from src.settings.config import Config, Environment, MLflow as MLflowConfig, DataSource, FeatureStore, Output, OutputTarget
+from src.settings.recipe import Recipe, Model, Data, Loader, Fetcher, DataInterface, Evaluation, ValidationConfig, HyperparametersTuning
 from src.pipelines.train_pipeline import run_train_pipeline
 
 
@@ -53,6 +55,7 @@ class TestDeeplearningClassificationE2E:
     
     @pytest.fixture
     def deeplearning_settings(self, temp_workspace):
+        """Create settings for deep learning classification E2E test."""
         config = Config(
             environment=Environment(name="e2e_test"),
             mlflow=MLflowConfig(
@@ -64,49 +67,56 @@ class TestDeeplearningClassificationE2E:
                 adapter_type="storage",
                 config={"base_path": temp_workspace['data_dir']}
             ),
-            feature_store=FeatureStore(provider="none")
+            feature_store=FeatureStore(provider="none"),
+            output=Output(
+                inference=OutputTarget(
+                    name="e2e_deeplearning_output",
+                    enabled=True,
+                    adapter_type="storage",
+                    config={"base_path": temp_workspace['workspace']}
+                ),
+                preprocessed=OutputTarget(
+                    name="e2e_deeplearning_preprocessed",
+                    enabled=False,
+                    adapter_type="storage",
+                    config={}
+                )
+            )
         )
         
         recipe = Recipe(
             name="e2e_deeplearning_recipe",
             task_choice="classification",
-            data={
-                "data_interface": {
-                    "target_column": "target",
-                    "drop_columns": []
-                },
-                "feature_view": {
-                    "name": "deeplearning_features", 
-                    "entities": [],
-                    "features": temp_workspace['features'],
-                    "source": {"path": "train.csv", "timestamp_column": None}
-                }
-            },
-            loader={"name": "csv_loader", "batch_size": 64, "shuffle": True},
-            model={
-                # Use FTTransformer if available, fallback to MLP
-                "class_path": "sklearn.neural_network.MLPClassifier",
-                "init_args": {
-                    "hidden_layer_sizes": (100, 50),
-                    "max_iter": 200,
-                    "random_state": 42
-                },
-                "compile_args": {},
-                "fit_args": {}
-            },
-            fetcher={"type": "pass_through"},
-            preprocessor={
-                "steps": [
-                    {
-                        "name": "scaler",
-                        "params": {
-                            "method": "standard",
-                            "features": temp_workspace['features']
-                        }
+            model=Model(
+                class_path="sklearn.neural_network.MLPClassifier",
+                library="sklearn",
+                hyperparameters=HyperparametersTuning(
+                    tuning_enabled=False,
+                    values={
+                        "hidden_layer_sizes": (100, 50),
+                        "max_iter": 200,
+                        "random_state": 42
                     }
-                ]
-            },
-            trainer={"validation_split": 0.2, "stratify": True, "random_state": 42}
+                ),
+                computed={"run_name": "e2e_deeplearning_test_run"}
+            ),
+            data=Data(
+                loader=Loader(source_uri=temp_workspace['train_path']),
+                fetcher=Fetcher(type="pass_through"),
+                data_interface=DataInterface(
+                    target_column="target",
+                    entity_columns=[],
+                    feature_columns=temp_workspace['features']
+                )
+            ),
+            evaluation=Evaluation(
+                metrics=["accuracy", "precision", "recall", "f1"],
+                validation=ValidationConfig(
+                    method="train_test_split",
+                    test_size=0.2,
+                    random_state=42
+                )
+            )
         )
         
         return Settings(config=config, recipe=recipe)

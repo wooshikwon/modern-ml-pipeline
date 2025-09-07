@@ -22,8 +22,8 @@ from types import SimpleNamespace
 from contextlib import contextmanager
 
 from src.settings import Settings
-from src.settings.config import Config, Environment, MLflow as MLflowConfig, DataSource, FeatureStore, Serving
-from src.settings.recipe import Recipe
+from src.settings.config import Config, Environment, MLflow as MLflowConfig, DataSource, FeatureStore, Serving, Output, OutputTarget
+from src.settings.recipe import Recipe, Model, Data, Loader, Fetcher, DataInterface, Evaluation, ValidationConfig, HyperparametersTuning
 from src.pipelines.train_pipeline import run_train_pipeline
 from src.serving.router import app as fastapi_app
 
@@ -43,9 +43,9 @@ class TestAPIServingE2E:
         n_samples = 100  # Small dataset for faster testing
         
         # Generate features
-        age = np.random.randint(18, 70, n_samples)
+        age = np.random.randint(18, 70, n_samples).astype(float)
         income = np.random.normal(50000, 15000, n_samples)
-        experience = np.random.randint(0, 30, n_samples)
+        experience = np.random.randint(0, 30, n_samples).astype(float)
         education = np.random.choice(['High School', 'Bachelor', 'Master', 'PhD'], n_samples)
         
         # Simple target based on features
@@ -94,67 +94,55 @@ class TestAPIServingE2E:
                 host="127.0.0.1",
                 port=8002,  # Use different port to avoid conflicts
                 model_uri=None  # Will be set after training
+            ),
+            output=Output(
+                inference=OutputTarget(
+                    name="e2e_serving_output",
+                    enabled=True,
+                    adapter_type="storage",
+                    config={"base_path": temp_workspace['workspace']}
+                ),
+                preprocessed=OutputTarget(
+                    name="e2e_serving_preprocessed",
+                    enabled=False,
+                    adapter_type="storage",
+                    config={}
+                )
             )
         )
         
         recipe = Recipe(
             name="e2e_serving_recipe",
             task_choice="classification",
-            data={
-                "data_interface": {
-                    "target_column": "approved",
-                    "drop_columns": []
-                },
-                "feature_view": {
-                    "name": "serving_features",
-                    "entities": [],
-                    "features": ["age", "income", "experience", "education"],
-                    "source": {
-                        "path": "train.csv",
-                        "timestamp_column": None
+            model=Model(
+                class_path="sklearn.linear_model.LogisticRegression",
+                library="sklearn",
+                hyperparameters=HyperparametersTuning(
+                    tuning_enabled=False,
+                    values={
+                        "random_state": 42,
+                        "max_iter": 500
                     }
-                }
-            },
-            loader={
-                "name": "csv_loader",
-                "batch_size": 50,
-                "shuffle": True
-            },
-            model={
-                "class_path": "sklearn.linear_model.LogisticRegression",
-                "init_args": {
-                    "random_state": 42,
-                    "max_iter": 500
-                },
-                "compile_args": {},
-                "fit_args": {}
-            },
-            fetcher={
-                "type": "pass_through"
-            },
-            preprocessor={
-                "steps": [
-                    {
-                        "name": "encoder",
-                        "params": {
-                            "categorical_features": ["education"],
-                            "encoding_type": "onehot"
-                        }
-                    },
-                    {
-                        "name": "scaler",
-                        "params": {
-                            "method": "standard",
-                            "features": ["age", "income", "experience"]
-                        }
-                    }
-                ]
-            },
-            trainer={
-                "validation_split": 0.2,
-                "stratify": True,
-                "random_state": 42
-            }
+                ),
+                computed={"run_name": "e2e_serving_test_run"}
+            ),
+            data=Data(
+                loader=Loader(source_uri=temp_workspace['train_path']),
+                fetcher=Fetcher(type="pass_through"),
+                data_interface=DataInterface(
+                    target_column="approved",
+                    entity_columns=[],
+                    feature_columns=["age", "income", "experience", "education"]
+                )
+            ),
+            evaluation=Evaluation(
+                metrics=["accuracy", "precision", "recall", "f1"],
+                validation=ValidationConfig(
+                    method="train_test_split",
+                    test_size=0.2,
+                    random_state=42
+                )
+            )
         )
         
         return Settings(config=config, recipe=recipe)
@@ -166,12 +154,16 @@ class TestAPIServingE2E:
         import threading
         import time
         
-        # Update serving config with model URI
-        settings.config.serving.model_uri = model_uri
+        # Update serving config with model stage (since model_uri field doesn't exist)
+        # We'll need to pass model_uri through context instead
         
         # Configure the FastAPI app with settings
-        from src.serving._context import set_serving_context
-        set_serving_context(settings)
+        from src.serving._context import app_context
+        app_context.settings = settings
+        app_context.model_uri = model_uri
+        
+        # Load model into context
+        app_context.model = mlflow.pyfunc.load_model(model_uri)
         
         # Server configuration
         host = settings.config.serving.host
@@ -256,9 +248,9 @@ class TestAPIServingE2E:
         
         # Test with sample data
         sample_data = pd.DataFrame({
-            'age': [25, 45, 35],
-            'income': [40000, 80000, 60000],
-            'experience': [2, 15, 8],
+            'age': [25.0, 45.0, 35.0],
+            'income': [40000.0, 80000.0, 60000.0],
+            'experience': [2.0, 15.0, 8.0],
             'education': ['Bachelor', 'Master', 'High School']
         })
         

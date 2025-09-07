@@ -28,31 +28,38 @@ class TestComponentDataFlow:
         factory = Factory(integration_settings_classification)
         
         # Create components in sequence
+        data_adapter = factory.create_data_adapter()
         fetcher = factory.create_fetcher()
         datahandler = factory.create_datahandler()
         
+        assert data_adapter is not None
         assert fetcher is not None
         assert datahandler is not None
         
-        # Test data flow: Fetcher -> DataHandler
-        # Fetch raw data
-        raw_data = fetcher.fetch_training_data()
+        # Test data flow: DataAdapter -> Fetcher -> DataHandler
+        # Load raw data
+        raw_data = data_adapter.read(integration_settings_classification.recipe.data.loader.source_uri)
         assert isinstance(raw_data, pd.DataFrame)
         assert len(raw_data) > 0
         
+        # Fetch (feature augmentation)
+        fetched_data = fetcher.fetch(raw_data, run_mode="batch")
+        assert isinstance(fetched_data, pd.DataFrame)
+        assert len(fetched_data) > 0
+        
         # Process data through DataHandler
-        processed_data = datahandler.prepare_training_data(raw_data)
-        assert isinstance(processed_data, pd.DataFrame)
-        assert len(processed_data) > 0
+        X, y, additional_data = datahandler.prepare_data(fetched_data)
+        assert isinstance(X, pd.DataFrame)
+        assert isinstance(y, pd.Series)
+        assert len(X) > 0
+        assert len(y) > 0
         
         # Verify data consistency through the flow
-        assert len(processed_data) <= len(raw_data)  # May filter some rows
+        assert len(X) == len(y)
+        assert len(X) <= len(fetched_data)  # May filter some rows
         
-        # Check that essential columns are preserved or transformed appropriately
-        expected_columns = ['target', 'user_id']  # Based on test settings
-        feature_columns = [col for col in processed_data.columns if col.startswith('feature_')]
-        
-        assert 'target' in processed_data.columns
+        # Check that features were extracted correctly
+        feature_columns = [col for col in X.columns if col.startswith('feature_')]
         assert len(feature_columns) > 0
 
     def test_datahandler_to_preprocessor_flow(self, integration_settings_classification):
@@ -60,32 +67,36 @@ class TestComponentDataFlow:
         factory = Factory(integration_settings_classification)
         
         # Create components
+        data_adapter = factory.create_data_adapter()
         fetcher = factory.create_fetcher()
         datahandler = factory.create_datahandler()
         preprocessor = factory.create_preprocessor()  # May be None if not configured
         
         # Get data through the flow
-        raw_data = fetcher.fetch_training_data()
-        processed_data = datahandler.prepare_training_data(raw_data)
+        raw_data = data_adapter.read(integration_settings_classification.recipe.data.loader.source_uri)
+        fetched_data = fetcher.fetch(raw_data, run_mode="batch")
+        X, y, additional_data = datahandler.prepare_data(fetched_data)
         
         if preprocessor is not None:
             # Test preprocessing flow
-            preprocessed_data = preprocessor.fit_transform(processed_data)
+            preprocessed_data = preprocessor.fit_transform(X)
             assert isinstance(preprocessed_data, (pd.DataFrame, np.ndarray))
             
             if isinstance(preprocessed_data, pd.DataFrame):
-                assert len(preprocessed_data) == len(processed_data)
+                assert len(preprocessed_data) == len(X)
             else:  # numpy array
-                assert preprocessed_data.shape[0] == len(processed_data)
+                assert preprocessed_data.shape[0] == len(X)
         else:
             # If no preprocessor, data should pass through unchanged
-            assert processed_data is not None
+            assert X is not None
+            assert y is not None
 
     def test_complete_component_pipeline_flow(self, integration_settings_classification):
         """Test complete data flow through all components."""
         factory = Factory(integration_settings_classification)
         
         # Create all components
+        data_adapter = factory.create_data_adapter()
         fetcher = factory.create_fetcher()
         datahandler = factory.create_datahandler()
         preprocessor = factory.create_preprocessor()
@@ -94,6 +105,7 @@ class TestComponentDataFlow:
         evaluator = factory.create_evaluator()
         
         # Verify all essential components were created
+        assert data_adapter is not None
         assert fetcher is not None
         assert datahandler is not None
         assert model is not None
@@ -101,35 +113,39 @@ class TestComponentDataFlow:
         assert evaluator is not None
         
         # Test complete flow
-        # Step 1: Fetch data
-        raw_data = fetcher.fetch_training_data()
+        # Step 1: Load data
+        raw_data = data_adapter.read(integration_settings_classification.recipe.data.loader.source_uri)
         assert isinstance(raw_data, pd.DataFrame)
         
-        # Step 2: Process data
-        processed_data = datahandler.prepare_training_data(raw_data)
-        assert isinstance(processed_data, pd.DataFrame)
+        # Step 2: Fetch data (feature augmentation)
+        fetched_data = fetcher.fetch(raw_data, run_mode="batch")
+        assert isinstance(fetched_data, pd.DataFrame)
         
-        # Step 3: Preprocessing (if configured)
+        # Step 3: Process data
+        X, y, additional_data = datahandler.prepare_data(fetched_data)
+        assert isinstance(X, pd.DataFrame)
+        assert isinstance(y, pd.Series)
+        
+        # Step 4: Preprocessing (if configured)
         if preprocessor:
-            preprocessed_data = preprocessor.fit_transform(processed_data)
-            final_data = preprocessed_data
+            preprocessed_X = preprocessor.fit_transform(X)
+            final_X = preprocessed_X
         else:
-            final_data = processed_data
+            final_X = X
         
-        # Step 4: Prepare for training
-        if isinstance(final_data, pd.DataFrame):
-            feature_columns = [col for col in final_data.columns if col not in ['target', 'user_id']]
-            X = final_data[feature_columns]
-            y = final_data['target']
+        # Step 5: Validate final data for training
+        if isinstance(final_X, pd.DataFrame):
+            assert len(final_X) == len(y)
+            final_features = final_X
         else:
             # Handle numpy array case
-            X = final_data
-            y = processed_data['target'] if 'target' in processed_data.columns else None
+            assert final_X.shape[0] == len(y)
+            final_features = final_X
         
-        # Step 5: Train model (basic validation)
-        assert X is not None
+        # Step 6: Train model (basic validation)
+        assert final_features is not None
         assert y is not None
-        assert len(X) == len(y)
+        assert len(final_features) == len(y)
 
     def test_error_propagation_through_components(self, integration_settings_classification):
         """Test how errors propagate through component chain."""
@@ -140,11 +156,11 @@ class TestComponentDataFlow:
         invalid_settings.recipe.data.loader.source_uri = "/nonexistent/path.csv"
         
         invalid_factory = Factory(invalid_settings)
-        fetcher = invalid_factory.create_fetcher()
+        data_adapter = invalid_factory.create_data_adapter()
         
-        # Should raise appropriate error when trying to fetch
+        # Should raise appropriate error when trying to load data
         with pytest.raises(Exception):
-            fetcher.fetch_training_data()
+            data_adapter.read("/nonexistent/path.csv")
         
         # Test 2: Component configuration error
         # Test with invalid model class path
@@ -196,6 +212,7 @@ class TestComponentPerformance:
         factory = Factory(integration_settings_classification)
         
         # Create components
+        data_adapter = factory.create_data_adapter()
         fetcher = factory.create_fetcher()
         datahandler = factory.create_datahandler()
         
@@ -205,9 +222,10 @@ class TestComponentPerformance:
         
         def fetch_and_process():
             try:
-                data = fetcher.fetch_training_data()
-                processed = datahandler.prepare_training_data(data)
-                results.append(len(processed))
+                raw_data = data_adapter.read(integration_settings_classification.recipe.data.loader.source_uri)
+                fetched_data = fetcher.fetch(raw_data, run_mode="batch")
+                X, y, additional_data = datahandler.prepare_data(fetched_data)
+                results.append(len(X))
             except Exception as e:
                 errors.append(str(e))
         
@@ -243,6 +261,9 @@ class TestComponentPerformance:
         components_memory = {}
         
         # Measure after each component creation
+        data_adapter = factory.create_data_adapter()
+        components_memory['data_adapter'] = process.memory_info().rss - initial_memory
+        
         fetcher = factory.create_fetcher()
         components_memory['fetcher'] = process.memory_info().rss - initial_memory
         
@@ -253,8 +274,9 @@ class TestComponentPerformance:
         components_memory['model'] = process.memory_info().rss - initial_memory
         
         # Process some data
-        data = fetcher.fetch_training_data()
-        processed_data = datahandler.prepare_training_data(data)
+        raw_data = data_adapter.read(integration_settings_classification.recipe.data.loader.source_uri)
+        fetched_data = fetcher.fetch(raw_data, run_mode="batch")
+        X, y, additional_data = datahandler.prepare_data(fetched_data)
         components_memory['after_processing'] = process.memory_info().rss - initial_memory
         
         # Basic memory usage assertions
@@ -375,14 +397,18 @@ class TestProductionScenarios:
         factory = Factory(settings)
         
         # Test each component can handle larger data
+        data_adapter = factory.create_data_adapter()
         fetcher = factory.create_fetcher()
-        data = fetcher.fetch_training_data()
-        assert len(data) == 1000
-        assert len(data.columns) >= 20
+        
+        raw_data = data_adapter.read(temp_path)
+        fetched_data = fetcher.fetch(raw_data, run_mode="batch")
+        assert len(fetched_data) == 1000
+        assert len(fetched_data.columns) >= 20
         
         datahandler = factory.create_datahandler()
-        processed_data = datahandler.prepare_training_data(data)
-        assert len(processed_data) > 0
+        X, y, additional_data = datahandler.prepare_data(fetched_data)
+        assert len(X) > 0
+        assert len(y) > 0
         
         # Cleanup
         Path(temp_path).unlink()
@@ -392,11 +418,13 @@ class TestProductionScenarios:
         factory = Factory(integration_settings_classification)
         
         # Test 1: Recoverable data processing error
+        data_adapter = factory.create_data_adapter()
         fetcher = factory.create_fetcher()
         datahandler = factory.create_datahandler()
         
         # Get valid data first
-        valid_data = fetcher.fetch_training_data()
+        raw_data = data_adapter.read(integration_settings_classification.recipe.data.loader.source_uri)
+        valid_data = fetcher.fetch(raw_data, run_mode="batch")
         
         # Test processing with partially corrupted data
         corrupted_data = valid_data.copy()
@@ -405,10 +433,12 @@ class TestProductionScenarios:
         
         # DataHandler should handle corrupted data gracefully
         try:
-            processed = datahandler.prepare_training_data(corrupted_data)
-            assert processed is not None
+            X, y, additional_data = datahandler.prepare_data(corrupted_data)
+            assert X is not None
+            assert y is not None
             # May have fewer rows due to cleaning
-            assert len(processed) <= len(corrupted_data)
+            assert len(X) <= len(corrupted_data)
+            assert len(X) == len(y)
         except Exception as e:
             # If error occurs, it should be informative
             assert len(str(e)) > 0

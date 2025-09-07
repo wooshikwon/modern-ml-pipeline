@@ -4,7 +4,7 @@ import sqlalchemy
 from typing import TYPE_CHECKING, Dict, Any, Tuple, Optional
 from urllib.parse import urlparse
 from src.interface.base_adapter import BaseAdapter
-from src.utils.system.logger import logger
+from src.utils.system.console_manager import get_console
 from pathlib import Path
 from src.settings import Settings
 from src.utils.system.sql_utils import prevent_select_star
@@ -38,6 +38,7 @@ class SqlAdapter(BaseAdapter):
         Returns:
             (db_type, processed_uri, engine_kwargs) 튜플
         """
+        console = get_console()
         parsed = urlparse(uri)
         scheme = parsed.scheme.lower()
         
@@ -51,9 +52,9 @@ class SqlAdapter(BaseAdapter):
             engine_kwargs['pool_size'] = 5
             try:
                 from sqlalchemy_bigquery import BigQueryDialect
-                logger.info("BigQuery 엔진 설정 적용")
+                console.info("BigQuery 엔진 설정 적용")
             except ImportError:
-                logger.warning("sqlalchemy-bigquery 패키지가 설치되지 않았습니다. 기본 설정 사용.")
+                console.warning("sqlalchemy-bigquery 패키지가 설치되지 않았습니다. 기본 설정 사용.")
             processed_uri = uri
             
         elif scheme in ('postgresql', 'postgres', 'postgresql+psycopg2'):
@@ -67,7 +68,7 @@ class SqlAdapter(BaseAdapter):
                 'options': '-c statement_timeout=30000'  # 30초 타임아웃
             }
             processed_uri = uri
-            logger.info("PostgreSQL 엔진 설정 적용")
+            console.info("PostgreSQL 엔진 설정 적용")
             
         elif scheme in ('mysql', 'mysql+pymysql', 'mysql+mysqldb'):
             db_type = 'mysql'
@@ -76,7 +77,7 @@ class SqlAdapter(BaseAdapter):
             engine_kwargs['pool_recycle'] = 3600  # 1시간마다 연결 재활용
             engine_kwargs['pool_pre_ping'] = True
             processed_uri = uri
-            logger.info("MySQL 엔진 설정 적용")
+            console.info("MySQL 엔진 설정 적용")
             
         elif scheme == 'sqlite':
             db_type = 'sqlite'
@@ -84,12 +85,12 @@ class SqlAdapter(BaseAdapter):
             engine_kwargs['poolclass'] = sqlalchemy.pool.StaticPool
             engine_kwargs['connect_args'] = {'check_same_thread': False}
             processed_uri = uri
-            logger.info("SQLite 엔진 설정 적용")
+            console.info("SQLite 엔진 설정 적용")
             
         else:
             # 알 수 없는 스키마는 기본 SQLAlchemy 처리
             db_type = 'generic'
-            logger.warning(f"알 수 없는 데이터베이스 스키마: {scheme}. 기본 SQLAlchemy 설정 사용.")
+            console.warning(f"알 수 없는 데이터베이스 스키마: {scheme}. 기본 SQLAlchemy 설정 사용.")
             processed_uri = uri
             
         return db_type, processed_uri, engine_kwargs
@@ -99,6 +100,7 @@ class SqlAdapter(BaseAdapter):
         설정(Settings) 객체로부터 DB 연결 URI를 파싱하고 
         데이터베이스 타입에 맞는 SQLAlchemy 엔진을 생성합니다.
         """
+        console = get_console()
         try:
             # DataAdapterSettings 모델의 올바른 접근 방법: 딕셔너리 키로 접근
             sql_adapter_config = self.settings.data_adapters.adapters['sql']
@@ -107,8 +109,8 @@ class SqlAdapter(BaseAdapter):
             # URI 파싱하여 DB 타입과 엔진 설정 추출
             db_type, processed_uri, engine_kwargs = self._parse_connection_uri(connection_uri)
             
-            logger.info(f"데이터베이스 타입: {db_type}")
-            logger.info(f"SQLAlchemy 엔진 생성. URI: {processed_uri[:50]}...")  # 보안을 위해 URI 일부만 로깅
+            console.info(f"데이터베이스 타입: {db_type}")
+            console.info(f"SQLAlchemy 엔진 생성. URI: {processed_uri[:50]}...")  # 보안을 위해 URI 일부만 로깅
             
             # 데이터베이스별 특수 처리
             if db_type == 'bigquery':
@@ -118,28 +120,29 @@ class SqlAdapter(BaseAdapter):
                     if 'credentials_path' in sql_adapter_config.config:
                         import os
                         os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = sql_adapter_config.config['credentials_path']
-                        logger.info("BigQuery 인증 파일 설정 완료")
+                        console.info("BigQuery 인증 파일 설정 완료")
                 except Exception as e:
-                    logger.warning(f"BigQuery 인증 설정 중 경고: {e}")
+                    console.warning(f"BigQuery 인증 설정 중 경고: {e}")
             
             # 엔진 생성
             engine = sqlalchemy.create_engine(processed_uri, **engine_kwargs)
             
             # 연결 테스트
             with engine.connect() as conn:
-                logger.info(f"{db_type} 데이터베이스 연결 테스트 성공")
+                console.info(f"{db_type} 데이터베이스 연결 테스트 성공")
             
             return engine
             
         except KeyError as e:
-            logger.error(f"SQL 어댑터 설정을 찾을 수 없습니다: {e}")
+            console.error(f"SQL 어댑터 설정을 찾을 수 없습니다: {e}")
             raise ValueError(f"SQL 어댑터 설정이 누락되었습니다: {e}")
         except Exception as e:
-            logger.error(f"SQLAlchemy 엔진 생성 실패: {e}", exc_info=True)
+            console.error(f"SQLAlchemy 엔진 생성 실패: {e}", exc_info=True)
             raise
 
     def _enforce_sql_guards(self, sql_query: str) -> None:
         """보안/신뢰성 가드 적용: SELECT * 차단, DDL/DML 금칙어 차단, LIMIT 가드(옵션)."""
+        console = get_console()
         # 1) SELECT * 차단
         prevent_select_star(sql_query)
 
@@ -156,7 +159,7 @@ class SqlAdapter(BaseAdapter):
         # 3) LIMIT 가드(선택: 너무 큰 결과 방지). settings로 제어 가능하도록 확장 여지.
         # 여기서는 강제하지 않고 경고만 남김.
         if " LIMIT " not in upper:
-            logger.warning("SQL LIMIT 가드: LIMIT 절이 없습니다. 대용량 쿼리일 수 있습니다.")
+            console.warning("SQL LIMIT 가드: LIMIT 절이 없습니다. 대용량 쿼리일 수 있습니다.")
 
     def read(self, sql_query: str, **kwargs) -> pd.DataFrame:
         """SQL 쿼리를 실행하여 결과를 DataFrame으로 반환합니다.
@@ -164,6 +167,7 @@ class SqlAdapter(BaseAdapter):
         Args:
             sql_query: SQL 쿼리 문자열 또는 .sql 파일 경로
         """
+        console = get_console()
         # 파일 경로인지 확인 (.sql 확장자로 끝나는 경우)
         if sql_query.endswith('.sql'):
             sql_file_path = Path(sql_query)
@@ -175,31 +179,32 @@ class SqlAdapter(BaseAdapter):
             
             if sql_file_path.exists():
                 sql_query = sql_file_path.read_text(encoding='utf-8')
-                logger.info(f"SQL 파일 로딩: {sql_file_path}")
+                console.info(f"SQL 파일 로딩: {sql_file_path}")
             else:
-                logger.error(f"SQL 파일을 찾을 수 없습니다: {sql_file_path}")
+                console.error(f"SQL 파일을 찾을 수 없습니다: {sql_file_path}")
                 raise FileNotFoundError(f"SQL 파일을 찾을 수 없습니다: {sql_file_path}")
         
         # 보안 가드 적용
         self._enforce_sql_guards(sql_query)
         
-        logger.info(f"Executing SQL query:\n{sql_query[:200]}...")
+        console.info(f"Executing SQL query:\n{sql_query[:200]}...")
         try:
             # Pandas + SQLAlchemy 2.x 호환: 엔진 객체를 직접 전달
             return pd.read_sql_query(sql_query, self.engine, **kwargs)
         except Exception as e:
             snippet = sql_query[:200].replace('\n', ' ')
-            logger.error(f"SQL read 작업 실패: {e} | SQL(head): {snippet}", exc_info=True)
+            console.error(f"SQL read 작업 실패: {e} | SQL(head): {snippet}", exc_info=True)
             raise
 
     def write(self, df: pd.DataFrame, table_name: str, **kwargs):
         """DataFrame을 지정된 테이블에 씁니다."""
-        logger.info(f"Writing DataFrame to table: {table_name}")
+        console = get_console()
+        console.info(f"Writing DataFrame to table: {table_name}")
         try:
             df.to_sql(table_name, self.engine, **kwargs)
-            logger.info(f"Successfully wrote {len(df)} rows to {table_name}.")
+            console.info(f"Successfully wrote {len(df)} rows to {table_name}.")
         except Exception as e:
-            logger.error(f"SQL write 작업 실패: {e}", exc_info=True)
+            console.error(f"SQL write 작업 실패: {e}", exc_info=True)
             raise
 
 # Self-registration

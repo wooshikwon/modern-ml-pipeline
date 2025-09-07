@@ -2,7 +2,7 @@ from __future__ import annotations
 import pandas as pd
 from typing import TYPE_CHECKING, Dict, Any, List
 from src.interface.base_adapter import BaseAdapter
-from src.utils.system.logger import logger
+from src.utils.system.console_manager import get_console
 from pydantic import BaseModel
 from src.settings import Settings
 
@@ -28,7 +28,7 @@ class FeastAdapter(BaseAdapter):
         self.settings = settings
         
         # FeastAdapter는 복잡한 설정 구조로 인해 별도의 feature_store 섹션을 사용
-        logger.info("FeastAdapter 초기화 중. feature_store 설정 섹션 사용.")
+        console.info("FeastAdapter 초기화 중. feature_store 설정 섹션 사용.")
         self.store = self._init_feature_store()
 
     def _init_feature_store(self) -> FeatureStore:
@@ -37,7 +37,7 @@ class FeastAdapter(BaseAdapter):
             # FeastAdapter는 settings.feature_store.feast_config에서 설정을 읽음
             # (다른 어댑터와 달리 복잡한 Feast 설정 구조로 인해 별도 섹션 사용)
             config_data = self.settings.feature_store.feast_config
-            logger.info(f"Feast 설정 로드됨. project: {config_data.get('project', 'unknown')}")
+            console.info(f"Feast 설정 로드됨. project: {config_data.get('project', 'unknown')}")
 
             if isinstance(config_data, dict):
                 # Convert dict to RepoConfig object before passing to FeatureStore
@@ -49,15 +49,15 @@ class FeastAdapter(BaseAdapter):
             else:
                 raise TypeError(f"Unsupported config type for Feast: {type(config_data)}")
             
-            logger.info("Feature Store adapter initialized successfully.")
+            console.info("Feature Store adapter initialized successfully.")
             return fs
         except Exception as e:
-            logger.error(f"Failed to initialize Feast FeatureStore: {e}", exc_info=True)
+            console.error(f"Failed to initialize Feast FeatureStore: {e}", exc_info=True)
             return None
 
     def get_historical_features(self, entity_df: pd.DataFrame, features: List[str], **kwargs) -> pd.DataFrame:
         """오프라인 스토어에서 과거 시점의 피처를 가져옵니다."""
-        logger.info(f"Getting historical features for {len(entity_df)} entities.")
+        console.info(f"Getting historical features for {len(entity_df)} entities.")
         try:
             retrieval_job = self.store.get_historical_features(
                 entity_df=entity_df,
@@ -65,7 +65,7 @@ class FeastAdapter(BaseAdapter):
             )
             return retrieval_job.to_df()
         except Exception as e:
-            logger.error(f"Failed to get historical features: {e}", exc_info=True)
+            console.error(f"Failed to get historical features: {e}", exc_info=True)
             raise
     
     def get_historical_features_with_validation(
@@ -85,7 +85,7 @@ class FeastAdapter(BaseAdapter):
         Returns:
             Point-in-Time 검증을 통과한 피처 DataFrame
         """
-        logger.info("🔒 Point-in-Time Correctness 보장 피처 조회 시작")
+        console.info("🔒 Point-in-Time Correctness 보장 피처 조회 시작")
         
         # 1. Point-in-Time 스키마 검증
         if data_interface_config:
@@ -98,7 +98,7 @@ class FeastAdapter(BaseAdapter):
         if data_interface_config:
             self._validate_asof_join_result(entity_df, result_df, data_interface_config)
         
-        logger.info("✅ Point-in-Time Correctness 검증 완료")
+        console.info("✅ Point-in-Time Correctness 검증 완료")
         return result_df
     
     def _validate_point_in_time_schema(self, entity_df: pd.DataFrame, config: Dict[str, Any]):
@@ -125,7 +125,7 @@ class FeastAdapter(BaseAdapter):
                 f"🚨 Point-in-Time 검증 실패: '{timestamp_column}'이 datetime 타입이 아닙니다"
             )
         
-        logger.info(f"✅ Point-in-Time 스키마 검증 통과: {entity_columns} + {timestamp_column}")
+        console.info(f"✅ Point-in-Time 스키마 검증 통과: {entity_columns} + {timestamp_column}")
     
     def _validate_asof_join_result(
         self, input_df: pd.DataFrame, result_df: pd.DataFrame, config: Dict[str, Any]
@@ -134,12 +134,12 @@ class FeastAdapter(BaseAdapter):
         timestamp_column = config.get('timestamp_column', '')
         
         if not timestamp_column or timestamp_column not in result_df.columns:
-            logger.warning("Timestamp 컬럼 없음: ASOF JOIN 결과 검증 생략")
+            console.warning("Timestamp 컬럼 없음: ASOF JOIN 결과 검증 생략")
             return
         
         # 입력 대비 결과 행 수 확인
         if len(result_df) != len(input_df):
-            logger.warning(
+            console.warning(
                 f"⚠️ ASOF JOIN 결과 행 수 불일치: input({len(input_df)}) vs result({len(result_df)})"
             )
         
@@ -148,15 +148,15 @@ class FeastAdapter(BaseAdapter):
         future_data = result_df[result_df[timestamp_column] > current_time]
         
         if len(future_data) > 0:
-            logger.warning(
+            console.warning(
                 f"⚠️ 미래 데이터 감지: {len(future_data)}개 행이 현재 시점({current_time}) 이후"
             )
         
-        logger.info("✅ ASOF JOIN Point-in-Time 무결성 검증 완료")
+        console.info("✅ ASOF JOIN Point-in-Time 무결성 검증 완료")
 
     def get_online_features(self, entity_rows: List[Dict[str, Any]], features: List[str], **kwargs) -> pd.DataFrame:
         """온라인 스토어에서 실시간 피처를 가져옵니다."""
-        logger.info(f"Getting online features for {len(entity_rows)} entities.")
+        console.info(f"Getting online features for {len(entity_rows)} entities.")
         try:
             retrieval_job = self.store.get_online_features(
                 features=features,
@@ -164,7 +164,7 @@ class FeastAdapter(BaseAdapter):
             )
             return retrieval_job.to_df()
         except Exception as e:
-            logger.error(f"Failed to get online features: {e}", exc_info=True)
+            console.error(f"Failed to get online features: {e}", exc_info=True)
             raise
 
     def read(self, **kwargs) -> pd.DataFrame:
