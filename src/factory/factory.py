@@ -528,6 +528,16 @@ class Factory:
             )
             logger.info("✅ Signature and data schema created successfully.")
         
+        # 🆕 Phase 5.2: DataInterface 기반 검증용 스키마 생성
+        data_interface_schema = None
+        if training_df is not None:
+            from src.utils.system.data_validation import create_data_interface_schema_for_storage
+            data_interface_schema = create_data_interface_schema_for_storage(
+                data_interface=self._recipe.data.data_interface,
+                df=training_df
+            )
+            logger.info(f"✅ DataInterface 스키마 생성 완료: {len(data_interface_schema.get('required_columns', []))}개 필수 컬럼")
+        
         return PyfuncWrapper(
             settings=self.settings,
             trained_model=trained_model,
@@ -537,4 +547,5 @@ class Factory:
             training_results=training_results,
             signature=signature,
             data_schema=data_schema,
+            data_interface_schema=data_interface_schema,  # 🆕 Phase 5.2: 추가
         )
