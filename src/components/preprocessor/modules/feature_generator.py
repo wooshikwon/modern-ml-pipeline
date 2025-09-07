@@ -39,18 +39,43 @@ class TreeBasedFeatureGenerator(BasePreprocessor, BaseEstimator, TransformerMixi
         self.one_hot_encoder_.fit(leaf_indices)
         return self
 
-    def transform(self, X: pd.DataFrame) -> np.ndarray:
-        """학습된 트리와 인코더를 사용하여 데이터를 변환합니다."""
+    def transform(self, X: pd.DataFrame) -> pd.DataFrame:
+        """학습된 트리와 인코더를 사용하여 데이터를 변환하고 DataFrame으로 반환합니다."""
         leaf_indices = self.tree_model_.apply(X)
-        return self.one_hot_encoder_.transform(leaf_indices)
-
-    def get_feature_names_out(self, input_features=None):
-        """변환 후의 피처 이름을 반환합니다."""
-        return self.one_hot_encoder_.get_feature_names_out()
+        result_array = self.one_hot_encoder_.transform(leaf_indices)
+        
+        # 컬럼명 생성 정책: treefeature_ 접두사 사용
+        try:
+            feature_names = self.one_hot_encoder_.get_feature_names_out()
+            # sklearn feature names을 더 명확하게 만들기
+            new_feature_names = [f"treefeature_{name}" for name in feature_names]
+        except Exception:
+            # 폴백: 수동으로 생성
+            new_feature_names = [f"treefeature_{i}" for i in range(result_array.shape[1])]
+        
+        return pd.DataFrame(result_array, index=X.index, columns=new_feature_names)
+    
+    def get_output_column_names(self, input_columns: List[str]) -> List[str]:
+        """변환 후 예상되는 출력 컬럼명을 반환합니다."""
+        # 대략적인 추정값 (정확한 값은 학습 후에만 알 수 있음)
+        estimated_features = self.n_estimators * (2 ** self.max_depth)
+        return [f"treefeature_{i}" for i in range(estimated_features)]
+    
+    def preserves_column_names(self) -> bool:
+        """이 전처리기는 원본 컬럼명을 보존하지 않습니다."""
+        return False
+    
+    def get_application_type(self) -> str:
+        """Tree Feature Generator는 특정 숫자형 컬럼에 적용됩니다."""
+        return 'targeted'
+    
+    def get_applicable_columns(self, X: pd.DataFrame) -> List[str]:
+        """숫자형 컬럼만 대상으로 합니다."""
+        return [col for col in X.columns if X[col].dtype in ['int64', 'float64']]
 
 class PolynomialFeaturesWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
     """
-    scikit-learn의 PolynomialFeatures를 위한 래퍼입니다.
+    DataFrame-First: scikit-learn의 PolynomialFeatures를 위한 래퍼
     기존 피처들을 조합하여 고차항(e.g., x^2, xy)을 새로운 피처로 추가하여,
     모델이 비선형 관계를 학습하는 데 도움을 줍니다.
     """
@@ -64,16 +89,50 @@ class PolynomialFeaturesWrapper(BasePreprocessor, BaseEstimator, TransformerMixi
             include_bias=self.include_bias,
             interaction_only=self.interaction_only
         )
+        self._input_columns = None
 
-    def fit(self, X, y=None):
+    def fit(self, X: pd.DataFrame, y=None):
+        self._input_columns = list(X.columns)
         self.poly.fit(X)
         return self
 
-    def transform(self, X):
-        return self.poly.transform(X)
-
-    def get_feature_names_out(self, input_features=None):
-        return self.poly.get_feature_names_out(input_features)
+    def transform(self, X: pd.DataFrame) -> pd.DataFrame:
+        """다항식 피처를 생성하고 DataFrame으로 반환합니다."""
+        result_array = self.poly.transform(X)
+        
+        # sklearn의 get_feature_names_out을 사용하여 실제 출력 컬럼명 확인
+        try:
+            feature_names = self.poly.get_feature_names_out(list(X.columns))
+            # polynomial feature names에 접두사 추가
+            new_feature_names = [f"poly_{name}" for name in feature_names]
+        except Exception:
+            # 폴백: 수동으로 생성
+            new_feature_names = [f"poly_feature_{i}" for i in range(result_array.shape[1])]
+        
+        return pd.DataFrame(result_array, index=X.index, columns=new_feature_names)
+    
+    def get_output_column_names(self, input_columns: List[str]) -> List[str]:
+        """변환 후 예상되는 출력 컬럼명을 반환합니다."""
+        if self._input_columns is not None:
+            try:
+                feature_names = self.poly.get_feature_names_out(self._input_columns)
+                return [f"poly_{name}" for name in feature_names]
+            except Exception:
+                pass
+        # 폴백: 추정값 반환
+        return [f"poly_feature_{i}" for i in range(len(input_columns) * self.degree)]
+    
+    def preserves_column_names(self) -> bool:
+        """이 전처리기는 원본 컬럼명을 보존하지 않습니다."""
+        return False
+    
+    def get_application_type(self) -> str:
+        """Polynomial Features는 특정 숫자형 컬럼에 적용됩니다."""
+        return 'targeted'
+    
+    def get_applicable_columns(self, X: pd.DataFrame) -> List[str]:
+        """숫자형 컬럼만 대상으로 합니다."""
+        return [col for col in X.columns if X[col].dtype in ['int64', 'float64']]
 
 PreprocessorStepRegistry.register("tree_based_feature_generator", TreeBasedFeatureGenerator)
 PreprocessorStepRegistry.register("polynomial_features", PolynomialFeaturesWrapper) 

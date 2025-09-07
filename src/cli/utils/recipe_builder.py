@@ -63,23 +63,28 @@ class RecipeBuilder:
         self.template_engine = TemplateEngine(templates_dir)
         self.catalog_dir = Path(__file__).parent.parent.parent / "models" / "catalog"
     
+    def _is_global_preprocessor(self, step_type: str) -> bool:
+        """전처리기가 Global 타입인지 확인합니다.
+        
+        Global 전처리기는 모든 적합한 컬럼에 자동 적용되므로 컬럼 지정이 불필요합니다.
+        """
+        global_preprocessors = {
+            "standard_scaler", "min_max_scaler", "robust_scaler"  # Scalers only
+        }
+        return step_type in global_preprocessors
+    
     def _get_columns_hint(self, step_type: str) -> str:
         """전처리 단계에 따른 기본 컬럼 힌트를 반환합니다."""
         hints = {
-            # Scaler
-            "standard_scaler": "numerical_col1,numerical_col2",
-            "min_max_scaler": "numerical_col1,numerical_col2",
-            "robust_scaler": "numerical_col1,numerical_col2",
-            # Encoder
+            # Targeted Imputers
+            "simple_imputer": "missing_col1,missing_col2",
+            # Targeted Encoders
             "one_hot_encoder": "categorical_col1,categorical_col2",
-            "ordinal_encoder": "ordinal_col1,ordinal_col2",
+            "ordinal_encoder": "ordinal_col1,ordinal_col2", 
             "catboost_encoder": "high_cardinality_col1,high_cardinality_col2",
-            # Imputer
-            "simple_imputer": "col_with_nulls1,col_with_nulls2",
-            # Feature Engineering
+            # Targeted Feature Engineering
             "polynomial_features": "numerical_col1,numerical_col2",
             "tree_based_feature_generator": "all_features",
-            "missing_indicator": "col_with_nulls1,col_with_nulls2",
             "kbins_discretizer": "continuous_col1,continuous_col2"
         }
         return hints.get(step_type, "col1,col2")
@@ -296,26 +301,25 @@ class RecipeBuilder:
         # 5. 전처리 설정
         self.ui.show_info("전처리 설정")
         
-        # 사용 가능한 전처리 모듈들
+        # 사용 가능한 전처리 모듈들 (논리적 순서로 배치)
         available_preprocessors = {
-            "Scaler": {
-                "standard_scaler": "StandardScaler (평균=0, 분산=1 정규화)",
-                "min_max_scaler": "MinMaxScaler (0-1 범위 정규화)",
-                "robust_scaler": "RobustScaler (이상치에 강건한 정규화)"
+            "Missing Value Handling": {
+                "simple_imputer": "SimpleImputer (결측값 채우기 + 선택적 지시자 생성)"
             },
             "Encoder": {
                 "one_hot_encoder": "OneHotEncoder (범주형 → 원핫 인코딩)",
                 "ordinal_encoder": "OrdinalEncoder (범주형 → 순서형 인코딩)",
                 "catboost_encoder": "CatBoostEncoder (Target 기반 인코딩)"
             },
-            "Imputer": {
-                "simple_imputer": "SimpleImputer (결측값 채우기)"
-            },
             "Feature Engineering": {
                 "polynomial_features": "PolynomialFeatures (다항 특성 생성)",
                 "tree_based_feature_generator": "TreeBasedFeatures (트리 기반 특성)",
-                "missing_indicator": "MissingIndicator (결측값 지시자)",
                 "kbins_discretizer": "KBinsDiscretizer (연속형 → 구간형)"
+            },
+            "Scaler": {
+                "standard_scaler": "StandardScaler (평균=0, 분산=1 정규화)",
+                "min_max_scaler": "MinMaxScaler (0-1 범위 정규화)",
+                "robust_scaler": "RobustScaler (이상치에 강건한 정규화)"
             }
         }
         
@@ -323,7 +327,7 @@ class RecipeBuilder:
         
         # 각 카테고리별로 전처리 선택
         for category, preprocessors in available_preprocessors.items():
-            if not self.ui.confirm(f"\n{category} 전처리를 사용하시겠습니까?", default=category in ["Scaler", "Encoder"]):
+            if not self.ui.confirm(f"\n{category} 전처리를 사용하시겠습니까?", default=category in ["Missing Value Handling", "Encoder", "Scaler"]):
                 continue
             
             # 해당 카테고리의 전처리 방법 선택
@@ -349,17 +353,20 @@ class RecipeBuilder:
                 # 선택된 Feature Engineering 처리
                 for sel in selected_features:
                     step_type = [k for k, v in preprocessors.items() if v == sel][0]
-                    columns_hint = self._get_columns_hint(step_type)
-                    columns_str = self.ui.text_input(
-                        f"{sel}에 적용할 컬럼 (쉼표로 구분)",
-                        default=columns_hint
-                    )
-                    columns = [col.strip() for col in columns_str.split(",")]
                     
-                    step_config = {
-                        "type": step_type,
-                        "columns": columns
-                    }
+                    step_config = {"type": step_type}
+                    
+                    # Global 전처리기가 아닌 경우에만 컬럼 요청
+                    if not self._is_global_preprocessor(step_type):
+                        columns_hint = self._get_columns_hint(step_type)
+                        columns_str = self.ui.text_input(
+                            f"{sel}에 적용할 컬럼 (쉼표로 구분)",
+                            default=columns_hint
+                        )
+                        columns = [col.strip() for col in columns_str.split(",")]
+                        step_config["columns"] = columns
+                    else:
+                        self.ui.show_info(f"{sel}는 모든 적합한 컬럼에 자동으로 적용됩니다.")
                     
                     # 특별한 파라미터가 필요한 경우
                     if step_type == "polynomial_features":
@@ -368,6 +375,17 @@ class RecipeBuilder:
                     elif step_type == "kbins_discretizer":
                         n_bins = self.ui.number_input("구간 개수", default=5, min_value=2, max_value=10)
                         step_config["n_bins"] = n_bins
+                        
+                        strategy = self.ui.single_choice(
+                            "구간 분할 전략을 선택하세요",
+                            [
+                                ("uniform", "Uniform (균등한 간격으로 분할)"),
+                                ("quantile", "Quantile (분위수 기반으로 분할)"),
+                                ("kmeans", "K-means (클러스터링 기반으로 분할)")
+                            ],
+                            default="quantile"
+                        )
+                        step_config["strategy"] = strategy
                     
                     preprocessor_steps.append(step_config)
             else:  # 단일 선택 (Scaler, Encoder, Imputer)
@@ -379,17 +397,20 @@ class RecipeBuilder:
                 
                 if selected:  # 사용자가 선택한 경우
                     step_type = [k for k, v in preprocessors.items() if v == selected][0]
-                    columns_hint = self._get_columns_hint(step_type)
-                    columns_str = self.ui.text_input(
-                        f"{selected}에 적용할 컬럼 (쉼표로 구분)",
-                        default=columns_hint
-                    )
-                    columns = [col.strip() for col in columns_str.split(",")]
                     
-                    step_config = {
-                        "type": step_type,
-                        "columns": columns
-                    }
+                    step_config = {"type": step_type}
+                    
+                    # Global 전처리기가 아닌 경우에만 컬럼 요청
+                    if not self._is_global_preprocessor(step_type):
+                        columns_hint = self._get_columns_hint(step_type)
+                        columns_str = self.ui.text_input(
+                            f"{selected}에 적용할 컬럼 (쉼표로 구분)",
+                            default=columns_hint
+                        )
+                        columns = [col.strip() for col in columns_str.split(",")]
+                        step_config["columns"] = columns
+                    else:
+                        self.ui.show_info(f"{selected}는 모든 적합한 컬럼에 자동으로 적용됩니다.")
                     
                     # 특별한 파라미터가 필요한 경우
                     if step_type == "simple_imputer":
@@ -398,6 +419,13 @@ class RecipeBuilder:
                             ["mean", "median", "most_frequent", "constant"]
                         )
                         step_config["strategy"] = strategy
+                        
+                        # Missing indicators 생성 여부
+                        create_indicators = self.ui.confirm(
+                            "결측값 지시자 컬럼을 생성하시겠습니까? (imputation 전 결측값 위치 표시)",
+                            default=False
+                        )
+                        step_config["create_missing_indicators"] = create_indicators
                     elif step_type == "catboost_encoder":
                         # CatBoostEncoder는 target이 필요함
                         step_config["sigma"] = self.ui.number_input(

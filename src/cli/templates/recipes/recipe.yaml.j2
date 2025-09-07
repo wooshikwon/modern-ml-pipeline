@@ -73,7 +73,9 @@ preprocessor:
   steps:
     {% for step in preprocessor_steps %}
     - type: {{ step.type }}
+      {% if step.columns is defined %}
       columns: {{ step.columns }}
+      {% endif %}
       {% if step.strategy is defined %}
       strategy: {{ step.strategy }}
       {% endif %}
@@ -82,6 +84,9 @@ preprocessor:
       {% endif %}
       {% if step.n_bins is defined %}
       n_bins: {{ step.n_bins }}
+      {% endif %}
+      {% if step.create_missing_indicators is defined %}
+      create_missing_indicators: {{ step.create_missing_indicators | lower }}
       {% endif %}
     {% endfor %}
 {% else %}

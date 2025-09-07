@@ -3,54 +3,110 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from category_encoders import CatBoostEncoder
 from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder
 from typing import List
+import pandas as pd
 from src.interface import BasePreprocessor
 from ..registry import PreprocessorStepRegistry
 
 class OneHotEncoderWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
-    """scikit-learn의 OneHotEncoder를 위한 래퍼입니다."""
+    """
+    DataFrame-First: scikit-learn의 OneHotEncoder를 위한 래퍼
+    범주형 변수를 원-핫 인코딩으로 변환하며, 새로운 컬럼들을 생성합니다.
+    """
     def __init__(self, handle_unknown='ignore', sparse_output=False, columns: List[str] = None):
         self.handle_unknown = handle_unknown
         self.sparse_output = sparse_output
         self.columns = columns
         self.encoder = OneHotEncoder(handle_unknown=self.handle_unknown, sparse_output=self.sparse_output)
+        self._input_columns = None
 
-    def fit(self, X, y=None):
+    def fit(self, X: pd.DataFrame, y=None):
+        self._input_columns = list(X.columns)
         self.encoder.fit(X)
         return self
 
-    def transform(self, X):
-        return self.encoder.transform(X)
-
-    def get_feature_names_out(self, input_features=None):
-        return self.encoder.get_feature_names_out(input_features)
+    def transform(self, X: pd.DataFrame) -> pd.DataFrame:
+        """원-핫 인코딩을 적용하고 DataFrame으로 반환합니다."""
+        result_array = self.encoder.transform(X)
+        
+        # sklearn의 get_feature_names_out을 사용하여 실제 출력 컬럼명 확인
+        try:
+            actual_feature_names = self.encoder.get_feature_names_out(list(X.columns))
+        except Exception:
+            # 폴백: 수동으로 생성
+            actual_feature_names = [f"onehot_{col}_{i}" for col in X.columns for i in range(result_array.shape[1] // len(X.columns))]
+        
+        return pd.DataFrame(result_array, index=X.index, columns=actual_feature_names)
+    
+    def get_output_column_names(self, input_columns: List[str]) -> List[str]:
+        """변환 후 예상되는 출력 컬럼명을 반환합니다."""
+        if self._input_columns is not None:
+            try:
+                return list(self.encoder.get_feature_names_out(self._input_columns))
+            except Exception:
+                pass
+        # 폴백: 추정값 반환
+        return [f"onehot_{col}" for col in input_columns]
+    
+    def preserves_column_names(self) -> bool:
+        """이 전처리기는 원본 컬럼명을 보존하지 않습니다."""
+        return False
+    
+    def get_application_type(self) -> str:
+        """OneHot Encoder는 특정 범주형 컬럼에 적용됩니다."""
+        return 'targeted'
+    
+    def get_applicable_columns(self, X: pd.DataFrame) -> List[str]:
+        """범주형 컬럼만 대상으로 합니다."""
+        return [col for col in X.columns if X[col].dtype == 'object' or X[col].dtype.name == 'category']
 
 class OrdinalEncoderWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
-    """scikit-learn의 OrdinalEncoder를 위한 래퍼입니다."""
+    """
+    DataFrame-First: scikit-learn의 OrdinalEncoder를 위한 래퍼
+    범주형 변수를 순서형 숫자로 인코딩하며, 컬럼명을 보존합니다.
+    """
     def __init__(self, handle_unknown='use_encoded_value', unknown_value=-1, columns: List[str] = None):
         self.handle_unknown = handle_unknown
         self.unknown_value = unknown_value
         self.columns = columns
         self.encoder = OrdinalEncoder(handle_unknown=self.handle_unknown, unknown_value=self.unknown_value)
     
-    def fit(self, X, y=None):
+    def fit(self, X: pd.DataFrame, y=None):
         self.encoder.fit(X)
         return self
 
-    def transform(self, X):
-        return self.encoder.transform(X)
+    def transform(self, X: pd.DataFrame) -> pd.DataFrame:
+        """순서형 인코딩을 적용하고 DataFrame으로 반환합니다."""
+        result_array = self.encoder.transform(X)
+        return pd.DataFrame(result_array, index=X.index, columns=X.columns)
+    
+    def get_output_column_names(self, input_columns: List[str]) -> List[str]:
+        """OrdinalEncoder는 컬럼명을 보존합니다."""
+        return input_columns
+    
+    def preserves_column_names(self) -> bool:
+        """이 전처리기는 원본 컬럼명을 보존합니다."""
+        return True
+    
+    def get_application_type(self) -> str:
+        """Ordinal Encoder는 특정 범주형 컬럼에 적용됩니다."""
+        return 'targeted'
+    
+    def get_applicable_columns(self, X: pd.DataFrame) -> List[str]:
+        """범주형 컬럼만 대상으로 합니다."""
+        return [col for col in X.columns if X[col].dtype == 'object' or X[col].dtype.name == 'category']
 
 class CatBoostEncoderWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
     """
-    category_encoders 라이브러리의 CatBoostEncoder를 위한 scikit-learn 호환 래퍼입니다.
+    DataFrame-First: category_encoders 라이브러리의 CatBoostEncoder를 위한 래퍼
     Target Encoding의 변종으로, 정보 누수를 방지하면서 고유 범주가 많은 변수를
-    효과적으로 처리합니다.
+    효과적으로 처리합니다. 컬럼명을 보존합니다.
     """
     def __init__(self, sigma: float = 0.05, columns: List[str] = None):
         self.sigma = sigma
         self.columns = columns
         self.encoder = CatBoostEncoder(sigma=self.sigma, cols=self.columns)
 
-    def fit(self, X, y=None):
+    def fit(self, X: pd.DataFrame, y=None):
         """
         CatBoostEncoder를 학습시킵니다.
         이 인코더는 지도 학습 방식이므로 반드시 타겟 변수 y가 필요합니다.
@@ -60,9 +116,29 @@ class CatBoostEncoderWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
         self.encoder.fit(X, y)
         return self
 
-    def transform(self, X):
-        """학습된 인코더를 사용하여 데이터를 변환합니다."""
-        return self.encoder.transform(X) 
+    def transform(self, X: pd.DataFrame) -> pd.DataFrame:
+        """학습된 인코더를 사용하여 데이터를 변환하고 DataFrame으로 반환합니다."""
+        result = self.encoder.transform(X)
+        # CatBoostEncoder는 이미 DataFrame을 반환하지만, 확실히 하기 위해 변환
+        if not isinstance(result, pd.DataFrame):
+            result = pd.DataFrame(result, index=X.index, columns=X.columns)
+        return result
+    
+    def get_output_column_names(self, input_columns: List[str]) -> List[str]:
+        """CatBoostEncoder는 컬럼명을 보존합니다."""
+        return input_columns
+    
+    def preserves_column_names(self) -> bool:
+        """이 전처리기는 원본 컬럼명을 보존합니다."""
+        return True
+    
+    def get_application_type(self) -> str:
+        """CatBoost Encoder는 특정 범주형 컬럼에 적용됩니다."""
+        return 'targeted'
+    
+    def get_applicable_columns(self, X: pd.DataFrame) -> List[str]:
+        """범주형 컬럼만 대상으로 합니다."""
+        return [col for col in X.columns if X[col].dtype == 'object' or X[col].dtype.name == 'category'] 
 
 PreprocessorStepRegistry.register("one_hot_encoder", OneHotEncoderWrapper)
 PreprocessorStepRegistry.register("ordinal_encoder", OrdinalEncoderWrapper)
