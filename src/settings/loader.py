@@ -176,19 +176,18 @@ def resolve_env_variables(data: Any) -> Any:
     return data
 
 
-def load_settings(recipe_file: str, env_name: str, **kwargs) -> Settings:
+def load_settings(recipe_path: str, config_path: str, **kwargs) -> Settings:
     """
-    Settings 로드 - CLI 구조 완벽 지원
+    Settings 로드 - Phase 5.3 리팩토링 (직접 파일 경로 방식)
     
     순서:
-    1. .env.{env_name} 파일에서 환경변수 로드
-    2. configs/{env_name}.yaml 로드 -> Config 객체 생성
-    3. recipes/{recipe_file} 로드 -> Recipe 객체 생성  
-    4. Settings 객체 생성 및 검증
+    1. config_path에서 직접 Config 로드
+    2. recipe_path에서 직접 Recipe 로드  
+    3. Settings 객체 생성 및 검증
     
     Args:
-        recipe_file: Recipe YAML 파일 경로 (확장자 선택사항)
-        env_name: 환경 이름 (local, dev, prod 등)
+        recipe_path: Recipe YAML 파일 경로
+        config_path: Config YAML 파일 경로
         **kwargs: 추가 파라미터 (호환성용, 무시됨)
         
     Returns:
@@ -198,29 +197,19 @@ def load_settings(recipe_file: str, env_name: str, **kwargs) -> Settings:
         FileNotFoundError: 설정 파일이 없을 때
         ValueError: 검증 실패시
     """
-    logger.info(f"Settings 로드 시작: recipe={recipe_file}, env={env_name}")
+    logger.info(f"Settings 로드 시작: recipe={recipe_path}, config={config_path}")
     
-    # 1. 환경변수 파일 로드 (.env.{env_name})
-    env_file = Path(f".env.{env_name}")
-    if env_file.exists():
-        load_dotenv(env_file, override=True)
-        logger.info(f"환경변수 로드: {env_file}")
-        # ENV_NAME 환경변수 설정
-        os.environ['ENV_NAME'] = env_name
-    else:
-        logger.warning(f"환경변수 파일 없음: {env_file} (기본값 사용)")
+    # 1. Config 로드 (직접 경로)
+    config = _load_config(config_path)
     
-    # 2. Config 로드
-    config = _load_config(env_name)
-    
-    # 3. Recipe 로드
-    recipe = _load_recipe(recipe_file)
+    # 2. Recipe 로드 (직접 경로)
+    recipe = _load_recipe(recipe_path)
     
     # 4. Settings 생성 (검증 포함)
     settings = Settings(config, recipe)
     
-    # 5. 런타임 필드 추가
-    _add_computed_fields(settings, recipe_file)
+    # 3. 런타임 필드 추가
+    _add_computed_fields(settings, recipe_path)
     
     logger.info(
         f"Settings 로드 완료: "
@@ -232,12 +221,12 @@ def load_settings(recipe_file: str, env_name: str, **kwargs) -> Settings:
     return settings
 
 
-def _load_config(env_name: str) -> Config:
+def _load_config(config_path: str) -> Config:
     """
     Config 파일 로드 및 파싱
     
     Args:
-        env_name: 환경 이름
+        config_path: Config 파일 경로
         
     Returns:
         Config 객체
@@ -245,8 +234,8 @@ def _load_config(env_name: str) -> Config:
     Raises:
         FileNotFoundError: config 파일이 없을 때
     """
-    # configs/{env_name}.yaml 경로
-    config_path = Path("configs") / f"{env_name}.yaml"
+    # 직접 경로 사용
+    config_path = Path(config_path)
     
     if not config_path.exists():
         # 대체 경로 시도 (configs/base.yaml)
@@ -426,25 +415,19 @@ def create_settings_for_inference(config_data: Dict[str, Any]) -> Settings:
     return Settings(config, recipe)
 
 
-def load_config_files(env_name: str) -> Dict[str, Any]:
+def load_config_files(config_path: str) -> Dict[str, Any]:
     """
     Config 파일만 로드 (서빙/추론용)
     Recipe 없이 Config만 필요한 경우 사용
     
     Args:
-        env_name: 환경 이름
+        config_path: Config 파일 경로
         
     Returns:
         Config 딕셔너리
     """
-    # 환경변수 로드
-    env_file = Path(f".env.{env_name}")
-    if env_file.exists():
-        load_dotenv(env_file, override=True)
-        os.environ['ENV_NAME'] = env_name
-    
-    # Config 로드
-    config = _load_config(env_name)
+    # Config 로드 (직접 경로)
+    config = _load_config(config_path)
     
     # 딕셔너리로 변환
     return config.dict()

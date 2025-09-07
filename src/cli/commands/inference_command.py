@@ -25,9 +25,13 @@ def batch_inference_command(
         str, 
         typer.Option("--run-id", help="추론에 사용할 MLflow Run ID")
     ],
-    env_name: Annotated[
+    config_path: Annotated[
         str,
-        typer.Option("--env-name", "-e", help="환경 이름 (필수)")
+        typer.Option("--config-path", "-c", help="Config 파일 경로")
+    ],
+    data_path: Annotated[
+        str,
+        typer.Option("--data-path", "-d", help="추론 데이터 파일 경로")
     ],
     context_params: Annotated[
         Optional[str], 
@@ -35,48 +39,45 @@ def batch_inference_command(
     ] = None,
 ) -> None:
     """
-    배치 추론 실행 (v2.0).
+    배치 추론 실행 (Phase 5.3 리팩토링).
     
     MLflow에 저장된 모델을 사용하여 배치 추론을 수행합니다.
-    환경 설정을 통해 데이터 소스와 추론 결과 저장 위치를 결정합니다.
+    --data-path로 추론 데이터를 직접 지정합니다.
     
     Args:
         run_id: MLflow Run ID (학습된 모델)
-        env_name: 사용할 환경 이름 (configs/{env_name}.yaml)
+        config_path: Config YAML 파일 경로
+        data_path: 추론 데이터 파일 경로
         context_params: 추가 파라미터 (JSON 형식)
     
     Examples:
-        mmp batch-inference --run-id abc123 --env-name prod
-        mmp batch-inference --run-id abc123 -e dev --params '{"date": "2024-01-01"}'
+        mmp batch-inference --run-id abc123 --config-path configs/prod.yaml --data-path data/inference.csv
+        mmp batch-inference --run-id abc123 -c configs/dev.yaml -d queries/inference.sql --params '{"date": "2024-01-01"}'
         
     Raises:
         typer.Exit: 파일을 찾을 수 없거나 실행 중 오류 발생 시
     """
-    try:
-        # 1. 환경변수 로드
-        env_file = Path(f".env.{env_name}")
-        if env_file.exists():
-            load_environment(env_name)
-            logger.info(f"환경 변수 로드: .env.{env_name}")
-        
-        # 2. 파라미터 파싱
+    try:        
+        # 1. 파라미터 파싱
         params: Optional[Dict[str, Any]] = (
             json.loads(context_params) if context_params else None
         )
         
-        # 3. Config 로드 및 Settings 생성
-        config_data = load_config_files(env_name=env_name)
+        # 2. Config 로드 및 Settings 생성
+        config_data = load_config_files(config_path=config_path)
         settings = create_settings_for_inference(config_data)
         setup_logging(settings)
 
-        # 4. 추론 정보 로깅
-        logger.info(f"환경 '{env_name}'에서 배치 추론을 시작합니다.")
+        # 3. 추론 정보 로깅
+        logger.info(f"Config: {config_path}")
+        logger.info(f"Data: {data_path}")
         logger.info(f"Run ID: {run_id}")
         
-        # 5. 배치 추론 실행
+        # 4. 배치 추론 실행 (data_path 직접 전달)
         run_inference_pipeline(
             settings=settings,
             run_id=run_id,
+            data_path=data_path,
             context_params=params or {},
         )
         
