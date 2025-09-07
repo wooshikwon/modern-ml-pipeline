@@ -7,6 +7,8 @@ import pandas as pd
 from mlflow.models.signature import ModelSignature
 from mlflow.types import Schema, ColSpec, ParamSpec, ParamSchema
 from typing import Optional, List
+import uuid
+import datetime
 
 # 순환 참조를 피하기 위해 타입 힌트만 임포트
 from typing import TYPE_CHECKING
@@ -17,6 +19,24 @@ if TYPE_CHECKING:
 
 from src.utils.system.logger import logger
 from src.utils.system.console_manager import RichConsoleManager
+
+def generate_unique_run_name(base_run_name: str) -> str:
+    """
+    기본 run name에 timestamp와 random suffix를 추가하여 완전히 유니크한 run name을 생성합니다.
+    병렬 테스트 실행 시 MLflow run name 충돌을 방지합니다.
+    
+    Args:
+        base_run_name (str): 기본 run name (예: "e2e_classification_test_run")
+        
+    Returns:
+        str: 유니크한 run name (예: "e2e_classification_test_run_20250907_143025_a1b2")
+    """
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    random_suffix = str(uuid.uuid4())[:8]  # 처음 8자리만 사용
+    unique_run_name = f"{base_run_name}_{timestamp}_{random_suffix}"
+    
+    logger.debug(f"Generated unique run name: {base_run_name} -> {unique_run_name}")
+    return unique_run_name
 
 def setup_mlflow(settings: "Settings") -> None:
     """
@@ -37,21 +57,57 @@ def start_run(settings: "Settings", run_name: str) -> "Run":
     """
     MLflow 실행을 시작하고 관리하는 컨텍스트 매니저.
     외부 환경 변수의 영향을 받지 않도록 tracking_uri를 명시적으로 설정합니다.
+    자동으로 유니크한 run name을 생성하여 병렬 실행 시 충돌을 방지합니다.
     """
     console = RichConsoleManager()
     
+    # 🆕 충돌 방지를 위해 유니크한 run name 생성
+    unique_run_name = generate_unique_run_name(run_name)
+    
     # 외부에서 지정된 tracking_uri(예: 테스트)가 있다면 존중하고, 실험명만 설정
     mlflow.set_experiment(settings.config.mlflow.experiment_name)
-    with mlflow.start_run(run_name=run_name) as run:
-        console.log_milestone(f"MLflow Run started: {run.info.run_id} ({run_name})", "mlflow")
-        try:
-            yield run
-            mlflow.set_tag("status", "success")
-            console.log_milestone("MLflow Run finished successfully", "success")
-        except Exception as e:
-            mlflow.set_tag("status", "failed")
-            console.log_milestone(f"MLflow Run failed: {e}", "error")
-            logger.error(f"MLflow Run failed: {e}", exc_info=True)
+    
+    try:
+        with mlflow.start_run(run_name=unique_run_name) as run:
+            console.log_milestone(f"MLflow Run started: {run.info.run_id} ({unique_run_name})", "mlflow")
+            # 원본 run name을 태그로 저장하여 추적 가능하게 함
+            mlflow.set_tag("original_run_name", run_name)
+            mlflow.set_tag("unique_run_name", unique_run_name)
+            
+            try:
+                yield run
+                mlflow.set_tag("status", "success")
+                console.log_milestone("MLflow Run finished successfully", "success")
+            except Exception as e:
+                mlflow.set_tag("status", "failed")
+                console.log_milestone(f"MLflow Run failed: {e}", "error")
+                logger.error(f"MLflow Run failed: {e}", exc_info=True)
+                raise
+    except Exception as mlflow_error:
+        # MLflow 실행 자체가 실패한 경우 (예: run name 충돌이 여전히 발생한 경우)
+        if "already exists" in str(mlflow_error).lower() or "duplicate" in str(mlflow_error).lower():
+            logger.warning(f"MLflow run name collision detected even with unique name: {unique_run_name}")
+            # 추가 random suffix로 재시도
+            retry_run_name = f"{unique_run_name}_{uuid.uuid4().hex[:4]}"
+            logger.info(f"Retrying with additional suffix: {retry_run_name}")
+            
+            with mlflow.start_run(run_name=retry_run_name) as run:
+                console.log_milestone(f"MLflow Run started (retry): {run.info.run_id} ({retry_run_name})", "mlflow")
+                mlflow.set_tag("original_run_name", run_name)
+                mlflow.set_tag("unique_run_name", retry_run_name)
+                mlflow.set_tag("retry_count", "1")
+                
+                try:
+                    yield run
+                    mlflow.set_tag("status", "success")
+                    console.log_milestone("MLflow Run finished successfully (retry)", "success")
+                except Exception as e:
+                    mlflow.set_tag("status", "failed")
+                    console.log_milestone(f"MLflow Run failed (retry): {e}", "error")
+                    logger.error(f"MLflow Run failed (retry): {e}", exc_info=True)
+                    raise
+        else:
+            # 다른 종류의 MLflow 에러는 그대로 전파
             raise
 
 def get_latest_run_id(settings: "Settings", experiment_name: str) -> str:

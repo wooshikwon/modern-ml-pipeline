@@ -12,6 +12,7 @@ import shutil
 from pathlib import Path
 import mlflow
 from types import SimpleNamespace
+import uuid
 
 from src.settings import Settings
 from src.settings.config import Config, Environment, MLflow as MLflowConfig, DataSource, FeatureStore, Output, OutputTarget
@@ -23,7 +24,9 @@ class TestClusteringTabularE2E:
     """End-to-end test for clustering with tabular data."""
     
     @pytest.fixture
-    def temp_workspace(self):
+
+    
+    def temp_workspace(self, isolated_mlflow):
         """Create temporary workspace for clustering E2E test."""
         workspace = tempfile.mkdtemp()
         data_dir = os.path.join(workspace, "data")
@@ -59,13 +62,13 @@ class TestClusteringTabularE2E:
         shutil.rmtree(workspace)
     
     @pytest.fixture
-    def clustering_settings(self, temp_workspace):
+    def clustering_settings(self, temp_workspace, isolated_mlflow, unique_experiment_name):
         """Create settings for clustering E2E test."""
         config = Config(
             environment=Environment(name="e2e_test"),
             mlflow=MLflowConfig(
-                tracking_uri=os.environ.get('MLFLOW_TRACKING_URI', 'sqlite:///mlflow.db'),
-                experiment_name="e2e_clustering_test"
+                tracking_uri=isolated_mlflow,
+                experiment_name=f"e2e_clustering_test_{unique_experiment_name}"
             ),
             data_source=DataSource(
                 name="file_storage",

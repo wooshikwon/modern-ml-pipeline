@@ -87,7 +87,10 @@ def train_command(
             # 일반 파일 경로 (CSV, Parquet, 정적 SQL 등)
             settings.recipe.data.loader.source_uri = data_path
         
-        # 3. 학습 정보 로깅
+        # 3. 데이터 소스 호환성 검증 (source_uri 주입 후)
+        settings.validate_data_source_compatibility()
+        
+        # 4. 학습 정보 로깅
         logger.info(f"Recipe: {recipe_path}")
         logger.info(f"Config: {config_path}")
         logger.info(f"Data: {data_path}")

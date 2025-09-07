@@ -95,7 +95,7 @@ class TestInferencePipelineE2E:
 
     def test_model_loading_from_different_uris(self, integration_settings_classification):
         """Test model loading from different URI formats."""
-        # Train model first
+        # Train model first (use storage adapter as specified in settings)
         train_result = run_train_pipeline(integration_settings_classification)
         original_model_uri = train_result.model_uri
         

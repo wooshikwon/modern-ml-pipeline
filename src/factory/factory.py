@@ -170,11 +170,18 @@ class Factory:
         if adapter_type:
             target_type = adapter_type
         else:
-            # 캐싱된 경로 사용
-            source_uri = self._data.loader.source_uri
-            target_type = self._detect_adapter_type_from_uri(source_uri)
-            self.console.info(f"Auto-detected adapter type '{target_type}' from URI: {source_uri}",
-                            rich_message=f"🔍 Auto-detected adapter: [cyan]{target_type}[/cyan] from URI")
+            # 1순위: config에서 명시된 adapter_type 사용
+            config_adapter_type = getattr(self.settings.config.data_source, 'adapter_type', None)
+            if config_adapter_type:
+                target_type = config_adapter_type
+                self.console.info(f"Using configured adapter type: {target_type}",
+                                rich_message=f"⚙️ Using config adapter: [cyan]{target_type}[/cyan]")
+            else:
+                # 2순위: source_uri에서 자동 감지
+                source_uri = self._data.loader.source_uri
+                target_type = self._detect_adapter_type_from_uri(source_uri)
+                self.console.info(f"Auto-detected adapter type '{target_type}' from URI: {source_uri}",
+                                rich_message=f"🔍 Auto-detected adapter: [cyan]{target_type}[/cyan] from URI")
         
         # Registry를 통한 생성 (일관된 패턴)
         try:

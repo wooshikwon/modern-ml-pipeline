@@ -52,23 +52,65 @@ class Settings:
                     "feature_store fetcher 사용시 Config에 feast_config가 필요합니다"
                 )
         
-        # 2. 데이터 소스 타입 호환성 체크
-        loader_adapter = self.recipe.data.loader.get_adapter_type()
-        config_adapter = self.config.data_source.adapter_type
-        
-        # SQL 파일은 모든 SQL 타입 어댑터와 호환 (sql, bigquery)
-        if loader_adapter == "sql" and config_adapter in ["sql", "bigquery"]:
-            pass  # 호환 OK
-        # Storage 파일은 storage adapter 필요
-        elif loader_adapter == "storage" and config_adapter != "storage":
-            raise ValueError(
-                f"Recipe loader가 storage 타입({self.recipe.data.loader.source_uri})이지만 "
-                f"Config adapter가 {config_adapter}입니다. 'storage'로 설정해주세요."
-            )
+        # 2. 데이터 소스 타입 호환성 체크는 source_uri 주입 후 별도 검증
         
         # 3. MLflow 설정 체크 (선택사항이지만 권장)
         if not self.config.mlflow:
             logger.warning("MLflow가 설정되지 않았습니다. 실험 추적이 비활성화됩니다.")
+    
+    def validate_data_source_compatibility(self) -> None:
+        """
+        CLI에서 source_uri 주입 후 config.data_source와 호환성 검증.
+        
+        Raises:
+            ValueError: Config adapter type과 source_uri가 호환되지 않는 경우
+        """
+        if not hasattr(self.recipe.data.loader, 'source_uri') or not self.recipe.data.loader.source_uri:
+            # source_uri가 아직 주입되지 않았으면 검증 스킵
+            return
+            
+        source_uri = self.recipe.data.loader.source_uri.lower()
+        config_adapter = self.config.data_source.adapter_type
+        
+        # 파일 확장자/패턴 기반 adapter type 추론
+        if source_uri.endswith('.sql') or 'select' in source_uri or 'from' in source_uri:
+            # SQL 쿼리/파일
+            detected_type = 'sql'
+            compatible_types = ['sql', 'bigquery']
+            
+            if config_adapter not in compatible_types:
+                raise ValueError(
+                    f"SQL 데이터 소스({self.recipe.data.loader.source_uri})는 "
+                    f"Config adapter_type이 {compatible_types} 중 하나여야 합니다. "
+                    f"현재: {config_adapter}"
+                )
+                
+        elif (source_uri.endswith('.csv') or source_uri.endswith('.parquet') or 
+              source_uri.endswith('.json') or source_uri.startswith('s3://') or
+              source_uri.startswith('gs://') or source_uri.startswith('az://')):
+            # Storage 기반 파일
+            detected_type = 'storage'
+            
+            if config_adapter != 'storage':
+                raise ValueError(
+                    f"Storage 파일({self.recipe.data.loader.source_uri})은 "
+                    f"Config adapter_type이 'storage'여야 합니다. "
+                    f"현재: {config_adapter}"
+                )
+                
+        elif source_uri.startswith('bigquery://'):
+            # BigQuery 직접 연결
+            detected_type = 'bigquery'
+            
+            if config_adapter != 'bigquery':
+                raise ValueError(
+                    f"BigQuery URI({self.recipe.data.loader.source_uri})는 "
+                    f"Config adapter_type이 'bigquery'여야 합니다. "
+                    f"현재: {config_adapter}"
+                )
+        
+        from src.utils.system.logger import logger
+        logger.info(f"✅ 데이터 소스 호환성 검증 완료: {detected_type} ↔ {config_adapter}")
     
     def to_dict(self) -> Dict[str, Any]:
         """딕셔너리로 변환 (직렬화용)"""

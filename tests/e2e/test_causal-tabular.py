@@ -10,6 +10,7 @@ import tempfile
 import shutil
 import os
 import mlflow
+import uuid
 from src.settings import Settings
 from src.settings.config import Config, Environment, MLflow as MLflowConfig, DataSource, FeatureStore, Output, OutputTarget
 from src.settings.recipe import Recipe, Model, Data, Loader, Fetcher, DataInterface, Evaluation, ValidationConfig, HyperparametersTuning
@@ -20,7 +21,9 @@ class TestCausalTabularE2E:
     """End-to-end test for causal analysis with tabular data."""
     
     @pytest.fixture
-    def temp_workspace(self):
+
+    
+    def temp_workspace(self, isolated_mlflow):
         workspace = tempfile.mkdtemp()
         data_dir = os.path.join(workspace, "data")
         os.makedirs(data_dir, exist_ok=True)
@@ -43,12 +46,12 @@ class TestCausalTabularE2E:
         shutil.rmtree(workspace)
     
     @pytest.fixture
-    def causal_settings(self, temp_workspace):
+    def causal_settings(self, temp_workspace, isolated_mlflow, unique_experiment_name):
         config = Config(
             environment=Environment(name="e2e_test"),
             mlflow=MLflowConfig(
-                tracking_uri=os.environ.get('MLFLOW_TRACKING_URI', 'sqlite:///mlflow.db'),
-                experiment_name="e2e_causal_test"
+                tracking_uri=isolated_mlflow,
+                experiment_name=f"e2e_causal_test_{unique_experiment_name}"
             ),
             data_source=DataSource(
                 name="file_storage",

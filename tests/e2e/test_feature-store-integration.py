@@ -10,6 +10,7 @@ import tempfile
 import shutil
 import os
 import mlflow
+import uuid
 from src.settings import Settings
 from src.settings.config import Config, Environment, MLflow as MLflowConfig, DataSource, FeatureStore, FeastConfig, FeastOnlineStore, FeastOfflineStore, Output, OutputTarget
 from src.settings.recipe import Recipe, Model, Data, Loader, Fetcher, DataInterface, Evaluation, ValidationConfig, HyperparametersTuning
@@ -20,7 +21,9 @@ class TestFeatureStoreIntegrationE2E:
     """End-to-end test for feature store integration."""
     
     @pytest.fixture
-    def temp_workspace(self):
+
+    
+    def temp_workspace(self, isolated_mlflow):
         workspace = tempfile.mkdtemp()
         data_dir = os.path.join(workspace, "data")
         feast_dir = os.path.join(workspace, "feast_repo")
@@ -58,12 +61,12 @@ class TestFeatureStoreIntegrationE2E:
         shutil.rmtree(workspace)
     
     @pytest.fixture
-    def feast_settings(self, temp_workspace):
+    def feast_settings(self, temp_workspace, isolated_mlflow, unique_experiment_name):
         config = Config(
             environment=Environment(name="e2e_test"),
             mlflow=MLflowConfig(
-                tracking_uri=os.environ.get('MLFLOW_TRACKING_URI', 'sqlite:///mlflow.db'),
-                experiment_name="e2e_feast_test"
+                tracking_uri=isolated_mlflow,
+                experiment_name=f"e2e_feast_test_{unique_experiment_name}"
             ),
             data_source=DataSource(
                 name="file_storage",
