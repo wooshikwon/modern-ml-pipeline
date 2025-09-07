@@ -23,6 +23,7 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
         training_results: Optional[Dict[str, Any]] = None,
         signature: Optional[Any] = None, # mlflow.models.ModelSignature
         data_schema: Optional[Any] = None, # mlflow.types.Schema
+        data_interface_schema: Optional[Dict[str, Any]] = None,  # 🆕 Phase 5.2: DataInterface 기반 검증용
     ):
         self.settings = settings
         self.trained_model = trained_model
@@ -32,6 +33,7 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
         self.training_results = training_results or {}
         self.signature = signature
         self.data_schema = data_schema
+        self.data_interface_schema = data_interface_schema  # 🆕 Phase 5.2: DataInterface 기반 검증용
         
         # Task type별 추론 파이프라인 결정
         self._task_type = settings.recipe.data.data_interface.task_type
@@ -88,8 +90,12 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
         if not isinstance(model_input, pd.DataFrame):
             model_input = pd.DataFrame(model_input)
             
-        # 1. 자동 스키마 검증
-        self._validate_input_schema(model_input)
+        # 1. 🆕 Phase 5.2: DataInterface 기반 컬럼 검증 (우선순위)
+        if self.data_interface_schema:
+            self._validate_data_interface_columns(model_input)
+        else:
+            # 기존 호환성 유지: data_schema 기반 검증
+            self._validate_input_schema(model_input)
 
         # 2. 올바른 파이프라인 순서: Fetcher → DataHandler → Preprocessor → Model
         if self._requires_datahandler and self.trained_datahandler:
@@ -134,3 +140,47 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
         
         result_df = pd.DataFrame(predictions, columns=['prediction'], index=model_input.index)
         return result_df
+
+    def _validate_data_interface_columns(self, df: pd.DataFrame):
+        """
+        🆕 Phase 5.2: DataInterface 필수 컬럼 검증
+        
+        Phase 5에서 도입된 DataInterface 기반 검증 로직을 사용하여
+        추론 시점에 필수 컬럼들이 모두 존재하는지 확인합니다.
+        
+        **핵심 기능:**
+        - 학습시 저장된 required_columns와 추론 데이터 비교
+        - feature_columns=null이었던 경우 실제 학습시 사용된 모든 컬럼 검증
+        
+        Args:
+            df: 검증할 입력 데이터프레임
+            
+        Raises:
+            ValueError: 필수 컬럼이 누락된 경우
+        """
+        try:
+            from src.utils.system.data_validation import validate_data_interface_columns
+            from src.settings.recipe import DataInterface
+            
+            # DataInterface 객체 복원
+            data_interface = DataInterface(**self.data_interface_schema['data_interface'])
+            
+            # 🆕 핵심: 학습시 저장된 필수 컬럼 목록 사용
+            stored_required_columns = self.data_interface_schema.get('required_columns', [])
+            
+            # 필수 컬럼 검증 실행 (저장된 컬럼 목록 기준)
+            validate_data_interface_columns(df, data_interface, stored_required_columns)
+            
+            logger.info(
+                f"✅ DataInterface 컬럼 검증 완료 - "
+                f"Task: {data_interface.task_type}, "
+                f"저장된 필수 컬럼: {len(stored_required_columns)}개, "
+                f"입력 컬럼: {len(df.columns)}개"
+            )
+            
+        except ImportError as e:
+            logger.error(f"DataInterface 검증 모듈 import 실패: {e}")
+            raise RuntimeError("DataInterface 검증 시스템을 사용할 수 없습니다.")
+        except Exception as e:
+            logger.error(f"DataInterface 컬럼 검증 실패: {e}")
+            raise
