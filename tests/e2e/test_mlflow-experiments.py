@@ -14,6 +14,7 @@ import mlflow
 import mlflow.pyfunc
 from mlflow.tracking import MlflowClient
 from types import SimpleNamespace
+import uuid
 import time
 
 from src.settings import Settings
@@ -26,7 +27,9 @@ class TestMLflowExperimentsE2E:
     """End-to-end test for MLflow experiment tracking."""
     
     @pytest.fixture
-    def temp_workspace(self):
+
+    
+    def temp_workspace(self, isolated_mlflow):
         """Create temporary workspace for MLflow E2E test."""
         workspace = tempfile.mkdtemp()
         data_dir = os.path.join(workspace, "data")
@@ -74,7 +77,7 @@ class TestMLflowExperimentsE2E:
         shutil.rmtree(workspace)
     
     @pytest.fixture
-    def mlflow_settings(self, temp_workspace):
+    def mlflow_settings(self, temp_workspace, isolated_mlflow, unique_experiment_name):
         """Create settings for MLflow E2E test."""
         def create_settings(task_choice, data_file, target_col, model_class):
             return Settings(
@@ -82,7 +85,7 @@ class TestMLflowExperimentsE2E:
                     environment=Environment(name="mlflow_e2e_test"),
                     mlflow=MLflowConfig(
                         tracking_uri=f"file://{temp_workspace['mlruns_dir']}",
-                        experiment_name="e2e_mlflow_test"
+                        experiment_name=f"e2e_mlflow_test_{unique_experiment_name}"
                     ),
                     data_source=DataSource(
                         name="file_storage",

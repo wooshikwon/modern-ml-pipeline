@@ -17,6 +17,7 @@ from pathlib import Path
 from unittest.mock import patch
 import signal
 import psutil
+import uuid
 
 from src.cli.main_commands import app
 from typer.testing import CliRunner
@@ -26,7 +27,9 @@ class TestCLIWorkflowE2E:
     """End-to-end test for complete CLI workflow."""
     
     @pytest.fixture
-    def temp_workspace(self):
+
+    
+    def temp_workspace(self, isolated_mlflow):
         """Create temporary workspace for CLI E2E test."""
         workspace = tempfile.mkdtemp()
         data_dir = os.path.join(workspace, "data")

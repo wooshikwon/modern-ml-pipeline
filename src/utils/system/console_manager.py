@@ -498,11 +498,11 @@ def test_print(message: str, emoji: str = "📝"):
     test_console = Console()
     test_console.print(f"{emoji} {message}")
 
-def test_phase(phase_name: str, emoji: str = "🔍"):
+def phase_print(phase_name: str, emoji: str = "🔍"):
     """Print test phase header with consistent formatting"""
     test_print(f"\n=== {phase_name} ===", emoji=emoji)
 
-def test_success(message: str):
+def success_print(message: str):
     """Print test success with consistent styling"""
     test_print(message, emoji="✅")
 

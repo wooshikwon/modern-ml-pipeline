@@ -19,6 +19,7 @@ from unittest.mock import patch
 import mlflow
 import mlflow.pyfunc
 from types import SimpleNamespace
+import uuid
 from contextlib import contextmanager
 
 from src.settings import Settings
@@ -32,7 +33,9 @@ class TestAPIServingE2E:
     """End-to-end test for FastAPI serving pipeline."""
     
     @pytest.fixture
-    def temp_workspace(self):
+
+    
+    def temp_workspace(self, isolated_mlflow):
         """Create temporary workspace for serving E2E test."""
         workspace = tempfile.mkdtemp()
         data_dir = os.path.join(workspace, "data")
@@ -75,13 +78,13 @@ class TestAPIServingE2E:
         shutil.rmtree(workspace)
     
     @pytest.fixture
-    def serving_settings(self, temp_workspace):
+    def serving_settings(self, temp_workspace, isolated_mlflow, unique_experiment_name):
         """Create settings for serving E2E test."""
         config = Config(
             environment=Environment(name="e2e_serving_test"),
             mlflow=MLflowConfig(
-                tracking_uri=os.environ.get('MLFLOW_TRACKING_URI', 'sqlite:///mlflow.db'),
-                experiment_name="e2e_serving_test"
+                tracking_uri=isolated_mlflow,
+                experiment_name=f"e2e_serving_test_{unique_experiment_name}"
             ),
             data_source=DataSource(
                 name="file_storage",

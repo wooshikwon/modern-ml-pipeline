@@ -37,9 +37,8 @@ model:
 
 data:
   loader:
-    # source_uri 패턴을 보고 어댑터가 자동 결정됨
+    # source_uri는 CLI에서 --data-path로 런타임에 주입됨
     # .sql → SQL adapter, .csv/.parquet → Storage adapter
-    source_uri: {{ source_uri }}
   
   # Fetcher 설정 (Feature Store 연동)
   fetcher:
