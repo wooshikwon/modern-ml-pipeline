@@ -76,7 +76,7 @@ def system_check_command(
         # 4. System Checker 실행
         console.print("\n🔍 시스템 연결 상태를 확인하는 중...\n")
         
-        checker = SystemChecker(config, env_name)
+        checker = SystemChecker(config, env_name, str(config_file_path))
         results = checker.run_all_checks()
         
         # 5. 결과 표시

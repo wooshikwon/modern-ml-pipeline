@@ -14,6 +14,9 @@ from src.components.evaluator import EvaluatorRegistry
 from src.components.preprocessor.registry import PreprocessorStepRegistry
 from src.utils.system.catalog_parser import load_model_catalog
 from src.utils.system.logger import logger
+from src.utils.system.console_manager import (
+    cli_success, cli_error, cli_warning, cli_print, cli_info
+)
 
 
 def list_adapters() -> None:
@@ -23,13 +26,13 @@ def list_adapters() -> None:
     데이터 어댑터는 다양한 데이터 소스(DB, 파일, 클라우드 등)에서
     데이터를 로드하는 컴포넌트입니다.
     """
-    typer.echo("✅ Available Adapters:")
+    cli_success("Available Adapters:")
     available_items = sorted(AdapterRegistry.list_adapters().keys())
     for item in available_items:
-        typer.echo(f"  - {item}")
+        cli_print(f"  - [cyan]{item}[/cyan]")
     
     if not available_items:
-        typer.echo("  (No adapters available)")
+        cli_print("  [dim](No adapters available)[/dim]")
 
 
 def list_evaluators() -> None:
@@ -39,13 +42,13 @@ def list_evaluators() -> None:
     평가자는 모델의 성능을 측정하는 메트릭을 제공하는 컴포넌트입니다.
     Task별로 적절한 평가 메트릭이 제공됩니다.
     """
-    typer.echo("✅ Available Evaluators:")
+    cli_success("Available Evaluators:")
     available_items = sorted(EvaluatorRegistry.get_available_tasks())
     for item in available_items:
-        typer.echo(f"  - {item}")
+        cli_print(f"  - [cyan]{item}[/cyan]")
     
     if not available_items:
-        typer.echo("  (No evaluators available)")
+        cli_print("  [dim](No evaluators available)[/dim]")
 
 
 def list_preprocessors() -> None:
@@ -55,13 +58,13 @@ def list_preprocessors() -> None:
     전처리기는 데이터 변환 및 피처 엔지니어링을 수행하는 컴포넌트입니다.
     StandardScaler, OneHotEncoder 등이 포함됩니다.
     """
-    typer.echo("✅ Available Preprocessor Steps:")
+    cli_success("Available Preprocessor Steps:")
     available_items = sorted(PreprocessorStepRegistry._steps.keys())
     for item in available_items:
-        typer.echo(f"  - {item}")
+        cli_print(f"  - [cyan]{item}[/cyan]")
     
     if not available_items:
-        typer.echo("  (No preprocessor steps available)")
+        cli_print("  [dim](No preprocessor steps available)[/dim]")
 
 
 def _load_catalog_from_directory() -> Dict[str, Any]:
@@ -103,7 +106,7 @@ def list_models() -> None:
     
     모델은 Task별로 그룹화되어 표시되며, 각 모델의 라이브러리 정보도 함께 표시됩니다.
     """
-    typer.echo("✅ Available Models from Catalog:")
+    cli_success("Available Models from Catalog:")
     
     # 새로운 디렉토리 구조에서 로드 시도
     catalog_dir = Path(__file__).parent.parent.parent / "models" / "catalog"
@@ -114,15 +117,12 @@ def list_models() -> None:
         model_catalog = load_model_catalog()
     
     if not model_catalog:
-        typer.secho(
-            "Error: src/models/catalog/ 디렉토리나 catalog.yaml 파일을 찾을 수 없거나 내용이 비어있습니다.",
-            fg="red",
-        )
+        cli_error("src/models/catalog/ 디렉토리나 catalog.yaml 파일을 찾을 수 없거나 내용이 비어있습니다.")
         raise typer.Exit(1)
 
     for category, models in model_catalog.items():
-        typer.secho(f"\n--- {category} ---", fg=typer.colors.CYAN)
+        cli_print(f"\n[bold cyan]--- {category} ---[/bold cyan]")
         for model_info in models:
             class_path = model_info.get('class_path', 'Unknown')
             library = model_info.get('library', 'Unknown')
-            typer.echo(f"  - {class_path} ({library})")
+            cli_print(f"  - [green]{class_path}[/green] [dim]({library})[/dim]")

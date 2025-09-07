@@ -11,8 +11,8 @@ import shutil
 import os
 import mlflow
 from src.settings import Settings
-from src.settings.config import Config, Environment, MLflow as MLflowConfig, DataSource, FeatureStore
-from src.settings.recipe import Recipe
+from src.settings.config import Config, Environment, MLflow as MLflowConfig, DataSource, FeatureStore, Output, OutputTarget
+from src.settings.recipe import Recipe, Model, Data, Loader, Fetcher, DataInterface, Evaluation, ValidationConfig, HyperparametersTuning
 from src.pipelines.train_pipeline import run_train_pipeline
 
 
@@ -55,34 +55,53 @@ class TestCausalTabularE2E:
                 adapter_type="storage",
                 config={"base_path": temp_workspace['data_dir']}
             ),
-            feature_store=FeatureStore(provider="none")
+            feature_store=FeatureStore(provider="none"),
+            output=Output(
+                inference=OutputTarget(
+                    name="e2e_test_output",
+                    enabled=True,
+                    adapter_type="storage",
+                    config={"base_path": temp_workspace['workspace']}
+                ),
+                preprocessed=OutputTarget(
+                    name="e2e_test_preprocessed",
+                    enabled=False,
+                    adapter_type="storage",
+                    config={}
+                )
+            )
         )
         
         recipe = Recipe(
             name="e2e_causal_recipe",
             task_choice="causal",
-            data={
-                "data_interface": {
-                    "target_column": "outcome",
-                    "drop_columns": []
-                },
-                "feature_view": {
-                    "name": "causal_features",
-                    "entities": [],
-                    "features": ["treatment", "confounder_1", "confounder_2"],
-                    "source": {"path": "train.csv", "timestamp_column": None}
-                }
-            },
-            loader={"name": "csv_loader", "batch_size": 50, "shuffle": True},
-            model={
-                "class_path": "sklearn.linear_model.LinearRegression",
-                "init_args": {},
-                "compile_args": {},
-                "fit_args": {}
-            },
-            fetcher={"type": "pass_through"},
-            preprocessor={"steps": []},
-            trainer={"validation_split": 0.2, "stratify": False, "random_state": 42}
+            model=Model(
+                class_path="sklearn.linear_model.LinearRegression",
+                library="sklearn",
+                hyperparameters=HyperparametersTuning(
+                    tuning_enabled=False,
+                    values={}
+                ),
+                computed={"run_name": "e2e_causal_test_run"}
+            ),
+            data=Data(
+                loader=Loader(source_uri=temp_workspace['train_path']),
+                fetcher=Fetcher(type="pass_through"),
+                data_interface=DataInterface(
+                    target_column="outcome",
+                    treatment_column="treatment",  # causal task에서 필수
+                    entity_columns=[],
+                    feature_columns=None  # null이면 모든 컬럼 사용 (target, entity 제외)
+                )
+            ),
+            evaluation=Evaluation(
+                metrics=["mae", "rmse", "r2"],
+                validation=ValidationConfig(
+                    method="train_test_split",
+                    test_size=0.2,
+                    random_state=42
+                )
+            )
         )
         
         return Settings(config=config, recipe=recipe)

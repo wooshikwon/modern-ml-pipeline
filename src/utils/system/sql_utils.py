@@ -65,7 +65,7 @@ def get_selected_columns(sql_query: str) -> List[str]:
 
 def parse_select_columns(sql_snapshot: str) -> List[str]:
     """
-    🆕 Blueprint v17.0: loader_sql_snapshot에서 API 입력 스키마용 컬럼 추출
+     loader_sql_snapshot에서 API 입력 스키마용 컬럼 추출
     
     SELECT 절에서 컬럼을 추출하되, event_timestamp 등 시간 컬럼은 제외
     주로 PK: user_id, product_id, session_id 등을 API 입력으로 사용
@@ -89,7 +89,7 @@ def parse_select_columns(sql_snapshot: str) -> List[str]:
 
 def parse_feature_columns(fetcher_sql_snapshot: str) -> tuple[List[str], str]:
     """
-    🆕 Blueprint v17.0: fetcher_sql_snapshot에서 피처 컬럼과 JOIN 키 추출
+     fetcher_sql_snapshot에서 피처 컬럼과 JOIN 키 추출
     
     Feature Store 조회를 위한 컬럼 목록과 JOIN 키를 분석
     """

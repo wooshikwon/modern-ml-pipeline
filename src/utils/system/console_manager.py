@@ -342,9 +342,9 @@ class UnifiedConsole:
         """Unified info logging with dual output"""
         self.logger.info(message)  # Always log to file/system
         
-        if self.mode == "rich" and rich_message:
+        if self.mode in ["rich", "test"] and rich_message:
             self.rich_console.console.print(rich_message, **rich_kwargs)
-        elif self.mode == "rich" and not rich_message:
+        elif self.mode in ["rich", "test"] and not rich_message:
             self.rich_console.log_milestone(message, "info")
         elif self.mode == "plain":
             print(f"INFO: {message}")
@@ -353,7 +353,7 @@ class UnifiedConsole:
         """Unified error logging"""
         self.logger.error(message)
         
-        if self.mode == "rich":
+        if self.mode in ["rich", "test"]:
             if rich_message:
                 self.rich_console.console.print(rich_message, style="red")
             else:
@@ -365,7 +365,7 @@ class UnifiedConsole:
         """Unified warning logging"""
         self.logger.warning(message)
         
-        if self.mode == "rich":
+        if self.mode in ["rich", "test"]:
             if rich_message:
                 self.rich_console.console.print(rich_message, style="yellow")
             else:
@@ -375,7 +375,7 @@ class UnifiedConsole:
     
     def component_init(self, component_name: str, status: str = "success"):
         """Component initialization logging"""
-        if self.mode == "rich":
+        if self.mode in ["rich", "test"]:
             self.rich_console.log_component_init(component_name, status)
         else:
             status_text = "✓" if status == "success" else "✗" if status == "error" else "~"
@@ -383,7 +383,7 @@ class UnifiedConsole:
     
     def data_operation(self, operation: str, shape: tuple = None, details: str = ""):
         """Data operation logging"""
-        if self.mode == "rich":
+        if self.mode in ["rich", "test"]:
             self.rich_console.log_data_operation(operation, shape, details)
         else:
             shape_str = f" ({shape[0]} rows, {shape[1]} columns)" if shape else ""
@@ -391,7 +391,11 @@ class UnifiedConsole:
     
     def _detect_output_mode(self, settings) -> str:
         """Detect appropriate output mode"""
-        if self.rich_console.is_ci_environment():
+        import os
+        # Test environment detection
+        if os.environ.get('PYTEST_CURRENT_TEST') or 'pytest' in os.environ.get('_', ''):
+            return "test"  # New test mode for pytest
+        elif self.rich_console.is_ci_environment():
             return "plain"
         elif settings and hasattr(settings, 'console_mode'):
             return settings.console_mode
@@ -402,3 +406,100 @@ class UnifiedConsole:
 # Global instances for easy access
 console_manager = RichConsoleManager()
 unified_console = UnifiedConsole()
+
+# ===== Global Helper Functions for Easy Import =====
+
+def get_console(settings=None) -> UnifiedConsole:
+    """
+    Get a UnifiedConsole instance with proper settings.
+    Use this in modules that need console output.
+    
+    Args:
+        settings: Optional Settings object for configuration
+        
+    Returns:
+        UnifiedConsole: Configured console instance
+    """
+    return UnifiedConsole(settings)
+
+def get_rich_console(settings=None) -> RichConsoleManager:
+    """
+    Get a RichConsoleManager instance for advanced Rich features.
+    Use this when you need progress bars, tables, or complex formatting.
+    
+    Args:
+        settings: Optional Settings object for configuration
+        
+    Returns:
+        RichConsoleManager: Rich console manager instance
+    """
+    return RichConsoleManager()
+
+# ===== CLI Helper Functions =====
+
+def cli_print(message: str, style: str = None, emoji: str = None):
+    """
+    CLI-optimized print function that uses Rich Console formatting.
+    Replaces typer.echo for consistent Rich integration.
+    
+    Args:
+        message: Message to print
+        style: Rich style (e.g., 'bold green', 'red', 'cyan')
+        emoji: Emoji prefix to add
+    """
+    if emoji:
+        message = f"{emoji} {message}"
+    
+    if style:
+        console_manager.console.print(message, style=style)
+    else:
+        console_manager.console.print(message)
+
+def cli_success(message: str):
+    """Print success message with consistent styling"""
+    cli_print(message, style="bold green", emoji="✅")
+
+def cli_error(message: str):
+    """Print error message with consistent styling"""
+    cli_print(message, style="bold red", emoji="❌")
+
+def cli_warning(message: str):
+    """Print warning message with consistent styling"""
+    cli_print(message, style="bold yellow", emoji="⚠️")
+
+def cli_info(message: str):
+    """Print info message with consistent styling"""
+    cli_print(message, style="bold blue", emoji="ℹ️")
+
+# ===== Test Helper Functions =====
+
+def test_print(message: str, emoji: str = "📝"):
+    """
+    Test-optimized print function for E2E tests.
+    Maintains Rich formatting but optimized for test output.
+    
+    Args:
+        message: Message to print
+        emoji: Emoji prefix (default: 📝)
+    """
+    # Use a simple Rich console for tests to avoid animation delays
+    from rich.console import Console
+    test_console = Console()
+    test_console.print(f"{emoji} {message}")
+
+def test_phase(phase_name: str, emoji: str = "🔍"):
+    """Print test phase header with consistent formatting"""
+    test_print(f"\n=== {phase_name} ===", emoji=emoji)
+
+def test_success(message: str):
+    """Print test success with consistent styling"""
+    test_print(message, emoji="✅")
+
+def test_info(message: str):
+    """Print test info with consistent styling"""  
+    test_print(message, emoji="ℹ️")
+
+# ===== Quick Access Aliases =====
+# For backward compatibility and convenience
+rich_console = console_manager
+console = unified_console

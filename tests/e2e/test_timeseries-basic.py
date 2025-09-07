@@ -110,8 +110,10 @@ class TestTimeseriesBasicE2E:
         
         model = mlflow.pyfunc.load_model(train_result.model_uri)
         
-        # For simplified test, use basic prediction
+        # 모델이 기대하는 전체 스키마에 맞는 테스트 데이터 제공
         test_data = pd.DataFrame({
+            'date': ['2020-04-01', '2020-04-02', '2020-04-03'],
+            'value': [15.0, 16.0, 17.0],  # 타겟 컬럼도 포함 (예측용)
             'external_feature': [0.5, -0.5, 0.0]
         })
         

@@ -133,7 +133,18 @@ def run_inference_pipeline(settings: Settings, run_id: str, data_path: str = Non
             # 4. 예측 실행 (PyfuncWrapper가 내부적으로 스키마 검증을 수행)
             rich_console.log_phase("Model Inference", "🔮")
             with rich_console.progress_tracker("inference", 100, "Running model prediction") as update:
-                predictions_df = model.predict(df)
+                # MLflow predict 호출 후 DataFrame으로 변환
+                predictions_result = model.predict(df)
+                
+                # 결과가 list/array인 경우 DataFrame으로 변환
+                if isinstance(predictions_result, (list, tuple)) or hasattr(predictions_result, 'tolist'):
+                    predictions_df = pd.DataFrame({'prediction': predictions_result}, index=df.index)
+                elif isinstance(predictions_result, pd.DataFrame):
+                    predictions_df = predictions_result
+                else:
+                    # numpy array 등의 경우
+                    predictions_df = pd.DataFrame({'prediction': predictions_result.flatten()}, index=df.index)
+                    
                 update(100)
         
         # 5. 핵심 메타데이터 추가 (추적성 보장)

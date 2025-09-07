@@ -18,7 +18,7 @@ from src.serving.schemas import (
 # 테스트와 실제 서빙 모두에서 사용될 수 있는 최상위 app 객체
 app = FastAPI(
     title="Modern ML Pipeline API",
-    description="Blueprint v17.0 기반 모델 서빙 API",
+    description="MMP 모델 서빙 API",
     version="17.0.0",
     lifespan=lifespan,
 )
@@ -87,7 +87,7 @@ def predict_generic(request: Dict[str, Any]) -> MinimalPredictionResponse:
         logger.error(f"단일 예측 중 오류 발생: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-# 🆕 Blueprint v17.0: 모델 메타데이터 자기 기술 엔드포인트들
+# 모델 메타데이터 자기 기술 엔드포인트들
     
 @app.get("/model/metadata", response_model=ModelMetadataResponse, tags=["Model Metadata"])
 def get_model_metadata() -> ModelMetadataResponse:
@@ -126,7 +126,7 @@ def run_api_server(settings: Settings, run_id: str, host: str = "0.0.0.0", port:
     """
     FastAPI 서버를 실행하고, Lifespan 이벤트를 통해 모델을 로드합니다.
     """
-    # Blueprint 원칙 9: 환경별 기능 분리 - API 서빙 시스템적 차단
+    # 환경별 기능 분리 - API 서빙 시스템적 차단
     if hasattr(settings, 'serving') and settings.serving and not getattr(settings.serving, 'enabled', True):
         logger.error(f"'{settings.environment.env_name}' 환경에서는 API 서빙이 비활성화되어 있습니다.")
         return
