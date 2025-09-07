@@ -152,14 +152,27 @@ class InteractiveConfigBuilder:
         
         self.ui.print_divider()
         
-        # 6. 추가 설정
-        self.ui.show_info("추가 설정")
+        # 6. Output targets 설정
+        self.ui.show_info("Output 저장 설정")
+        # Inference output
+        infer_enabled = self.ui.confirm("배치 추론 결과를 저장하시겠습니까?", default=True)
+        selections["inference_output_enabled"] = infer_enabled
+        if infer_enabled:
+            infer_source = self.ui.select_from_list(
+                "추론 결과 저장 데이터 소스를 선택하세요",
+                ["PostgreSQL", "BigQuery", "Local Files", "S3", "GCS"]
+            )
+            selections["inference_output_source"] = infer_source
         
-        # Serving 설정
-        enable_serving = self.ui.confirm("API Serving을 활성화하시겠습니까?", default=False)
-        selections["enable_serving"] = enable_serving
-        # Serving port는 .env 파일에서 설정
-        
+        # Preprocessed output
+        preproc_enabled = self.ui.confirm("전처리 완료 결과를 저장하시겠습니까?", default=True)
+        selections["preproc_output_enabled"] = preproc_enabled
+        if preproc_enabled:
+            preproc_source = self.ui.select_from_list(
+                "전처리 결과 저장 데이터 소스를 선택하세요",
+                ["PostgreSQL", "BigQuery", "Local Files", "S3", "GCS"]
+            )
+            selections["preproc_output_source"] = preproc_source
         
         self.ui.print_divider()
         
@@ -186,6 +199,8 @@ MLflow 사용: {'예' if selections.get('use_mlflow') else '아니오'}
 Feature Store: {selections.get('feature_store', '없음')}
 Artifact Storage: {selections.get('artifact_storage', 'Local')}
 API Serving: {'활성화' if selections.get('enable_serving') else '비활성화'}
+Inference Output: {selections.get('inference_output_source', 'Disabled' if not selections.get('inference_output_enabled', True) else 'Local Files')}
+Preprocessed Output: {selections.get('preproc_output_source', 'Disabled' if not selections.get('preproc_output_enabled', True) else 'Local Files')}
 """
         self.ui.show_panel(summary, title="📋 설정 요약", style="cyan")
     
@@ -261,6 +276,12 @@ API Serving: {'활성화' if selections.get('enable_serving') else '비활성화
         # 기본값 설정
         context.setdefault("serving_workers", 1)
         context.setdefault("model_stage", "None")
+        
+        # Output sources (템플릿 분기용)
+        if selections.get("inference_output_enabled", True):
+            context["inference_output_source"] = selections.get("inference_output_source", "Local Files")
+        if selections.get("preproc_output_enabled", True):
+            context["preproc_output_source"] = selections.get("preproc_output_source", "Local Files")
         
         return context
     
@@ -431,7 +452,7 @@ API Serving: {'활성화' if selections.get('enable_serving') else '비활성화
                 "MLFLOW_ARTIFACT_PATH=./mlruns/artifacts",
                 "",
             ])
-
+        
         # API Serving 설정
         if selections.get("enable_serving"):
             lines.extend([
@@ -442,5 +463,98 @@ API Serving: {'활성화' if selections.get('enable_serving') else '비활성화
                 "",
             ])
         
+        # Output: Inference
+        infer_enabled = selections.get("inference_output_enabled", True)
+        lines.extend([
+            "# Inference Output",
+            f"INFER_OUTPUT_ENABLED={'true' if infer_enabled else 'false'}",
+        ])
+        if infer_enabled:
+            infer_src = selections.get("inference_output_source", "Local Files")
+            if infer_src == "Local Files":
+                lines.extend([
+                    "INFER_OUTPUT_BASE_PATH=./artifacts/predictions",
+                    "",
+                ])
+            elif infer_src == "S3":
+                lines.extend([
+                    "INFER_OUTPUT_S3_BUCKET=mmp-out",
+                    f"INFER_OUTPUT_S3_PREFIX={selections['env_name']}/preds",
+                    "# AWS credentials (if not already set above)",
+                    "AWS_ACCESS_KEY_ID=",
+                    "AWS_SECRET_ACCESS_KEY=",
+                    "AWS_REGION=us-east-1",
+                    "",
+                ])
+            elif infer_src == "GCS":
+                lines.extend([
+                    "INFER_OUTPUT_GCS_BUCKET=mmp-out",
+                    f"INFER_OUTPUT_GCS_PREFIX={selections['env_name']}/preds",
+                    "# GCP credentials (if not already set above)",
+                    "GCP_PROJECT_ID=",
+                    "GOOGLE_APPLICATION_CREDENTIALS=",
+                    "",
+                ])
+            elif infer_src == "PostgreSQL":
+                lines.extend([
+                    f"INFER_OUTPUT_PG_TABLE=predictions_{selections['env_name']}",
+                    "# Reuse DB_* settings above",
+                    "",
+                ])
+            else:  # BigQuery
+                lines.extend([
+                    "INFER_OUTPUT_BQ_DATASET=analytics",
+                    f"INFER_OUTPUT_BQ_TABLE=predictions_{selections['env_name']}",
+                    "# Reuse GCP credentials above",
+                    "BQ_LOCATION=US",
+                    "",
+                ])
+        
+        # Output: Preprocessed
+        preproc_enabled = selections.get("preproc_output_enabled", True)
+        lines.extend([
+            "# Preprocessed Output",
+            f"PREPROC_OUTPUT_ENABLED={'true' if preproc_enabled else 'false'}",
+        ])
+        if preproc_enabled:
+            pre_src = selections.get("preproc_output_source", "Local Files")
+            if pre_src == "Local Files":
+                lines.extend([
+                    "PREPROC_OUTPUT_BASE_PATH=./artifacts/preprocessed",
+                    "",
+                ])
+            elif pre_src == "S3":
+                lines.extend([
+                    "PREPROC_OUTPUT_S3_BUCKET=mmp-out",
+                    f"PREPROC_OUTPUT_S3_PREFIX={selections['env_name']}/preproc",
+                    "# AWS credentials (if not already set above)",
+                    "AWS_ACCESS_KEY_ID=",
+                    "AWS_SECRET_ACCESS_KEY=",
+                    "AWS_REGION=us-east-1",
+                    "",
+                ])
+            elif pre_src == "GCS":
+                lines.extend([
+                    "PREPROC_OUTPUT_GCS_BUCKET=mmp-out",
+                    f"PREPROC_OUTPUT_GCS_PREFIX={selections['env_name']}/preproc",
+                    "# GCP credentials (if not already set above)",
+                    "GCP_PROJECT_ID=",
+                    "GOOGLE_APPLICATION_CREDENTIALS=",
+                    "",
+                ])
+            elif pre_src == "PostgreSQL":
+                lines.extend([
+                    f"PREPROC_OUTPUT_PG_TABLE=preprocessed_{selections['env_name']}",
+                    "# Reuse DB_* settings above",
+                    "",
+                ])
+            else:  # BigQuery
+                lines.extend([
+                    "PREPROC_OUTPUT_BQ_DATASET=feature_store",
+                    f"PREPROC_OUTPUT_BQ_TABLE=preprocessed_{selections['env_name']}",
+                    "# Reuse GCP credentials above",
+                    "BQ_LOCATION=US",
+                    "",
+                ])
         
         return "\n".join(lines)

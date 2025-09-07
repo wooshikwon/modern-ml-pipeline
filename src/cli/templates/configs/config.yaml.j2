@@ -155,18 +155,10 @@ output:
     config:
       {%- if inference_output_source == "Local Files" %}
       base_path: "${INFER_OUTPUT_BASE_PATH:./artifacts/predictions}"
-      storage_options: {}
       {%- elif inference_output_source == "S3" %}
       base_path: "s3://${INFER_OUTPUT_S3_BUCKET:mmp-out}/${INFER_OUTPUT_S3_PREFIX:{{ env_name }}/preds}"
-      storage_options:
-        aws_access_key_id: "${AWS_ACCESS_KEY_ID:}"
-        aws_secret_access_key: "${AWS_SECRET_ACCESS_KEY:}"
-        region_name: "${AWS_REGION:us-east-1}"
       {%- elif inference_output_source == "GCS" %}
       base_path: "gs://${INFER_OUTPUT_GCS_BUCKET:mmp-out}/${INFER_OUTPUT_GCS_PREFIX:{{ env_name }}/preds}"
-      storage_options:
-        project: "${GCP_PROJECT_ID:{{ gcp_project|default('') }}}"
-        token: "${GOOGLE_APPLICATION_CREDENTIALS:}"
       {%- endif %}
     {%- elif inference_output_source == "PostgreSQL" %}
     adapter_type: sql
@@ -190,18 +182,10 @@ output:
     config:
       {%- if preproc_output_source == "Local Files" %}
       base_path: "${PREPROC_OUTPUT_BASE_PATH:./artifacts/preprocessed}"
-      storage_options: {}
       {%- elif preproc_output_source == "S3" %}
       base_path: "s3://${PREPROC_OUTPUT_S3_BUCKET:mmp-out}/${PREPROC_OUTPUT_S3_PREFIX:{{ env_name }}/preproc}"
-      storage_options:
-        aws_access_key_id: "${AWS_ACCESS_KEY_ID:}"
-        aws_secret_access_key: "${AWS_SECRET_ACCESS_KEY:}"
-        region_name: "${AWS_REGION:us-east-1}"
       {%- elif preproc_output_source == "GCS" %}
       base_path: "gs://${PREPROC_OUTPUT_GCS_BUCKET:mmp-out}/${PREPROC_OUTPUT_GCS_PREFIX:{{ env_name }}/preproc}"
-      storage_options:
-        project: "${GCP_PROJECT_ID:{{ gcp_project|default('') }}}"
-        token: "${GOOGLE_APPLICATION_CREDENTIALS:}"
       {%- endif %}
     {%- elif preproc_output_source == "PostgreSQL" %}
     adapter_type: sql

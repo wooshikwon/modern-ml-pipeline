@@ -10,17 +10,18 @@ from src.utils.system.logger import logger  # ✅ logger import 추가
 def split_data(df: pd.DataFrame, settings: Settings) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """Train/Test 분할 (조건부 stratify)"""
     data_interface = settings.recipe.data.data_interface  # ✅ 경로 수정
+    task_choice = settings.recipe.task_choice
     test_size = 0.2
 
     stratify_series = None
-    if data_interface.task_type == "classification":
+    if task_choice == "classification":
         target_col = data_interface.target_column
         if target_col in df.columns:
             counts = df[target_col].value_counts()
             # 각 클래스 최소 2개, 테스트 셋에 최소 1개 이상 들어갈 수 있는지 확인
             if len(counts) >= 2 and counts.min() >= 2 and int(len(df) * test_size) >= 1:
                 stratify_series = df[target_col]
-    elif data_interface.task_type == "causal":
+    elif task_choice == "causal":
         treatment_col = data_interface.treatment_column
         if treatment_col in df.columns:
             counts = df[treatment_col].value_counts()
@@ -33,14 +34,15 @@ def split_data(df: pd.DataFrame, settings: Settings) -> Tuple[pd.DataFrame, pd.D
     return train_df, test_df
 
 
-def _get_stratify_column_data(df: pd.DataFrame, data_interface):
+def _get_stratify_column_data(df: pd.DataFrame, settings: Settings):
     """Stratify용 컬럼 데이터 추출"""
-    task_type = data_interface.task_type
+    data_interface = settings.recipe.data.data_interface
+    task_choice = settings.recipe.task_choice
     
-    if task_type == "classification":
+    if task_choice == "classification":
         target_col = data_interface.target_column
         return df[target_col] if target_col in df.columns else None
-    elif task_type == "causal":
+    elif task_choice == "causal":
         treatment_col = data_interface.treatment_column
         return df[treatment_col] if treatment_col in df.columns else None
     else:
@@ -78,10 +80,10 @@ def _get_exclude_columns(settings: Settings, df: pd.DataFrame) -> list:
 def prepare_training_data(df: pd.DataFrame, settings: Settings) -> Tuple[pd.DataFrame, pd.Series, Dict[str, Any]]:
     """동적 데이터 준비 + feature_columns null 처리"""
     data_interface = settings.recipe.data.data_interface  # ✅ 경로 수정
-    task_type = data_interface.task_type
+    task_choice = settings.recipe.task_choice
     exclude_cols = _get_exclude_columns(settings, df)
     
-    if task_type in ["classification", "regression"]:
+    if task_choice in ["classification", "regression"]:
         target_col = data_interface.target_column
         
         # ✅ feature_columns null 처리 로직
@@ -116,7 +118,7 @@ def prepare_training_data(df: pd.DataFrame, settings: Settings) -> Tuple[pd.Data
         y = df[target_col]
         additional_data = {}
         
-    elif task_type == "clustering":
+    elif task_choice == "clustering":
         # ✅ feature_columns null 처리
         if data_interface.feature_columns is None:
             auto_exclude = exclude_cols
@@ -141,7 +143,7 @@ def prepare_training_data(df: pd.DataFrame, settings: Settings) -> Tuple[pd.Data
         y = None
         additional_data = {}
         
-    elif task_type == "causal":
+    elif task_choice == "causal":
         target_col = data_interface.target_column
         treatment_col = data_interface.treatment_column
         
@@ -172,7 +174,7 @@ def prepare_training_data(df: pd.DataFrame, settings: Settings) -> Tuple[pd.Data
             'treatment_value': getattr(data_interface, 'treatment_value', 1)
         }
     else:
-        raise ValueError(f"지원하지 않는 task_type: {task_type}")
+        raise ValueError(f"지원하지 않는 task_choice: {task_choice}")
     
     return X, y, additional_data
 
