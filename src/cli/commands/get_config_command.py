@@ -1,11 +1,5 @@
 """
 Get-Config Command Implementation
-Phase 3: Enhanced interactive configuration generation
-
-CLAUDE.md 원칙 준수:
-- 타입 힌트 필수
-- Google Style Docstring
-- 대화형 인터페이스
 """
 
 from typing import Optional

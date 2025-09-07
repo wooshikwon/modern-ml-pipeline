@@ -338,7 +338,7 @@ class TestIntegration:
         recipe = RecipeBuilder.build(
             name="prod_model",
             model_class_path="xgboost.XGBClassifier",
-            task_type="classification"
+            task_choice="classification"
         )
         
         mock_load_config.return_value = config
@@ -353,7 +353,7 @@ class TestIntegration:
         assert settings.config.environment.name == "production"
         assert settings.config.mlflow.tracking_uri == "http://mlflow.prod.com"
         assert settings.recipe.name == "prod_model"
-        assert settings.recipe.get_task_type() == "classification"
+        assert settings.recipe.task_choice == "classification"
     
     def test_config_recipe_compatibility_checks(self):
         """Test various config-recipe compatibility scenarios."""
@@ -381,11 +381,11 @@ class TestIntegration:
         assert settings is not None
         
         # Scenario 3: Different ML tasks
-        recipe_regression = RecipeBuilder.build(task_type="regression")
-        recipe_classification = RecipeBuilder.build(task_type="classification")
+        recipe_regression = RecipeBuilder.build(task_choice="regression")
+        recipe_classification = RecipeBuilder.build(task_choice="classification")
         
         settings_reg = Settings(config=config_none, recipe=recipe_regression)
         settings_cls = Settings(config=config_none, recipe=recipe_classification)
         
-        assert settings_reg.recipe.get_task_type() == "regression"
-        assert settings_cls.recipe.get_task_type() == "classification"
+        assert settings_reg.recipe.task_choice == "regression"
+        assert settings_cls.recipe.task_choice == "classification"

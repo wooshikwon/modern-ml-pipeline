@@ -89,7 +89,7 @@ class IntegratedPreprocessorRecipeBuilder:
                 'loader': {'source_uri': './data/test.csv'},
                 'fetcher': {'type': 'pass_through'},
                 'data_interface': {
-                    'task_type': 'classification',
+                    'task_choice': 'classification',
                     'target_column': 'target',
                     'entity_columns': ['user_id']
                 }
@@ -152,7 +152,7 @@ class IntegratedPreprocessorRecipeBuilder:
                 'loader': {'source_uri': './data/test.csv'},
                 'fetcher': {'type': 'pass_through'},
                 'data_interface': {
-                    'task_type': 'classification',
+                    'task_choice': 'classification',
                     'target_column': 'target',
                     'entity_columns': ['user_id']
                 }
@@ -211,7 +211,7 @@ class TestFeatureGenerationIntegration:
                 'loader': {'source_uri': './data/test.csv'},
                 'fetcher': {'type': 'pass_through'},
                 'data_interface': {
-                    'task_type': 'classification',
+                    'task_choice': 'classification',
                     'target_column': 'target',
                     'entity_columns': ['user_id']
                 }
@@ -282,7 +282,7 @@ class TestFeatureGenerationIntegration:
                 'loader': {'source_uri': './data/test.csv'},
                 'fetcher': {'type': 'pass_through'},
                 'data_interface': {
-                    'task_type': 'classification',
+                    'task_choice': 'classification',
                     'target_column': 'target',
                     'entity_columns': ['user_id']
                 }
@@ -405,7 +405,7 @@ class TestDiscretizationIntegration:
                 'loader': {'source_uri': './data/test.csv'},
                 'fetcher': {'type': 'pass_through'},
                 'data_interface': {
-                    'task_type': 'classification',
+                    'task_choice': 'classification',
                     'target_column': 'target',
                     'entity_columns': ['user_id']
                 }
@@ -534,7 +534,7 @@ class TestComplexIntegratedPipeline:
                 'loader': {'source_uri': './data/test.csv'},
                 'fetcher': {'type': 'pass_through'},
                 'data_interface': {
-                    'task_type': 'classification',
+                    'task_choice': 'classification',
                     'target_column': 'target',
                     'entity_columns': ['user_id']
                 }
@@ -614,7 +614,7 @@ class TestRobustnessAndEdgeCases:
                 'loader': {'source_uri': './data/test.csv'},
                 'fetcher': {'type': 'pass_through'},
                 'data_interface': {
-                    'task_type': 'classification',
+                    'task_choice': 'classification',
                     'target_column': 'target',
                     'entity_columns': ['user_id']
                 }
@@ -673,7 +673,7 @@ class TestRobustnessAndEdgeCases:
                 'loader': {'source_uri': './data/test.csv'},
                 'fetcher': {'type': 'pass_through'},
                 'data_interface': {
-                    'task_type': 'classification',
+                    'task_choice': 'classification',
                     'target_column': 'target',
                     'entity_columns': ['user_id']
                 }

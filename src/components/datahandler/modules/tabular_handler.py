@@ -7,10 +7,15 @@ from sklearn.model_selection import train_test_split
 from src.interface import BaseDataHandler
 from ..registry import DataHandlerRegistry
 from src.utils.system.logger import logger
+from src.utils.system.console_manager import UnifiedConsole
 
 
 class TabularDataHandler(BaseDataHandler):
     """전통적인 테이블 형태 ML을 위한 데이터 핸들러 (classification, regression, clustering, causal)"""
+    
+    def __init__(self, settings, data_interface):
+        super().__init__(settings, data_interface)
+        self.console = UnifiedConsole(settings)
     
     def split_data(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """Train/Test 분할 (조건부 stratify) - 기존 split_data() 로직"""
@@ -62,7 +67,8 @@ class TabularDataHandler(BaseDataHandler):
                 auto_exclude.append(self.data_interface.treatment_column)
             
             X = df.drop(columns=[c for c in auto_exclude if c in df.columns])
-            logger.info(f"Feature columns 자동 선택: {list(X.columns)}")
+            self.console.info(f"Feature columns 자동 선택: {list(X.columns)}",
+                            rich_message=f"   🎯 Auto-selected features: [green]{len(X.columns)}[/green] columns")
         else:
             # 명시적 선택 - 금지된 컬럼 validation
             forbidden_cols = [target_col] + exclude_cols
@@ -94,7 +100,8 @@ class TabularDataHandler(BaseDataHandler):
         if self.data_interface.feature_columns is None:
             auto_exclude = exclude_cols
             X = df.drop(columns=[c for c in auto_exclude if c in df.columns])
-            logger.info(f"Feature columns 자동 선택 (clustering): {list(X.columns)}")
+            self.console.info(f"Feature columns 자동 선택 (clustering): {list(X.columns)}",
+                            rich_message=f"   🎯 Auto-selected clustering features: [green]{len(X.columns)}[/green] columns")
         else:
             # 명시적 선택 - 금지된 컬럼 validation
             forbidden_cols = exclude_cols  # entity, timestamp 컬럼만
@@ -125,7 +132,8 @@ class TabularDataHandler(BaseDataHandler):
         if self.data_interface.feature_columns is None:
             auto_exclude = [target_col, treatment_col] + exclude_cols
             X = df.drop(columns=[c for c in auto_exclude if c in df.columns])
-            logger.info(f"Feature columns 자동 선택 (causal): {list(X.columns)}")
+            self.console.info(f"Feature columns 자동 선택 (causal): {list(X.columns)}",
+                            rich_message=f"   🎯 Auto-selected causal features: [green]{len(X.columns)}[/green] columns")
         else:
             # 명시적 선택 - 금지된 컬럼 validation
             forbidden_cols = [target_col, treatment_col] + exclude_cols
@@ -195,15 +203,19 @@ class TabularDataHandler(BaseDataHandler):
                 })
         
         if missing_info:
-            logger.warning("⚠️  결측치가 많은 컬럼이 발견되었습니다:")
+            self.console.warning("결측치가 많은 컬럼이 발견되었습니다",
+                               rich_message=f"⚠️  Found [red]{len(missing_info)}[/red] columns with high missing values")
             for info in missing_info:
-                logger.warning(
-                    f"   - {info['column']}: {info['missing_count']:,}개 ({info['missing_ratio']:.1%}) "
-                    f"/ 전체 {info['total_rows']:,}개 행"
+                self.console.warning(
+                    f"   - {info['column']}: {info['missing_count']:,}개 ({info['missing_ratio']:.1%}) / 전체 {info['total_rows']:,}개 행",
+                    rich_message=f"     [yellow]{info['column']}[/yellow]: [red]{info['missing_ratio']:.1%}[/red] missing"
                 )
-            logger.warning("   💡 전처리 단계에서 결측치 처리를 고려해보세요 (Imputation, 컬럼 제거 등)")
+            self.console.warning("전처리 단계에서 결측치 처리를 고려해보세요",
+                               rich_message="💡 Consider handling missing values in preprocessing (Imputation, column removal, etc.)",
+                               suggestion="Add imputation steps or remove high-missing columns in preprocessing")
         else:
-            logger.info(f"✅ 모든 특성 컬럼의 결측치 비율이 {threshold:.0%} 미만입니다.")
+            self.console.info(f"모든 특성 컬럼의 결측치 비율이 {threshold:.0%} 미만입니다.",
+                            rich_message=f"✅ All feature columns have <{threshold:.0%} missing values")
 
 
 # Self-registration

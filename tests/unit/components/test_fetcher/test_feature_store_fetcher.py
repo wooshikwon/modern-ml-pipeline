@@ -157,7 +157,7 @@ class TestFeatureStoreFetcherTrainMode:
         # Data interface (new structure)
         mock_settings.recipe.data.data_interface = Mock()
         mock_settings.recipe.data.data_interface.entity_columns = ['user_id']
-        mock_settings.recipe.data.data_interface.task_type = 'classification'
+        mock_settings.recipe.data.data_interface.task_choice='classification'
         mock_settings.recipe.data.data_interface.target_column = 'target'
         mock_settings.recipe.data.data_interface.treatment_column = None
         
@@ -202,7 +202,7 @@ class TestFeatureStoreFetcherServingMode:
         # Data interface for serving
         mock_settings.recipe.data.data_interface = Mock()
         mock_settings.recipe.data.data_interface.entity_columns = ['user_id']
-        mock_settings.recipe.data.data_interface.task_type = 'classification'
+        mock_settings.recipe.data.data_interface.task_choice='classification'
         mock_settings.recipe.data.data_interface.target_column = 'target'
         mock_settings.recipe.data.data_interface.treatment_column = None
         
@@ -241,7 +241,7 @@ class TestFeatureStoreFetcherServingMode:
         
         mock_settings.recipe.data.data_interface = Mock()
         mock_settings.recipe.data.data_interface.entity_columns = ['user_id', 'session_id']
-        mock_settings.recipe.data.data_interface.task_type = 'classification'
+        mock_settings.recipe.data.data_interface.task_choice='classification'
         mock_settings.recipe.data.data_interface.target_column = 'target'
         mock_settings.recipe.data.data_interface.treatment_column = None
         
@@ -288,7 +288,7 @@ class TestFeatureStoreFetcherValidation:
         mock_settings.recipe.data = Mock()
         mock_settings.recipe.data.data_interface = Mock()
         mock_settings.recipe.data.data_interface.entity_columns = ['id']
-        mock_settings.recipe.data.data_interface.task_type = 'classification'
+        mock_settings.recipe.data.data_interface.task_choice='classification'
         mock_settings.recipe.data.data_interface.target_column = 'target'
         mock_settings.recipe.data.data_interface.treatment_column = None
         mock_settings.recipe.data.fetcher = None
@@ -313,7 +313,7 @@ class TestFeatureStoreFetcherValidation:
         # Data interface config
         mock_settings.recipe.data.data_interface = Mock()
         mock_settings.recipe.data.data_interface.entity_columns = ['user_id']
-        mock_settings.recipe.data.data_interface.task_type = 'classification'
+        mock_settings.recipe.data.data_interface.task_choice='classification'
         mock_settings.recipe.data.data_interface.target_column = 'target'
         mock_settings.recipe.data.data_interface.treatment_column = None
         
@@ -350,7 +350,7 @@ class TestFeatureStoreFetcherDataInterfaceConfig:
         # Data interface with treatment column (causal inference)
         mock_settings.recipe.data.data_interface = Mock()
         mock_settings.recipe.data.data_interface.entity_columns = ['user_id', 'item_id']
-        mock_settings.recipe.data.data_interface.task_type = 'causal_inference'
+        mock_settings.recipe.data.data_interface.task_choice='causal_inference'
         mock_settings.recipe.data.data_interface.target_column = 'outcome'
         mock_settings.recipe.data.data_interface.treatment_column = 'treatment'
         
@@ -374,7 +374,7 @@ class TestFeatureStoreFetcherDataInterfaceConfig:
         data_interface_config = call_args[1]['data_interface_config']
         
         assert data_interface_config['entity_columns'] == ['user_id', 'item_id']
-        assert data_interface_config['task_type'] == 'causal_inference'
+        assert data_interface_config['task_choice'] == 'causal_inference'
         assert data_interface_config['target_column'] == 'outcome'
         assert data_interface_config['treatment_column'] == 'treatment'
         assert data_interface_config['timestamp_column'] == 'event_timestamp'
@@ -388,7 +388,7 @@ class TestFeatureStoreFetcherDataInterfaceConfig:
         
         mock_settings.recipe.data.data_interface = Mock()
         mock_settings.recipe.data.data_interface.entity_columns = ['id']
-        mock_settings.recipe.data.data_interface.task_type = 'regression'
+        mock_settings.recipe.data.data_interface.task_choice='regression'
         mock_settings.recipe.data.data_interface.target_column = 'target'
         # Remove treatment_column attribute if it exists to simulate missing attribute
         if hasattr(mock_settings.recipe.data.data_interface, 'treatment_column'):
@@ -425,7 +425,7 @@ class TestFeatureStoreFetcherLogging:
         mock_settings.recipe.data = Mock()
         mock_settings.recipe.data.data_interface = Mock()
         mock_settings.recipe.data.data_interface.entity_columns = ['id']
-        mock_settings.recipe.data.data_interface.task_type = 'classification'
+        mock_settings.recipe.data.data_interface.task_choice='classification'
         mock_settings.recipe.data.data_interface.target_column = 'target'
         mock_settings.recipe.data.data_interface.treatment_column = None
         mock_settings.recipe.data.fetcher = None
@@ -477,7 +477,7 @@ class TestFeatureStoreFetcherLogging:
         
         mock_settings.recipe.data.data_interface = Mock()
         mock_settings.recipe.data.data_interface.entity_columns = ['user_id']
-        mock_settings.recipe.data.data_interface.task_type = 'classification'
+        mock_settings.recipe.data.data_interface.task_choice='classification'
         mock_settings.recipe.data.data_interface.target_column = 'target'
         mock_settings.recipe.data.data_interface.treatment_column = None
         
@@ -516,7 +516,7 @@ class TestFeatureStoreFetcherIntegration:
         # Multi-entity scenario
         mock_settings.recipe.data.data_interface = Mock()
         mock_settings.recipe.data.data_interface.entity_columns = ['user_id', 'product_id']
-        mock_settings.recipe.data.data_interface.task_type = 'recommendation'
+        mock_settings.recipe.data.data_interface.task_choice='recommendation'
         mock_settings.recipe.data.data_interface.target_column = 'rating'
         mock_settings.recipe.data.data_interface.treatment_column = None
         

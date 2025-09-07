@@ -17,7 +17,7 @@ class TrainerDataBuilder(DataFrameBuilder):
     """
     
     @staticmethod
-    def build_edge_case_small_dataset(task_type: str = "classification", n_samples: int = 3) -> pd.DataFrame:
+    def build_edge_case_small_dataset(task_choice: str = "classification", n_samples: int = 3) -> pd.DataFrame:
         """
         작은 데이터셋 생성 (stratify 불가능한 경우 테스트용)
         
@@ -25,7 +25,7 @@ class TrainerDataBuilder(DataFrameBuilder):
             task_type: classification, regression, clustering, causal
             n_samples: 샘플 수 (기본 3개)
         """
-        if task_type == "classification":
+        if task_choice == "classification":
             return DataFrameBuilder.build_classification_data(
                 n_samples=n_samples, 
                 n_features=2, 
@@ -33,14 +33,14 @@ class TrainerDataBuilder(DataFrameBuilder):
                 add_entity_column=True,
                 random_state=42
             )
-        elif task_type == "regression":
+        elif task_choice == "regression":
             return DataFrameBuilder.build_regression_data(
                 n_samples=n_samples,
                 n_features=2,
                 add_entity_column=True, 
                 random_state=42
             )
-        elif task_type == "clustering":
+        elif task_choice == "clustering":
             return DataFrameBuilder.build_clustering_data(
                 n_samples=n_samples,
                 n_features=2,
@@ -48,7 +48,7 @@ class TrainerDataBuilder(DataFrameBuilder):
                 add_entity_column=True,
                 random_state=42
             )
-        elif task_type == "causal":
+        elif task_choice == "causal":
             return DataFrameBuilder.build_causal_data(
                 n_samples=n_samples,
                 n_features=2,
@@ -228,7 +228,7 @@ class TrainerDataBuilder(DataFrameBuilder):
         
     @staticmethod  
     def build_data_for_task_type(
-        task_type: str,
+        task_choice: str,
         n_samples: int = 20,
         add_entity_columns: Optional[List[str]] = None,
         add_timestamp: bool = False,
@@ -239,28 +239,28 @@ class TrainerDataBuilder(DataFrameBuilder):
         data_interface 설정과 매칭되는 구조
         """
         # 기본 데이터 생성
-        if task_type == "classification":
+        if task_choice == "classification":
             base_data = DataFrameBuilder.build_classification_data(
                 n_samples=n_samples, 
                 add_entity_column=False,
                 add_timestamp=add_timestamp,
                 random_state=42
             )
-        elif task_type == "regression":
+        elif task_choice == "regression":
             base_data = DataFrameBuilder.build_regression_data(
                 n_samples=n_samples,
                 add_entity_column=False, 
                 add_timestamp=add_timestamp,
                 random_state=42
             )
-        elif task_type == "clustering":
+        elif task_choice == "clustering":
             base_data = DataFrameBuilder.build_clustering_data(
                 n_samples=n_samples,
                 add_entity_column=False,
                 add_timestamp=add_timestamp,
                 random_state=42
             )
-        elif task_type == "causal":
+        elif task_choice == "causal":
             base_data = DataFrameBuilder.build_causal_data(
                 n_samples=n_samples,
                 add_entity_column=False,

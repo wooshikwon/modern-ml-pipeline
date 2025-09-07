@@ -4,6 +4,7 @@
 # Model: {{ model_class }}
 
 name: {{ recipe_name }}
+task_choice: {{ task|lower }}
 
 model:
   class_path: {{ model_class }}
@@ -56,7 +57,6 @@ data:
   
   # Data interface 설정
   data_interface:
-    task_type: {{ task|lower }}
     target_column: {{ target_column }}
     {% if task|lower == "causal" %}
     treatment_column: {{ treatment_column }}  # 처치 변수 (causal task 전용)

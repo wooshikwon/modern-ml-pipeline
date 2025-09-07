@@ -74,61 +74,60 @@ def run_train_pipeline(settings: Settings, context_params: Optional[Dict[str, An
                 evaluator=evaluator,
                 context_params=context_params,
             )
-        
-        # 4. 결과 로깅 (확장)
-        if metrics:  # 🔄 수정: 'metrics' key가 아닌 직접 metrics 객체 사용
-            mlflow.log_metrics(metrics)
-        
-        # 🆕 하이퍼파라미터 최적화 결과 로깅
-        if 'hyperparameter_optimization' in training_results:
-            hpo_result = training_results['hyperparameter_optimization']
-            if hpo_result['enabled']:
-                mlflow.log_params(hpo_result['best_params'])
-                mlflow.log_metric('best_score', hpo_result['best_score'])
-                mlflow.log_metric('total_trials', hpo_result['total_trials'])
+            
+            # 4. 결과 로깅 및 평가
+            console.log_phase("Evaluation & Logging", "📊")
+            
+            if metrics:
+                mlflow.log_metrics(metrics)
+                console.display_metrics_table(metrics, "Model Performance Metrics")
+            
+            # 🆕 하이퍼파라미터 최적화 결과 로깅
+            if 'hyperparameter_optimization' in training_results:
+                hpo_result = training_results['hyperparameter_optimization']
+                if hpo_result['enabled']:
+                    mlflow.log_params(hpo_result['best_params'])
+                    mlflow.log_metric('best_score', hpo_result['best_score'])
+                    mlflow.log_metric('total_trials', hpo_result['total_trials'])
 
-        # 5. 🔄 Phase 5: Enhanced PyfuncWrapper 생성 (training_df + datahandler 추가)
-        pyfunc_wrapper = factory.create_pyfunc_wrapper(
-            trained_model=trained_model,
-            trained_datahandler=datahandler,  # 추론 시 재현성을 위한 DataHandler
-            trained_preprocessor=trained_preprocessor,
-            trained_fetcher=fetcher, # 학습에 사용된 fetcher를 직접 전달
-            training_df=df,
-            training_results=training_results,
-        )
-        
-        # 6. 🆕 Phase 5: Enhanced Model + 완전한 메타데이터 저장
-        logger.info("🆕 Phase 5: Enhanced Artifact 저장 중...")
-        
-        # 모델 저장 시점의 패키지 의존성 캡처
-        pip_reqs = get_pip_requirements()
-        
-        # Signature와 data_schema 검증
-        if not (pyfunc_wrapper.signature and pyfunc_wrapper.data_schema):
-            raise ValueError("Failed to generate signature and data_schema. This should not happen.")
-        
-        # Phase 5 Enhanced 저장 로직 사용
-        from src.utils.integrations.mlflow_integration import log_enhanced_model_with_schema
-        
-        log_enhanced_model_with_schema(
-            python_model=pyfunc_wrapper,
-            signature=pyfunc_wrapper.signature,
-            data_schema=pyfunc_wrapper.data_schema,
-            input_example=df.head(5),  # 입력 예제
-            pip_requirements=pip_reqs
-        )
-        
-        model_name = getattr(settings.recipe.model, 'name', None) or settings.recipe.model.computed['run_name']
-        logger.info(f"✅ Enhanced Artifact '{model_name}' MLflow 저장 완료 (Phase 1-5 통합)")
+            # 5. Enhanced PyfuncWrapper 생성
+            console.log_phase("Model Packaging", "📦")
+            pyfunc_wrapper = factory.create_pyfunc_wrapper(
+                trained_model=trained_model,
+                trained_datahandler=datahandler,  # 추론 시 재현성을 위한 DataHandler
+                trained_preprocessor=trained_preprocessor,
+                trained_fetcher=fetcher, # 학습에 사용된 fetcher를 직접 전달
+                training_df=df,
+                training_results=training_results,
+            )
+            
+            # 6. Enhanced Model + 메타데이터 저장 (RichConsoleManager는 mlflow_integration에서 처리)
+            pip_reqs = get_pip_requirements()
+            
+            # Signature와 data_schema 검증
+            if not (pyfunc_wrapper.signature and pyfunc_wrapper.data_schema):
+                raise ValueError("Failed to generate signature and data_schema. This should not happen.")
+            
+            # Phase 5 Enhanced 저장 로직 사용 (내부에서 RichConsoleManager 사용)
+            from src.utils.integrations.mlflow_integration import log_enhanced_model_with_schema
+            
+            log_enhanced_model_with_schema(
+                python_model=pyfunc_wrapper,
+                signature=pyfunc_wrapper.signature,
+                data_schema=pyfunc_wrapper.data_schema,
+                input_example=df.head(5),  # 입력 예제
+                pip_requirements=pip_reqs
+            )
+            
+            # 7. 메타데이터 저장
+            model_name = getattr(settings.recipe.model, 'name', None) or settings.recipe.model.computed['run_name']
+            metadata = {"run_id": run_id, "model_name": model_name}
+            local_dir = Path("./local/artifacts")
+            local_dir.mkdir(parents=True, exist_ok=True)
+            metadata_path = local_dir / f"metadata-{run_id}.json"
+            with metadata_path.open('w', encoding='utf-8') as f:
+                json.dump(metadata, f, indent=4, default=str)
+            mlflow.log_artifact(str(metadata_path), "metadata")
 
-        # 7. (선택적) 메타데이터 저장
-        metadata = {"run_id": run_id, "model_name": model_name}
-        local_dir = Path("./local/artifacts")
-        local_dir.mkdir(parents=True, exist_ok=True)
-        metadata_path = local_dir / f"metadata-{run_id}.json"
-        with metadata_path.open('w', encoding='utf-8') as f:
-            json.dump(metadata, f, indent=4, default=str)
-        mlflow.log_artifact(str(metadata_path), "metadata")
-
-        # 8. 결과 객체 반환(run_id 및 model_uri 포함)
-        return SimpleNamespace(run_id=run_id, model_uri=f"runs:/{run_id}/model")
+            # 8. 결과 객체 반환(run_id 및 model_uri 포함)
+            return SimpleNamespace(run_id=run_id, model_uri=f"runs:/{run_id}/model")

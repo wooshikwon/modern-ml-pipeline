@@ -383,7 +383,7 @@ class TestFactoryEvaluator:
         mock_settings.recipe = MagicMock()
         mock_settings.recipe.name = "test"
         mock_data_interface = MagicMock()
-        mock_data_interface.task_type = "classification"
+        mock_data_interface.task_choice="classification"
         mock_settings.recipe.data.data_interface = mock_data_interface
         
         mock_evaluator_instance = MagicMock()
@@ -409,7 +409,7 @@ class TestFactoryEvaluator:
         mock_settings.recipe = MagicMock()
         mock_settings.recipe.name = "test"
         mock_data_interface = MagicMock()
-        mock_data_interface.task_type = "unknown_task"
+        mock_data_interface.task_choice="unknown_task"
         mock_settings.recipe.data.data_interface = mock_data_interface
         
         mock_evaluator_registry.create.side_effect = Exception("Unknown evaluator type")
@@ -518,7 +518,7 @@ class TestFactoryDataHandler:
         mock_settings.recipe = MagicMock()
         mock_settings.recipe.name = "test"
         mock_data_interface = MagicMock()
-        mock_data_interface.task_type = "classification"
+        mock_data_interface.task_choice="classification"
         mock_settings.recipe.data.data_interface = mock_data_interface
         
         mock_datahandler_instance = MagicMock()
@@ -544,7 +544,7 @@ class TestFactoryDataHandler:
         mock_settings.recipe = MagicMock()
         mock_settings.recipe.name = "test"
         mock_data_interface = MagicMock()
-        mock_data_interface.task_type = "timeseries"
+        mock_data_interface.task_choice="timeseries"
         mock_settings.recipe.data.data_interface = mock_data_interface
         
         mock_datahandler_instance = MagicMock()
@@ -568,7 +568,7 @@ class TestFactoryDataHandler:
         mock_settings.recipe = MagicMock()
         mock_settings.recipe.name = "test"
         mock_data_interface = MagicMock()
-        mock_data_interface.task_type = "unknown_task"
+        mock_data_interface.task_choice="unknown_task"
         mock_settings.recipe.data.data_interface = mock_data_interface
         
         mock_datahandler_registry.get_handler_for_task.side_effect = Exception("Handler creation failed")

@@ -11,6 +11,7 @@ from src.components.evaluator import EvaluatorRegistry
 from src.interface import BaseAdapter
 from src.settings import Settings
 from src.utils.system.logger import logger
+from src.utils.system.console_manager import UnifiedConsole
 
 if TYPE_CHECKING:
     from src.factory.artifact import PyfuncWrapper
@@ -30,6 +31,7 @@ class Factory:
         self._ensure_components_registered()
         
         self.settings = settings
+        self.console = UnifiedConsole(settings)
         
         # 현대화된 Recipe 구조 검증
         if not self.settings.recipe:
@@ -44,7 +46,8 @@ class Factory:
         # 생성된 컴포넌트 캐싱
         self._component_cache: Dict[str, Any] = {}
         
-        logger.info(f"Factory initialized with Recipe: {self._recipe.name}")
+        self.console.info(f"Factory initialized with Recipe: {self._recipe.name}",
+                         rich_message=f"🏭 Factory initialized: [cyan]{self._recipe.name}[/cyan]")
     
     @classmethod
     def _ensure_components_registered(cls) -> None:
@@ -157,7 +160,8 @@ class Factory:
         # 캐싱 확인
         cache_key = f"adapter_{adapter_type}" if adapter_type else "adapter_auto"
         if cache_key in self._component_cache:
-            logger.debug(f"Returning cached adapter: {cache_key}")
+            self.console.info("캐시된 어댑터 반환", 
+                            rich_message=f"🔄 Using cached adapter: [dim]{cache_key}[/dim]")
             return self._component_cache[cache_key]
         
         # 어댑터 타입 결정 (일관된 접근 패턴)
@@ -167,16 +171,23 @@ class Factory:
             # 캐싱된 경로 사용
             source_uri = self._data.loader.source_uri
             target_type = self._detect_adapter_type_from_uri(source_uri)
-            logger.info(f"Auto-detected adapter type '{target_type}' from URI: {source_uri}")
+            self.console.info(f"Auto-detected adapter type '{target_type}' from URI: {source_uri}",
+                            rich_message=f"🔍 Auto-detected adapter: [cyan]{target_type}[/cyan] from URI")
         
         # Registry를 통한 생성 (일관된 패턴)
         try:
+            self.console.component_init(f"Data Adapter ({target_type})", "success")
             adapter = AdapterRegistry.create(target_type, self.settings)
             self._component_cache[cache_key] = adapter  # 캐싱
-            logger.info(f"✅ Created data adapter: {target_type}")
+            self.console.info(f"Created data adapter: {target_type}",
+                            rich_message=f"✅ Data adapter created: [green]{target_type}[/green]")
             return adapter
         except Exception as e:
             available = list(AdapterRegistry.list_adapters().keys())
+            self.console.error(f"Failed to create adapter '{target_type}'", 
+                             rich_message=f"❌ Adapter creation failed: [red]{target_type}[/red]",
+                             context={"available_adapters": available, "target_type": target_type},
+                             suggestion="Check adapter configuration and available adapters")
             raise ValueError(
                 f"Failed to create adapter '{target_type}'. Available: {available}"
             ) from e
@@ -197,7 +208,8 @@ class Factory:
         
         # 캐싱 확인
         if cache_key in self._component_cache:
-            logger.debug(f"Returning cached fetcher: {cache_key}")
+            self.console.info(f"캐시된 fetcher 반환: {mode}",
+                            rich_message=f"🔄 Using cached fetcher: [dim]{mode}[/dim]")
             return self._component_cache[cache_key]
         
         # 일관된 접근 패턴으로 설정 접근
@@ -235,11 +247,17 @@ class Factory:
             
             # 캐싱 저장
             self._component_cache[cache_key] = fetcher
-            logger.info(f"✅ Created fetcher: {fetch_type or 'pass_through'} (mode={mode})")
+            fetcher_name = fetch_type or 'pass_through'
+            self.console.component_init(f"Fetcher ({fetcher_name}, {mode})", "success")
+            self.console.info(f"Created fetcher: {fetcher_name} (mode={mode})",
+                            rich_message=f"✅ Fetcher created: [green]{fetcher_name}[/green] ([dim]{mode}[/dim])")
             return fetcher
             
         except Exception as e:
-            logger.error(f"Failed to create fetcher: {e}")
+            self.console.error(f"Failed to create fetcher: {e}",
+                             rich_message=f"❌ Fetcher creation failed: {e}",
+                             context={"mode": mode, "env": env, "provider": provider, "fetch_type": fetch_type},
+                             suggestion="Check fetcher configuration and feature store settings")
             raise
 
     def create_preprocessor(self) -> Optional[BasePreprocessor]:
@@ -252,27 +270,34 @@ class Factory:
         # 캐싱 확인
         cache_key = "preprocessor"
         if cache_key in self._component_cache:
-            logger.debug(f"Returning cached preprocessor")
+            self.console.info("캐시된 preprocessor 반환",
+                            rich_message=f"🔄 Using cached preprocessor")
             return self._component_cache[cache_key]
         
         # 일관된 접근 패턴
         preprocessor_config = getattr(self._recipe, "preprocessor", None)
         
         if not preprocessor_config:
-            logger.info("No preprocessor configured")
+            self.console.info("No preprocessor configured",
+                            rich_message="ℹ️  No preprocessor configured, skipping")
             return None
         
         try:
             # Preprocessor 생성
+            self.console.component_init("Preprocessor", "success")
             preprocessor = Preprocessor(settings=self.settings)
             
             # 캐싱 저장
             self._component_cache[cache_key] = preprocessor
-            logger.info("✅ Created preprocessor")
+            self.console.info("Created preprocessor",
+                            rich_message="✅ Preprocessor created: [green]ready[/green]")
             return preprocessor
             
         except Exception as e:
-            logger.error(f"Failed to create preprocessor: {e}")
+            self.console.error(f"Failed to create preprocessor: {e}",
+                             rich_message=f"❌ Preprocessor creation failed: {e}",
+                             context={"config_available": bool(preprocessor_config)},
+                             suggestion="Check preprocessor configuration in recipe")
             raise
 
     def create_model(self) -> Any:
@@ -285,7 +310,8 @@ class Factory:
         # 캐싱 확인
         cache_key = "model"
         if cache_key in self._component_cache:
-            logger.debug(f"Returning cached model")
+            self.console.info("캐시된 model 반환",
+                            rich_message=f"🔄 Using cached model")
             return self._component_cache[cache_key]
         
         # 일관된 접근 패턴
@@ -312,15 +338,20 @@ class Factory:
         
         try:
             # 헬퍼 메서드 활용
+            self.console.component_init(f"Model ({class_path.split('.')[-1]})", "success")
             model = self._create_from_class_path(class_path, hyperparameters)
             
             # 캐싱 저장
             self._component_cache[cache_key] = model
-            logger.info(f"✅ Created model: {class_path}")
+            self.console.info(f"Created model: {class_path}",
+                            rich_message=f"✅ Model created: [green]{class_path.split('.')[-1]}[/green]")
             return model
             
         except Exception as e:
-            logger.error(f"Failed to create model from {class_path}: {e}")
+            self.console.error(f"Failed to create model from {class_path}: {e}",
+                             rich_message=f"❌ Model creation failed: {e}",
+                             context={"class_path": class_path, "hyperparams_count": len(hyperparameters)},
+                             suggestion="Check model class path and hyperparameters")
             raise
 
     def create_evaluator(self) -> Any:
@@ -333,7 +364,8 @@ class Factory:
         # 캐싱 확인
         cache_key = "evaluator"
         if cache_key in self._component_cache:
-            logger.debug(f"Returning cached evaluator")
+            self.console.info("캐시된 evaluator 반환",
+                            rich_message=f"🔄 Using cached evaluator")
             return self._component_cache[cache_key]
         
         # task_choice 활용
@@ -342,16 +374,21 @@ class Factory:
         
         try:
             # Registry 패턴으로 생성
+            self.console.component_init(f"Evaluator ({task_choice})", "success")
             evaluator = EvaluatorRegistry.create(task_choice, data_interface)
             
             # 캐싱 저장
             self._component_cache[cache_key] = evaluator
-            logger.info(f"✅ Created evaluator for task: {task_choice}")
+            self.console.info(f"Created evaluator for task: {task_choice}",
+                            rich_message=f"✅ Evaluator created: [green]{task_choice}[/green]")
             return evaluator
             
         except Exception as e:
             available = list(EvaluatorRegistry.list_evaluators().keys())
-            logger.error(f"Failed to create evaluator for '{task_choice}'. Available: {available}")
+            self.console.error(f"Failed to create evaluator for '{task_choice}'", 
+                             rich_message=f"❌ Evaluator creation failed: [red]{task_choice}[/red]",
+                             context={"task_choice": task_choice, "available_evaluators": available},
+                             suggestion="Check task choice and available evaluators")
             raise
 
     def create_trainer(self, trainer_type: Optional[str] = None) -> Any:
@@ -367,7 +404,8 @@ class Factory:
         # 캐싱 확인
         cache_key = f"trainer_{trainer_type or 'default'}"
         if cache_key in self._component_cache:
-            logger.debug(f"Returning cached trainer")
+            self.console.info(f"캐시된 trainer 반환: {trainer_type or 'default'}",
+                            rich_message=f"🔄 Using cached trainer: [dim]{trainer_type or 'default'}[/dim]")
             return self._component_cache[cache_key]
         
         # TrainerRegistry import
@@ -378,6 +416,7 @@ class Factory:
         
         try:
             # settings와 factory_provider를 전달하여 trainer 생성
+            self.console.component_init(f"Trainer ({trainer_type})", "success")
             trainer = TrainerRegistry.create(
                 trainer_type, 
                 settings=self.settings,
@@ -386,12 +425,16 @@ class Factory:
             
             # 캐싱 저장
             self._component_cache[cache_key] = trainer
-            logger.info(f"✅ Created trainer: {trainer_type}")
+            self.console.info(f"Created trainer: {trainer_type}",
+                            rich_message=f"✅ Trainer created: [green]{trainer_type}[/green]")
             return trainer
             
         except Exception as e:
             available = list(TrainerRegistry.trainers.keys())
-            logger.error(f"Failed to create trainer for '{trainer_type}'. Available: {available}")
+            self.console.error(f"Failed to create trainer for '{trainer_type}'",
+                             rich_message=f"❌ Trainer creation failed: [red]{trainer_type}[/red]",
+                             context={"trainer_type": trainer_type, "available_trainers": available},
+                             suggestion="Check trainer type and available trainers")
             raise
 
     def create_datahandler(self) -> Any:
@@ -405,7 +448,8 @@ class Factory:
         # 캐싱 확인
         cache_key = "datahandler"
         if cache_key in self._component_cache:
-            logger.debug(f"Returning cached datahandler")
+            self.console.info("캐시된 datahandler 반환",
+                            rich_message=f"🔄 Using cached datahandler")
             return self._component_cache[cache_key]
         
         # DataHandlerRegistry import
@@ -417,8 +461,10 @@ class Factory:
         try:
             # 모델 클래스 경로 추출 (catalog 기반 핸들러 선택을 위해)
             model_class_path = getattr(self._recipe.model, 'class_path', None)
+            model_name = model_class_path.split('.')[-1] if model_class_path else 'unknown'
             
             # Registry 패턴으로 catalog 기반 핸들러 선택
+            self.console.component_init(f"DataHandler ({task_choice}, {model_name})", "success")
             datahandler = DataHandlerRegistry.get_handler_for_task(
                 task_choice, 
                 self.settings, 
@@ -427,12 +473,16 @@ class Factory:
             
             # 캐싱 저장
             self._component_cache[cache_key] = datahandler
-            logger.info(f"✅ Created datahandler for task: {task_choice}, model: {model_class_path}")
+            self.console.info(f"Created datahandler for task: {task_choice}, model: {model_class_path}",
+                            rich_message=f"✅ DataHandler created: [green]{task_choice}[/green] + [dim]{model_name}[/dim]")
             return datahandler
             
         except Exception as e:
             available = list(DataHandlerRegistry.get_available_handlers().keys())
-            logger.error(f"Failed to create datahandler for '{task_choice}'. Available: {available}")
+            self.console.error(f"Failed to create datahandler for '{task_choice}'",
+                             rich_message=f"❌ DataHandler creation failed: [red]{task_choice}[/red]",
+                             context={"task_choice": task_choice, "model_class_path": model_class_path, "available_handlers": available},
+                             suggestion="Check task choice, model path and available data handlers")
             raise
 
     def create_feature_store_adapter(self) -> "BaseAdapter":
@@ -445,7 +495,8 @@ class Factory:
         # 캐싱 확인
         cache_key = "feature_store_adapter"
         if cache_key in self._component_cache:
-            logger.debug(f"Returning cached feature store adapter")
+            self.console.info("캐시된 feature store adapter 반환",
+                            rich_message=f"🔄 Using cached feature store adapter")
             return self._component_cache[cache_key]
         
         # 검증
@@ -454,15 +505,20 @@ class Factory:
         
         try:
             # Registry 패턴으로 생성
+            self.console.component_init("Feature Store Adapter", "success")
             adapter = AdapterRegistry.create('feature_store', self.settings)
             
             # 캐싱 저장
             self._component_cache[cache_key] = adapter
-            logger.info("✅ Created Feature Store adapter")
+            self.console.info("Created Feature Store adapter",
+                            rich_message=f"✅ Feature Store adapter created: [green]ready[/green]")
             return adapter
             
         except Exception as e:
-            logger.error(f"Failed to create Feature Store adapter: {e}")
+            self.console.error(f"Failed to create Feature Store adapter: {e}",
+                             rich_message=f"❌ Feature Store adapter failed: {e}",
+                             context={"feature_store_config": bool(self.settings.config.feature_store)},
+                             suggestion="Check feature store configuration")
             raise
     
     def create_optuna_integration(self) -> Any:
@@ -475,7 +531,8 @@ class Factory:
         # 캐싱 확인
         cache_key = "optuna_integration"
         if cache_key in self._component_cache:
-            logger.debug(f"Returning cached Optuna integration")
+            self.console.info("캐시된 Optuna integration 반환",
+                            rich_message=f"🔄 Using cached Optuna integration")
             return self._component_cache[cache_key]
         
         # 일관된 접근 패턴 (Recipe hyperparameters 구조 사용)
@@ -488,18 +545,25 @@ class Factory:
             from src.utils.integrations.optuna_integration import OptunaIntegration
             
             # Integration 생성
+            self.console.component_init("Optuna Integration", "success")
             integration = OptunaIntegration(tuning_config)
             
             # 캐싱 저장
             self._component_cache[cache_key] = integration
-            logger.info("✅ Created Optuna integration")
+            self.console.info("Created Optuna integration",
+                            rich_message=f"✅ Optuna integration created: [green]ready[/green]")
             return integration
             
         except ImportError as e:
-            logger.error("Optuna is not installed. Please install with 'pip install optuna'")
+            self.console.error("Optuna is not installed. Please install with 'pip install optuna'",
+                             rich_message="❌ Optuna not installed",
+                             suggestion="Install with: pip install optuna")
             raise
         except Exception as e:
-            logger.error(f"Failed to create Optuna integration: {e}")
+            self.console.error(f"Failed to create Optuna integration: {e}",
+                             rich_message=f"❌ Optuna integration failed: {e}",
+                             context={"tuning_config_available": bool(tuning_config)},
+                             suggestion="Check hyperparameter tuning configuration")
             raise
 
     def create_pyfunc_wrapper(
@@ -513,11 +577,13 @@ class Factory:
     ) -> PyfuncWrapper:
         """🔄 Phase 5: 완전한 스키마 정보가 캡슐화된 Enhanced Artifact 생성"""
         from src.factory.artifact import PyfuncWrapper
-        logger.info("Creating PyfuncWrapper artifact...")
+        self.console.info("Creating PyfuncWrapper artifact...",
+                         rich_message="📦 Creating PyfuncWrapper artifact")
         
         signature, data_schema = None, None
         if training_df is not None:
-            logger.info("Generating model signature and data schema from training_df...")
+            self.console.info("Generating model signature and data schema from training_df...",
+                            rich_message="🔍 Generating model signature and schema")
             from src.utils.integrations.mlflow_integration import create_enhanced_model_signature_with_schema
             
             # ✅ 새로운 구조에서 데이터 수집
@@ -545,7 +611,8 @@ class Factory:
                 training_df, 
                 data_interface_config
             )
-            logger.info("✅ Signature and data schema created successfully.")
+            self.console.info("Signature and data schema created successfully.",
+                            rich_message="✅ Signature and schema created successfully")
         
         # 🆕 Phase 5.2: DataInterface 기반 검증용 스키마 생성
         data_interface_schema = None
@@ -555,7 +622,9 @@ class Factory:
                 data_interface=self._recipe.data.data_interface,
                 df=training_df
             )
-            logger.info(f"✅ DataInterface 스키마 생성 완료: {len(data_interface_schema.get('required_columns', []))}개 필수 컬럼")
+            required_cols = len(data_interface_schema.get('required_columns', []))
+            self.console.info(f"DataInterface 스키마 생성 완료: {required_cols}개 필수 컬럼",
+                            rich_message=f"✅ DataInterface schema created: [cyan]{required_cols}[/cyan] required columns")
         
         return PyfuncWrapper(
             settings=self.settings,

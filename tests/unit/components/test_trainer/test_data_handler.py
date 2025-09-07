@@ -182,7 +182,7 @@ class TestGetStratifyColumnData:
         # Arrange: Classification data
         df = TrainerDataBuilder.build_classification_data(n_samples=20)
         data_interface = Mock()
-        data_interface.task_type = "classification"
+        data_interface.task_choice="classification"
         data_interface.target_column = "target"
         
         # Act: Get stratify column data
@@ -198,7 +198,7 @@ class TestGetStratifyColumnData:
         # Arrange: Causal data
         df = TrainerDataBuilder.build_causal_data(n_samples=30)
         data_interface = Mock()
-        data_interface.task_type = "causal"
+        data_interface.task_choice="causal"
         data_interface.treatment_column = "treatment"
         
         # Act: Get stratify column data
@@ -214,7 +214,7 @@ class TestGetStratifyColumnData:
         # Arrange: Regression data
         df = TrainerDataBuilder.build_regression_data(n_samples=15)
         data_interface = Mock()
-        data_interface.task_type = "regression"
+        data_interface.task_choice="regression"
         
         # Act: Get stratify column data
         result = _get_stratify_column_data(df, data_interface)
@@ -227,7 +227,7 @@ class TestGetStratifyColumnData:
         # Arrange: Data missing target column
         df = TrainerDataBuilder.build_edge_case_missing_columns("target")
         data_interface = Mock()
-        data_interface.task_type = "classification"
+        data_interface.task_choice="classification"
         data_interface.target_column = "target"
         
         # Act: Get stratify column data
@@ -362,7 +362,7 @@ class TestPrepareTrainingData:
         # Arrange: Data with invalid task type
         df = TrainerDataBuilder.build_classification_data(n_samples=20)
         settings = SettingsBuilder.build_classification_config()
-        settings.recipe.data.data_interface.task_type = "invalid_task"
+        settings.recipe.data.data_interface.task_choice="invalid_task"
         
         # Act & Assert: Should raise ValueError
         with pytest.raises(ValueError, match="지원하지 않는 task_type"):

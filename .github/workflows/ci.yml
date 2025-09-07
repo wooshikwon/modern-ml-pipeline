@@ -1,0 +1,433 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch: # Allow manual trigger
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ============================================================================
+  # Code Quality Checks
+  # ============================================================================
+  code-quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Cache Python dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+          
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install ruff mypy bandit safety black isort
+        pip install -e .
+        
+    - name: Code formatting check (Black)
+      run: black --check --line-length=100 src/ tests/
+      
+    - name: Import sorting check (isort)
+      run: isort --check-only --profile black --line-length 100 src/ tests/
+      
+    - name: Linting (Ruff)
+      run: ruff check src/ tests/ --line-length 100
+      
+    - name: Type checking (MyPy)
+      run: mypy src/ --ignore-missing-imports --no-strict-optional
+      
+    - name: Security scanning (Bandit)
+      run: bandit -r src/ -f json -o bandit-report.json
+      continue-on-error: true
+      
+    - name: Dependency vulnerability check (Safety)
+      run: safety check --json --output safety-report.json
+      continue-on-error: true
+      
+    - name: Upload security reports
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: security-reports
+        path: |
+          bandit-report.json
+          safety-report.json
+
+  # ============================================================================
+  # Unit Tests
+  # ============================================================================
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        test-group: [
+          "settings",
+          "components-adapter", 
+          "components-fetcher",
+          "components-preprocessor",
+          "components-trainer", 
+          "components-evaluator",
+          "components-datahandler",
+          "factory",
+          "utils",
+          "interface"
+        ]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Cache Python dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+          
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .[dev]
+        
+    - name: Run unit tests for ${{ matrix.test-group }}
+      run: |
+        case "${{ matrix.test-group }}" in
+          "settings")
+            pytest tests/unit/settings/ -v --cov=src.settings --cov-report=xml:coverage-${{ matrix.test-group }}.xml
+            ;;
+          "components-adapter")
+            pytest tests/unit/components/test_adapter/ -v --cov=src.components.adapter --cov-report=xml:coverage-${{ matrix.test-group }}.xml
+            ;;
+          "components-fetcher")
+            pytest tests/unit/components/test_fetcher/ -v --cov=src.components.fetcher --cov-report=xml:coverage-${{ matrix.test-group }}.xml
+            ;;
+          "components-preprocessor")
+            pytest tests/unit/components/test_preprocessor/ -v --cov=src.components.preprocessor --cov-report=xml:coverage-${{ matrix.test-group }}.xml
+            ;;
+          "components-trainer")
+            pytest tests/unit/components/test_trainer/ -v --cov=src.components.trainer --cov-report=xml:coverage-${{ matrix.test-group }}.xml
+            ;;
+          "components-evaluator")
+            pytest tests/unit/components/test_evaluator/ -v --cov=src.components.evaluator --cov-report=xml:coverage-${{ matrix.test-group }}.xml
+            ;;
+          "components-datahandler")
+            pytest tests/unit/components/test_datahandler/ -v --cov=src.components.datahandler --cov-report=xml:coverage-${{ matrix.test-group }}.xml
+            ;;
+          "factory")
+            pytest tests/unit/factory/ -v --cov=src.factory --cov-report=xml:coverage-${{ matrix.test-group }}.xml
+            ;;
+          "utils")
+            pytest tests/unit/utils/ -v --cov=src.utils --cov-report=xml:coverage-${{ matrix.test-group }}.xml
+            ;;
+          "interface")
+            pytest tests/unit/interface/ -v --cov=src.interface --cov-report=xml:coverage-${{ matrix.test-group }}.xml
+            ;;
+        esac
+        
+    - name: Upload coverage reports
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage-reports
+        path: coverage-*.xml
+
+  # ============================================================================
+  # Integration Tests
+  # ============================================================================
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [code-quality, unit-tests]
+    
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Cache Python dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+          
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .[dev,ml-extras,feature-store]
+        
+    - name: Set up test database
+      run: |
+        mkdir -p test_data
+        python -c "
+        import sqlite3
+        import pandas as pd
+        import numpy as np
+        
+        # Create test SQLite database
+        conn = sqlite3.connect('test_data/test.db')
+        
+        # Generate test classification dataset
+        np.random.seed(42)
+        n_samples = 100
+        df_classification = pd.DataFrame({
+            'feature_1': np.random.normal(0, 1, n_samples),
+            'feature_2': np.random.normal(0, 1, n_samples),
+            'feature_3': np.random.choice(['A', 'B', 'C'], n_samples),
+            'target': np.random.choice([0, 1], n_samples)
+        })
+        df_classification.to_sql('classification_data', conn, index=False)
+        
+        # Generate test regression dataset
+        df_regression = pd.DataFrame({
+            'feature_1': np.random.normal(0, 1, n_samples),
+            'feature_2': np.random.normal(0, 1, n_samples),
+            'target': np.random.normal(10, 2, n_samples)
+        })
+        df_regression.to_sql('regression_data', conn, index=False)
+        
+        conn.close()
+        "
+        
+    - name: Start MLflow server
+      run: |
+        mkdir -p mlruns
+        mlflow server --host 127.0.0.1 --port 5000 --default-artifact-root ./mlruns &
+        sleep 10 # Give MLflow time to start
+        
+    - name: Run integration tests
+      env:
+        MLFLOW_TRACKING_URI: http://127.0.0.1:5000
+        TEST_DATABASE_URL: sqlite:///test_data/test.db
+        REDIS_URL: redis://localhost:6379
+      run: |
+        pytest tests/integration/ -v --cov=src --cov-report=xml:coverage-integration.xml
+        
+    - name: Upload integration coverage
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage-reports
+        path: coverage-integration.xml
+
+  # ============================================================================
+  # End-to-End Tests (10 Major Use Cases)
+  # ============================================================================
+  e2e-tests:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    needs: [integration-tests]
+    
+    strategy:
+      matrix:
+        test-case: [
+          "classification-tabular",
+          "regression-tabular", 
+          "clustering-tabular",
+          "causal-tabular",
+          "timeseries-basic",
+          "deeplearning-classification",
+          "feature-store-integration",
+          "api-serving",
+          "cli-workflow",
+          "mlflow-experiments"
+        ]
+    
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Cache Python dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+          
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .[dev,ml-extras,feature-store,cloud-extras]
+        
+    - name: Set up test environment
+      run: |
+        mkdir -p test_workspace/{data,configs,mlruns,models}
+        mkdir -p test_workspace/feast_repo
+        
+    - name: Start MLflow server
+      run: |
+        cd test_workspace
+        mlflow server --host 127.0.0.1 --port 5000 --default-artifact-root ./mlruns &
+        sleep 10
+        
+    - name: Run E2E test - ${{ matrix.test-case }}
+      env:
+        MLFLOW_TRACKING_URI: http://127.0.0.1:5000
+        REDIS_URL: redis://localhost:6379
+        TEST_WORKSPACE: ./test_workspace
+      run: |
+        python -m pytest tests/e2e/test_${{ matrix.test-case }}.py -v
+        
+    - name: Upload E2E artifacts
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: e2e-artifacts-${{ matrix.test-case }}
+        path: |
+          test_workspace/mlruns/
+          test_workspace/models/
+          logs/
+
+  # ============================================================================
+  # Import Linter Check
+  # ============================================================================
+  import-linter:
+    name: Import Linter
+    runs-on: ubuntu-latest
+    needs: [code-quality]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .[dev]
+        
+    - name: Run import linter
+      run: |
+        lint-imports --config pyproject.toml
+
+  # ============================================================================
+  # Coverage Report
+  # ============================================================================
+  coverage-report:
+    name: Coverage Report
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests]
+    if: always()
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Download coverage reports
+      uses: actions/download-artifact@v3
+      with:
+        name: coverage-reports
+        path: ./coverage-reports/
+        
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install coverage tools
+      run: |
+        pip install coverage[toml] coverage-badge
+        
+    - name: Merge coverage reports
+      run: |
+        coverage combine coverage-reports/coverage-*.xml
+        coverage report --show-missing
+        coverage html -d coverage_html
+        coverage-badge -o coverage.svg
+        
+    - name: Upload coverage results
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage-results
+        path: |
+          coverage_html/
+          coverage.svg
+
+  # ============================================================================
+  # Final Status Check
+  # ============================================================================
+  ci-success:
+    name: CI Success
+    runs-on: ubuntu-latest
+    needs: [code-quality, unit-tests, integration-tests, e2e-tests, import-linter, coverage-report]
+    if: always()
+    
+    steps:
+    - name: Check all jobs status
+      run: |
+        if [[ "${{ needs.code-quality.result }}" == "success" && 
+              "${{ needs.unit-tests.result }}" == "success" && 
+              "${{ needs.integration-tests.result }}" == "success" && 
+              "${{ needs.e2e-tests.result }}" == "success" && 
+              "${{ needs.import-linter.result }}" == "success" ]]; then
+          echo "✅ All CI checks passed successfully!"
+          exit 0
+        else
+          echo "❌ Some CI checks failed:"
+          echo "Code Quality: ${{ needs.code-quality.result }}"
+          echo "Unit Tests: ${{ needs.unit-tests.result }}"
+          echo "Integration Tests: ${{ needs.integration-tests.result }}"
+          echo "E2E Tests: ${{ needs.e2e-tests.result }}"
+          echo "Import Linter: ${{ needs.import-linter.result }}"
+          exit 1
+        fi

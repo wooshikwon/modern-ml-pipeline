@@ -101,7 +101,7 @@ class SettingsBuilder:
         return SettingsBuilder.build(
             recipe_name="test_classification",
             recipe={
-                "data.data_interface.task_type": "classification",
+                "task_choice": "classification",
                 "data.data_interface.target_column": "target",
                 "data.data_interface.entity_columns": ["user_id"]
             }
@@ -113,7 +113,7 @@ class SettingsBuilder:
         return SettingsBuilder.build(
             recipe_name="test_regression",
             recipe={
-                "data.data_interface.task_type": "regression",
+                "task_choice": "regression",
                 "data.data_interface.target_column": "target",
                 "data.data_interface.entity_columns": ["user_id"]
             }
@@ -125,7 +125,7 @@ class SettingsBuilder:
         return SettingsBuilder.build(
             recipe_name="test_clustering",
             recipe={
-                "data.data_interface.task_type": "clustering",
+                "task_choice": "clustering",
                 "data.data_interface.target_column": "cluster_label",
                 "data.data_interface.entity_columns": ["user_id"]
             }
@@ -137,7 +137,7 @@ class SettingsBuilder:
         return SettingsBuilder.build(
             recipe_name="test_causal",
             recipe={
-                "data.data_interface.task_type": "causal",
+                "task_choice": "causal",
                 "data.data_interface.target_column": "outcome",
                 "data.data_interface.treatment_column": "treatment",
                 "data.data_interface.entity_columns": ["user_id"]
@@ -163,65 +163,65 @@ class SettingsBuilder:
     
     
     @staticmethod
-    def build_config_with_auto_features(task_type: str) -> Settings:
+    def build_config_with_auto_features(task_choice: str) -> Settings:
         """Build config with feature_columns=None for auto selection."""
         base_config = {
-            "data.data_interface.task_type": task_type,
+            "task_choice": task_choice,
             "data.data_interface.feature_columns": None,  # Auto selection
             "data.data_interface.entity_columns": ["user_id"]
         }
         
-        if task_type == "classification":
+        if task_choice == "classification":
             base_config["data.data_interface.target_column"] = "target"
-        elif task_type == "regression":
+        elif task_choice == "regression":
             base_config["data.data_interface.target_column"] = "target"
-        elif task_type == "clustering":
+        elif task_choice == "clustering":
             pass  # No target for clustering
-        elif task_type == "causal":
+        elif task_choice == "causal":
             base_config["data.data_interface.target_column"] = "outcome"
             base_config["data.data_interface.treatment_column"] = "treatment"
         
         return SettingsBuilder.build(
-            recipe_name=f"test_{task_type}_auto",
+            recipe_name=f"test_{task_choice}_auto",
             recipe=base_config
         )
     
     @staticmethod
     def build_config_with_explicit_features(
-        task_type: str, 
+        task_choice: str, 
         feature_columns: list
     ) -> Settings:
         """Build config with explicitly specified feature columns."""
         base_config = {
-            "data.data_interface.task_type": task_type,
+            "task_choice": task_choice,
             "data.data_interface.feature_columns": feature_columns,
             "data.data_interface.entity_columns": ["user_id"]
         }
         
-        if task_type == "classification":
+        if task_choice == "classification":
             base_config["data.data_interface.target_column"] = "target"
-        elif task_type == "regression":
+        elif task_choice == "regression":
             base_config["data.data_interface.target_column"] = "target"
-        elif task_type == "causal":
+        elif task_choice == "causal":
             base_config["data.data_interface.target_column"] = "outcome"
             base_config["data.data_interface.treatment_column"] = "treatment"
         
         return SettingsBuilder.build(
-            recipe_name=f"test_{task_type}_explicit",
+            recipe_name=f"test_{task_choice}_explicit",
             recipe=base_config
         )
     
     @staticmethod
     def build_tuning_enabled_config(
-        task_type: str = "classification",
+        task_choice: str = "classification",
         n_trials: int = 10,
         timeout: int = 300
     ) -> Settings:
         """Build config with Optuna tuning enabled."""
         return SettingsBuilder.build(
-            recipe_name=f"test_{task_type}_tuning",
+            recipe_name=f"test_{task_choice}_tuning",
             recipe={
-                "data.data_interface.task_type": task_type,
+                "task_choice": task_choice,
                 "data.data_interface.target_column": "target",
                 "data.data_interface.entity_columns": ["user_id"],
                 "model.hyperparameters.tuning_enabled": True,
@@ -234,12 +234,12 @@ class SettingsBuilder:
         )
     
     @staticmethod
-    def build_tuning_disabled_config(task_type: str = "classification") -> Settings:
+    def build_tuning_disabled_config(task_choice: str = "classification") -> Settings:
         """Build config with Optuna tuning disabled."""
         return SettingsBuilder.build(
-            recipe_name=f"test_{task_type}_no_tuning",
+            recipe_name=f"test_{task_choice}_no_tuning",
             recipe={
-                "data.data_interface.task_type": task_type,
+                "task_choice": task_choice,
                 "data.data_interface.target_column": "target",
                 "data.data_interface.entity_columns": ["user_id"]
             },

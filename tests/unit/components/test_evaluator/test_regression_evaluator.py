@@ -16,7 +16,7 @@ from tests.helpers.builders import DataFrameBuilder, RecipeBuilder
 
 def DataInterface(
     entity_columns=None,
-    task_type=None,
+    task_choice=None,
     target_column=None,
     feature_columns=None,
     treatment_column=None,
@@ -31,7 +31,7 @@ def DataInterface(
     if treatment_column is not None:
         overrides['data.data_interface.treatment_column'] = treatment_column
     task = task_type or 'regression'
-    recipe = RecipeBuilder.build(task_type=task, **overrides)
+    recipe = RecipeBuilder.build(task_choice=task, **overrides)
     return recipe.data.data_interface
 
 
@@ -43,7 +43,7 @@ class TestRegressionEvaluatorInitialization:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["property_id"],
-            task_type="regression",
+            task_choice="regression",
             target_column="price",
             feature_columns=["size", "location", "age"]
         )
@@ -60,7 +60,7 @@ class TestRegressionEvaluatorInitialization:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["product_id"],
-            task_type="regression",
+            task_choice="regression",
             target_column="sales",
             feature_columns=["advertising", "price", "season"]
         )
@@ -70,7 +70,7 @@ class TestRegressionEvaluatorInitialization:
         
         # Assert
         assert evaluator.settings == data_interface
-        assert evaluator.task_type == "regression"
+        assert evaluator.task_choice == "regression"
         assert evaluator.settings.target_column == "sales"
         assert evaluator.settings.feature_columns == ["advertising", "price", "season"]
     
@@ -79,7 +79,7 @@ class TestRegressionEvaluatorInitialization:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="regression",
+            task_choice="regression",
             target_column="y"
         )
         
@@ -87,7 +87,7 @@ class TestRegressionEvaluatorInitialization:
         evaluator = RegressionEvaluator(data_interface)
         
         # Assert
-        assert evaluator.task_type == "regression"
+        assert evaluator.task_choice == "regression"
         assert evaluator.settings.target_column == "y"
         assert evaluator.settings.feature_columns is None  # Optional field
 
@@ -100,7 +100,7 @@ class TestRegressionEvaluatorEvaluate:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="regression",
+            task_choice="regression",
             target_column="target",
             feature_columns=["feature1", "feature2"]
         )
@@ -138,7 +138,7 @@ class TestRegressionEvaluatorEvaluate:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["house_id"],
-            task_type="regression",
+            task_choice="regression",
             target_column="house_price",
             feature_columns=["sqft", "bedrooms", "age"]
         )
@@ -177,7 +177,7 @@ class TestRegressionEvaluatorEvaluate:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="regression",
+            task_choice="regression",
             target_column="target",
             feature_columns=["x"]
         )
@@ -218,7 +218,7 @@ class TestRegressionEvaluatorEvaluate:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="regression",
+            task_choice="regression",
             target_column="y",
             feature_columns=["x1", "x2"]
         )
@@ -259,7 +259,7 @@ class TestRegressionEvaluatorMetrics:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="regression",
+            task_choice="regression",
             target_column="target",
             feature_columns=["feature"]
         )
@@ -293,7 +293,7 @@ class TestRegressionEvaluatorMetrics:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="regression",
+            task_choice="regression",
             target_column="constant_target",
             feature_columns=["x"]
         )
@@ -327,7 +327,7 @@ class TestRegressionEvaluatorMetrics:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="regression",
+            task_choice="regression",
             target_column="target",
             feature_columns=["feature"]
         )
@@ -364,7 +364,7 @@ class TestRegressionEvaluatorErrorHandling:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="regression",
+            task_choice="regression",
             target_column="target",
             feature_columns=["feature"]
         )
@@ -393,7 +393,7 @@ class TestRegressionEvaluatorErrorHandling:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="regression",
+            task_choice="regression",
             target_column="target",
             feature_columns=["feature"]
         )
@@ -422,7 +422,7 @@ class TestRegressionEvaluatorErrorHandling:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="regression",
+            task_choice="regression",
             target_column="target",
             feature_columns=["feature"]
         )
@@ -455,7 +455,7 @@ class TestRegressionEvaluatorIntegration:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["house_id"],
-            task_type="regression",
+            task_choice="regression",
             target_column="price",
             feature_columns=["sqft", "bedrooms", "bathrooms", "age"]
         )
@@ -503,7 +503,7 @@ class TestRegressionEvaluatorIntegration:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="regression",
+            task_choice="regression",
             target_column="target",
             feature_columns=["x"]
         )
@@ -549,7 +549,7 @@ class TestRegressionEvaluatorSelfRegistration:
         # Verify can create instance through registry
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="regression",
+            task_choice="regression",
             target_column="target",
             feature_columns=["feature"]
         )

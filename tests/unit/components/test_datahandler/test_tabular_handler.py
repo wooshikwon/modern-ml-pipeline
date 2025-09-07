@@ -66,7 +66,7 @@ class TestTabularDataHandlerSplitData:
         """Test classification data splitting with stratification."""
         # Arrange
         recipe = RecipeBuilder.build_recipe(
-            task_type="classification",
+            task_choice="classification",
             target_column="target"
         )
         settings = MagicMock()
@@ -99,7 +99,7 @@ class TestTabularDataHandlerSplitData:
         })
         
         recipe = RecipeBuilder.build_recipe(
-            task_type="classification",
+            task_choice="classification",
             target_column="target"
         )
         settings = MagicMock()
@@ -119,7 +119,7 @@ class TestTabularDataHandlerSplitData:
         """Test regression data splitting without stratification."""
         # Arrange
         recipe = RecipeBuilder.build_recipe(
-            task_type="regression",
+            task_choice="regression",
             target_column="target"
         )
         settings = MagicMock()
@@ -147,7 +147,7 @@ class TestTabularDataHandlerSplitData:
         })
         
         recipe = RecipeBuilder.build_recipe(
-            task_type="causal",
+            task_choice="causal",
             target_column="target",
             treatment_column="treatment"
         )
@@ -187,7 +187,7 @@ class TestTabularDataHandlerPrepareData:
         """Test basic data preparation for classification."""
         # Arrange
         recipe = RecipeBuilder.build_recipe(
-            task_type="classification",
+            task_choice="classification",
             target_column="target",
             entity_columns=["user_id"]
         )
@@ -219,7 +219,7 @@ class TestTabularDataHandlerPrepareData:
         """Test data preparation with explicitly specified feature columns."""
         # Arrange
         recipe = RecipeBuilder.build_recipe(
-            task_type="classification",
+            task_choice="classification",
             target_column="target",
             entity_columns=["user_id"],
             feature_columns=["feature_0", "feature_1"]
@@ -240,7 +240,7 @@ class TestTabularDataHandlerPrepareData:
         """Test data preparation for clustering (no target)."""
         # Arrange
         recipe = RecipeBuilder.build_recipe(
-            task_type="clustering",
+            task_choice="clustering",
             entity_columns=["user_id"]
         )
         settings = MagicMock()
@@ -269,7 +269,7 @@ class TestTabularDataHandlerPrepareData:
         })
         
         recipe = RecipeBuilder.build_recipe(
-            task_type="causal",
+            task_choice="causal",
             target_column="target",
             treatment_column="treatment",
             entity_columns=["user_id"]
@@ -303,7 +303,7 @@ class TestTabularDataHandlerPrepareData:
         df_with_missing.loc[0:10, 'feature_0'] = np.nan  # ~20% missing
         
         recipe = RecipeBuilder.build_recipe(
-            task_type="classification",
+            task_choice="classification",
             target_column="target"
         )
         settings = MagicMock()
@@ -329,7 +329,7 @@ class TestTabularDataHandlerUtilityMethods:
         """Test _get_exclude_columns includes entity columns."""
         # Arrange
         recipe = RecipeBuilder.build_recipe(
-            task_type="classification",
+            task_choice="classification",
             entity_columns=["user_id", "session_id"]
         )
         settings = MagicMock()
@@ -356,7 +356,7 @@ class TestTabularDataHandlerUtilityMethods:
         """Test that non-existent entity columns are ignored."""
         # Arrange
         recipe = RecipeBuilder.build_recipe(
-            task_type="classification",
+            task_choice="classification",
             entity_columns=["user_id", "nonexistent_col"]
         )
         settings = MagicMock()
@@ -382,7 +382,7 @@ class TestTabularDataHandlerUtilityMethods:
     def test_check_missing_values_warning_threshold(self, mock_logger):
         """Test missing values warning with different thresholds."""
         # Arrange
-        recipe = RecipeBuilder.build_recipe(task_type="classification")
+        recipe = RecipeBuilder.build_recipe(task_choice="classification")
         settings = MagicMock()
         settings.recipe = recipe
         

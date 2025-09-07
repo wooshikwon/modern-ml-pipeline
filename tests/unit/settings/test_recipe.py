@@ -215,16 +215,16 @@ class TestFetcher:
 class TestDataInterface:
     """Test the DataInterface configuration class."""
     
-    @pytest.mark.parametrize("task_type", ["classification", "regression", "clustering", "causal"])
-    def test_data_interface_task_types(self, task_type):
+    @pytest.mark.parametrize("task_choice", ["classification", "regression", "clustering", "causal"])
+    def test_data_interface_task_types(self, task_choice):
         """Test DataInterface with different task types."""
         di = DataInterface(
-            task_type=task_type,
+            task_choice=task_choice,
             target_column="target",
             feature_columns=["f1", "f2", "f3"],
             entity_columns=["id"]
         )
-        assert di.task_type == task_type
+        assert di.task_choice == task_choice
         assert di.target_column == "target"
         assert di.feature_columns == ["f1", "f2", "f3"]
         assert di.entity_columns == ["id"]
@@ -232,7 +232,7 @@ class TestDataInterface:
     def test_data_interface_no_feature_columns(self):
         """Test DataInterface without explicit feature columns."""
         di = DataInterface(
-            task_type="classification",
+            task_choice="classification",
             target_column="label",
             entity_columns=["id"]
             # feature_columns is optional (None means all except target)
@@ -244,9 +244,9 @@ class TestDataInterface:
     def test_data_interface_validation(self):
         """Test DataInterface validation."""
         with pytest.raises(ValidationError):
-            # Invalid task_type
+            # Invalid task_choice
             DataInterface(
-                task_type="invalid",
+                task_choice="invalid",
                 target_column="target",
                 entity_columns=["id"]
             )
@@ -521,14 +521,14 @@ class TestData:
             ),
             fetcher=Fetcher(type="pass_through", timestamp_column="ts"),
             data_interface=DataInterface(
-                task_type="classification",
+                task_choice="classification",
                 target_column="label",
                 entity_columns=["id"]
             )
         )
         assert data.loader.source_uri == "data.csv"
         assert data.fetcher.type == "pass_through"
-        assert data.data_interface.task_type == "classification"
+        assert data.recipe.task_choice == "classification"
 
 
 class TestRecipe:
@@ -548,7 +548,7 @@ class TestRecipe:
                 ),
                 fetcher=Fetcher(type="pass_through", timestamp_column="ts"),
                 data_interface=DataInterface(
-                    task_type="classification",
+                    task_choice="classification",
                     target_column="target",
                     entity_columns=["id"]
                 )
@@ -596,7 +596,7 @@ class TestRecipe:
                     }
                 ),
                 data_interface=DataInterface(
-                    task_type="classification",
+                    task_choice="classification",
                     target_column="clicked",
                     feature_columns=["f1", "f2"],
                     entity_columns=["user_id", "item_id"]
@@ -654,7 +654,7 @@ class TestRecipe:
                     "timestamp_column": "ts"
                 },
                 "data_interface": {
-                    "task_type": "classification",
+                    "task_choice": "classification",
                     "target_column": "y",
                     "entity_columns": ["id"]
                 }
@@ -677,12 +677,12 @@ class TestRecipe:
         """Test Recipe helper methods."""
         recipe = RecipeBuilder.build(
             name="helper_test",
-            task_type="regression",
+            task_choice="regression",
             model_class_path="sklearn.linear_model.LinearRegression"
         )
         
-        # Test get_task_type
-        assert recipe.get_task_type() == "regression"
+        # Test task_choice
+        assert recipe.task_choice == "regression"
         
         # Test get_metrics
         metrics = recipe.get_metrics()
@@ -722,7 +722,7 @@ class TestRecipe:
                 ),
                 fetcher=Fetcher(type="pass_through", timestamp_column="ts"),
                 data_interface=DataInterface(
-                    task_type="regression",
+                    task_choice="regression",
                     target_column="value",
                     entity_columns=["id"]
                 )
@@ -753,7 +753,7 @@ class TestRecipe:
         recipe = RecipeBuilder.build(
             name="builder_test",
             model_class_path="catboost.CatBoostClassifier",
-            task_type="classification",
+            task_choice="classification",
             source_uri="s3://bucket/data.parquet",
             fetcher_type="feature_store"
         )

@@ -16,7 +16,7 @@ from tests.helpers.builders import DataFrameBuilder, RecipeBuilder
 
 def DataInterface(
     entity_columns=None,
-    task_type=None,
+    task_choice=None,
     target_column=None,
     feature_columns=None,
     treatment_column=None,
@@ -31,7 +31,7 @@ def DataInterface(
     if treatment_column is not None:
         overrides['data.data_interface.treatment_column'] = treatment_column
     task = task_type or 'causal'
-    recipe = RecipeBuilder.build(task_type=task, **overrides)
+    recipe = RecipeBuilder.build(task_choice=task, **overrides)
     return recipe.data.data_interface
 
 
@@ -43,7 +43,7 @@ class TestCausalEvaluatorInitialization:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="causal",
+            task_choice="causal",
             target_column="outcome",
             feature_columns=["treatment", "feature1", "feature2"]
         )
@@ -60,7 +60,7 @@ class TestCausalEvaluatorInitialization:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="causal",
+            task_choice="causal",
             target_column="conversion",
             feature_columns=["treatment", "age", "gender", "location"]
         )
@@ -70,7 +70,7 @@ class TestCausalEvaluatorInitialization:
         
         # Assert
         assert evaluator.settings == data_interface
-        assert evaluator.task_type == "causal"
+        assert evaluator.task_choice == "causal"
         assert evaluator.settings.target_column == "conversion"
         assert evaluator.settings.feature_columns == ["treatment", "age", "gender", "location"]
     
@@ -79,7 +79,7 @@ class TestCausalEvaluatorInitialization:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="causal",
+            task_choice="causal",
             target_column="outcome"
         )
         
@@ -87,7 +87,7 @@ class TestCausalEvaluatorInitialization:
         evaluator = CausalEvaluator(data_interface)
         
         # Assert
-        assert evaluator.task_type == "causal"
+        assert evaluator.task_choice == "causal"
         assert evaluator.settings.target_column == "outcome"
         assert evaluator.settings.feature_columns is None  # Optional field
 
@@ -100,7 +100,7 @@ class TestCausalEvaluatorEvaluate:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="causal",
+            task_choice="causal",
             target_column="outcome",
             feature_columns=["feature1", "feature2"],
             treatment_column="treatment"  # Add treatment_column for causal task
@@ -141,7 +141,7 @@ class TestCausalEvaluatorEvaluate:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["customer_id"],
-            task_type="causal",
+            task_choice="causal",
             target_column="revenue_lift",
             feature_columns=["customer_value"],
             treatment_column="treatment"  # Add treatment_column
@@ -185,7 +185,7 @@ class TestCausalEvaluatorEvaluate:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="causal",
+            task_choice="causal",
             target_column="click_through_rate",
             feature_columns=["segment"],
             treatment_column="treatment"
@@ -242,7 +242,7 @@ class TestCausalEvaluatorEvaluate:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="causal",
+            task_choice="causal",
             target_column="outcome",
             feature_columns=["treatment", "covariate"],
             treatment_column="treatment"
@@ -285,7 +285,7 @@ class TestCausalEvaluatorMetrics:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="causal",
+            task_choice="causal",
             target_column="conversion",
             feature_columns=["treatment", "feature"],
             treatment_column="treatment"
@@ -318,7 +318,7 @@ class TestCausalEvaluatorMetrics:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="causal",
+            task_choice="causal",
             target_column="revenue",
             feature_columns=["treatment", "segment", "value"],
             treatment_column="treatment"
@@ -360,7 +360,7 @@ class TestCausalEvaluatorEdgeCases:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="causal",
+            task_choice="causal",
             target_column="outcome",
             feature_columns=["treatment", "feature"],
             treatment_column="treatment"
@@ -397,7 +397,7 @@ class TestCausalEvaluatorEdgeCases:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="causal",
+            task_choice="causal",
             target_column="constant_outcome",
             feature_columns=["treatment", "covariate"],
             treatment_column="treatment"
@@ -432,7 +432,7 @@ class TestCausalEvaluatorEdgeCases:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="causal",
+            task_choice="causal",
             target_column="outcome",
             feature_columns=["treatment"],
             treatment_column="treatment"
@@ -469,7 +469,7 @@ class TestCausalEvaluatorIntegration:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["customer_id"],
-            task_type="causal",
+            task_choice="causal",
             target_column="purchase_probability",
             feature_columns=["email_campaign", "age", "previous_purchases", "engagement_score"],
             treatment_column="email_campaign"
@@ -515,7 +515,7 @@ class TestCausalEvaluatorIntegration:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="causal",
+            task_choice="causal",
             target_column="conversion_rate",
             feature_columns=["variant", "user_segment", "device_type"],
             treatment_column="variant"
@@ -574,7 +574,7 @@ class TestCausalEvaluatorSelfRegistration:
         # Verify can create instance through registry
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="causal",
+            task_choice="causal",
             target_column="outcome",
             feature_columns=["treatment", "covariate"],
             treatment_column="treatment"

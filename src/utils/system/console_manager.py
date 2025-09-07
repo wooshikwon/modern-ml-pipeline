@@ -239,6 +239,166 @@ class RichConsoleManager:
         else:
             return "rich"   # Full Rich experience
 
+    # ===== Enhanced Methods for Unified Console Integration =====
+    
+    def log_component_init(self, component_name: str, status: str = "success"):
+        """Log component initialization with consistent formatting"""
+        emoji = "✅" if status == "success" else "❌" if status == "error" else "🔄"
+        self.console.print(f"{emoji} {component_name} initialized")
+    
+    def log_processing_step(self, step_name: str, details: str = ""):
+        """Log processing steps with optional details"""
+        self.console.print(f"   🔄 {step_name}")
+        if details:
+            self.console.print(f"      [dim]{details}[/dim]")
+    
+    def log_warning_with_context(self, message: str, context: Dict[str, Any] = None):
+        """Enhanced warning with context information"""
+        self.console.print(f"⚠️  [yellow]{message}[/yellow]")
+        if context:
+            for key, value in context.items():
+                self.console.print(f"      [dim]{key}: {value}[/dim]")
+    
+    def log_database_operation(self, operation: str, details: str = ""):
+        """Database-specific logging with database emoji"""
+        self.console.print(f"🗄️  {operation}")
+        if details:
+            self.console.print(f"      [dim]{details}[/dim]")
+    
+    def log_feature_engineering(self, step: str, columns: List[str], result_info: str = ""):
+        """Feature engineering specific logging"""
+        self.console.print(f"🔬 {step}")
+        if columns:
+            cols_display = ', '.join(columns[:5])
+            if len(columns) > 5:
+                cols_display += f"... (+{len(columns)-5} more)"
+            self.console.print(f"   [dim]Columns: {cols_display}[/dim]")
+        if result_info:
+            self.console.print(f"   [dim]Result: {result_info}[/dim]")
+    
+    def log_data_operation(self, operation: str, shape: tuple = None, details: str = ""):
+        """Data operation logging with shape information"""
+        shape_str = f" ({shape[0]} rows, {shape[1]} columns)" if shape else ""
+        self.console.print(f"📊 {operation}{shape_str}")
+        if details:
+            self.console.print(f"   [dim]{details}[/dim]")
+    
+    def log_model_operation(self, operation: str, model_info: str = ""):
+        """Model-specific operations"""
+        self.console.print(f"🤖 {operation}")
+        if model_info:
+            self.console.print(f"   [dim]{model_info}[/dim]")
+    
+    def log_file_operation(self, operation: str, file_path: str, details: str = ""):
+        """File operations with path information"""
+        # Show only filename for cleaner output
+        from pathlib import Path
+        filename = Path(file_path).name if file_path else "file"
+        self.console.print(f"📁 {operation}: [cyan]{filename}[/cyan]")
+        if details:
+            self.console.print(f"   [dim]{details}[/dim]")
+    
+    def log_error_with_context(self, error_message: str, context: Dict[str, Any] = None, suggestion: str = None):
+        """Enhanced error logging with context and suggestions"""
+        self.console.print(f"❌ [red]Error: {error_message}[/red]")
+        if context:
+            for key, value in context.items():
+                self.console.print(f"   [dim]{key}: {value}[/dim]")
+        if suggestion:
+            self.console.print(f"   [blue]💡 Suggestion: {suggestion}[/blue]")
+    
+    def log_validation_result(self, item: str, status: str, details: str = ""):
+        """Validation results with clear status indicators"""
+        emoji = "✅" if status == "pass" else "❌" if status == "fail" else "⚠️"
+        color = "green" if status == "pass" else "red" if status == "fail" else "yellow"
+        self.console.print(f"{emoji} [{color}]{item}[/{color}]")
+        if details:
+            self.console.print(f"   [dim]{details}[/dim]")
+    
+    def log_connection_status(self, service: str, status: str, details: str = ""):
+        """Connection status for external services"""
+        emoji = "🔗" if status == "connected" else "❌" if status == "failed" else "🔄"
+        color = "green" if status == "connected" else "red" if status == "failed" else "yellow"
+        self.console.print(f"{emoji} [{color}]{service}: {status.title()}[/{color}]")
+        if details:
+            self.console.print(f"   [dim]{details}[/dim]")
 
-# Global instance for easy access
+
+# ===== Unified Console Class for Dual Output =====
+
+class UnifiedConsole:
+    """
+    Unified console that provides both rich interactive output and structured logging.
+    Automatically detects environment and adjusts output accordingly.
+    """
+    
+    def __init__(self, settings=None):
+        self.rich_console = RichConsoleManager()
+        from src.utils.system.logger import logger
+        self.logger = logger
+        self.mode = self._detect_output_mode(settings)
+    
+    def info(self, message: str, rich_message: str = None, **rich_kwargs):
+        """Unified info logging with dual output"""
+        self.logger.info(message)  # Always log to file/system
+        
+        if self.mode == "rich" and rich_message:
+            self.rich_console.console.print(rich_message, **rich_kwargs)
+        elif self.mode == "rich" and not rich_message:
+            self.rich_console.log_milestone(message, "info")
+        elif self.mode == "plain":
+            print(f"INFO: {message}")
+    
+    def error(self, message: str, rich_message: str = None, context: Dict[str, Any] = None, suggestion: str = None):
+        """Unified error logging"""
+        self.logger.error(message)
+        
+        if self.mode == "rich":
+            if rich_message:
+                self.rich_console.console.print(rich_message, style="red")
+            else:
+                self.rich_console.log_error_with_context(message, context, suggestion)
+        elif self.mode == "plain":
+            print(f"ERROR: {message}")
+    
+    def warning(self, message: str, rich_message: str = None, context: Dict[str, Any] = None):
+        """Unified warning logging"""
+        self.logger.warning(message)
+        
+        if self.mode == "rich":
+            if rich_message:
+                self.rich_console.console.print(rich_message, style="yellow")
+            else:
+                self.rich_console.log_warning_with_context(message, context)
+        elif self.mode == "plain":
+            print(f"WARNING: {message}")
+    
+    def component_init(self, component_name: str, status: str = "success"):
+        """Component initialization logging"""
+        if self.mode == "rich":
+            self.rich_console.log_component_init(component_name, status)
+        else:
+            status_text = "✓" if status == "success" else "✗" if status == "error" else "~"
+            print(f"{status_text} {component_name} initialized")
+    
+    def data_operation(self, operation: str, shape: tuple = None, details: str = ""):
+        """Data operation logging"""
+        if self.mode == "rich":
+            self.rich_console.log_data_operation(operation, shape, details)
+        else:
+            shape_str = f" ({shape[0]} rows, {shape[1]} columns)" if shape else ""
+            print(f"DATA: {operation}{shape_str}")
+    
+    def _detect_output_mode(self, settings) -> str:
+        """Detect appropriate output mode"""
+        if self.rich_console.is_ci_environment():
+            return "plain"
+        elif settings and hasattr(settings, 'console_mode'):
+            return settings.console_mode
+        else:
+            return "rich"
+
+
+# Global instances for easy access
 console_manager = RichConsoleManager()
+unified_console = UnifiedConsole()
