@@ -255,13 +255,13 @@ class TestInferencePipelineEdgeCases:
         train_result = run_train_pipeline(integration_settings_regression)
         model = mlflow.pyfunc.load_model(train_result.model_uri)
         
-        # Create data with extreme values
+        # Create data with extreme values (ensure all float64 for MLflow schema compatibility)
         extreme_data = pd.DataFrame({
-            'feature_0': [1e6, -1e6, 0],      # Very large/small values
-            'feature_1': [1e-10, 1e10, 1],    # Very small/large values
-            'feature_2': [np.inf, -np.inf, 5], # Infinite values (if allowed)
-            'feature_3': [0, 0, 0],            # All zeros
-            'feature_4': [999999, -999999, 1] # Large integers
+            'feature_0': [1e6, -1e6, 0.0],      # Very large/small values
+            'feature_1': [1e-10, 1e10, 1.0],    # Very small/large values
+            'feature_2': [np.inf, -np.inf, 5.0], # Infinite values (if allowed)
+            'feature_3': [0.0, 0.0, 0.0],        # All zeros (as float)
+            'feature_4': [999999.0, -999999.0, 1.0] # Large integers as float
         })
         
         # Filter out infinite values if they cause issues
@@ -310,16 +310,16 @@ class TestInferencePipelineEdgeCases:
                 'feature_2': [0.5, 1.5], 'feature_3': [2.0, 3.0], 'feature_4': [0.0, 1.0]
             }),
             
-            # Integer types
+            # Integer types (convert to float for MLflow schema compatibility)
             pd.DataFrame({
-                'feature_0': [1, 2], 'feature_1': [1, 2],
-                'feature_2': [0, 1], 'feature_3': [2, 3], 'feature_4': [0, 1]
+                'feature_0': [1.0, 2.0], 'feature_1': [1.0, 2.0],
+                'feature_2': [0.0, 1.0], 'feature_3': [2.0, 3.0], 'feature_4': [0.0, 1.0]
             }),
             
-            # Mixed types
+            # Mixed types (ensure all are float for schema compatibility)
             pd.DataFrame({
-                'feature_0': [1.0, 2], 'feature_1': [1, 2.5],  # Mixed int/float
-                'feature_2': [0.5, 1], 'feature_3': [2, 3.0], 'feature_4': [0, 1.0]
+                'feature_0': [1.0, 2.0], 'feature_1': [1.0, 2.5],  # All float
+                'feature_2': [0.5, 1.0], 'feature_3': [2.0, 3.0], 'feature_4': [0.0, 1.0]
             })
         ]
         

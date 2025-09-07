@@ -125,7 +125,21 @@ class TestCLIWorkflowE2E:
                         "adapter_type": "storage",
                         "config": {"base_path": data_dir}
                     },
-                    "feature_store": {"provider": "none"}
+                    "feature_store": {"provider": "none"},
+                    "output": {
+                        "inference": {
+                            "name": "cli_test_output",
+                            "enabled": True,
+                            "adapter_type": "storage",
+                            "config": {"base_path": workspace}
+                        },
+                        "preprocessed": {
+                            "name": "cli_test_preprocessed",
+                            "enabled": False,
+                            "adapter_type": "storage",
+                            "config": {}
+                        }
+                    }
                 }
                 
                 config_path = os.path.join(config_dir, "local.yaml")
@@ -151,7 +165,7 @@ class TestCLIWorkflowE2E:
                     },
                     "data": {
                         "loader": {
-                            "source_uri": "train_data.csv"
+                            "source_uri": "data/train_data.csv"
                         },
                         "fetcher": {
                             "type": "pass_through"
@@ -216,7 +230,7 @@ class TestCLIWorkflowE2E:
                 from src.pipelines.train_pipeline import run_train_pipeline
                 
                 # Load settings from created files
-                settings = load_settings(recipe_path, "local")  # Assuming config loading works
+                settings = load_settings(recipe_path, config_path)
                 train_result_prog = run_train_pipeline(settings)
                 
                 assert hasattr(train_result_prog, 'run_id'), "Training should produce run_id"
@@ -230,7 +244,7 @@ class TestCLIWorkflowE2E:
             
             # Update data source for inference
             inference_recipe_content = recipe_content.copy()
-            inference_recipe_content['data']['loader']['source_uri'] = 'inference_data.csv'
+            inference_recipe_content['data']['loader']['source_uri'] = 'data/inference_data.csv'
             
             inference_recipe_path = os.path.join(config_dir, "inference_recipe.yaml")
             with open(inference_recipe_path, 'w') as f:
@@ -261,16 +275,22 @@ class TestCLIWorkflowE2E:
                 from src.pipelines.inference_pipeline import run_inference_pipeline
                 from types import SimpleNamespace
                 
-                inference_settings = load_settings(inference_recipe_path, "local")
-                inference_context = SimpleNamespace(
-                    model_uri=getattr(train_result_prog, 'model_uri', 'runs:/dummy/model'),
-                    output_path=output_path
+                inference_settings = load_settings(inference_recipe_path, config_path)
+                
+                inference_result_prog = run_inference_pipeline(
+                    settings=inference_settings,
+                    run_id=getattr(train_result_prog, 'run_id', 'dummy_run'),
+                    data_path=os.path.join(data_dir, "inference_data.csv"),
+                    context_params={'output_path': output_path}
                 )
                 
-                inference_result_prog = run_inference_pipeline(inference_settings, inference_context)
-                assert os.path.exists(output_path), "Predictions file should be created"
+                # inference pipeline creates preds_{run_id}.parquet format files
+                import glob
+                parquet_files = glob.glob(os.path.join(workspace, 'preds_*.parquet'))
+                assert len(parquet_files) > 0, "Predictions parquet file should be created"
                 
-                predictions_df = pd.read_csv(output_path)
+                predictions_path = parquet_files[0]  # Use first parquet file 
+                predictions_df = pd.read_parquet(predictions_path)
                 
             print(f"✅ Inference completed. Predictions: {len(predictions_df)} rows")
             
