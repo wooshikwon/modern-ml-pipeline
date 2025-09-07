@@ -53,8 +53,29 @@ class SettingsBuilder:
         recipe_name: str = "test_recipe",
         **overrides: Dict[str, Any]
     ) -> Settings:
-        config = ConfigBuilder.build(env_name=env_name, **overrides.get('config', {}))
-        recipe = RecipeBuilder.build(name=recipe_name, **overrides.get('recipe', {}))
+        # Separate config, recipe, and direct recipe parameters
+        config_overrides = overrides.get('config', {})
+        recipe_overrides = overrides.get('recipe', {})
+        
+        # Handle direct recipe parameters (for CLI-first architecture compatibility)
+        # These should be forwarded to RecipeBuilder instead of being lost
+        recipe_direct_params = {}
+        for key, value in overrides.items():
+            if key not in ['config', 'recipe'] and not key.startswith('config.') and not key.startswith('recipe.'):
+                # Direct parameters that should go to RecipeBuilder
+                if key in ['source_uri', 'task_choice', 'model_class_path', 'fetcher_type', 'enable_tuning',
+                          'target_column', 'entity_columns', 'timestamp_column', 'feature_columns']:
+                    recipe_direct_params[key] = value
+        
+        # Handle dotted notation for recipe (recipe.data.loader.source_uri format)
+        for key, value in overrides.items():
+            if key.startswith('recipe.'):
+                recipe_key = key[7:]  # Remove 'recipe.' prefix
+                recipe_overrides[recipe_key] = value
+        
+        # Create builders with appropriate parameters
+        config = ConfigBuilder.build(env_name=env_name, **config_overrides)
+        recipe = RecipeBuilder.build(name=recipe_name, **recipe_overrides, **recipe_direct_params)
         settings = Settings(config=config, recipe=recipe)
         
         # Add computed fields like production (_add_computed_fields logic)
