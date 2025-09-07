@@ -18,7 +18,7 @@ class TestFastAPIAppInitialization:
         # Assert
         assert app is not None
         assert app.title == "Modern ML Pipeline API"
-        assert app.description == "Blueprint v17.0 기반 모델 서빙 API"
+        assert app.description == "   기반 모델 서빙 API"
         assert app.version == "17.0.0"
     
     def test_app_has_lifespan(self):

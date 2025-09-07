@@ -5,6 +5,7 @@ from sklearn.model_selection import train_test_split
 
 from src.settings import Settings
 from src.utils.system.logger import logger
+from src.utils.system.console_manager import get_console
 from src.interface import BaseTrainer, BaseModel, BaseFetcher, BasePreprocessor, BaseEvaluator, BaseDataHandler
 from .modules.optimizer import OptunaOptimizer
 
@@ -18,7 +19,8 @@ class Trainer(BaseTrainer):
     def __init__(self, settings: Settings, factory_provider: Optional[Callable[[], Any]] = None):
         self.settings = settings
         self.factory_provider = factory_provider
-        logger.info("Trainer가 초기화되었습니다.")
+        self.console = get_console(settings)
+        self.console.component_init("Trainer", "success")
         self.training_results = {}
 
     def _get_factory(self):
@@ -80,35 +82,35 @@ class Trainer(BaseTrainer):
                     bq_adapter.write(X_train, f"{dataset}.{table}_train", options={"project_id": project_id, "location": location, "if_exists": "append"})
                     bq_adapter.write(X_test, f"{dataset}.{table}_test", options={"project_id": project_id, "location": location, "if_exists": "append"})
                 else:
-                    logger.warning(f"알 수 없는 output 어댑터 타입: {target.adapter_type}. 전처리 저장을 스킵합니다.")
+                    self.console.warning(f"알 수 없는 output 어댑터 타입: {target.adapter_type}. 전처리 저장을 스킵합니다.")
         except Exception as e:
-            logger.error(f"전처리 산출물 저장 중 오류: {e}", exc_info=True)
+            self.console.error(f"전처리 산출물 저장 중 오류: {e}")
 
         # 하이퍼파라미터 최적화 또는 직접 학습 (Recipe 설정만 사용)
         recipe_hyperparams = self.settings.recipe.model.hyperparameters
         use_tuning = recipe_hyperparams and getattr(recipe_hyperparams, 'tuning_enabled', False)
 
         if use_tuning:
-            logger.info("하이퍼파라미터 최적화를 시작합니다. (Recipe에서 활성화됨)")
+            self.console.info("하이퍼파라미터 최적화를 시작합니다. (Recipe에서 활성화됨)", rich_message="🎯 Hyperparameter optimization started")
             optimizer = OptunaOptimizer(settings=self.settings, factory_provider=self._get_factory)
             best = optimizer.optimize(train_df, lambda train_df, params, seed: self._single_training_iteration(train_df, params, seed, datahandler))
             self.training_results['hyperparameter_optimization'] = best
             trained_model = best['model']
         else:
-            logger.info("하이퍼파라미터 튜닝을 건너뜁니다. 이유: Recipe에서 비활성화되었거나 설정이 없습니다.")
-            logger.info("고정된 하이퍼파라미터로 모델을 학습합니다.")
+            self.console.info("하이퍼파라미터 튜닝을 건너뜁니다. 이유: Recipe에서 비활성화되었거나 설정이 없습니다.", rich_message="⚙️ Using fixed hyperparameters (optimization disabled)")
+            self.console.info("고정된 하이퍼파라미터로 모델을 학습합니다.", rich_message="🎯 Training with fixed hyperparameters")
             model.fit(X_train, y_train)
             trained_model = model
             self.training_results['hyperparameter_optimization'] = {'enabled': False}
 
-        # 4. 모델 평가
-        metrics = evaluator.evaluate(trained_model, X_test, y_test)
+        # 4. 모델 평가 (causal task의 경우 additional_test_data에 treatment 정보 포함)
+        metrics = evaluator.evaluate(trained_model, X_test, y_test, additional_test_data)
         self.training_results['evaluation_metrics'] = metrics
 
         # 5. 학습 방법론 메타데이터 저장
         self.training_results['training_methodology'] = self._get_training_methodology()
         
-        logger.info(f"모델 평가 완료. 주요 지표: {metrics}")
+        self.console.info(f"모델 평가 완료. 주요 지표: {metrics}", rich_message=f"📊 Model evaluation complete: {len(metrics)} metrics")
         
         return trained_model, preprocessor, metrics, self.training_results
 

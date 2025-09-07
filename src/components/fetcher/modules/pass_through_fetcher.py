@@ -16,7 +16,7 @@ class PassThroughFetcher(BaseFetcher):
         'passthrough' 모드가 활성화되었거나 레시피에 fetcher가 정의되지 않았음을
         알리는 로그를 남기고, 입력 DataFrame을 수정 없이 그대로 반환합니다.
         """
-        # BLUEPRINT: 명확한 run_mode 검증으로 디버깅 지원
+        #   명확한 run_mode 검증으로 디버깅 지원
         valid_modes = ["train", "batch", "serving"]
         if run_mode not in valid_modes:
             raise ValueError(f"Invalid run_mode '{run_mode}'. Valid modes: {valid_modes}")

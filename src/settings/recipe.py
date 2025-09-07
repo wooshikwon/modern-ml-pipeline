@@ -124,7 +124,7 @@ class Fetcher(BaseModel):
 
 class DataInterface(BaseModel):
     """데이터 인터페이스 설정"""
-    target_column: str = Field(..., description="타겟 컬럼 이름")
+    target_column: Optional[str] = Field(None, description="타겟 컬럼 이름 (clustering에서는 None)")
     
     feature_columns: Optional[List[str]] = Field(
         None, 
@@ -323,15 +323,29 @@ class Recipe(BaseModel):
         task = self.task_choice
         data_interface = self.data.data_interface
         
+        # Clustering task 검증 - target_column이 없어야 함
+        if task == "clustering":
+            if data_interface.target_column is not None:
+                raise ValueError("Clustering task에서는 target_column이 None이어야 합니다")
+        
+        # Classification/Regression task 검증 - target_column이 필수
+        elif task in ["classification", "regression"]:
+            if not data_interface.target_column:
+                raise ValueError(f"{task.capitalize()} task에는 target_column이 필수입니다")
+        
         # Timeseries task 검증
-        if task == "timeseries":
+        elif task == "timeseries":
             if not data_interface.timestamp_column:
                 raise ValueError("Timeseries task에는 timestamp_column이 필수입니다")
+            if not data_interface.target_column:
+                raise ValueError("Timeseries task에는 target_column이 필수입니다")
         
         # Causal task 검증  
-        if task == "causal":
+        elif task == "causal":
             if not data_interface.treatment_column:
                 raise ValueError("Causal task에는 treatment_column이 필수입니다")
+            if not data_interface.target_column:
+                raise ValueError("Causal task에는 target_column이 필수입니다")
         
         return self
     

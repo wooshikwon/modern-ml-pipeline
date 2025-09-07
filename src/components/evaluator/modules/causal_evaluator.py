@@ -7,25 +7,28 @@ class CausalEvaluator(BaseEvaluator):
     def __init__(self, data_interface_settings: DataInterface):
         super().__init__(data_interface_settings)
 
-    def evaluate(self, model, X, y, source_df=None):
+    def evaluate(self, model, X, y, additional_data=None):
         """
         인과추론 모델 평가.
         
         Args:
             model: 인과추론 모델 (uplift prediction 지원)
-            X: 피처 데이터 (treatment column 포함)
+            X: 피처 데이터 (treatment column 제외됨)
             y: 결과 변수
-            source_df: 원본 데이터프레임
+            additional_data: 추가 데이터 (treatment 정보 포함)
             
         Returns:
             Dict[str, float]: 인과추론 평가 메트릭들
         """
-        if not self.settings.treatment_column:
+        if not self.data_interface.treatment_column:
             raise ValueError("Causal evaluation requires treatment_column in DataInterface")
         
-        # Treatment 변수 추출
-        treatment = X[self.settings.treatment_column]
-        features = X.drop(columns=[self.settings.treatment_column])
+        # Treatment 변수 추출 - additional_data에서 가져옴
+        if not additional_data or 'treatment' not in additional_data:
+            raise ValueError("Causal evaluation requires treatment data in additional_data")
+            
+        treatment = additional_data['treatment']
+        features = X  # X는 이미 treatment가 제외된 상태
         
         # ATE (Average Treatment Effect) 계산
         ate = self._calculate_ate(treatment, y)

@@ -29,27 +29,28 @@ class TestSystemCheckCommandParameterHandling:
     @patch('src.cli.commands.system_check_command.SystemChecker')
     @patch('src.cli.commands.system_check_command.load_environment')
     def test_system_check_command_parameter_parsing_success(self, mock_load_env, mock_system_checker, mock_path_class):
-        """Test successful parameter parsing for system check."""
+        """Test successful parameter parsing for system check with --config-path."""
         runner = CliRunner()
         
         # Create test app for typer
         app = typer.Typer()
         app.command()(system_check_command)
         
-        # Mock Path behavior for .env file
-        mock_env_file = Mock()
-        mock_env_file.exists.return_value = True
+        # Mock config file Path
+        mock_config_path = Mock()
+        mock_config_path.exists.return_value = True
+        mock_config_path.stem = "test"  # For env_name extraction
         
-        # Mock Path behavior for config file
-        mock_config_file = Mock()
-        mock_config_file.exists.return_value = True
+        # Mock env file Path
+        mock_env_path = Mock()
+        mock_env_path.exists.return_value = True
         
         # Mock Path constructor to return appropriate mocks
         def path_side_effect(path_str):
-            if '.env' in str(path_str):
-                return mock_env_file
-            elif 'configs' in str(path_str):
-                return mock_config_file
+            if str(path_str).endswith('.yaml'):
+                return mock_config_path
+            elif '.env.' in str(path_str):
+                return mock_env_path
             return Mock()
         
         mock_path_class.side_effect = path_side_effect
@@ -69,13 +70,13 @@ class TestSystemCheckCommandParameterHandling:
             with patch('yaml.safe_load', return_value=test_config):
                 # Act
                 result = runner.invoke(app, [
-                    "--env-name", "test"
+                    "--config-path", "configs/test.yaml"
                 ])
                 
                 # Assert
                 assert result.exit_code == 0
                 mock_load_env.assert_called_once_with("test")
-                mock_system_checker.assert_called_once_with(test_config, "test")
+                mock_system_checker.assert_called_once_with(test_config, "test", "configs/test.yaml")
                 mock_checker_instance.run_all_checks.assert_called_once()
                 mock_checker_instance.display_results.assert_called_once_with(show_actionable=False)
     
@@ -83,22 +84,25 @@ class TestSystemCheckCommandParameterHandling:
     @patch('src.cli.commands.system_check_command.SystemChecker')
     @patch('src.cli.commands.system_check_command.load_environment')
     def test_system_check_command_with_actionable_flag(self, mock_load_env, mock_system_checker, mock_path_class):
-        """Test system check command with actionable flag."""
+        """Test system check command with actionable flag and --config-path."""
         runner = CliRunner()
         app = typer.Typer()
         app.command()(system_check_command)
         
-        # Mock Path behavior 
-        mock_env_file = Mock()
-        mock_env_file.exists.return_value = True
-        mock_config_file = Mock() 
-        mock_config_file.exists.return_value = True
+        # Mock config file Path
+        mock_config_path = Mock()
+        mock_config_path.exists.return_value = True
+        mock_config_path.stem = "test"
+        
+        # Mock env file Path
+        mock_env_path = Mock()
+        mock_env_path.exists.return_value = True
         
         def path_side_effect(path_str):
-            if '.env' in str(path_str):
-                return mock_env_file
-            elif 'configs' in str(path_str):
-                return mock_config_file
+            if str(path_str).endswith('.yaml'):
+                return mock_config_path
+            elif '.env.' in str(path_str):
+                return mock_env_path
             return Mock()
         
         mock_path_class.side_effect = path_side_effect
@@ -114,7 +118,7 @@ class TestSystemCheckCommandParameterHandling:
             with patch('yaml.safe_load', return_value=test_config):
                 # Act
                 result = runner.invoke(app, [
-                    "--env-name", "test",
+                    "--config-path", "configs/test.yaml",
                     "--actionable"
                 ])
                 
@@ -128,22 +132,25 @@ class TestSystemCheckCommandFileHandling:
     
     @patch('src.cli.commands.system_check_command.Path')
     def test_system_check_command_no_env_file(self, mock_path_class):
-        """Test system check when .env file doesn't exist."""
+        """Test system check when .env file doesn't exist but config exists."""
         runner = CliRunner()
         app = typer.Typer()
         app.command()(system_check_command)
         
-        # Mock Path behavior - env file doesn't exist, config file exists
-        mock_env_file = Mock()
-        mock_env_file.exists.return_value = False
-        mock_config_file = Mock()
-        mock_config_file.exists.return_value = True
+        # Mock config file Path
+        mock_config_path = Mock()
+        mock_config_path.exists.return_value = True
+        mock_config_path.stem = "test"
+        
+        # Mock env file Path - doesn't exist
+        mock_env_path = Mock()
+        mock_env_path.exists.return_value = False
         
         def path_side_effect(path_str):
-            if '.env' in str(path_str):
-                return mock_env_file
-            elif 'configs' in str(path_str):
-                return mock_config_file
+            if str(path_str).endswith('.yaml'):
+                return mock_config_path
+            elif '.env.' in str(path_str):
+                return mock_env_path
             return Mock()
         
         mock_path_class.side_effect = path_side_effect
@@ -159,7 +166,7 @@ class TestSystemCheckCommandFileHandling:
                 with patch('yaml.safe_load', return_value=test_config):
                     # Act
                     result = runner.invoke(app, [
-                        "--env-name", "test"
+                        "--config-path", "configs/test.yaml"
                     ])
                     
                     # Assert
@@ -173,24 +180,21 @@ class TestSystemCheckCommandFileHandling:
         app = typer.Typer()
         app.command()(system_check_command)
         
-        # Mock Path behavior - config file doesn't exist
-        mock_env_file = Mock()
-        mock_env_file.exists.return_value = False
-        mock_config_file = Mock()
-        mock_config_file.exists.return_value = False  # Config file missing
+        # Mock config file Path - doesn't exist
+        mock_config_path = Mock()
+        mock_config_path.exists.return_value = False  # Config file missing
+        mock_config_path.stem = "missing"
         
         def path_side_effect(path_str):
-            if '.env' in str(path_str):
-                return mock_env_file
-            elif 'configs' in str(path_str):
-                return mock_config_file
+            if str(path_str).endswith('.yaml'):
+                return mock_config_path
             return Mock()
         
         mock_path_class.side_effect = path_side_effect
         
         # Act
         result = runner.invoke(app, [
-            "--env-name", "missing"
+            "--config-path", "configs/missing.yaml"
         ])
         
         # Assert
@@ -204,17 +208,20 @@ class TestSystemCheckCommandFileHandling:
         app = typer.Typer()
         app.command()(system_check_command)
         
-        # Mock Path behavior
-        mock_env_file = Mock()
-        mock_env_file.exists.return_value = True
-        mock_config_file = Mock()
-        mock_config_file.exists.return_value = True
+        # Mock config file Path
+        mock_config_path = Mock()
+        mock_config_path.exists.return_value = True
+        mock_config_path.stem = "test"
+        
+        # Mock env file Path
+        mock_env_path = Mock()
+        mock_env_path.exists.return_value = True
         
         def path_side_effect(path_str):
-            if '.env' in str(path_str):
-                return mock_env_file
-            elif 'configs' in str(path_str):
-                return mock_config_file
+            if str(path_str).endswith('.yaml'):
+                return mock_config_path
+            elif '.env.' in str(path_str):
+                return mock_env_path
             return Mock()
         
         mock_path_class.side_effect = path_side_effect
@@ -233,7 +240,7 @@ class TestSystemCheckCommandFileHandling:
                 with patch('yaml.safe_load', return_value=test_config):
                     # Act
                     result = runner.invoke(app, [
-                        "--env-name", "test"
+                        "--config-path", "configs/test.yaml"
                     ])
                     
                     # Assert
@@ -250,17 +257,14 @@ class TestSystemCheckCommandErrorHandling:
         app.command()(system_check_command)
         
         with patch('src.cli.commands.system_check_command.Path') as mock_path_class:
-            # Mock Path behavior to trigger processing
-            mock_env_file = Mock()
-            mock_env_file.exists.return_value = False
-            mock_config_file = Mock()
-            mock_config_file.exists.return_value = True
+            # Mock config file Path
+            mock_config_path = Mock()
+            mock_config_path.exists.return_value = True
+            mock_config_path.stem = "test"
             
             def path_side_effect(path_str):
-                if '.env' in str(path_str):
-                    return mock_env_file
-                elif 'configs' in str(path_str):
-                    return mock_config_file
+                if str(path_str).endswith('.yaml'):
+                    return mock_config_path
                 return Mock()
             
             mock_path_class.side_effect = path_side_effect
@@ -270,7 +274,7 @@ class TestSystemCheckCommandErrorHandling:
                 with patch('yaml.safe_load', side_effect=KeyboardInterrupt("User interrupted")):
                     # Act
                     result = runner.invoke(app, [
-                        "--env-name", "test"
+                        "--config-path", "configs/test.yaml"
                     ])
                     
                     # Assert
@@ -283,17 +287,14 @@ class TestSystemCheckCommandErrorHandling:
         app = typer.Typer()
         app.command()(system_check_command)
         
-        # Mock Path behavior
-        mock_env_file = Mock()
-        mock_env_file.exists.return_value = False
-        mock_config_file = Mock()
-        mock_config_file.exists.return_value = True
+        # Mock config file Path
+        mock_config_path = Mock()
+        mock_config_path.exists.return_value = True
+        mock_config_path.stem = "test"
         
         def path_side_effect(path_str):
-            if '.env' in str(path_str):
-                return mock_env_file
-            elif 'configs' in str(path_str):
-                return mock_config_file
+            if str(path_str).endswith('.yaml'):
+                return mock_config_path
             return Mock()
         
         mock_path_class.side_effect = path_side_effect
@@ -302,7 +303,7 @@ class TestSystemCheckCommandErrorHandling:
             with patch('yaml.safe_load', side_effect=RuntimeError("Unexpected error")):
                 # Act
                 result = runner.invoke(app, [
-                    "--env-name", "test"
+                    "--config-path", "configs/test.yaml"
                 ])
                 
                 # Assert
@@ -321,17 +322,20 @@ class TestSystemCheckCommandIntegration:
         app = typer.Typer()
         app.command()(system_check_command)
         
-        # Mock Path behavior
-        mock_env_file = Mock()
-        mock_env_file.exists.return_value = True
-        mock_config_file = Mock()
-        mock_config_file.exists.return_value = True
+        # Mock config file Path
+        mock_config_path = Mock()
+        mock_config_path.exists.return_value = True
+        mock_config_path.stem = "production"  # Extract env_name
+        
+        # Mock env file Path
+        mock_env_path = Mock()
+        mock_env_path.exists.return_value = True
         
         def path_side_effect(path_str):
-            if '.env' in str(path_str):
-                return mock_env_file
-            elif 'configs' in str(path_str):
-                return mock_config_file
+            if str(path_str).endswith('.yaml'):
+                return mock_config_path
+            elif '.env.' in str(path_str):
+                return mock_env_path
             return Mock()
         
         mock_path_class.side_effect = path_side_effect
@@ -340,13 +344,12 @@ class TestSystemCheckCommandIntegration:
         comprehensive_config = {
             "environment": {"name": "production"},
             "mlflow": {"tracking_uri": "http://mlflow-server:5000"},
-            "data": {
-                "adapters": {
-                    "postgresql": {"host": "db.company.com"},
-                    "bigquery": {"project_id": "my-project"}
-                }
+            "data_source": {
+                "name": "PostgreSQL",
+                "adapter_type": "sql",
+                "config": {"connection_uri": "postgresql://db.company.com"}
             },
-            "feast": {"registry": "s3://feast-registry/"},
+            "feature_store": {"provider": "feast", "feast_config": {"registry": "s3://feast-registry/"}},
             "monitoring": {"enabled": True}
         }
         
@@ -355,8 +358,8 @@ class TestSystemCheckCommandIntegration:
         mock_check_results = {
             "mlflow": {"status": "success", "details": "Connected"},
             "postgresql": {"status": "success", "details": "Database accessible"},
-            "bigquery": {"status": "warning", "details": "Slow response"},
-            "feast": {"status": "error", "details": "Registry not accessible"}
+            "feast": {"status": "warning", "details": "Registry slow response"},
+            "monitoring": {"status": "success", "details": "Monitoring configured"}
         }
         mock_checker_instance.run_all_checks.return_value = mock_check_results
         mock_system_checker.return_value = mock_checker_instance
@@ -365,7 +368,7 @@ class TestSystemCheckCommandIntegration:
             with patch('yaml.safe_load', return_value=comprehensive_config):
                 # Act
                 result = runner.invoke(app, [
-                    "--env-name", "production",
+                    "--config-path", "configs/production.yaml",
                     "--actionable"
                 ])
                 
@@ -376,7 +379,7 @@ class TestSystemCheckCommandIntegration:
                 mock_load_env.assert_called_once_with("production")
                 
                 # Verify SystemChecker creation and execution
-                mock_system_checker.assert_called_once_with(comprehensive_config, "production")
+                mock_system_checker.assert_called_once_with(comprehensive_config, "production", "configs/production.yaml")
                 mock_checker_instance.run_all_checks.assert_called_once()
                 mock_checker_instance.display_results.assert_called_once_with(show_actionable=True)
     
@@ -388,17 +391,20 @@ class TestSystemCheckCommandIntegration:
         app = typer.Typer()
         app.command()(system_check_command)
         
-        # Mock Path behavior for development setup
-        mock_env_file = Mock()
-        mock_env_file.exists.return_value = True
-        mock_config_file = Mock()
-        mock_config_file.exists.return_value = True
+        # Mock config file Path
+        mock_config_path = Mock()
+        mock_config_path.exists.return_value = True
+        mock_config_path.stem = "dev"  # Extract env_name
+        
+        # Mock env file Path
+        mock_env_path = Mock()
+        mock_env_path.exists.return_value = True
         
         def path_side_effect(path_str):
-            if '.env' in str(path_str):
-                return mock_env_file
-            elif 'configs' in str(path_str):
-                return mock_config_file
+            if str(path_str).endswith('.yaml'):
+                return mock_config_path
+            elif '.env.' in str(path_str):
+                return mock_env_path
             return Mock()
         
         mock_path_class.side_effect = path_side_effect
@@ -407,10 +413,10 @@ class TestSystemCheckCommandIntegration:
         dev_config = {
             "environment": {"name": "development"},
             "mlflow": {"tracking_uri": "file:///tmp/mlruns"},
-            "data": {
-                "adapters": {
-                    "postgresql": {"host": "localhost", "port": 5432}
-                }
+            "data_source": {
+                "name": "Local PostgreSQL",
+                "adapter_type": "sql",
+                "config": {"connection_uri": "postgresql://localhost:5432/dev_db"}
             }
         }
         
@@ -428,12 +434,12 @@ class TestSystemCheckCommandIntegration:
                 with patch('yaml.safe_load', return_value=dev_config):
                     # Act
                     result = runner.invoke(app, [
-                        "--env-name", "dev"
+                        "--config-path", "configs/dev.yaml"
                     ])
                     
                     # Assert
                     assert result.exit_code == 0
-                    mock_system_checker.assert_called_once_with(dev_config, "dev")
+                    mock_system_checker.assert_called_once_with(dev_config, "dev", "configs/dev.yaml")
 
 
 class TestSystemCheckCommandEdgeCases:
@@ -447,17 +453,20 @@ class TestSystemCheckCommandEdgeCases:
         app = typer.Typer()
         app.command()(system_check_command)
         
-        # Mock Path behavior
-        mock_env_file = Mock()
-        mock_env_file.exists.return_value = False
-        mock_config_file = Mock()
-        mock_config_file.exists.return_value = True
+        # Mock config file Path
+        mock_config_path = Mock()
+        mock_config_path.exists.return_value = True
+        mock_config_path.stem = "minimal"
+        
+        # Mock env file Path - doesn't exist
+        mock_env_path = Mock()
+        mock_env_path.exists.return_value = False
         
         def path_side_effect(path_str):
-            if '.env' in str(path_str):
-                return mock_env_file
-            elif 'configs' in str(path_str):
-                return mock_config_file
+            if str(path_str).endswith('.yaml'):
+                return mock_config_path
+            elif '.env.' in str(path_str):
+                return mock_env_path
             return Mock()
         
         mock_path_class.side_effect = path_side_effect
@@ -473,33 +482,37 @@ class TestSystemCheckCommandEdgeCases:
             with patch('yaml.safe_load', return_value=empty_config):
                 # Act
                 result = runner.invoke(app, [
-                    "--env-name", "minimal"
+                    "--config-path", "configs/minimal.yaml"
                 ])
                 
                 # Assert
                 assert result.exit_code == 0
-                mock_system_checker.assert_called_once_with(empty_config, "minimal")
+                mock_system_checker.assert_called_once_with(empty_config, "minimal", "configs/minimal.yaml")
     
     @patch('src.cli.commands.system_check_command.Path')
-    def test_system_check_command_long_env_name(self, mock_path_class):
-        """Test system check with very long environment name."""
+    def test_system_check_command_long_config_filename(self, mock_path_class):
+        """Test system check with very long config filename."""
         runner = CliRunner()
         app = typer.Typer()
         app.command()(system_check_command)
         
         long_env_name = "very_long_environment_name_for_testing_edge_cases_and_boundary_conditions"
+        long_config_path = f"configs/{long_env_name}.yaml"
         
-        # Mock Path behavior
-        mock_env_file = Mock()
-        mock_env_file.exists.return_value = False
-        mock_config_file = Mock()
-        mock_config_file.exists.return_value = True
+        # Mock config file Path
+        mock_config_path = Mock()
+        mock_config_path.exists.return_value = True
+        mock_config_path.stem = long_env_name  # Extract long env_name
+        
+        # Mock env file Path - doesn't exist
+        mock_env_path = Mock()
+        mock_env_path.exists.return_value = False
         
         def path_side_effect(path_str):
-            if '.env' in str(path_str):
-                return mock_env_file
-            elif 'configs' in str(path_str):
-                return mock_config_file
+            if str(path_str).endswith('.yaml'):
+                return mock_config_path
+            elif '.env.' in str(path_str):
+                return mock_env_path
             return Mock()
         
         mock_path_class.side_effect = path_side_effect
@@ -515,9 +528,9 @@ class TestSystemCheckCommandEdgeCases:
                 with patch('yaml.safe_load', return_value=test_config):
                     # Act
                     result = runner.invoke(app, [
-                        "--env-name", long_env_name
+                        "--config-path", long_config_path
                     ])
                     
-                    # Assert - should handle long environment names without issues
+                    # Assert - should handle long config filenames without issues
                     assert result.exit_code == 0
-                    mock_system_checker.assert_called_once_with(test_config, long_env_name)
+                    mock_system_checker.assert_called_once_with(test_config, long_env_name, long_config_path)

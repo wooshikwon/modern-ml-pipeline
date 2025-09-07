@@ -42,16 +42,18 @@ class SystemChecker:
     Config 파일 기반으로 설정된 서비스들의 실제 연결 상태를 검증합니다.
     """
     
-    def __init__(self, config: Dict[str, Any], env_name: str):
+    def __init__(self, config: Dict[str, Any], env_name: str, config_path: str = None):
         """
         SystemChecker 초기화.
         
         Args:
             config: 로드된 config 딕셔너리
-            env_name: 환경 이름
+            env_name: 환경 이름 (호환성을 위해 유지)
+            config_path: config 파일 경로 (display용)
         """
         self.config = config
         self.env_name = env_name
+        self.config_path = config_path or f"configs/{env_name}.yaml"
         self.ui = InteractiveUI()
         self.results: List[CheckResult] = []
     
@@ -68,27 +70,26 @@ class SystemChecker:
         if "mlflow" in self.config:
             self.results.append(self.check_mlflow())
         
-        # 2. 데이터 어댑터 체크
-        if "data_adapters" in self.config:
-            for adapter_name, adapter_config in self.config["data_adapters"].get("adapters", {}).items():
-                self.results.append(self.check_adapter(adapter_name, adapter_config))
+        # 2. 데이터 소스 체크 (새로운 단일 data_source 구조)
+        if "data_source" in self.config:
+            data_source = self.config["data_source"]
+            self.results.append(self.check_data_source(data_source))
         
         # 3. Feature Store 체크
         if "feature_store" in self.config:
             self.results.append(self.check_feature_store())
         
-        # 4. Artifact Storage 체크
-        if "artifact_stores" in self.config:
-            for store_name, store_config in self.config["artifact_stores"].items():
-                if store_config.get("enabled", False):
-                    self.results.append(self.check_artifact_store(store_name, store_config))
+        # 4. Artifact Storage 체크 (새로운 단일 artifact_store 구조)
+        if "artifact_store" in self.config:
+            artifact_store = self.config["artifact_store"]
+            self.results.append(self.check_artifact_store(artifact_store))
         
         # 5. Serving 체크
         if self.config.get("serving", {}).get("enabled", False):
             self.results.append(self.check_serving())
         
-        # 6. Monitoring 체크
-        if self.config.get("monitoring", {}).get("enabled", False):
+        # 6. Monitoring 체크 (선택적)
+        if "monitoring" in self.config and self.config.get("monitoring", {}).get("enabled", False):
             self.results.append(self.check_monitoring())
         
         return self.results
@@ -147,9 +148,48 @@ class SystemChecker:
                 solution="Check if MLflow server is running or tracking directory exists"
             )
     
+    def check_data_source(self, data_source: Dict[str, Any]) -> CheckResult:
+        """
+        데이터 소스 연결 체크 (새로운 단일 data_source 구조).
+        
+        Args:
+            data_source: 데이터 소스 설정
+            
+        Returns:
+            체크 결과
+        """
+        source_name = data_source.get("name", "Unknown")
+        adapter_type = data_source.get("adapter_type", "")
+        config = data_source.get("config", {})
+        
+        # SQL/PostgreSQL Adapter
+        if adapter_type == "sql" or "postgresql://" in str(config.get("connection_uri", "")):
+            return self._check_postgresql(source_name, config)
+        
+        # BigQuery Adapter
+        elif adapter_type == "bigquery":
+            return self._check_bigquery(source_name, config)
+        
+        # Storage Adapter (Local Files, S3, GCS)
+        elif adapter_type == "storage":
+            base_path = config.get("base_path", "")
+            if base_path.startswith("s3://"):
+                return self._check_s3(source_name, config)
+            elif base_path.startswith("gs://"):
+                return self._check_gcs(source_name, config)
+            else:
+                return self._check_storage(source_name, config)
+        
+        else:
+            return CheckResult(
+                service=f"DataSource:{source_name}",
+                status=CheckStatus.SKIPPED,
+                message=f"Unknown adapter type: {adapter_type}"
+            )
+    
     def check_adapter(self, adapter_name: str, adapter_config: Dict[str, Any]) -> CheckResult:
         """
-        데이터 어댑터 연결 체크.
+        레거시 어댑터 체크 메서드 (하위 호환성).
         
         Args:
             adapter_name: 어댑터 이름
@@ -188,7 +228,7 @@ class SystemChecker:
                 message=f"Unknown adapter type: {class_name}"
             )
     
-    def _check_postgresql(self, adapter_name: str, config: Dict[str, Any]) -> CheckResult:
+    def _check_postgresql(self, source_name: str, config: Dict[str, Any]) -> CheckResult:
         """PostgreSQL 연결 체크."""
         connection_uri = os.path.expandvars(config.get("connection_uri", ""))
         
@@ -201,7 +241,7 @@ class SystemChecker:
                 import psycopg2
             except ImportError:
                 return CheckResult(
-                    service=f"PostgreSQL ({adapter_name})",
+                    service=f"PostgreSQL ({source_name})",
                     status=CheckStatus.WARNING,
                     message="psycopg2 library not installed",
                     solution="pip install psycopg2-binary"
@@ -216,7 +256,7 @@ class SystemChecker:
             conn.close()
             
             return CheckResult(
-                service=f"PostgreSQL:{adapter_name}",
+                service=f"PostgreSQL:{source_name}",
                 status=CheckStatus.SUCCESS,
                 message=f"PostgreSQL connection successful",
                 details={"host": parsed.hostname, "database": parsed.path[1:]}
@@ -224,20 +264,20 @@ class SystemChecker:
             
         except Exception as e:
             return CheckResult(
-                service=f"PostgreSQL:{adapter_name}",
+                service=f"PostgreSQL:{source_name}",
                 status=CheckStatus.FAILED,
                 message=f"PostgreSQL connection failed: {str(e)}",
                 solution="Check database credentials and network connectivity"
             )
     
-    def _check_bigquery(self, adapter_name: str, config: Dict[str, Any]) -> CheckResult:
+    def _check_bigquery(self, source_name: str, config: Dict[str, Any]) -> CheckResult:
         """BigQuery 연결 체크."""
         project_id = os.path.expandvars(config.get("project_id", ""))
         dataset_id = os.path.expandvars(config.get("dataset_id", ""))
         
         if not project_id:
             return CheckResult(
-                service=f"BigQuery:{adapter_name}",
+                service=f"BigQuery:{source_name}",
                 status=CheckStatus.WARNING,
                 message="BigQuery project_id not configured",
                 solution="Set GCP_PROJECT_ID environment variable"
@@ -250,7 +290,7 @@ class SystemChecker:
             dataset = client.get_dataset(dataset_id)
             
             return CheckResult(
-                service=f"BigQuery:{adapter_name}",
+                service=f"BigQuery:{source_name}",
                 status=CheckStatus.SUCCESS,
                 message=f"BigQuery dataset accessible",
                 details={"project": project_id, "dataset": dataset_id}
@@ -258,40 +298,40 @@ class SystemChecker:
             
         except ImportError:
             return CheckResult(
-                service=f"BigQuery:{adapter_name}",
+                service=f"BigQuery:{source_name}",
                 status=CheckStatus.WARNING,
                 message="google-cloud-bigquery not installed",
                 solution="Run: pip install google-cloud-bigquery"
             )
         except Exception as e:
             return CheckResult(
-                service=f"BigQuery:{adapter_name}",
+                service=f"BigQuery:{source_name}",
                 status=CheckStatus.FAILED,
                 message=f"BigQuery connection failed: {str(e)}",
                 solution="Check GCP credentials and permissions"
             )
     
-    def _check_storage(self, adapter_name: str, config: Dict[str, Any]) -> CheckResult:
+    def _check_storage(self, source_name: str, config: Dict[str, Any]) -> CheckResult:
         """Local storage 체크."""
         base_path = config.get("base_path", "./data")
         storage_path = Path(base_path)
         
         if storage_path.exists():
             return CheckResult(
-                service=f"Storage:{adapter_name}",
+                service=f"Storage:{source_name}",
                 status=CheckStatus.SUCCESS,
                 message=f"Storage path exists",
                 details={"path": str(storage_path.absolute())}
             )
         else:
             return CheckResult(
-                service=f"Storage:{adapter_name}",
+                service=f"Storage:{source_name}",
                 status=CheckStatus.WARNING,
                 message=f"Storage path does not exist: {base_path}",
                 solution=f"Create directory: mkdir -p {base_path}"
             )
     
-    def _check_s3(self, adapter_name: str, config: Dict[str, Any]) -> CheckResult:
+    def _check_s3(self, source_name: str, config: Dict[str, Any]) -> CheckResult:
         """S3 연결 체크."""
         try:
             import boto3
@@ -303,7 +343,7 @@ class SystemChecker:
             buckets = s3.list_buckets()
             
             return CheckResult(
-                service=f"S3:{adapter_name}",
+                service=f"S3:{source_name}",
                 status=CheckStatus.SUCCESS,
                 message="S3 connection successful",
                 details={"bucket_count": len(buckets.get('Buckets', []))}
@@ -311,20 +351,20 @@ class SystemChecker:
             
         except ImportError:
             return CheckResult(
-                service=f"S3:{adapter_name}",
+                service=f"S3:{source_name}",
                 status=CheckStatus.WARNING,
                 message="boto3 not installed",
                 solution="Run: pip install boto3"
             )
         except Exception as e:
             return CheckResult(
-                service=f"S3:{adapter_name}",
+                service=f"S3:{source_name}",
                 status=CheckStatus.FAILED,
                 message=f"S3 connection failed: {str(e)}",
                 solution="Check AWS credentials and permissions"
             )
     
-    def _check_gcs(self, adapter_name: str, config: Dict[str, Any]) -> CheckResult:
+    def _check_gcs(self, source_name: str, config: Dict[str, Any]) -> CheckResult:
         """GCS 연결 체크."""
         try:
             from google.cloud import storage
@@ -336,7 +376,7 @@ class SystemChecker:
             buckets = list(client.list_buckets())
             
             return CheckResult(
-                service=f"GCS:{adapter_name}",
+                service=f"GCS:{source_name}",
                 status=CheckStatus.SUCCESS,
                 message="GCS connection successful",
                 details={"bucket_count": len(buckets)}
@@ -344,14 +384,14 @@ class SystemChecker:
             
         except ImportError:
             return CheckResult(
-                service=f"GCS:{adapter_name}",
+                service=f"GCS:{source_name}",
                 status=CheckStatus.WARNING,
                 message="google-cloud-storage not installed",
                 solution="Run: pip install google-cloud-storage"
             )
         except Exception as e:
             return CheckResult(
-                service=f"GCS:{adapter_name}",
+                service=f"GCS:{source_name}",
                 status=CheckStatus.FAILED,
                 message=f"GCS connection failed: {str(e)}",
                 solution="Check GCP credentials and permissions"
@@ -461,13 +501,16 @@ class SystemChecker:
                 solution="Check Tecton URL and API key"
             )
     
-    def check_artifact_store(self, store_name: str, store_config: Dict[str, Any]) -> CheckResult:
-        """Artifact Storage 체크."""
-        if store_name == "local":
-            base_uri = os.path.expandvars(store_config.get("base_uri", "./artifacts"))
-            artifact_path = Path(base_uri)
+    def check_artifact_store(self, artifact_store: Dict[str, Any]) -> CheckResult:
+        """Artifact Storage 체크 (새로운 단일 artifact_store 구조)."""
+        store_type = artifact_store.get("type", "")
+        store_config = artifact_store.get("config", {})
+        
+        if store_type == "local":
+            base_path = os.path.expandvars(store_config.get("base_path", "./mlruns/artifacts"))
+            artifact_path = Path(base_path)
             
-            if artifact_path.exists() or base_uri == "./artifacts":
+            if artifact_path.exists() or base_path in ["./mlruns/artifacts", "./artifacts"]:
                 return CheckResult(
                     service="ArtifactStore:Local",
                     status=CheckStatus.SUCCESS,
@@ -478,23 +521,23 @@ class SystemChecker:
                 return CheckResult(
                     service="ArtifactStore:Local",
                     status=CheckStatus.WARNING,
-                    message=f"Artifact directory does not exist: {base_uri}",
-                    solution=f"Create directory: mkdir -p {base_uri}"
+                    message=f"Artifact directory does not exist: {base_path}",
+                    solution=f"Create directory: mkdir -p {base_path}"
                 )
         
-        elif store_name == "s3":
+        elif store_type == "s3":
             bucket = os.path.expandvars(store_config.get("bucket", ""))
             return self._check_s3_bucket(bucket)
         
-        elif store_name == "gcs":
+        elif store_type == "gcs":
             bucket = os.path.expandvars(store_config.get("bucket", ""))
             return self._check_gcs_bucket(bucket)
         
         else:
             return CheckResult(
-                service=f"ArtifactStore:{store_name}",
+                service=f"ArtifactStore",
                 status=CheckStatus.SKIPPED,
-                message=f"Unknown artifact store type: {store_name}"
+                message=f"Unknown artifact store type: {store_type}"
             )
     
     def _check_s3_bucket(self, bucket: str) -> CheckResult:
@@ -564,8 +607,17 @@ class SystemChecker:
             )
     
     def check_monitoring(self) -> CheckResult:
-        """Monitoring 체크."""
+        """Monitoring 체크 (선택적 구성요소)."""
         monitoring_config = self.config.get("monitoring", {})
+        
+        # Monitoring 섹션이 없으면 스킵
+        if not monitoring_config:
+            return CheckResult(
+                service="Monitoring",
+                status=CheckStatus.SKIPPED,
+                message="Monitoring not configured"
+            )
+        
         prometheus_port = int(os.path.expandvars(str(monitoring_config.get("prometheus_port", 9090))))
         
         # Check Grafana if enabled
@@ -623,7 +675,7 @@ class SystemChecker:
         # Title
         self.ui.show_panel(
             f"Environment: {self.env_name}\n"
-            f"Config: configs/{self.env_name}.yaml",
+            f"Config: {self.config_path}",
             title="🔍 System Check Results",
             style="cyan"
         )

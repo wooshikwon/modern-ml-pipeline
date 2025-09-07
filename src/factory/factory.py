@@ -11,7 +11,7 @@ from src.components.evaluator import EvaluatorRegistry
 from src.interface import BaseAdapter
 from src.settings import Settings
 from src.utils.system.logger import logger
-from src.utils.system.console_manager import UnifiedConsole
+from src.utils.system.console_manager import UnifiedConsole, get_console
 
 if TYPE_CHECKING:
     from src.factory.artifact import PyfuncWrapper
@@ -56,7 +56,7 @@ class Factory:
         이 메서드는 Factory 인스턴스가 처음 생성될 때 한 번만 실행됩니다.
         """
         if not cls._components_registered:
-            logger.debug("Initializing component registries...")
+            logger.info("Initializing component registries...")
             
             # 컴포넌트 모듈들을 import하여 self-registration 트리거
             try:
@@ -70,7 +70,7 @@ class Factory:
                 logger.warning(f"Some components could not be imported: {e}")
             
             cls._components_registered = True
-            logger.debug("Component registries initialized successfully")
+            logger.info("Component registries initialized successfully")
     
     def _create_from_class_path(self, class_path: str, hyperparameters: Dict[str, Any]) -> Any:
         """
@@ -92,11 +92,11 @@ class Factory:
             processed_params = self._process_hyperparameters(hyperparameters)
             
             instance = model_class(**processed_params)
-            logger.info(f"✅ Created instance from class path: {class_path}")
+            self.console.info(f"Created instance from class path: {class_path}", rich_message=f"✅ Created: [cyan]{class_path.split('.')[-1]}[/cyan]")
             return instance
             
         except Exception as e:
-            logger.error(f"Failed to create instance from {class_path}: {e}")
+            self.console.error(f"Failed to create instance from {class_path}: {e}")
             raise ValueError(f"Could not load class: {class_path}") from e
     
     def _process_hyperparameters(self, params: Dict[str, Any]) -> Dict[str, Any]:
@@ -109,9 +109,9 @@ class Factory:
                     module_path, func_name = value.rsplit('.', 1)
                     module = importlib.import_module(module_path)
                     processed[key] = getattr(module, func_name)
-                    logger.debug(f"Converted hyperparameter '{key}' to callable: {value}")
+                    self.console.info(f"Converted hyperparameter '{key}' to callable: {value}", rich_message=f"🔧 Converted param: [yellow]{key}[/yellow] → callable")
                 except (ImportError, AttributeError):
-                    logger.debug(f"Keeping hyperparameter '{key}' as string: {value}")
+                    self.console.info(f"Keeping hyperparameter '{key}' as string: {value}", rich_message=f"📝 Keeping param: [yellow]{key}[/yellow] as string")
         
         return processed
 
@@ -144,7 +144,7 @@ class Factory:
             return 'storage'
         
         # 기본값
-        logger.warning(f"source_uri 패턴을 인식할 수 없습니다: {source_uri}. 'storage' 어댑터를 사용합니다.")
+        self.console.warning(f"source_uri 패턴을 인식할 수 없습니다: {source_uri}. 'storage' 어댑터를 사용합니다.", rich_message=f"⚠️ Unknown source_uri pattern: [red]{source_uri}[/red] → using 'storage' adapter")
         return 'storage'
     
     def create_data_adapter(self, adapter_type: Optional[str] = None) -> "BaseAdapter":

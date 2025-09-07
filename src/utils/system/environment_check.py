@@ -1,6 +1,6 @@
 """
 Development Environment Compatibility Check
-Blueprint v17.0 - Architecture Excellence
+   - Architecture Excellence
 
 이 모듈은 개발환경의 호환성을 검증하여 예상치 못한 오류를 사전에 방지합니다.
 

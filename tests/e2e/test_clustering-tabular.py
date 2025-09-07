@@ -14,8 +14,8 @@ import mlflow
 from types import SimpleNamespace
 
 from src.settings import Settings
-from src.settings.config import Config, Environment, MLflow as MLflowConfig, DataSource, FeatureStore
-from src.settings.recipe import Recipe
+from src.settings.config import Config, Environment, MLflow as MLflowConfig, DataSource, FeatureStore, Output, OutputTarget
+from src.settings.recipe import Recipe, Model, Data, Loader, Fetcher, DataInterface, Evaluation, ValidationConfig, HyperparametersTuning
 from src.pipelines.train_pipeline import run_train_pipeline
 
 
@@ -72,58 +72,55 @@ class TestClusteringTabularE2E:
                 adapter_type="storage",
                 config={"base_path": temp_workspace['data_dir']}
             ),
-            feature_store=FeatureStore(provider="none")
+            feature_store=FeatureStore(provider="none"),
+            output=Output(
+                inference=OutputTarget(
+                    name="e2e_test_output",
+                    enabled=True,
+                    adapter_type="storage",
+                    config={"base_path": temp_workspace['workspace']}
+                ),
+                preprocessed=OutputTarget(
+                    name="e2e_test_preprocessed",
+                    enabled=False,
+                    adapter_type="storage",
+                    config={}
+                )
+            )
         )
         
         recipe = Recipe(
             name="e2e_clustering_recipe",
             task_choice="clustering",
-            data={
-                "data_interface": {
-                    "target_column": None,  # No target for clustering
-                    "drop_columns": []
-                },
-                "feature_view": {
-                    "name": "clustering_features",
-                    "entities": [],
-                    "features": ["x", "y", "feature_3"],
-                    "source": {
-                        "path": "train.csv",
-                        "timestamp_column": None
+            model=Model(
+                class_path="sklearn.cluster.KMeans",
+                library="sklearn",
+                hyperparameters=HyperparametersTuning(
+                    tuning_enabled=False,
+                    values={
+                        "n_clusters": 3,
+                        "random_state": 42
                     }
-                }
-            },
-            loader={
-                "name": "csv_loader",
-                "batch_size": 100,
-                "shuffle": False  # Keep order for clustering
-            },
-            model={
-                "class_path": "sklearn.cluster.KMeans",
-                "init_args": {
-                    "n_clusters": 3,
-                    "random_state": 42
-                },
-                "compile_args": {},
-                "fit_args": {}
-            },
-            fetcher={"type": "pass_through"},
-            preprocessor={
-                "steps": [
-                    {
-                        "name": "scaler",
-                        "params": {
-                            "method": "standard",
-                            "features": ["x", "y", "feature_3"]
-                        }
-                    }
-                ]
-            },
-            trainer={
-                "validation_split": 0.0,  # No validation split for clustering
-                "stratify": False,
-                "random_state": 42
-            }
+                ),
+                computed={"run_name": "e2e_clustering_test_run"}
+            ),
+            data=Data(
+                loader=Loader(source_uri=temp_workspace['train_path']),
+                fetcher=Fetcher(type="pass_through"),
+                data_interface=DataInterface(
+                    target_column=None,  # No target for clustering
+                    entity_columns=[],
+                    feature_columns=None  # null이면 모든 컬럼 사용
+                )
+            ),
+            evaluation=Evaluation(
+                metrics=["silhouette_score", "inertia"],
+                validation=ValidationConfig(
+                    method="train_test_split",
+                    test_size=0.2,
+                    random_state=42
+                )
+            )
         )
         
         return Settings(config=config, recipe=recipe)
