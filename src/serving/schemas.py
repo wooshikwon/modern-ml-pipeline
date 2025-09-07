@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, create_model
-from typing import Any, List, Type, Dict
+from typing import Any, List, Type, Dict, Optional
 import re
 
 # Jinja2 템플릿에서 변수를 추출하기 위한 정규식
@@ -34,6 +34,58 @@ def create_dynamic_prediction_request(
         field_defaults[field] = Field(..., description=f"Primary Key: {field}")
     
     # type()을 사용하여 동적 클래스 생성
+    class_name = f"{model_name}PredictionRequest"
+    
+    # 클래스 속성 딕셔너리
+    class_dict = {
+        '__annotations__': field_annotations,
+        **field_defaults
+    }
+    
+    # BaseModel을 상속받는 동적 클래스 생성
+    DynamicModel = type(class_name, (BaseModel,), class_dict)
+    
+    return DynamicModel
+
+
+def create_datainterface_based_prediction_request(
+    model_name: str, data_interface_schema: Dict[str, Any]
+) -> Type[BaseModel]:
+    """
+    🆕 Phase 5.5: DataInterface 스키마를 기반으로 API 요청 모델을 생성합니다.
+    
+    Args:
+        model_name: 생성할 모델의 이름
+        data_interface_schema: 저장된 DataInterface 스키마 정보
+        
+    Returns:
+        동적으로 생성된 Pydantic 모델 클래스
+    """
+    field_annotations = {}
+    field_defaults = {}
+    
+    # 1. Entity columns (항상 필요)
+    entity_columns = data_interface_schema.get('entity_columns', [])
+    for col in entity_columns:
+        field_annotations[col] = Any
+        field_defaults[col] = Field(..., description=f"Entity column: {col}")
+    
+    # 2. Task-specific columns
+    task_type = data_interface_schema.get('task_type', '')
+    if task_type == 'timeseries':
+        timestamp_col = data_interface_schema.get('timestamp_column')
+        if timestamp_col:
+            field_annotations[timestamp_col] = Any
+            field_defaults[timestamp_col] = Field(..., description=f"Timestamp column: {timestamp_col}")
+    
+    # 3. Required columns from stored schema (feature columns)
+    required_columns = data_interface_schema.get('required_columns', [])
+    for col in required_columns:
+        if col not in field_annotations:  # 중복 방지
+            field_annotations[col] = Any
+            field_defaults[col] = Field(..., description=f"Required feature column: {col}")
+    
+    # 클래스 이름 생성
     class_name = f"{model_name}PredictionRequest"
     
     # 클래스 속성 딕셔너리

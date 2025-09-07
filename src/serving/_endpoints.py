@@ -71,9 +71,23 @@ def get_model_metadata() -> ModelMetadataResponse:
         random_state=tm_info.get("random_state", 42),
     )
     
+    # 🆕 Phase 5.5: DataInterface 기반 API 스키마 정보 향상
+    wrapped_model = app_context.model.unwrap_python_model()
+    data_interface_schema = getattr(wrapped_model, 'data_interface_schema', None)
+    
     api_schema = {
         "input_fields": list(app_context.PredictionRequest.model_fields.keys()),
     }
+    
+    if data_interface_schema:
+        api_schema.update({
+            "schema_generation_method": "datainterface_based",
+            "entity_columns": data_interface_schema.get('entity_columns', []),
+            "required_columns": data_interface_schema.get('required_columns', []),
+            "task_type": data_interface_schema.get('task_type', ''),
+        })
+    else:
+        api_schema["schema_generation_method"] = "legacy_sql_parsing"
     
     return ModelMetadataResponse(
         model_uri=app_context.model_uri,
@@ -113,11 +127,29 @@ def get_api_schema() -> Dict[str, Any]:
     if app_context.model is None:
         raise HTTPException(status_code=503, detail="모델이 로드되지 않았습니다.")
     
-    return {
+    # 🆕 Phase 5.5: DataInterface 스키마 정보 포함
+    wrapped_model = app_context.model.unwrap_python_model()
+    data_interface_schema = getattr(wrapped_model, 'data_interface_schema', None)
+    
+    schema_info = {
         "prediction_request_schema": app_context.PredictionRequest.model_json_schema(),
         "batch_prediction_request_schema": app_context.BatchPredictionRequest.model_json_schema(),
-        "loader_sql_snapshot": getattr(app_context.model, 'loader_sql_snapshot', ''),
+        "loader_sql_snapshot": getattr(wrapped_model, 'loader_sql_snapshot', ''),
     }
+    
+    # DataInterface 스키마가 있으면 추가 정보 제공
+    if data_interface_schema:
+        schema_info.update({
+            "data_interface_schema": data_interface_schema,
+            "schema_generation_method": "datainterface_based",
+            "required_columns": data_interface_schema.get('required_columns', []),
+            "entity_columns": data_interface_schema.get('entity_columns', []),
+            "task_type": data_interface_schema.get('task_type', ''),
+        })
+    else:
+        schema_info["schema_generation_method"] = "legacy_sql_parsing"
+    
+    return schema_info
 
 def predict(request: Dict[str, Any]) -> Dict[str, Any]:
     request_df = pd.DataFrame([request])

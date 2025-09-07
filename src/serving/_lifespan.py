@@ -7,7 +7,7 @@ import mlflow
 from src.settings import Settings
 from src.utils.system.logger import logger
 from src.serving._context import app_context
-from src.serving.schemas import create_dynamic_prediction_request, create_batch_prediction_request
+from src.serving.schemas import create_dynamic_prediction_request, create_batch_prediction_request, create_datainterface_based_prediction_request
 from src.utils.system.sql_utils import parse_select_columns
 from src.factory import bootstrap
 
@@ -24,17 +24,28 @@ def setup_api_context(run_id: str, settings: Settings):
         
         wrapped_model = app_context.model.unwrap_python_model()
 
-        # 우선 data_schema에서 entity_columns 사용, 불가 시 loader_sql에서 파싱
-        data_schema = getattr(wrapped_model, 'data_schema', None)
-        if isinstance(data_schema, dict) and data_schema.get('entity_columns'):
-            pk_fields = list(data_schema.get('entity_columns') or [])
+        # 🆕 Phase 5.5: DataInterface 기반 API 스키마 생성 (우선순위)
+        data_interface_schema = getattr(wrapped_model, 'data_interface_schema', None)
+        if data_interface_schema:
+            # DataInterface 스키마를 사용하여 API 스키마 생성 (가장 정확함)
+            logger.info("✅ DataInterface 스키마 기반 API 스키마 생성")
+            app_context.PredictionRequest = create_datainterface_based_prediction_request(
+                model_name="DataInterfacePredictionRequest",
+                data_interface_schema=data_interface_schema
+            )
         else:
-            loader_sql = getattr(wrapped_model, 'loader_sql_snapshot', 'SELECT user_id FROM DUAL')
-            pk_fields = parse_select_columns(loader_sql)
-        
-        app_context.PredictionRequest = create_dynamic_prediction_request(
-            model_name="DynamicPredictionRequest", pk_fields=pk_fields
-        )
+            # 폴백: 기존 방식 (data_schema 또는 SQL 파싱)
+            logger.warning("⚠️ DataInterface 스키마 없음 - 기존 방식으로 폴백")
+            data_schema = getattr(wrapped_model, 'data_schema', None)
+            if isinstance(data_schema, dict) and data_schema.get('entity_columns'):
+                pk_fields = list(data_schema.get('entity_columns') or [])
+            else:
+                loader_sql = getattr(wrapped_model, 'loader_sql_snapshot', 'SELECT user_id FROM DUAL')
+                pk_fields = parse_select_columns(loader_sql)
+            
+            app_context.PredictionRequest = create_dynamic_prediction_request(
+                model_name="DynamicPredictionRequest", pk_fields=pk_fields
+            )
         app_context.BatchPredictionRequest = create_batch_prediction_request(
             app_context.PredictionRequest
         )

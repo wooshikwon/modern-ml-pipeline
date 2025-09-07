@@ -21,13 +21,17 @@ from src.cli.utils.config_loader import load_environment
 
 
 def train_command(
-    recipe_file: Annotated[
+    recipe_path: Annotated[
         str, 
-        typer.Option("--recipe-file", "-r", help="실행할 Recipe 파일 경로")
+        typer.Option("--recipe-path", "-r", help="Recipe 파일 경로")
     ],
-    env_name: Annotated[
+    config_path: Annotated[
         str,
-        typer.Option("--env-name", "-e", help="환경 이름 (필수)")
+        typer.Option("--config-path", "-c", help="Config 파일 경로")
+    ],
+    data_path: Annotated[
+        str,
+        typer.Option("--data-path", "-d", help="학습 데이터 파일 경로")
     ],
     context_params: Annotated[
         Optional[str], 
@@ -35,48 +39,67 @@ def train_command(
     ] = None,
 ) -> None:
     """
-    학습 파이프라인 실행 (v2.0).
+    학습 파이프라인 실행 (Phase 5.3 리팩토링).
     
-    환경 설정과 Recipe를 조합하여 모델 학습을 수행합니다.
-    Recipe는 환경 독립적이며, --env-name으로 지정한 환경 설정과 결합됩니다.
+    Recipe와 Config 파일을 직접 지정하고, --data-path로 학습 데이터를 직접 전달합니다.
+    DataInterface 기반 컬럼 검증을 수행한 후 학습을 진행합니다.
     
     Args:
-        recipe_file: Recipe YAML 파일 경로
-        env_name: 사용할 환경 이름 (configs/{env_name}.yaml)
+        recipe_path: Recipe YAML 파일 경로
+        config_path: Config YAML 파일 경로
+        data_path: 학습 데이터 파일 경로
         context_params: 추가 파라미터 (JSON 형식)
     
     Examples:
-        mmp train --recipe-file recipes/model.yaml --env-name dev
-        mmp train -r recipes/model.yaml -e prod --params '{"date": "2024-01-01"}'
+        mmp train --recipe-path recipes/model.yaml --config-path configs/dev.yaml --data-path data/train.csv
+        mmp train -r recipes/model.yaml -c configs/prod.yaml -d data/train.parquet --params '{"date": "2024-01-01"}'
         
     Raises:
         typer.Exit: 파일을 찾을 수 없거나 실행 중 오류 발생 시
     """
     try:
-        # 1. 환경변수 로드
-        env_file = Path(f".env.{env_name}")
-        if env_file.exists():
-            load_environment(env_name)
-            logger.info(f"환경 변수 로드: .env.{env_name}")
-        
-        # 2. Settings 생성 (config + recipe 조합)
+        # 1. Settings 생성 (recipe + config 직접 로드)
         params: Optional[Dict[str, Any]] = (
             json.loads(context_params) if context_params else None
         )
-        settings = load_settings(
-            recipe_file, 
-            env_name  # v2.0에서 필수 파라미터
-        )
+        settings = load_settings(recipe_path, config_path)
         setup_logging(settings)
 
+        # 2. CLI data_path 처리 (Jinja 렌더링 지원)
+        if data_path.endswith('.sql.j2') or data_path.endswith('.sql') and params:
+            # Jinja 템플릿 렌더링 (보안 검증 포함)
+            from src.utils.system.templating_utils import render_template_from_string
+            from pathlib import Path
+            
+            template_path = Path(data_path)
+            if template_path.exists():
+                template_content = template_path.read_text()
+                if params:
+                    try:
+                        rendered_sql = render_template_from_string(template_content, params)
+                        logger.info(f"✅ Jinja 템플릿 렌더링 성공: {data_path}")
+                        settings.recipe.data.loader.source_uri = rendered_sql
+                    except ValueError as e:
+                        logger.error(f"🚨 Jinja 렌더링 실패: {e}")
+                        raise ValueError(f"템플릿 렌더링 실패: {e}")
+                else:
+                    # 파라미터 없이 .sql.j2 파일 → 에러
+                    raise ValueError(f"Jinja 템플릿 파일({data_path})에는 --params가 필요합니다")
+            else:
+                raise FileNotFoundError(f"템플릿 파일을 찾을 수 없습니다: {data_path}")
+        else:
+            # 일반 파일 경로 (CSV, Parquet, 정적 SQL 등)
+            settings.recipe.data.loader.source_uri = data_path
+        
         # 3. 학습 정보 로깅
-        logger.info(f"환경 '{env_name}'에서 학습을 시작합니다.")
-        logger.info(f"Recipe: {recipe_file}")
+        logger.info(f"Recipe: {recipe_path}")
+        logger.info(f"Config: {config_path}")
+        logger.info(f"Data: {data_path}")
         computed = settings.recipe.model.computed
         run_name = computed.get("run_name", "unknown") if computed else "unknown"
         logger.info(f"Run Name: {run_name}")
         
-        # 4. 학습 파이프라인 실행
+        # 4. 학습 파이프라인 실행 (기존 방식 그대로, source_uri가 CLI data_path로 설정됨)
         run_train_pipeline(settings=settings, context_params=params)
         
         logger.info("✅ 학습이 성공적으로 완료되었습니다.")

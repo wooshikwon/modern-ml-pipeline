@@ -13,9 +13,20 @@ from src.settings import Settings
 from src.utils.system.reproducibility import set_global_seeds
 
 
-def run_inference_pipeline(settings: Settings, run_id: str, context_params: dict = None):
+def _is_jinja_template(sql_text: str) -> bool:
+    """SQL 텍스트가 Jinja 템플릿인지 확인합니다."""
+    import re
+    jinja_patterns = [
+        r'\{\{.*?\}\}',  # {{ variable }}
+        r'\{%.*?%\}',    # {% for ... %}
+    ]
+    return any(re.search(pattern, sql_text) for pattern in jinja_patterns)
+
+
+def run_inference_pipeline(settings: Settings, run_id: str, data_path: str = None, context_params: dict = None):
     """
     지정된 Run ID의 모델을 사용하여 배치 추론을 실행합니다.
+    Phase 5.3: --data-path로 직접 데이터 경로를 지정하는 방식으로 단순화
     """
     context_params = context_params or {}
 
@@ -30,39 +41,70 @@ def run_inference_pipeline(settings: Settings, run_id: str, context_params: dict
         logger.info(f"MLflow 모델 로딩 시작: {model_uri}")
         model = mlflow.pyfunc.load_model(model_uri)
         
-        # 3. 데이터 로딩 - 🆕 Phase 3: 보안 강화 Dynamic SQL 처리
-        # Wrapper에 내장된 loader_sql_snapshot을 사용
-        wrapped_model = model.unwrap_python_model()
-        loader_sql_template = wrapped_model.loader_sql_snapshot
-        
-        # Factory를 통해 현재 환경에 맞는 데이터 어댑터 생성
+        # 3. 데이터 로딩 (CLI data_path 우선, Jinja 렌더링 지원)
         factory = Factory(settings)
-        
-        # 🆕 Phase 3: Template SQL 보안 렌더링
-        if _is_jinja_template(loader_sql_template) and context_params:
-            # Jinja template + context_params → 보안 강화 동적 렌더링
-            from src.utils.system.templating_utils import render_template_from_string
-            try:
-                rendered_sql = render_template_from_string(loader_sql_template, context_params)
-                logger.info("✅ 동적 SQL 렌더링 성공 (보안 검증 완료)")
-            except ValueError as e:
-                # 보안 위반 또는 잘못된 파라미터 → 명확한 에러
-                raise ValueError(f"동적 SQL 렌더링 실패: {e}")
-                
-        elif context_params:
-            # 정적 SQL + context_params → 보안 에러 (명확한 안내)
-            raise ValueError(
-                "🚨 보안 위반: 이 모델은 정적 SQL로 학습되어 동적 시점 변경을 지원하지 않습니다.\n"
-                "동적 Batch Inference를 원한다면 Jinja template (.sql.j2)로 학습하세요.\n"
-                f"현재 SQL: {loader_sql_template[:100]}..."
-            )
-        else:
-            # 정적 SQL + context_params 없음 → 정상 처리
-            rendered_sql = loader_sql_template
-        
-        # 데이터 어댑터 타입 자동 감지 (Factory가 처리)
         data_adapter = factory.create_data_adapter()
-        df = data_adapter.read(rendered_sql)
+        
+        if data_path:
+            # Phase 5.3: CLI에서 지정한 data_path 사용
+            final_data_source = data_path
+            
+            # Jinja 템플릿 렌더링 처리 (.sql.j2 또는 params가 있는 .sql)
+            if data_path.endswith('.sql.j2') or (data_path.endswith('.sql') and context_params):
+                from src.utils.system.templating_utils import render_template_from_string
+                from pathlib import Path
+                
+                template_path = Path(data_path)
+                if template_path.exists():
+                    template_content = template_path.read_text()
+                    if context_params:
+                        try:
+                            final_data_source = render_template_from_string(template_content, context_params)
+                            logger.info(f"✅ CLI data_path Jinja 렌더링 성공: {data_path}")
+                        except ValueError as e:
+                            logger.error(f"🚨 CLI data_path Jinja 렌더링 실패: {e}")
+                            raise ValueError(f"템플릿 렌더링 실패: {e}")
+                    else:
+                        # 파라미터 없이 .sql.j2 파일 → 에러
+                        raise ValueError(f"Jinja 템플릿 파일({data_path})에는 --params가 필요합니다")
+                else:
+                    raise FileNotFoundError(f"템플릿 파일을 찾을 수 없습니다: {data_path}")
+            
+            df = data_adapter.read(final_data_source)
+            logger.info(f"✅ CLI data_path에서 데이터 로딩 완료: {data_path}")
+            
+        else:
+            # Fallback: 기존 방식 (저장된 loader_sql_snapshot 사용)
+            wrapped_model = model.unwrap_python_model()
+            loader_sql_template = wrapped_model.loader_sql_snapshot
+            
+            # 기존 Jinja 렌더링 로직 (보안 강화)
+            if _is_jinja_template(loader_sql_template) and context_params:
+                # Jinja template + context_params → 보안 강화 동적 렌더링
+                from src.utils.system.templating_utils import render_template_from_string
+                try:
+                    rendered_sql = render_template_from_string(loader_sql_template, context_params)
+                    logger.info("✅ 동적 SQL 렌더링 성공 (보안 검증 완료)")
+                    final_data_source = rendered_sql
+                except ValueError as e:
+                    # 보안 위반 또는 잘못된 파라미터 → 명확한 에러
+                    raise ValueError(f"동적 SQL 렌더링 실패: {e}")
+                    
+            elif context_params:
+                # 정적 SQL + context_params → 보안 에러 (명확한 안내)
+                raise ValueError(
+                    "🚨 보안 위반: 이 모델은 정적 SQL로 학습되어 동적 시점 변경을 지원하지 않습니다.\n"
+                    "동적 Batch Inference를 원한다면 Jinja template (.sql.j2)로 학습하세요.\n"
+                    f"현재 SQL: {loader_sql_template[:100]}..."
+                )
+            else:
+                # 정적 SQL + context_params 없음 → 정상 처리
+                final_data_source = loader_sql_template
+            
+            df = data_adapter.read(final_data_source)
+            logger.info(f"✅ 기존 방식으로 데이터 로딩 완료")
+        
+        logger.info(f"데이터 로딩 완료: {df.shape}")
         
         # 4. 예측 실행 (PyfuncWrapper가 내부적으로 스키마 검증을 수행)
         predictions_df = model.predict(df)
