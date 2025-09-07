@@ -647,7 +647,7 @@ class TestRobustnessAndEdgeCases:
         assert not transformed_test.isnull().any().any()
     
     def test_all_missing_values_handling(self):
-        """모든 값이 결측인 경우 처리 테스트"""
+        """모든 값이 결측인 경우 Fast-fail 에러 발생 테스트"""
         # Given: 특정 컬럼이 모두 결측값인 데이터
         recipe_config = {
             'name': 'all_missing_test',
@@ -703,16 +703,6 @@ class TestRobustnessAndEdgeCases:
         
         preprocessor = Preprocessor(settings)
         
-        # When: 모든 결측값 컬럼이 포함된 파이프라인 실행
-        fitted_preprocessor = preprocessor.fit(train_data)
-        transformed_train = fitted_preprocessor.transform(train_data)
-        transformed_test = fitted_preprocessor.transform(test_data)
-        
-        # Then: 모든 결측값도 적절히 처리됨
-        assert len(transformed_train) == len(train_data)
-        assert len(transformed_test) == len(test_data)
-        assert not transformed_train.isnull().any().any()
-        assert not transformed_test.isnull().any().any()
-        
-        # Missing indicator가 적절히 생성됨
-        assert transformed_train.shape[1] > train_data.shape[1] - 1  # target 제외
+        # When & Then: 모든 결측값 컬럼이 포함된 경우 Fast-fail 에러 발생
+        with pytest.raises(ValueError, match="SimpleImputer는 전체가 결측값인 컬럼을 처리할 수 없습니다"):
+            preprocessor.fit(train_data)

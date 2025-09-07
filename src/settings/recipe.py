@@ -124,7 +124,7 @@ class Fetcher(BaseModel):
 
 class DataInterface(BaseModel):
     """데이터 인터페이스 설정"""
-    task_type: Literal["classification", "regression", "clustering", "causal"] = Field(
+    task_type: Literal["classification", "regression", "clustering", "causal", "timeseries"] = Field(
         ..., 
         description="ML 태스크 타입"
     )
@@ -142,6 +142,17 @@ class DataInterface(BaseModel):
     
     # id_column → entity_columns 변경
     entity_columns: List[str] = Field(..., description="엔티티 컬럼 목록 (user_id, item_id 등)")
+    
+    # ✅ Timeseries 전용 필드들
+    timestamp_column: Optional[str] = Field(None, description="시계열 타임스탬프 컬럼 (timeseries task에서 필수)")
+    
+    @model_validator(mode='after')
+    def validate_timeseries_fields(self):
+        """timeseries task일 때 필수 필드 검증"""
+        if self.task_type == "timeseries":
+            if not self.timestamp_column:
+                raise ValueError("timeseries task에서는 timestamp_column이 필수입니다")
+        return self
 
 
 class Data(BaseModel):

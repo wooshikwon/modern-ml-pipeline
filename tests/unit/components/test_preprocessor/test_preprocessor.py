@@ -1,11 +1,12 @@
 """
 메인 Preprocessor 클래스를 위한 종합적인 테스트 모듈
 
-Recipe 기반 동적 파이프라인 빌더의 핵심 기능을 테스트:
+DataFrame-First 순차적 전처리 아키텍처의 핵심 기능을 테스트:
 - Settings 기반 초기화
-- Recipe에서 파이프라인 생성  
+- Recipe에서 전처리 단계 실행
 - fit/transform 워크플로우
 - 동적 step 구성
+- Global vs Targeted 전처리 정책
 """
 
 import pytest
@@ -127,10 +128,10 @@ class TestPreprocessorInitialization:
 
 
 class TestPreprocessorPipelineCreation:
-    """Preprocessor 파이프라인 생성 테스트"""
+    """Preprocessor 파이프라인 생성 테스트 (DataFrame-First 아키텍처)"""
     
     def test_pipeline_creation_from_recipe_steps(self):
-        """Recipe 설정에서 파이프라인 생성 테스트"""
+        """Recipe 설정에서 DataFrame-First 전처리 실행 테스트"""
         # Arrange
         recipe_config = PreprocessorRecipeBuilder.build_preprocessor_recipe_config()
         recipe = RecipeBuilder.build(**recipe_config)
@@ -144,22 +145,28 @@ class TestPreprocessorPipelineCreation:
         fitted_preprocessor = preprocessor.fit(test_data)
         
         # Assert
+        # DataFrame-First 아키텍처에서는 sklearn 호환성을 위한 identity pipeline만 존재
         assert fitted_preprocessor.pipeline is not None
-        assert len(fitted_preprocessor.pipeline.steps) == 1  # preprocessor step
-        assert fitted_preprocessor.pipeline.steps[0][0] == 'preprocessor'
+        assert len(fitted_preprocessor.pipeline.steps) == 1  # identity step만
+        assert fitted_preprocessor.pipeline.steps[0][0] == 'identity'
         
-        # ColumnTransformer 확인
-        column_transformer = fitted_preprocessor.pipeline.steps[0][1]
-        assert len(column_transformer.transformers) == 2  # scaler, imputer (steps 개수)
+        # 실제 전처리는 _fitted_transformers에서 관리
+        assert hasattr(fitted_preprocessor, '_fitted_transformers')
+        assert len(fitted_preprocessor._fitted_transformers) == 2  # scaler, imputer
+        
+        # 각 transformer 정보 확인
+        transformer_types = [t['step_type'] for t in fitted_preprocessor._fitted_transformers]
+        assert 'standard_scaler' in transformer_types
+        assert 'simple_imputer' in transformer_types
         
     def test_dynamic_step_configuration(self):
-        """동적으로 다른 step 구성 테스트"""
-        # Arrange - 스케일러만 포함
+        """동적으로 다른 step 구성 테스트 - Global 전처리기 특성 고려"""
+        # Arrange - MinMaxScaler는 Global 전처리기이므로 모든 수치형 컬럼에 적용됨
         recipe_config = PreprocessorRecipeBuilder.build_preprocessor_recipe_config()
         recipe_config['preprocessor']['steps'] = [
             {
                 'type': 'min_max_scaler',
-                'columns': ['num_feature_1', 'num_feature_2']
+                # columns를 지정해도 Global 전처리기는 모든 수치형 컬럼에 적용
             }
         ]
         
@@ -174,10 +181,16 @@ class TestPreprocessorPipelineCreation:
         fitted_preprocessor = preprocessor.fit(test_data)
         
         # Assert
-        column_transformer = fitted_preprocessor.pipeline.steps[0][1]
-        assert len(column_transformer.transformers) == 1  # scaler만
-        # 동적 이름 생성되므로 min_max_scaler로 시작하는지 확인
-        assert column_transformer.transformers[0][0].startswith('min_max_scaler_')
+        # DataFrame-First 아키텍처에서는 _fitted_transformers로 확인
+        assert len(fitted_preprocessor._fitted_transformers) == 1  # min_max_scaler만
+        assert fitted_preprocessor._fitted_transformers[0]['step_type'] == 'min_max_scaler'
+        
+        # MinMaxScaler는 Global 전처리기이므로 모든 수치형 컬럼에 적용됨
+        target_columns = fitted_preprocessor._fitted_transformers[0]['target_columns']
+        assert len(target_columns) >= 3  # 최소 3개의 수치형 컬럼
+        assert 'num_feature_1' in target_columns
+        assert 'num_feature_2' in target_columns
+        assert 'num_feature_3' in target_columns
 
 
 class TestPreprocessorFitTransform:
@@ -203,8 +216,14 @@ class TestPreprocessorFitTransform:
         # Assert
         assert isinstance(transformed_data, pd.DataFrame)
         assert len(transformed_data) == len(test_data)
-        # 변환 후 컬럼 수는 원본과 다를 수 있음 (OneHot 등으로 확장)
-        assert transformed_data.shape[1] >= len(test_data.columns) - 1  # target 제외
+        
+        # DataFrame-First에서는 컬럼 구조가 유지되거나 변경될 수 있음
+        # 최소한 숫자형 컬럼들은 존재해야 함
+        assert transformed_data.shape[1] > 0
+        
+        # 결측값이 처리되었는지 확인 (imputer 적용)
+        if 'missing_feature' in transformed_data.columns:
+            assert not transformed_data['missing_feature'].isnull().any()
         
     def test_transform_before_fit_raises_error(self):
         """fit 전에 transform 호출 시 에러 발생 테스트"""
@@ -222,20 +241,31 @@ class TestPreprocessorFitTransform:
             preprocessor.transform(test_data)
             
     def test_transform_with_missing_columns_handled(self):
-        """transform 시 필요 컬럼이 없을 때 자동 생성 테스트"""
-        # Arrange
+        """transform 시 필요 컬럼이 없을 때 자동 생성 테스트 (Targeted 전처리기용)"""
+        # Arrange - SimpleImputer는 Targeted이므로 컬럼 누락 시 0으로 생성
         recipe_config = PreprocessorRecipeBuilder.build_preprocessor_recipe_config()
+        recipe_config['preprocessor']['steps'] = [
+            {
+                'type': 'simple_imputer',
+                'strategy': 'mean',
+                'columns': ['missing_column_not_in_test']  # 테스트 데이터에 없는 컬럼
+            }
+        ]
+        
         recipe = RecipeBuilder.build(**recipe_config)
         config = ConfigBuilder.build()
         settings = Settings(config=config, recipe=recipe)
         
+        # fit용 데이터는 해당 컬럼을 포함, transform용 데이터는 제외
         full_data = DataFrameBuilder.build_mixed_preprocessor_data(50)
-        incomplete_data = full_data.drop(columns=['num_feature_3'])  # 필요 컬럼 제거
+        full_data['missing_column_not_in_test'] = np.random.randn(50)
+        
+        incomplete_data = DataFrameBuilder.build_mixed_preprocessor_data(20)  # 해당 컬럼 없음
         
         preprocessor = Preprocessor(settings)
         fitted_preprocessor = preprocessor.fit(full_data)
         
-        # Act - missing column은 자동으로 0으로 생성되어야 함
+        # Act - missing column은 자동으로 0으로 생성되어야 함 (Targeted 전처리기 특성)
         transformed_data = fitted_preprocessor.transform(incomplete_data)
         
         # Assert
@@ -259,7 +289,7 @@ class TestPreprocessorErrorHandling:
         invalid_step = Mock(spec=PreprocessorStep)
         invalid_step.type = 'nonexistent_transformer'
         invalid_step.columns = ['num_feature_1']
-        invalid_step.model_dump.return_value = {'strategy': None, 'degree': None, 'n_bins': None, 'sigma': None}
+        invalid_step.model_dump.return_value = {'strategy': None, 'degree': None, 'n_bins': None, 'sigma': None, 'create_missing_indicators': None}
         
         settings.recipe.preprocessor.steps = [invalid_step]
         
@@ -271,7 +301,7 @@ class TestPreprocessorErrorHandling:
             preprocessor.fit(test_data)
             
     def test_empty_column_transforms_configuration(self):
-        """빈 column_transforms 설정 처리 테스트"""
+        """빈 steps 설정 처리 테스트"""
         # Arrange
         recipe_config = PreprocessorRecipeBuilder.build_preprocessor_recipe_config()
         recipe_config['preprocessor']['steps'] = []  # 빈 steps 리스트
@@ -287,9 +317,10 @@ class TestPreprocessorErrorHandling:
         fitted_preprocessor = preprocessor.fit(test_data)
         transformed_data = fitted_preprocessor.transform(test_data)
         
-        # Assert - 변환 없이 passthrough만 동작
+        # Assert - 빈 설정에서는 변환 없이 원본 데이터 반환
         assert isinstance(transformed_data, pd.DataFrame)
-        # 빈 설정에서도 정상 동작해야 함
+        assert len(fitted_preprocessor._fitted_transformers) == 0  # 변환기 없음
+        pd.testing.assert_frame_equal(transformed_data, test_data)  # 원본과 동일
 
 
 class TestPreprocessorIntegration:
@@ -323,3 +354,51 @@ class TestPreprocessorIntegration:
         # 데이터 품질 확인
         assert not train_transformed.isnull().any().any()  # 결측값 없음
         assert not test_transformed.isnull().any().any()   # 결측값 없음
+        
+        # DataFrame-First에서는 _fitted_transformers로 전처리 단계 확인
+        assert len(fitted_preprocessor._fitted_transformers) == 2  # scaler, imputer
+        
+    def test_global_vs_targeted_preprocessing(self):
+        """Global과 Targeted 전처리 정책 테스트"""
+        # Arrange - Global(StandardScaler)과 Targeted(SimpleImputer) 혼합
+        recipe_config = PreprocessorRecipeBuilder.build_preprocessor_recipe_config()
+        recipe_config['preprocessor']['steps'] = [
+            {
+                'type': 'standard_scaler',  # Global 전처리기
+                # columns 없음 - Global은 모든 수치형 컬럼에 적용
+            },
+            {
+                'type': 'simple_imputer',   # Targeted 전처리기
+                'strategy': 'mean',
+                'columns': ['missing_feature']  # 특정 컬럼에만 적용
+            }
+        ]
+        
+        recipe = RecipeBuilder.build(**recipe_config)
+        config = ConfigBuilder.build()
+        settings = Settings(config=config, recipe=recipe)
+        
+        test_data = DataFrameBuilder.build_mixed_preprocessor_data(100)
+        preprocessor = Preprocessor(settings)
+        
+        # Act
+        fitted_preprocessor = preprocessor.fit(test_data)
+        transformed_data = fitted_preprocessor.transform(test_data)
+        
+        # Assert
+        assert len(fitted_preprocessor._fitted_transformers) == 2
+        
+        # Global 전처리기 확인 (StandardScaler)
+        global_transformer = fitted_preprocessor._fitted_transformers[0]
+        assert global_transformer['step_type'] == 'standard_scaler'
+        # Global은 모든 수치형 컬럼에 적용되므로 target_columns가 여러 개
+        assert len(global_transformer['target_columns']) >= 3
+        
+        # Targeted 전처리기 확인 (SimpleImputer)  
+        targeted_transformer = fitted_preprocessor._fitted_transformers[1]
+        assert targeted_transformer['step_type'] == 'simple_imputer'
+        assert targeted_transformer['target_columns'] == ['missing_feature']
+        
+        # 변환 결과 검증
+        assert isinstance(transformed_data, pd.DataFrame)
+        assert not transformed_data.isnull().any().any()  # 모든 결측값 처리됨

@@ -71,23 +71,6 @@ hyperparameters:
       range: ["Newton", "Gradient"]
       default: "Newton"
   # 환경별 기본값
-  environment_defaults:
-    local:
-      iterations: 100
-      learning_rate: 0.1
-      depth: 4
-      l2_leaf_reg: 3.0
-    dev:
-      iterations: 500
-      learning_rate: 0.05
-      depth: 6
-      l2_leaf_reg: 3.0
-    prod:
-      iterations: 1000
-      learning_rate: 0.03
-      depth: 8
-      l2_leaf_reg: 3.0
-# 지원 태스크 및 요구사항
 supported_tasks: ["binary_classification", "multiclass_classification"]
 feature_requirements:
   numerical: true

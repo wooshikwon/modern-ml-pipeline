@@ -31,20 +31,6 @@ hyperparameters:
       range: ["euclidean", "manhattan", "minkowski"]
       default: "minkowski"
   # 환경별 기본값
-  environment_defaults:
-    local:
-      n_neighbors: 3
-      weights: "uniform"
-      algorithm: "auto"
-    dev:
-      n_neighbors: 5
-      weights: "distance"
-      algorithm: "auto"
-    prod:
-      n_neighbors: 7
-      weights: "distance"
-      algorithm: "auto"
-# 지원 태스크 및 요구사항
 supported_tasks: ["binary_classification", "multiclass_classification"]
 feature_requirements:
   numerical: true

@@ -1,0 +1,37 @@
+class_path: "src.models.custom.timeseries_wrappers.ARIMAWrapper"
+description: "ARIMA (AutoRegressive Integrated Moving Average) model wrapped for sklearn compatibility"
+library: "statsmodels"
+hyperparameters:
+  # 고정 파라미터 (모든 환경 동일)
+  fixed:
+    # ARIMA wrapper의 내부 고정 설정들
+    
+  # Optuna 최적화 대상 파라미터 (범위 지정)
+  tunable:
+    order_p:
+      type: "int"
+      range: [0, 5] 
+      default: 1
+      description: "AR(p) - 자기회귀 차수"
+    order_d:
+      type: "int"
+      range: [0, 2]
+      default: 1
+      description: "I(d) - 차분 차수"
+    order_q:
+      type: "int" 
+      range: [0, 5]
+      default: 1
+      description: "MA(q) - 이동평균 차수"
+supported_tasks: ["timeseries"]
+requires_custom_wrapper: true
+feature_requirements:
+  numerical: true
+  categorical: false
+  text: false
+  univariate_preferred: true
+  time_features_auto: false
+preprocessing_notes: "ARIMA는 univariate 모델이므로 시계열 데이터만 사용합니다. 추가 특성은 무시됩니다."
+model_type: "autoregressive"
+forecasting_type: "point_forecast"
+stationarity_required: true

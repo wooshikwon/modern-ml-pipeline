@@ -48,23 +48,6 @@ hyperparameters:
       range: ["control"]
       default: "control"
   # 환경별 기본값
-  environment_defaults:
-    local:
-      n_estimators: 50
-      max_depth: 5
-      min_samples_leaf: 20
-      min_samples_treatment: 25
-    dev:
-      n_estimators: 100
-      max_depth: 8
-      min_samples_leaf: 10
-      min_samples_treatment: 50
-    prod:
-      n_estimators: 150
-      max_depth: 12
-      min_samples_leaf: 5
-      min_samples_treatment: 100
-# 지원 태스크 및 요구사항
 supported_tasks: ["causal_inference", "uplift_modeling"]
 feature_requirements:
   numerical: true

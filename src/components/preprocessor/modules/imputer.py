@@ -29,7 +29,30 @@ class SimpleImputerWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
     def fit(self, X: pd.DataFrame, y=None):
         """Imputer 학습 및 필요시 MissingIndicator도 학습"""
         self._input_columns = list(X.columns)
-        self.imputer.fit(X)
+        
+        # Fast-fail: 전체가 NaN인 컬럼 감지
+        all_null_columns = [col for col in X.columns if X[col].isnull().all()]
+        if all_null_columns:
+            raise ValueError(
+                f"SimpleImputer는 전체가 결측값인 컬럼을 처리할 수 없습니다: {all_null_columns}\n"
+                f"해당 컬럼들을 데이터에서 제거하거나 다른 전처리 방법을 사용하세요."
+            )
+        
+        try:
+            self.imputer.fit(X)
+        except ValueError as e:
+            error_msg = str(e)
+            if "strategy" in error_msg.lower():
+                raise ValueError(
+                    f"SimpleImputer strategy '{self.strategy}'가 데이터 타입과 호환되지 않습니다.\n"
+                    f"사용 가능한 strategy:\n"
+                    f"- 'mean', 'median': 숫자형 컬럼만 가능\n"
+                    f"- 'most_frequent': 모든 타입 가능\n"
+                    f"- 'constant': 지정된 상수값 (fill_value 파라미터 필요)\n"
+                    f"원본 오류: {error_msg}"
+                ) from e
+            else:
+                raise
         
         # Missing indicator도 학습
         if self.create_missing_indicators and self.missing_indicator:

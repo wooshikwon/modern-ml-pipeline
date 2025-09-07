@@ -23,20 +23,6 @@ hyperparameters:
       range: [0.0, 10.0]
       default: 0.0
   # 환경별 기본값
-  environment_defaults:
-    local:
-      n_clusters: 2
-      metric: "euclidean"
-      linkage: "ward"
-    dev:
-      n_clusters: 5
-      metric: "euclidean"
-      linkage: "ward"
-    prod:
-      n_clusters: 10
-      metric: "euclidean"
-      linkage: "average"
-# 지원 태스크 및 요구사항
 supported_tasks: ["clustering"]
 feature_requirements:
   numerical: true

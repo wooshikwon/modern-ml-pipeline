@@ -21,12 +21,30 @@ class OneHotEncoderWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
 
     def fit(self, X: pd.DataFrame, y=None):
         self._input_columns = list(X.columns)
-        self.encoder.fit(X)
+        try:
+            self.encoder.fit(X)
+        except ValueError as e:
+            error_msg = str(e)
+            if "handle_unknown" in error_msg.lower():
+                raise ValueError(
+                    f"OneHotEncoder handle_unknown '{self.handle_unknown}' 설정에 문제가 있습니다.\n"
+                    f"사용 가능한 handle_unknown:\n"
+                    f"- 'error': 새로운 범주 발견 시 에러 발생\n"
+                    f"- 'ignore': 새로운 범주 무시 (모든 원-핫 컬럼이 0)\n"
+                    f"- 'infrequent_if_exist': infrequent 범주로 처리\n"
+                    f"원본 오류: {error_msg}"
+                ) from e
+            else:
+                raise
         return self
 
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
         """원-핫 인코딩을 적용하고 DataFrame으로 반환합니다."""
         result_array = self.encoder.transform(X)
+        
+        # sparse matrix 처리 (방어적 코딩)
+        if hasattr(result_array, 'toarray'):
+            result_array = result_array.toarray()
         
         # sklearn의 get_feature_names_out을 사용하여 실제 출력 컬럼명 확인
         try:
@@ -71,7 +89,20 @@ class OrdinalEncoderWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
         self.encoder = OrdinalEncoder(handle_unknown=self.handle_unknown, unknown_value=self.unknown_value)
     
     def fit(self, X: pd.DataFrame, y=None):
-        self.encoder.fit(X)
+        try:
+            self.encoder.fit(X)
+        except ValueError as e:
+            error_msg = str(e)
+            if "handle_unknown" in error_msg.lower():
+                raise ValueError(
+                    f"OrdinalEncoder handle_unknown '{self.handle_unknown}' 설정에 문제가 있습니다.\n"
+                    f"사용 가능한 handle_unknown:\n"
+                    f"- 'error': 새로운 범주 발견 시 에러 발생\n"
+                    f"- 'use_encoded_value': unknown_value로 지정된 값 사용\n"
+                    f"원본 오류: {error_msg}"
+                ) from e
+            else:
+                raise
         return self
 
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:

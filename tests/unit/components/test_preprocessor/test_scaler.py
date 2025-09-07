@@ -57,8 +57,8 @@ class TestStandardScalerWrapper:
         
         # Then: 표준화 결과 검증 (평균≈0, 표준편차≈1)
         assert transformed.shape == data.shape
-        np.testing.assert_allclose(np.mean(transformed, axis=0), 0, atol=1e-10)
-        np.testing.assert_allclose(np.std(transformed, axis=0), 1, atol=1e-10)
+        np.testing.assert_allclose(transformed.mean(axis=0).values, 0, atol=1e-10)
+        np.testing.assert_allclose(transformed.std(axis=0, ddof=0).values, 1, atol=1e-10)
     
     def test_standard_scaler_registry_integration(self):
         """Registry 통합 테스트"""
@@ -99,14 +99,14 @@ class TestMinMaxScalerWrapper:
         
         # Then: 0-1 정규화 결과 검증
         assert transformed.shape == data.shape
-        assert np.min(transformed) >= 0
-        assert np.max(transformed) <= 1
+        assert transformed.min().min() >= 0
+        assert transformed.max().max() <= 1
         
         # 각 feature별로 최솟값이 0, 최댓값이 1에 근사한지 확인
-        for col_idx in range(transformed.shape[1]):
-            col_data = transformed[:, col_idx]
-            assert np.min(col_data) <= 1e-10  # 최솟값 ≈ 0
-            assert np.max(col_data) >= 1 - 1e-10  # 최댓값 ≈ 1
+        for col_name in transformed.columns:
+            col_data = transformed[col_name]
+            assert col_data.min() <= 1e-10  # 최솟값 ≈ 0
+            assert col_data.max() >= 1 - 1e-10  # 최댓값 ≈ 1
     
     def test_min_max_scaler_registry_integration(self):
         """Registry 통합 테스트"""
@@ -120,8 +120,8 @@ class TestMinMaxScalerWrapper:
         
         # Then: 정상 동작 확인
         assert isinstance(scaler, MinMaxScalerWrapper)
-        assert 0 <= np.min(result) <= 1e-10
-        assert 1 - 1e-10 <= np.max(result) <= 1
+        assert 0 <= result.min().min() <= 1e-10
+        assert 1 - 1e-10 <= result.max().max() <= 1
 
 
 class TestRobustScalerWrapper:
@@ -150,7 +150,7 @@ class TestRobustScalerWrapper:
         assert transformed.shape == data.shape
         
         # 중앙값 기준 스케일링이므로 median ≈ 0 확인
-        medians = np.median(transformed, axis=0)
+        medians = transformed.median(axis=0)
         np.testing.assert_allclose(medians, 0, atol=1e-10)
     
     def test_robust_scaler_outlier_resistance(self):
@@ -172,13 +172,13 @@ class TestRobustScalerWrapper:
         assert standard_result.shape == data.shape
         
         # 중앙값 기준 스케일링 확인
-        robust_medians = np.median(robust_result, axis=0)
+        robust_medians = robust_result.median(axis=0)
         np.testing.assert_allclose(robust_medians, 0, atol=1e-10)
         
         # RobustScaler가 extreme values에 더 안정적으로 반응하는지 확인
         # (극단값들의 영향을 받지 않고 중앙값 근처에서 스케일링)
-        robust_extreme_col = robust_result[:, 1]  # extreme_feature column
-        robust_q75_q25_range = np.percentile(robust_extreme_col, 75) - np.percentile(robust_extreme_col, 25)
+        robust_extreme_col = robust_result.iloc[:, 1]  # extreme_feature column
+        robust_q75_q25_range = robust_extreme_col.quantile(0.75) - robust_extreme_col.quantile(0.25)
         
         # RobustScaler 결과의 IQR이 적절한 범위 내에 있는지 확인
         assert robust_q75_q25_range > 0  # 정상적인 스케일링 확인
@@ -222,8 +222,8 @@ class TestScalerComparison:
         # Then: 모든 결과가 올바른 형태
         for name, result in results.items():
             assert result.shape == data.shape
-            assert not np.any(np.isnan(result)), f"{name} scaler produced NaN values"
-            assert not np.any(np.isinf(result)), f"{name} scaler produced infinite values"
+            assert not result.isna().any().any(), f"{name} scaler produced NaN values"
+            assert not np.isinf(result.values).any(), f"{name} scaler produced infinite values"
     
     def test_scaler_error_handling(self):
         """스케일러 오류 처리 테스트"""

@@ -8,7 +8,6 @@ import pandas as pd
 
 from src.settings import Settings
 from src.factory import Factory
-from src.components.trainer import Trainer
 from src.utils.system.logger import logger
 from src.utils.integrations import mlflow_integration as mlflow_utils
 from src.utils.system.environment_check import get_pip_requirements
@@ -46,16 +45,18 @@ def run_train_pipeline(settings: Settings, context_params: Optional[Dict[str, An
 
         # 2. 학습에 사용할 컴포넌트 생성
         fetcher = factory.create_fetcher()
+        datahandler = factory.create_datahandler()  # 일관된 Factory 패턴
         preprocessor = factory.create_preprocessor()
         model = factory.create_model()
         evaluator = factory.create_evaluator()
+        trainer = factory.create_trainer()  # 일관된 Factory 패턴
 
         # 3. 모델 학습
-        trainer = Trainer(settings=settings, factory_provider=lambda: factory)
         trained_model, trained_preprocessor, metrics, training_results = trainer.train(
             df=df,
             model=model,
             fetcher=fetcher,
+            datahandler=datahandler,  # 일관된 Factory 패턴
             preprocessor=preprocessor,
             evaluator=evaluator,
             context_params=context_params,
@@ -73,9 +74,10 @@ def run_train_pipeline(settings: Settings, context_params: Optional[Dict[str, An
                 mlflow.log_metric('best_score', hpo_result['best_score'])
                 mlflow.log_metric('total_trials', hpo_result['total_trials'])
 
-        # 5. 🔄 Phase 5: Enhanced PyfuncWrapper 생성 (training_df 추가)
+        # 5. 🔄 Phase 5: Enhanced PyfuncWrapper 생성 (training_df + datahandler 추가)
         pyfunc_wrapper = factory.create_pyfunc_wrapper(
             trained_model=trained_model,
+            trained_datahandler=datahandler,  # 추론 시 재현성을 위한 DataHandler
             trained_preprocessor=trained_preprocessor,
             trained_fetcher=fetcher, # 학습에 사용된 fetcher를 직접 전달
             training_df=df,

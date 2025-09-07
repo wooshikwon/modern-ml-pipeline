@@ -249,7 +249,7 @@ class TestTrainerSelfRegistration:
     def test_default_trainer_self_registration(self):
         """Test that default trainer automatically registers itself on import."""
         # Act - Import triggers self-registration
-        from src.components.trainer.modules import trainer
+        from src.components.trainer import trainer
         
         # Assert
         registered_types = list(TrainerRegistry.trainers.keys())

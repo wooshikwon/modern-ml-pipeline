@@ -45,23 +45,6 @@ hyperparameters:
       range: [true, false]
       default: false
   # 환경별 기본값
-  environment_defaults:
-    local:
-      C: 1.0
-      kernel: "rbf"
-      gamma: "scale"
-      degree: 3
-    dev:
-      C: 1.0
-      kernel: "rbf"
-      gamma: "scale"
-      degree: 3
-    prod:
-      C: 10.0
-      kernel: "rbf"
-      gamma: "scale"
-      degree: 3
-# 지원 태스크 및 요구사항
 supported_tasks: ["binary_classification", "multiclass_classification"]
 feature_requirements:
   numerical: true

@@ -16,17 +16,6 @@ hyperparameters:
       range: [true, false]
       default: false
   # 환경별 기본값
-  environment_defaults:
-    local:
-      fit_intercept: true
-      positive: false
-    dev:
-      fit_intercept: true
-      positive: false
-    prod:
-      fit_intercept: true
-      positive: false
-# 지원 태스크 및 요구사항
 supported_tasks: ["regression"]
 feature_requirements:
   numerical: true

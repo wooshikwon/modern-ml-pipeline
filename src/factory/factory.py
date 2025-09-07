@@ -62,6 +62,7 @@ class Factory:
                 import src.components.fetcher
                 import src.components.trainer
                 import src.components.preprocessor
+                import src.components.datahandler
             except ImportError as e:
                 logger.warning(f"Some components could not be imported: {e}")
             
@@ -340,6 +341,81 @@ class Factory:
             logger.error(f"Failed to create evaluator for '{task_type}'. Available: {available}")
             raise
 
+    def create_trainer(self, trainer_type: Optional[str] = None) -> Any:
+        """
+        Trainer 생성 (일관된 접근 패턴 + 캐싱).
+        
+        Args:
+            trainer_type: 트레이너 타입 (None이면 'default' 사용)
+            
+        Returns:
+            Trainer 인스턴스
+        """
+        # 캐싱 확인
+        cache_key = f"trainer_{trainer_type or 'default'}"
+        if cache_key in self._component_cache:
+            logger.debug(f"Returning cached trainer")
+            return self._component_cache[cache_key]
+        
+        # TrainerRegistry import
+        from src.components.trainer import TrainerRegistry
+        
+        # 일관된 접근 패턴
+        trainer_type = trainer_type or 'default'
+        
+        try:
+            # settings와 factory_provider를 전달하여 trainer 생성
+            trainer = TrainerRegistry.create(
+                trainer_type, 
+                settings=self._settings,
+                factory_provider=lambda: self
+            )
+            
+            # 캐싱 저장
+            self._component_cache[cache_key] = trainer
+            logger.info(f"✅ Created trainer: {trainer_type}")
+            return trainer
+            
+        except Exception as e:
+            available = list(TrainerRegistry.trainers.keys())
+            logger.error(f"Failed to create trainer for '{trainer_type}'. Available: {available}")
+            raise
+
+    def create_datahandler(self) -> Any:
+        """
+        DataHandler 생성 (일관된 접근 패턴 + 캐싱).
+        task_type에 따라 적절한 DataHandler를 자동으로 선택합니다.
+        
+        Returns:
+            BaseDataHandler 인스턴스
+        """
+        # 캐싱 확인
+        cache_key = "datahandler"
+        if cache_key in self._component_cache:
+            logger.debug(f"Returning cached datahandler")
+            return self._component_cache[cache_key]
+        
+        # DataHandlerRegistry import
+        from src.components.datahandler import DataHandlerRegistry
+        
+        # 일관된 접근 패턴
+        data_interface = self._recipe.data.data_interface
+        task_type = data_interface.task_type
+        
+        try:
+            # Registry 패턴으로 task_type에 따라 자동 생성
+            datahandler = DataHandlerRegistry.get_handler_for_task(task_type, self.settings)
+            
+            # 캐싱 저장
+            self._component_cache[cache_key] = datahandler
+            logger.info(f"✅ Created datahandler for task: {task_type}")
+            return datahandler
+            
+        except Exception as e:
+            available = list(DataHandlerRegistry.get_available_handlers().keys())
+            logger.error(f"Failed to create datahandler for '{task_type}'. Available: {available}")
+            raise
+
     def create_feature_store_adapter(self) -> "BaseAdapter":
         """
         Feature Store 어댑터 생성 (일관된 접근 패턴 + 캐싱).
@@ -410,6 +486,7 @@ class Factory:
     def create_pyfunc_wrapper(
         self, 
         trained_model: Any, 
+        trained_datahandler: Any,
         trained_preprocessor: Optional[BasePreprocessor],
         trained_fetcher: Optional['BaseFetcher'],
         training_df: Optional[pd.DataFrame] = None,
@@ -454,6 +531,7 @@ class Factory:
         return PyfuncWrapper(
             settings=self.settings,
             trained_model=trained_model,
+            trained_datahandler=trained_datahandler,
             trained_preprocessor=trained_preprocessor,
             trained_fetcher=trained_fetcher,
             training_results=training_results,

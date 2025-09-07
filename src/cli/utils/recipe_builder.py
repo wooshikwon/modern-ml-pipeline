@@ -29,32 +29,11 @@ class RecipeBuilder:
         "Classification": ["accuracy", "precision", "recall", "f1", "roc_auc"],
         "Regression": ["mae", "mse", "rmse", "r2", "mape"],
         "Clustering": ["silhouette_score", "davies_bouldin", "calinski_harabasz"],
-        "Causal": ["ate", "att", "confidence_intervals"]
+        "Causal": ["ate", "att", "confidence_intervals"],
+        "Timeseries": ["mse", "rmse", "mae", "mape", "smape"]
     }
     
     # Optuna 최적화를 위한 metric별 방향 매핑
-    METRIC_DIRECTIONS = {
-        # Classification - 모두 maximize
-        "accuracy": "maximize",
-        "precision": "maximize", 
-        "recall": "maximize",
-        "f1": "maximize",
-        "roc_auc": "maximize",
-        # Regression - MSE, RMSE, MAE, MAPE는 minimize, R2는 maximize
-        "mae": "minimize",
-        "mse": "minimize", 
-        "rmse": "minimize",
-        "r2": "maximize",
-        "mape": "minimize",
-        # Clustering - silhouette_score, calinski_harabasz는 maximize, davies_bouldin은 minimize
-        "silhouette_score": "maximize",
-        "davies_bouldin": "minimize",
-        "calinski_harabasz": "maximize",
-        # Causal - 기본적으로 maximize (domain specific)
-        "ate": "maximize",
-        "att": "maximize", 
-        "confidence_intervals": "maximize"
-    }
     
     def __init__(self):
         """RecipeBuilder 초기화."""
@@ -200,7 +179,7 @@ class RecipeBuilder:
         self.ui.show_info("Feature Store 설정")
         
         use_feature_store = self.ui.confirm(
-            "Feature Store를 사용하시겠습니까? (Point-in-time join으로 피처 증강)",
+            "Feature Store를 사용하시겠습니까? (Point-in-time join이 가능한 feature store 보유 시에만 활성화 하세요)",
             default=False
         )
         
@@ -278,6 +257,17 @@ class RecipeBuilder:
             selections["treatment_column"] = treatment_column
         else:
             selections["treatment_column"] = None
+        
+        # Timestamp column (timeseries task에서만)
+        if task.lower() == "timeseries":
+            self.ui.show_info("📈 Timeseries 설정")
+            timestamp_column = self.ui.text_input(
+                "Timestamp column 이름 (시계열 시간 컬럼, 예: timestamp, date)",
+                default="timestamp"
+            )
+            selections["timeseries_timestamp_column"] = timestamp_column
+        else:
+            selections["timeseries_timestamp_column"] = None
         
         # Entity columns 설정 (새로 추가)
         self.ui.show_info("🔗 Entity Columns 설정")
@@ -479,20 +469,12 @@ class RecipeBuilder:
             available_metrics = self.TASK_METRICS.get(task, ["accuracy"])
             
             # 각 metric의 최적화 방향을 표시
-            metric_descriptions = []
-            for metric in available_metrics:
-                direction = self.METRIC_DIRECTIONS.get(metric, "maximize")
-                direction_symbol = "📈" if direction == "maximize" else "📉"
-                metric_descriptions.append(f"{metric} {direction_symbol} ({direction})")
+            metric_descriptions = available_metrics
             
-            selected_metric_desc = self.ui.select_from_list(
+            optimization_metric = self.ui.select_from_list(
                 f"{task}에서 최적화할 지표를 선택하세요 (방향키 사용)",
                 metric_descriptions
             )
-            
-            # 선택된 metric 이름 추출
-            optimization_metric = selected_metric_desc.split(" ")[0]
-            optimization_direction = self.METRIC_DIRECTIONS.get(optimization_metric, "maximize")
             
             selections["optimization_metric"] = optimization_metric
             # direction은 recipe 생성 시 자동으로 결정되므로 제거

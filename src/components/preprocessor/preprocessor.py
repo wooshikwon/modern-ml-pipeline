@@ -29,6 +29,7 @@ class Preprocessor(BasePreprocessor):
         self.config = settings.recipe.preprocessor  # Recipe 루트의 preprocessor 참조
         self.pipeline: Optional[Pipeline] = None
 
+
     def fit(self, X: pd.DataFrame, y: Optional[pd.Series] = None) -> 'Preprocessor':
         logger.info("DataFrame-First 순차적 전처리 파이프라인 빌드를 시작합니다...")
         
@@ -58,6 +59,7 @@ class Preprocessor(BasePreprocessor):
                     # Targeted 타입: 지정된 컬럼 찾기
                     target_columns = self._find_matching_columns(step.columns, current_data.columns)
                     logger.info(f"Targeted 적용 - 매핑된 컬럼: {step.columns} -> {target_columns}")
+                
                 
                 if not target_columns:
                     logger.warning(f"Step {i+1} ({step.type}): 적용할 컬럼이 없습니다.")
@@ -135,6 +137,7 @@ class Preprocessor(BasePreprocessor):
             else:
                 # Targeted 타입: 매핑된 컬럼 재확인
                 target_columns = self._find_matching_columns(original_target_columns, current_data.columns)
+            
             
             # 대상 컬럼이 존재하지 않는 경우 기본값으로 생성 (Targeted 타입만)
             if transformer.get_application_type() == 'targeted':

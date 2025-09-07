@@ -62,15 +62,15 @@ class TestSimpleImputerWrapper:
         
         # Then: 결측값 대체 결과 검증
         assert transformed.shape == test_data.shape
-        assert not np.any(pd.isna(transformed))  # 결측값 모두 제거됨
+        assert not transformed.isna().any().any()  # 결측값 모두 제거됨
         
         # 평균값으로 대체되었는지 확인 (원본 데이터의 평균과 비교)
-        for i, col in enumerate(numeric_cols):
-            original_mean = np.nanmean(test_data[col])
-            filled_values = transformed[:, i]
+        for col in numeric_cols:
+            original_mean = test_data[col].mean()
+            filled_values = transformed[col]
             
             # 결측값이었던 위치의 값이 평균과 일치하는지 확인
-            missing_mask = pd.isna(test_data[col])
+            missing_mask = test_data[col].isna()
             filled_missing_values = filled_values[missing_mask]
             np.testing.assert_allclose(filled_missing_values, original_mean, rtol=1e-10)
     
@@ -87,11 +87,11 @@ class TestSimpleImputerWrapper:
         transformed = imputer.transform(test_data)
         
         # Then: 결측값이 중앙값으로 대체됨
-        assert not np.any(pd.isna(transformed))
+        assert not transformed.isna().any().any()
         
-        original_median = np.nanmedian(test_data['numeric_few_missing'])
-        missing_mask = pd.isna(test_data['numeric_few_missing'])
-        filled_values = transformed[missing_mask, 0]
+        original_median = test_data['numeric_few_missing'].median()
+        missing_mask = test_data['numeric_few_missing'].isna()
+        filled_values = transformed.loc[missing_mask, 'numeric_few_missing']
         np.testing.assert_allclose(filled_values, original_median, rtol=1e-10)
     
     def test_simple_imputer_most_frequent_strategy(self):
@@ -111,12 +111,12 @@ class TestSimpleImputerWrapper:
         transformed = imputer.transform(test_data)
         
         # Then: 결측값이 최빈값으로 대체됨
-        assert not np.any(pd.isna(transformed))
+        assert not transformed.isna().any().any()
         
         # 최빈값 확인
         original_mode = test_data['category_missing'].mode()[0]
-        missing_mask = pd.isna(test_data['category_missing'])
-        filled_values = transformed[missing_mask, 0]
+        missing_mask = test_data['category_missing'].isna()
+        filled_values = transformed.loc[missing_mask, 'category_missing']
         assert all(val == original_mode for val in filled_values)
     
     def test_simple_imputer_constant_strategy(self):
@@ -134,10 +134,10 @@ class TestSimpleImputerWrapper:
         transformed = imputer.transform(test_data)
         
         # Then: 결측값이 지정된 상수로 대체됨
-        assert not np.any(pd.isna(transformed))
+        assert not transformed.isna().any().any()
         
-        missing_mask = pd.isna(test_data['numeric_few_missing'])
-        filled_values = transformed[missing_mask, 0]
+        missing_mask = test_data['numeric_few_missing'].isna()
+        filled_values = transformed.loc[missing_mask, 'numeric_few_missing']
         assert all(val == fill_value for val in filled_values)
     
     def test_simple_imputer_registry_integration(self):
@@ -154,7 +154,7 @@ class TestSimpleImputerWrapper:
         # Then: 정상 동작 확인
         assert isinstance(imputer, SimpleImputerWrapper)
         assert result.shape == test_data.shape
-        assert not np.any(pd.isna(result))
+        assert not result.isna().any().any()
     
     def test_simple_imputer_custom_strategy_parameters(self):
         """커스텀 전략 파라미터 테스트"""
@@ -177,7 +177,7 @@ class TestSimpleImputerWrapper:
             result = imputer.transform(test_data)
             
             # Then: 모든 전략에서 결측값 처리 성공
-            assert not np.any(pd.isna(result)), f"{strategy} strategy failed"
+            assert not result.isna().any().any(), f"{strategy} strategy failed"
             assert result.shape == test_data.shape
 
 
@@ -201,7 +201,7 @@ class TestSimpleImputerEdgeCases:
         assert result.shape == test_data.shape
     
     def test_imputer_with_all_missing_values(self):
-        """모든 값이 결측인 경우 처리 테스트"""
+        """모든 값이 결측인 경우 에러 발생 테스트 (Fast-fail)"""
         # Given: 모든 값이 NaN인 데이터
         test_data = pd.DataFrame({
             'all_missing': [np.nan] * 20
@@ -209,13 +209,9 @@ class TestSimpleImputerEdgeCases:
         
         imputer = SimpleImputerWrapper(strategy='mean')
         
-        # When: fit 및 transform 수행
-        imputer.fit(test_data)
-        result = imputer.transform(test_data)
-        
-        # Then: sklearn은 모든 값이 NaN인 컬럼을 제거하므로 빈 배열 반환
-        # 이는 sklearn의 정상적인 동작임
-        assert result.shape[0] == test_data.shape[0]  # 행 수는 유지
+        # When & Then: fit 시 에러 발생 (Fast-fail)
+        with pytest.raises(ValueError, match="SimpleImputer는 전체가 결측값인 컬럼을 처리할 수 없습니다"):
+            imputer.fit(test_data)
         # 컬럼이 제거될 수 있음 (sklearn 경고 메시지에서 확인됨)
     
     def test_imputer_extreme_missing_percentage(self):
@@ -231,13 +227,13 @@ class TestSimpleImputerEdgeCases:
         result = imputer.transform(test_data)
         
         # Then: 극단적 결측 상황에서도 정상 처리
-        assert not np.any(pd.isna(result))
+        assert not result.isna().any().any()
         assert result.shape == test_data.shape
         
         # 결측이 아닌 원본 값들이 보존되었는지 확인
         non_missing_mask = ~pd.isna(test_data['numeric_extreme_missing'])
         original_values = test_data.loc[non_missing_mask, 'numeric_extreme_missing'].values
-        result_values = result[non_missing_mask.values, 0]
+        result_values = result.loc[non_missing_mask, result.columns[0]]
         np.testing.assert_allclose(original_values, result_values, rtol=1e-10)
 
 
@@ -261,7 +257,7 @@ class TestImputerComparison:
         
         # Then: 모든 전략에서 결측값 제거됨
         for strategy, result in results.items():
-            assert not np.any(pd.isna(result)), f"{strategy} has remaining NaN values"
+            assert not result.isna().any().any(), f"{strategy} has remaining NaN values"
             assert result.shape == test_data.shape
         
         # 전략별로 다른 값이 채워져야 함 (데이터 분포에 따라)
@@ -269,9 +265,9 @@ class TestImputerComparison:
         median_result = results['median']
         
         # 결측값 위치에서 다른 값이 채워졌는지 확인 (대부분의 경우)
-        missing_mask = pd.isna(test_data['numeric_many_missing'])
-        mean_filled = mean_result[missing_mask, 0]
-        median_filled = median_result[missing_mask, 0]
+        missing_mask = test_data['numeric_many_missing'].isna()
+        mean_filled = mean_result.loc[missing_mask, mean_result.columns[0]]
+        median_filled = median_result.loc[missing_mask, median_result.columns[0]]
         
         # 평균과 중앙값은 일반적으로 다름 (데이터가 정규분포가 아닌 경우)
         # 완전히 같지 않을 확률이 높지만, 테스트의 안정성을 위해 형태만 확인
@@ -296,14 +292,14 @@ class TestImputerComparison:
             result = imputer.transform(test_data)
             
             # Then: 모든 패턴에서 성공적으로 처리
-            assert not np.any(pd.isna(result)), f"Failed for {pattern_name}"
+            assert not result.isna().any().any(), f"Failed for {pattern_name}"
             assert result.shape == test_data.shape
             
             # 원본의 비결측 값들이 보존되었는지 확인
-            non_missing_mask = ~pd.isna(test_data[column])
+            non_missing_mask = ~test_data[column].isna()
             if non_missing_mask.any():  # 결측이 아닌 값이 있는 경우
                 original_values = test_data.loc[non_missing_mask, column].values
-                result_values = result[non_missing_mask.values, 0]
+                result_values = result.loc[non_missing_mask, result.columns[0]]
                 np.testing.assert_allclose(original_values, result_values, rtol=1e-10)
 
 

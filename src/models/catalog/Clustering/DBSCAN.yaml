@@ -31,20 +31,6 @@ hyperparameters:
       range: [1.0, 2.0]
       default: 2.0
   # 환경별 기본값
-  environment_defaults:
-    local:
-      eps: 0.5
-      min_samples: 5
-      metric: "euclidean"
-    dev:
-      eps: 0.3
-      min_samples: 5
-      metric: "euclidean"
-    prod:
-      eps: 0.1
-      min_samples: 10
-      metric: "euclidean"
-# 지원 태스크 및 요구사항
 supported_tasks: ["clustering"]
 feature_requirements:
   numerical: true
