@@ -165,25 +165,33 @@ class PreprocessorStep(BaseModel):
         "one_hot_encoder",
         "ordinal_encoder",
         "catboost_encoder",
-        # Imputer
+        # Imputer (missing_indicator 기능은 simple_imputer의 create_missing_indicators 옵션으로 통합)
         "simple_imputer",
         # Feature Engineering
         "polynomial_features",
         "tree_based_feature_generator",
-        "missing_indicator",
         "kbins_discretizer"
     ] = Field(..., description="전처리 타입")
     
-    columns: List[str] = Field(..., description="적용할 컬럼 목록")
+    columns: Optional[List[str]] = Field(None, description="적용할 컬럼 목록 (Global 전처리기는 선택사항)")
     
     # 타입별 추가 파라미터
-    strategy: Optional[Literal["mean", "median", "most_frequent", "constant"]] = Field(
+    strategy: Optional[Literal[
+        # SimpleImputer 전략
+        "mean", "median", "most_frequent", "constant",
+        # KBinsDiscretizer 전략
+        "uniform", "quantile", "kmeans"
+    ]] = Field(
         None, 
-        description="SimpleImputer 전략"
+        description="SimpleImputer 또는 KBinsDiscretizer 전략"
     )
     degree: Optional[int] = Field(None, ge=2, le=5, description="PolynomialFeatures 차수")
     n_bins: Optional[int] = Field(None, ge=2, le=20, description="KBinsDiscretizer 구간 개수")
     sigma: Optional[float] = Field(None, ge=0.0, le=1.0, description="CatBoostEncoder regularization")
+    create_missing_indicators: Optional[bool] = Field(
+        None, 
+        description="SimpleImputer에서 imputation 전 결측값 위치를 나타내는 indicator 컬럼 생성 여부"
+    )
     
     @model_validator(mode='after')
     def validate_step_params(self):
@@ -192,6 +200,19 @@ class PreprocessorStep(BaseModel):
         if self.type == 'simple_imputer' and not self.strategy:
             raise ValueError("simple_imputer는 strategy가 필요합니다")
         
+        # kbins_discretizer는 strategy 기본값 설정
+        if self.type == 'kbins_discretizer':
+            if self.strategy is None:
+                self.strategy = 'quantile'  # KBinsDiscretizer 기본값
+            # KBinsDiscretizer 전용 전략 검증
+            if self.strategy not in ['uniform', 'quantile', 'kmeans']:
+                raise ValueError(f"kbins_discretizer의 strategy는 'uniform', 'quantile', 'kmeans' 중 하나여야 합니다: {self.strategy}")
+        
+        # SimpleImputer 전용 전략 검증
+        if self.type == 'simple_imputer':
+            if self.strategy not in ['mean', 'median', 'most_frequent', 'constant']:
+                raise ValueError(f"simple_imputer의 strategy는 'mean', 'median', 'most_frequent', 'constant' 중 하나여야 합니다: {self.strategy}")
+        
         # polynomial_features는 degree 기본값 설정
         if self.type == 'polynomial_features' and self.degree is None:
             self.degree = 2
@@ -199,6 +220,29 @@ class PreprocessorStep(BaseModel):
         # kbins_discretizer는 n_bins 기본값 설정
         if self.type == 'kbins_discretizer' and self.n_bins is None:
             self.n_bins = 5
+        
+        # create_missing_indicators 기본값 설정 (simple_imputer일 때만 유효)
+        if self.type == 'simple_imputer' and self.create_missing_indicators is None:
+            self.create_missing_indicators = False  # 기본값은 False
+        
+        # create_missing_indicators는 simple_imputer에서만 유효
+        if self.create_missing_indicators is not None and self.type != 'simple_imputer':
+            raise ValueError("create_missing_indicators는 simple_imputer 타입에서만 사용할 수 있습니다")
+        
+        # Global vs Targeted 전처리기 검증
+        global_preprocessors = {'standard_scaler', 'min_max_scaler', 'robust_scaler'}
+        targeted_preprocessors = {
+            'one_hot_encoder', 'ordinal_encoder', 'catboost_encoder',
+            'simple_imputer', 'polynomial_features', 'tree_based_feature_generator', 'kbins_discretizer'
+        }
+        
+        if self.type in global_preprocessors:
+            # Global 전처리기는 columns가 선택사항 (None 허용)
+            pass
+        elif self.type in targeted_preprocessors:
+            # Targeted 전처리기는 columns가 필수
+            if not self.columns:
+                raise ValueError(f"'{self.type}'는 Targeted 전처리기이므로 columns 필드가 필요합니다")
         
         return self
 

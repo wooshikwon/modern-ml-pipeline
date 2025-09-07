@@ -1,16 +1,18 @@
 from abc import ABC, abstractmethod
-from typing import Optional
-
+from typing import Optional, List
 import pandas as pd
 
 
 class BasePreprocessor(ABC):
     """
-    피처 변환을 위한 추상 기본 클래스(ABC).
-
-    모든 Preprocessor 구현체는 이 클래스를 상속받아 `fit`과 `transform` 메서드를 구현해야 합니다.
-    이는 scikit-learn의 Preprocessor API와 유사한 인터페이스를 제공하여 일관성을 유지합니다.
+    DataFrame-First 아키텍처를 위한 전처리기 기본 클래스.
+    
+    핵심 원칙:
+    1. 입출력은 항상 pd.DataFrame
+    2. 컬럼명은 자체적으로 관리 (외부에서 추론하지 않음)
+    3. 변환 후 컬럼명을 명시적으로 제공
     """
+    
     @abstractmethod
     def fit(self, X: pd.DataFrame, y: Optional[pd.Series] = None) -> 'BasePreprocessor':
         """
@@ -22,6 +24,7 @@ class BasePreprocessor(ABC):
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
         """
         학습된 파라미터를 사용하여 데이터를 변환합니다.
+        반드시 적절한 컬럼명을 가진 DataFrame을 반환해야 합니다.
         """
         pass
 
@@ -30,3 +33,38 @@ class BasePreprocessor(ABC):
         fit과 transform을 순차적으로 수행합니다.
         """
         return self.fit(X, y).transform(X)
+    
+    def get_output_column_names(self, input_columns: List[str]) -> List[str]:
+        """
+        주어진 입력 컬럼명으로부터 변환 후 예상되는 출력 컬럼명을 반환합니다.
+        
+        기본 구현: 입력 컬럼명을 그대로 반환 (컬럼명이 보존되는 전처리기용)
+        """
+        return input_columns
+    
+    def preserves_column_names(self) -> bool:
+        """
+        이 전처리기가 원본 컬럼명을 보존하는지 여부를 반환합니다.
+        
+        기본값: True (대부분의 전처리기는 컬럼명을 보존함)
+        """
+        return True
+    
+    def get_application_type(self) -> str:
+        """
+        이 전처리기의 적용 유형을 반환합니다.
+        
+        - 'global': 모든 적합한 컬럼에 자동 적용 (missing value handling, scaler 등)
+        - 'targeted': 특정 컬럼을 지정해서 적용 (encoder, feature engineering 등)
+        
+        기본값: 'targeted'
+        """
+        return 'targeted'
+    
+    def get_applicable_columns(self, X: pd.DataFrame) -> List[str]:
+        """
+        global 타입 전처리기용: 주어진 DataFrame에서 이 전처리기가 적용 가능한 컬럼들을 반환합니다.
+        
+        기본 구현: 모든 컬럼 반환
+        """
+        return list(X.columns)

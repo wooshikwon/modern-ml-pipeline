@@ -259,7 +259,7 @@ class TestPreprocessorStep:
         "standard_scaler", "min_max_scaler", "robust_scaler",
         "one_hot_encoder", "ordinal_encoder", "catboost_encoder",
         "polynomial_features", "tree_based_feature_generator",
-        "missing_indicator", "kbins_discretizer"
+        "kbins_discretizer"
     ])
     def test_preprocessor_step_types(self, step_type):
         """Test PreprocessorStep with all valid types (except simple_imputer which needs strategy)."""
