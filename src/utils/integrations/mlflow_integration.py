@@ -263,20 +263,27 @@ def create_enhanced_model_signature_with_schema(
         tuple[ModelSignature, dict]: Enhanced Signature와 완전한 스키마 메타데이터
     """
     
-    # 1. 입력 스키마는 'inference_columns'(entity + timestamp) 기준으로 생성
-    logger.info("🔄 Inference 입력 스키마(엔티티+타임스탬프) 기준으로 MLflow Signature 생성...")
+    # 1. 입력 스키마는 실제 학습 피처 기준으로 생성 (entity/timestamp 제외)
+    logger.info("🔄 실제 학습 피처 기준으로 MLflow Signature 생성...")
     from src.utils.system.schema_utils import generate_training_schema_metadata
     provisional_schema = generate_training_schema_metadata(training_df, data_interface_config)
-    inference_cols = list(provisional_schema.get('inference_columns') or [])
+    
+    # 실제 학습에 사용되는 피처 컬럼 추출 (entity, timestamp, target 제외)
+    feature_cols = list(provisional_schema.get('feature_columns') or [])
+    if not feature_cols:
+        # feature_columns가 없으면 제외 컬럼들을 빼고 자동 도출
+        exclude_cols = []
+        if data_interface_config.get('entity_columns'):
+            exclude_cols.extend(data_interface_config['entity_columns'])
+        if data_interface_config.get('timestamp_column'):
+            exclude_cols.append(data_interface_config['timestamp_column'])
+        if data_interface_config.get('target_column'):
+            exclude_cols.append(data_interface_config['target_column'])
+        
+        feature_cols = [col for col in training_df.columns if col not in exclude_cols]
+    
     input_example = training_df.head(5).copy()
-    # 타입 일치: timestamp를 datetime으로
-    ts_col = provisional_schema.get('timestamp_column')
-    if ts_col and ts_col in input_example.columns:
-        try:
-            input_example[ts_col] = pd.to_datetime(input_example[ts_col], errors='coerce')
-        except Exception:
-            pass
-    input_example = input_example[inference_cols] if inference_cols else input_example
+    input_example = input_example[feature_cols] if feature_cols else input_example
     sample_output = pd.DataFrame({'prediction': [0.0] * len(input_example)})
     signature = create_model_signature(input_example, sample_output)
     

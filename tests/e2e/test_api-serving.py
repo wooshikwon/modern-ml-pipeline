@@ -128,7 +128,7 @@ class TestAPIServingE2E:
             ),
             data=Data(
                 loader=Loader(source_uri=temp_workspace['train_path']),
-                fetcher=Fetcher(type="pass_through"),
+                fetcher=Fetcher(type="pass_through"),  # E2E 테스트용 - 서빙에서 우회 처리 필요
                 data_interface=DataInterface(
                     target_column="approved",
                     entity_columns=[],
@@ -278,12 +278,10 @@ class TestAPIServingE2E:
                 
                 # Test prediction endpoint - Single prediction
                 single_prediction_payload = {
-                    "features": {
-                        "age": 30,
-                        "income": 65000,
-                        "experience": 5,
-                        "education": "Bachelor"
-                    }
+                    "age": 30,
+                    "income": 65000,
+                    "experience": 5,
+                    "education": "Bachelor"
                 }
                 
                 pred_response = requests.post(
@@ -302,7 +300,7 @@ class TestAPIServingE2E:
                 
                 # Test batch prediction endpoint
                 batch_prediction_payload = {
-                    "features": [
+                    "samples": [
                         {
                             "age": 25,
                             "income": 45000,
@@ -358,12 +356,10 @@ class TestAPIServingE2E:
                 
                 def make_prediction_request():
                     payload = {
-                        "features": {
-                            "age": np.random.randint(20, 60),
-                            "income": np.random.randint(30000, 100000),
-                            "experience": np.random.randint(0, 20),
-                            "education": np.random.choice(["High School", "Bachelor", "Master", "PhD"])
-                        }
+                        "age": np.random.randint(20, 60),
+                        "income": np.random.randint(30000, 100000),
+                        "experience": np.random.randint(0, 20),
+                        "education": np.random.choice(["High School", "Bachelor", "Master", "PhD"])
                     }
                     
                     response = requests.post(f"{server_url}/predict", json=payload, timeout=5)
@@ -384,12 +380,10 @@ class TestAPIServingE2E:
                 
                 # Test invalid input
                 invalid_payload = {
-                    "features": {
-                        "age": "invalid",  # Should be numeric
-                        "income": 50000,
-                        "experience": 5,
-                        "education": "Bachelor"
-                    }
+                    "age": "invalid",  # Should be numeric
+                    "income": 50000,
+                    "experience": 5,
+                    "education": "Bachelor"
                 }
                 
                 error_response = requests.post(
@@ -405,10 +399,8 @@ class TestAPIServingE2E:
                 
                 # Test missing fields
                 incomplete_payload = {
-                    "features": {
-                        "age": 30,
-                        # Missing other required fields
-                    }
+                    "age": 30,
+                    # Missing other required fields
                 }
                 
                 missing_response = requests.post(
