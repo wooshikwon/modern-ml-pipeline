@@ -6,7 +6,7 @@ class RecipeBuilder:
     def build(
         name: str = 'test_recipe',
         model_class_path: str = 'sklearn.ensemble.RandomForestClassifier',
-        task_type: str = 'classification',
+        task_choice: str = 'classification',
         source_uri: str = './data/sample.csv',
         fetcher_type: str = 'pass_through',
         enable_tuning: bool = False,
@@ -29,10 +29,11 @@ class RecipeBuilder:
             'clustering': ['silhouette_score'],
             'causal': ['ate', 'uplift'],
         }
-        metrics = metrics_map.get(task_type, ['accuracy'])
-        target_column = 'cluster_label' if task_type == 'clustering' else 'target'
+        metrics = metrics_map.get(task_choice, ['accuracy'])
+        target_column = 'cluster_label' if task_choice == 'clustering' else 'target'
         recipe_dict: Dict[str, Any] = {
             'name': name,
+            'task_choice': task_choice,
             'model': {
                 'class_path': model_class_path,
                 'library': model_class_path.split('.')[0],
@@ -42,7 +43,6 @@ class RecipeBuilder:
                 'loader': {'source_uri': source_uri},
                 'fetcher': {'type': fetcher_type},
                 'data_interface': {
-                    'task_type': task_type,
                     'target_column': target_column,
                     'entity_columns': ['user_id'],
                 },
@@ -52,8 +52,10 @@ class RecipeBuilder:
                 'validation': {'method': 'train_test_split', 'test_size': 0.2, 'random_state': 42},
             },
         }
-        if task_type == 'causal':
+        if task_choice == 'causal':
             recipe_dict['data']['data_interface']['treatment_column'] = 'treatment'
+        if task_choice == 'timeseries':
+            recipe_dict['data']['data_interface']['timestamp_column'] = 'timestamp'
         if fetcher_type == 'feature_store':
             recipe_dict['data']['fetcher']['timestamp_column'] = 'event_timestamp'
             recipe_dict['data']['fetcher']['feature_views'] = {}

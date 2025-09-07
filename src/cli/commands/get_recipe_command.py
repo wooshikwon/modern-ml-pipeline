@@ -1,11 +1,5 @@
 """
 Get-Recipe Command Implementation
-Phase 4: Environment-independent recipe generation
-
-CLAUDE.md 원칙 준수:
-- 타입 힌트 필수
-- Google Style Docstring
-- 환경 독립적 설계
 """
 
 import typer

@@ -211,7 +211,7 @@ class TestTrainerTuningWorkflows:
 class TestTrainerTaskSpecificWorkflows:
     """Task별 (classification/regression/clustering/causal) 워크플로우 테스트"""
     
-    @pytest.mark.parametrize("task_type,settings_builder", [
+    @pytest.mark.parametrize("task_choice,settings_builder", [
         ("classification", "build_classification_config"),
         ("regression", "build_regression_config"),
         ("clustering", "build_clustering_config"),
@@ -219,28 +219,28 @@ class TestTrainerTaskSpecificWorkflows:
     ])
     @patch('src.components.trainer.modules.trainer.split_data')
     @patch('src.components.trainer.modules.trainer.prepare_training_data')
-    def test_train_task_specific_workflows(self, mock_prepare_data, mock_split_data, task_type, settings_builder):
+    def test_train_task_specific_workflows(self, mock_prepare_data, mock_split_data, task_choice, settings_builder):
         """Task별 워크플로우가 올바르게 동작하는지 테스트"""
         # Arrange
         settings = getattr(SettingsBuilder, settings_builder)()
         
         # Task별 데이터 준비
-        if task_type == "classification":
+        if task_choice == "classification":
             df = TrainerDataBuilder.build_classification_data()
             train_df = TrainerDataBuilder.build_classification_data(n_samples=80)
             test_df = TrainerDataBuilder.build_classification_data(n_samples=20)
             target_col = 'target'
-        elif task_type == "regression":
+        elif task_choice == "regression":
             df = TrainerDataBuilder.build_regression_data()
             train_df = TrainerDataBuilder.build_regression_data(n_samples=80)
             test_df = TrainerDataBuilder.build_regression_data(n_samples=20)
             target_col = 'target'
-        elif task_type == "clustering":
+        elif task_choice == "clustering":
             df = TrainerDataBuilder.build_clustering_data()
             train_df = TrainerDataBuilder.build_clustering_data(n_samples=80)
             test_df = TrainerDataBuilder.build_clustering_data(n_samples=20)
             target_col = None  # clustering에는 target이 없음
-        elif task_type == "causal":
+        elif task_choice == "causal":
             df = TrainerDataBuilder.build_causal_data()
             train_df = TrainerDataBuilder.build_causal_data(n_samples=80)
             test_df = TrainerDataBuilder.build_causal_data(n_samples=20)
@@ -258,7 +258,7 @@ class TestTrainerTaskSpecificWorkflows:
             X_train, y_train = train_df[feature_cols], None
             X_test, y_test = test_df[feature_cols], None
         
-        additional_data = {'treatment': train_df.get('treatment')} if task_type == "causal" else None
+        additional_data = {'treatment': train_df.get('treatment')} if task_choice == "causal" else None
         
         mock_prepare_data.side_effect = [
             (X_train, y_train, additional_data),
@@ -274,13 +274,13 @@ class TestTrainerTaskSpecificWorkflows:
         mock_evaluator = Mock()
         
         # Task별 평가 메트릭 설정
-        if task_type == "classification":
+        if task_choice == "classification":
             metrics = {'accuracy': 0.85, 'f1': 0.82}
-        elif task_type == "regression":
+        elif task_choice == "regression":
             metrics = {'mse': 0.15, 'r2': 0.85}
-        elif task_type == "clustering":
+        elif task_choice == "clustering":
             metrics = {'silhouette_score': 0.7}
-        elif task_type == "causal":
+        elif task_choice == "causal":
             metrics = {'ate': 0.12, 'confidence_intervals': [0.08, 0.16]}
         
         mock_evaluator.evaluate.return_value = metrics
@@ -507,7 +507,7 @@ class TestTrainerTaskSpecificFitting:
         # Arrange
         settings = SettingsBuilder.build_classification_config()
         # task_type을 지원하지 않는 값으로 변경
-        settings.recipe.data.data_interface.task_type = "unsupported_task"
+        settings.recipe.data.data_interface.task_choice="unsupported_task"
         trainer = Trainer(settings)
         
         # BaseModel을 상속한 Mock 모델 생성

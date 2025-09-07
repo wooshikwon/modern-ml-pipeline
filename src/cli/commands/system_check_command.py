@@ -1,11 +1,5 @@
 """
 System Check Command Implementation
-Phase 5: Simplified config-based validation
-
-CLAUDE.md 원칙 준수:
-- 타입 힌트 필수
-- Google Style Docstring
-- 환경 기반 검증
 """
 
 from pathlib import Path

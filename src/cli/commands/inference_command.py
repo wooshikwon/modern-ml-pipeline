@@ -2,10 +2,6 @@
 Inference Command Implementation
 모듈화된 배치 추론 실행 명령
 
-CLAUDE.md 원칙 준수:
-- 타입 힌트 필수
-- Google Style Docstring
-- 단일 책임 원칙
 """
 
 import json

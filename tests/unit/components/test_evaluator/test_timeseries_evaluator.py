@@ -16,7 +16,7 @@ from tests.helpers.builders import DataFrameBuilder, RecipeBuilder
 
 def DataInterface(
     entity_columns=None,
-    task_type=None,
+    task_choice=None,
     target_column=None,
     feature_columns=None,
     timestamp_column=None,
@@ -31,7 +31,7 @@ def DataInterface(
     if timestamp_column is not None:
         overrides['data.data_interface.timestamp_column'] = timestamp_column
     task = task_type or 'timeseries'
-    recipe = RecipeBuilder.build(task_type=task, **overrides)
+    recipe = RecipeBuilder.build(task_choice=task, **overrides)
     return recipe.data.data_interface
 
 
@@ -43,7 +43,7 @@ class TestTimeSeriesEvaluatorInitialization:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["store_id"],
-            task_type="timeseries",
+            task_choice="timeseries",
             target_column="sales",
             feature_columns=["temperature", "promotion"],
             timestamp_column="date"
@@ -61,7 +61,7 @@ class TestTimeSeriesEvaluatorInitialization:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["product_id"],
-            task_type="timeseries",
+            task_choice="timeseries",
             target_column="demand",
             feature_columns=["price", "inventory"],
             timestamp_column="timestamp"
@@ -72,7 +72,7 @@ class TestTimeSeriesEvaluatorInitialization:
         
         # Assert
         assert evaluator.settings == data_interface
-        assert evaluator.task_type == "timeseries"
+        assert evaluator.task_choice == "timeseries"
         assert evaluator.settings.target_column == "demand"
         assert evaluator.settings.feature_columns == ["price", "inventory"]
         assert evaluator.settings.timestamp_column == "timestamp"
@@ -82,7 +82,7 @@ class TestTimeSeriesEvaluatorInitialization:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="timeseries",
+            task_choice="timeseries",
             target_column="y",
             timestamp_column="date"
         )
@@ -91,7 +91,7 @@ class TestTimeSeriesEvaluatorInitialization:
         evaluator = TimeSeriesEvaluator(data_interface)
         
         # Assert
-        assert evaluator.task_type == "timeseries"
+        assert evaluator.task_choice == "timeseries"
         assert evaluator.settings.target_column == "y"
         assert evaluator.settings.timestamp_column == "date"
         assert evaluator.settings.feature_columns is None  # Optional field
@@ -105,7 +105,7 @@ class TestTimeSeriesEvaluatorEvaluate:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="timeseries",
+            task_choice="timeseries",
             target_column="target",
             feature_columns=["feature1", "feature2"],
             timestamp_column="date"
@@ -146,7 +146,7 @@ class TestTimeSeriesEvaluatorEvaluate:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["house_id"],
-            task_type="timeseries",
+            task_choice="timeseries",
             target_column="electricity_usage",
             feature_columns=["temperature", "hour_of_day", "day_of_week"],
             timestamp_column="timestamp"
@@ -190,7 +190,7 @@ class TestTimeSeriesEvaluatorEvaluate:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="timeseries",
+            task_choice="timeseries",
             target_column="target",
             feature_columns=["x"],
             timestamp_column="date"
@@ -233,7 +233,7 @@ class TestTimeSeriesEvaluatorEvaluate:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="timeseries",
+            task_choice="timeseries",
             target_column="y",
             feature_columns=["x1", "x2"],
             timestamp_column="timestamp"
@@ -277,7 +277,7 @@ class TestTimeSeriesEvaluatorMetrics:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="timeseries",
+            task_choice="timeseries",
             target_column="target",
             feature_columns=["feature"],
             timestamp_column="date"
@@ -308,7 +308,7 @@ class TestTimeSeriesEvaluatorMetrics:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="timeseries",
+            task_choice="timeseries",
             target_column="target",
             timestamp_column="date"
         )
@@ -333,7 +333,7 @@ class TestTimeSeriesEvaluatorMetrics:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="timeseries",
+            task_choice="timeseries",
             target_column="target",
             timestamp_column="date"
         )
@@ -356,7 +356,7 @@ class TestTimeSeriesEvaluatorMetrics:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="timeseries",
+            task_choice="timeseries",
             target_column="target",
             timestamp_column="date"
         )
@@ -380,7 +380,7 @@ class TestTimeSeriesEvaluatorMetrics:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="timeseries",
+            task_choice="timeseries",
             target_column="target",
             timestamp_column="date"
         )
@@ -409,7 +409,7 @@ class TestTimeSeriesEvaluatorErrorHandling:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="timeseries",
+            task_choice="timeseries",
             target_column="target",
             feature_columns=["feature"],
             timestamp_column="date"
@@ -439,7 +439,7 @@ class TestTimeSeriesEvaluatorErrorHandling:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="timeseries",
+            task_choice="timeseries",
             target_column="target",
             feature_columns=["feature"],
             timestamp_column="date"
@@ -469,7 +469,7 @@ class TestTimeSeriesEvaluatorErrorHandling:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="timeseries",
+            task_choice="timeseries",
             target_column="target",
             feature_columns=["feature"],
             timestamp_column="date"
@@ -499,7 +499,7 @@ class TestTimeSeriesEvaluatorErrorHandling:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="timeseries",
+            task_choice="timeseries",
             target_column="target",
             timestamp_column="date"
         )
@@ -524,7 +524,7 @@ class TestTimeSeriesEvaluatorIntegration:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["household_id"],
-            task_type="timeseries",
+            task_choice="timeseries",
             target_column="electricity_usage",
             feature_columns=["temperature", "hour", "day_type", "appliance_count"],
             timestamp_column="timestamp"
@@ -570,7 +570,7 @@ class TestTimeSeriesEvaluatorIntegration:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="timeseries",
+            task_choice="timeseries",
             target_column="target",
             feature_columns=["x"],
             timestamp_column="date"
@@ -621,7 +621,7 @@ class TestTimeSeriesEvaluatorSelfRegistration:
         # Verify can create instance through registry
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="timeseries",
+            task_choice="timeseries",
             target_column="target",
             feature_columns=["feature"],
             timestamp_column="timestamp"

@@ -254,15 +254,15 @@ class TestEvaluatorRegistryRobustness:
             evaluators_to_register.append((f"test_task_{i}", TestEvaluator))
         
         # Act
-        for task_type, evaluator_class in evaluators_to_register:
-            EvaluatorRegistry.register(task_type, evaluator_class)
+        for task_choice, evaluator_class in evaluators_to_register:
+            EvaluatorRegistry.register(task_choice, evaluator_class)
         
         # Assert
         for i in range(5):
-            task_type = f"test_task_{i}"
+            task_choice = f"test_task_{i}"
             assert task_type in EvaluatorRegistry.evaluators
-            retrieved_class = EvaluatorRegistry.get_evaluator_class(task_type)
-            instance = EvaluatorRegistry.create(task_type, Mock())
+            retrieved_class = EvaluatorRegistry.get_evaluator_class(task_choice)
+            instance = EvaluatorRegistry.create(task_choice, Mock())
             assert instance.evaluate() == f"evaluator_{i}"
     
     def test_registry_consistency_after_errors(self):

@@ -2,10 +2,6 @@
 Train Command Implementation
 모듈화된 학습 파이프라인 실행 명령
 
-CLAUDE.md 원칙 준수:
-- 타입 힌트 필수
-- Google Style Docstring
-- 단일 책임 원칙
 """
 
 import json
@@ -39,7 +35,7 @@ def train_command(
     ] = None,
 ) -> None:
     """
-    학습 파이프라인 실행 (Phase 5.3 리팩토링).
+    학습 파이프라인 실행.
     
     Recipe와 Config 파일을 직접 지정하고, --data-path로 학습 데이터를 직접 전달합니다.
     DataInterface 기반 컬럼 검증을 수행한 후 학습을 진행합니다.
@@ -65,9 +61,9 @@ def train_command(
         settings = load_settings(recipe_path, config_path)
         setup_logging(settings)
 
-        # 2. CLI data_path 처리 (Jinja 렌더링 지원)
+        # 2. CLI data_path 처리
         if data_path.endswith('.sql.j2') or data_path.endswith('.sql') and params:
-            # Jinja 템플릿 렌더링 (보안 검증 포함)
+            # Jinja 템플릿 렌더링
             from src.utils.system.templating_utils import render_template_from_string
             from pathlib import Path
             
@@ -99,7 +95,7 @@ def train_command(
         run_name = computed.get("run_name", "unknown") if computed else "unknown"
         logger.info(f"Run Name: {run_name}")
         
-        # 4. 학습 파이프라인 실행 (기존 방식 그대로, source_uri가 CLI data_path로 설정됨)
+        # 4. 학습 파이프라인 실행
         run_train_pipeline(settings=settings, context_params=params)
         
         logger.info("✅ 학습이 성공적으로 완료되었습니다.")

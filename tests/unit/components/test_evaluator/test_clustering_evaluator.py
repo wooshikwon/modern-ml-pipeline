@@ -20,7 +20,7 @@ class TestClusteringEvaluatorInitialization:
     def test_clustering_evaluator_inherits_base_evaluator(self):
         """Test that ClusteringEvaluator properly inherits from BaseEvaluator."""
         # Arrange - Use RecipeBuilder for consistency
-        recipe = RecipeBuilder.build(task_type="clustering")
+        recipe = RecipeBuilder.build(task_choice="clustering")
         data_interface = recipe.data.data_interface
         
         # Act
@@ -34,7 +34,7 @@ class TestClusteringEvaluatorInitialization:
         """Test that initialization properly stores settings and task type."""
         # Arrange - Use RecipeBuilder
         recipe = RecipeBuilder.build(
-            task_type="clustering",
+            task_choice="clustering",
             **{'data.data_interface.feature_columns': ["feature1", "feature2", "feature3"]}
         )
         data_interface = recipe.data.data_interface
@@ -44,21 +44,21 @@ class TestClusteringEvaluatorInitialization:
         
         # Assert
         assert evaluator.settings == data_interface
-        assert evaluator.task_type == "clustering"
+        assert evaluator.task_choice == "clustering"
         assert evaluator.settings.feature_columns == ["feature1", "feature2", "feature3"]
         # target_column has dummy value for clustering but it's ignored by the evaluator
     
     def test_init_minimal_configuration(self):
         """Test initialization with minimal required configuration."""
         # Arrange - Use RecipeBuilder with minimal config
-        recipe = RecipeBuilder.build(task_type="clustering")
+        recipe = RecipeBuilder.build(task_choice="clustering")
         data_interface = recipe.data.data_interface
         
         # Act
         evaluator = ClusteringEvaluator(data_interface)
         
         # Assert
-        assert evaluator.task_type == "clustering"
+        assert evaluator.task_choice == "clustering"
         assert evaluator.settings.feature_columns is None
         # target_column has dummy value for clustering but it's ignored
 
@@ -70,7 +70,7 @@ class TestClusteringEvaluatorEvaluate:
         """Test successful clustering evaluation with K-means."""
         # Arrange - Use RecipeBuilder
         recipe = RecipeBuilder.build(
-            task_type="clustering",
+            task_choice="clustering",
             **{'data.data_interface.feature_columns': ["x", "y"]}
         )
         data_interface = recipe.data.data_interface
@@ -111,7 +111,7 @@ class TestClusteringEvaluatorEvaluate:
         """Test evaluation with different numbers of clusters."""
         # Arrange - Use RecipeBuilder
         recipe = RecipeBuilder.build(
-            task_type="clustering",
+            task_choice="clustering",
             **{'data.data_interface.feature_columns': ["feature1", "feature2", "feature3"]}
         )
         data_interface = recipe.data.data_interface
@@ -150,7 +150,7 @@ class TestClusteringEvaluatorEvaluate:
         """Test evaluation with optional source_df parameter."""
         # Arrange - Use RecipeBuilder
         recipe = RecipeBuilder.build(
-            task_type="clustering",
+            task_choice="clustering",
             **{'data.data_interface.feature_columns': ["x", "y"]}
         )
         data_interface = recipe.data.data_interface
@@ -188,7 +188,7 @@ class TestClusteringEvaluatorEvaluate:
         """Test that model.labels_ is accessed correctly."""
         # Arrange - Use RecipeBuilder
         recipe = RecipeBuilder.build(
-            task_type="clustering",
+            task_choice="clustering",
             **{'data.data_interface.feature_columns': ["x", "y"]}
         )
         data_interface = recipe.data.data_interface
@@ -225,7 +225,7 @@ class TestClusteringEvaluatorMetrics:
         """Test evaluation with well-separated clusters (high silhouette score)."""
         # Arrange - Use RecipeBuilder
         recipe = RecipeBuilder.build(
-            task_type="clustering",
+            task_choice="clustering",
             **{'data.data_interface.feature_columns': ["x", "y"]}
         )
         data_interface = recipe.data.data_interface
@@ -257,7 +257,7 @@ class TestClusteringEvaluatorMetrics:
         """Test evaluation with poorly separated clusters."""
         # Arrange - Use RecipeBuilder
         recipe = RecipeBuilder.build(
-            task_type="clustering",
+            task_choice="clustering",
             **{'data.data_interface.feature_columns': ["feature"]}
         )
         data_interface = recipe.data.data_interface
@@ -291,7 +291,7 @@ class TestClusteringEvaluatorMetrics:
         """Test evaluation when all points belong to single cluster."""
         # Arrange - Use RecipeBuilder
         recipe = RecipeBuilder.build(
-            task_type="clustering",
+            task_choice="clustering",
             **{'data.data_interface.feature_columns': ["x", "y"]}
         )
         data_interface = recipe.data.data_interface
@@ -321,7 +321,7 @@ class TestClusteringEvaluatorMetrics:
         """Test evaluation with outlier labels (-1)."""
         # Arrange - Use RecipeBuilder
         recipe = RecipeBuilder.build(
-            task_type="clustering",
+            task_choice="clustering",
             **{'data.data_interface.feature_columns': ["x", "y"]}
         )
         data_interface = recipe.data.data_interface
@@ -358,7 +358,7 @@ class TestClusteringEvaluatorErrorHandling:
         """Test evaluation when model doesn't have labels_ attribute."""
         # Arrange - Use RecipeBuilder
         recipe = RecipeBuilder.build(
-            task_type="clustering",
+            task_choice="clustering",
             **{'data.data_interface.feature_columns': ["feature"]}
         )
         data_interface = recipe.data.data_interface
@@ -387,7 +387,7 @@ class TestClusteringEvaluatorErrorHandling:
         """Test evaluation with mismatched X and labels shapes."""
         # Arrange - Use RecipeBuilder
         recipe = RecipeBuilder.build(
-            task_type="clustering",
+            task_choice="clustering",
             **{'data.data_interface.feature_columns': ["x", "y"]}
         )
         data_interface = recipe.data.data_interface
@@ -416,7 +416,7 @@ class TestClusteringEvaluatorErrorHandling:
         """Test evaluation when labels_ is not numpy array."""
         # Arrange - Use RecipeBuilder
         recipe = RecipeBuilder.build(
-            task_type="clustering",
+            task_choice="clustering",
             **{'data.data_interface.feature_columns': ["feature"]}
         )
         data_interface = recipe.data.data_interface
@@ -452,7 +452,7 @@ class TestClusteringEvaluatorIntegration:
         """Test evaluation with realistic customer segmentation scenario."""
         # Arrange - Use RecipeBuilder
         recipe = RecipeBuilder.build(
-            task_type="clustering",
+            task_choice="clustering",
             **{
                 'data.data_interface.entity_columns': ["customer_id"],
                 'data.data_interface.feature_columns': ["age", "income", "spending_score"]
@@ -495,7 +495,7 @@ class TestClusteringEvaluatorIntegration:
         """Test evaluation with high-dimensional feature space."""
         # Arrange - Use RecipeBuilder
         recipe = RecipeBuilder.build(
-            task_type="clustering",
+            task_choice="clustering",
             **{'data.data_interface.feature_columns': [f"feature_{i}" for i in range(10)]}
         )
         data_interface = recipe.data.data_interface
@@ -542,7 +542,7 @@ class TestClusteringEvaluatorSelfRegistration:
         
         # Verify can create instance through registry - Use RecipeBuilder
         recipe = RecipeBuilder.build(
-            task_type="clustering",
+            task_choice="clustering",
             **{'data.data_interface.feature_columns': ["feature1", "feature2"]}
         )
         data_interface = recipe.data.data_interface

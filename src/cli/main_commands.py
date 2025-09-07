@@ -2,10 +2,6 @@
 Modern ML Pipeline CLI - Main Commands Router
 단순 라우팅만 담당하는 메인 CLI 진입점
 
-CLAUDE.md 원칙 준수:
-- 타입 힌트 필수
-- Google Style Docstring
-- 단일 책임 원칙
 """
 
 import typer
@@ -15,7 +11,7 @@ from typing_extensions import Annotated
 from rich.console import Console
 from rich.text import Text
 
-# Command imports - 모든 로직은 별도 모듈에서 구현
+# Command imports
 from src.cli.commands.init_command import init_command
 from src.cli.commands.get_config_command import get_config_command
 from src.cli.commands.get_recipe_command import get_recipe_command
@@ -42,7 +38,6 @@ ASCII_BANNER = """
 ╚═╝     ╚═╝╚═╝     ╚═╝╚═╝     
 """
 
-# Console for rich output
 console = Console()
 
 def show_banner():

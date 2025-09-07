@@ -68,7 +68,7 @@ class PreprocessorRecipeBuilder:
                 'loader': {'source_uri': './data/test.csv'},
                 'fetcher': {'type': 'pass_through'},
                 'data_interface': {
-                    'task_type': 'classification',
+                    'task_choice': 'classification',
                     'target_column': 'target',
                     'entity_columns': ['user_id']
                 }

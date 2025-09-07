@@ -107,7 +107,7 @@ def integration_settings_classification(tmp_mlflow_tracking, tmp_artifacts_dir, 
         recipe={
             "source_uri": test_csv_file,  # Pass source_uri under recipe key
             "model_class_path": "sklearn.ensemble.RandomForestClassifier",
-            "task_type": "classification",
+            "task_choice": "classification",
             "data.data_interface.target_column": "target",
             "data.data_interface.entity_columns": ["user_id"],
             "data.data_interface.feature_columns": ["feature_0", "feature_1", "feature_2", "feature_3", "feature_4"],
@@ -132,7 +132,7 @@ def integration_settings_regression(tmp_mlflow_tracking, tmp_artifacts_dir, test
     
     settings = SettingsBuilder.build(
         env_name="integration_test",
-        task_type="regression",
+        task_choice="regression",
         target_column="target", 
         entity_columns=["entity_id"],
         feature_columns=["feature_0", "feature_1", "feature_2", "feature_3", "feature_4"],
@@ -160,7 +160,7 @@ def integration_settings_timeseries(tmp_mlflow_tracking, tmp_artifacts_dir, test
     
     settings = SettingsBuilder.build(
         env_name="integration_test",
-        task_type="timeseries",
+        task_choice="timeseries",
         target_column="target",
         entity_columns=["entity_id"],
         timestamp_column="timestamp",

@@ -17,7 +17,7 @@ from tests.helpers.builders import DataFrameBuilder, RecipeBuilder
 # Builder-only shim: replace direct DataInterface constructor with RecipeBuilder-backed factory
 def DataInterface(
     entity_columns=None,
-    task_type=None,
+    task_choice=None,
     target_column=None,
     feature_columns=None,
     treatment_column=None,
@@ -32,7 +32,7 @@ def DataInterface(
     if treatment_column is not None:
         overrides['data.data_interface.treatment_column'] = treatment_column
     task = task_type or 'classification'
-    recipe = RecipeBuilder.build(task_type=task, **overrides)
+    recipe = RecipeBuilder.build(task_choice=task, **overrides)
     return recipe.data.data_interface
 
 
@@ -44,7 +44,7 @@ class TestClassificationEvaluatorInitialization:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="classification",
+            task_choice="classification",
             target_column="target",
             feature_columns=["feature1", "feature2"]
         )
@@ -61,7 +61,7 @@ class TestClassificationEvaluatorInitialization:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="classification",
+            task_choice="classification",
             target_column="label",
             feature_columns=["x1", "x2", "x3"]
         )
@@ -71,7 +71,7 @@ class TestClassificationEvaluatorInitialization:
         
         # Assert
         assert evaluator.settings == data_interface
-        assert evaluator.task_type == "classification"
+        assert evaluator.task_choice == "classification"
         assert evaluator.settings.target_column == "label"
         assert evaluator.settings.feature_columns == ["x1", "x2", "x3"]
     
@@ -80,7 +80,7 @@ class TestClassificationEvaluatorInitialization:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="classification",
+            task_choice="classification",
             target_column="category",
             feature_columns=["f1", "f2"]
         )
@@ -89,7 +89,7 @@ class TestClassificationEvaluatorInitialization:
         evaluator = ClassificationEvaluator(data_interface)
         
         # Assert
-        assert evaluator.settings.task_type == "classification"
+        assert evaluator.settings.task_choice == "classification"
         assert evaluator.settings.target_column == "category"
 
 
@@ -101,7 +101,7 @@ class TestClassificationEvaluatorEvaluate:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="classification",
+            task_choice="classification",
             target_column="target",
             feature_columns=["feature1", "feature2"]
         )
@@ -159,7 +159,7 @@ class TestClassificationEvaluatorEvaluate:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="classification",
+            task_choice="classification",
             target_column="category",
             feature_columns=["f1", "f2", "f3"]
         )
@@ -211,7 +211,7 @@ class TestClassificationEvaluatorEvaluate:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="classification",
+            task_choice="classification",
             target_column="target",
             feature_columns=["feature1"]
         )
@@ -246,7 +246,7 @@ class TestClassificationEvaluatorEvaluate:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="classification",
+            task_choice="classification",
             target_column="label",
             feature_columns=["x", "y"]
         )
@@ -290,7 +290,7 @@ class TestClassificationEvaluatorMetrics:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="classification",
+            task_choice="classification",
             target_column="target",
             feature_columns=["feature"]
         )
@@ -334,7 +334,7 @@ class TestClassificationEvaluatorMetrics:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="classification",
+            task_choice="classification",
             target_column="target",
             feature_columns=["feature"]
         )
@@ -380,7 +380,7 @@ class TestClassificationEvaluatorMetrics:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="classification",
+            task_choice="classification",
             target_column="category",
             feature_columns=["x"]
         )
@@ -426,7 +426,7 @@ class TestClassificationEvaluatorErrorHandling:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="classification",
+            task_choice="classification",
             target_column="target",
             feature_columns=["feature"]
         )
@@ -448,7 +448,7 @@ class TestClassificationEvaluatorErrorHandling:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="classification",
+            task_choice="classification",
             target_column="target",
             feature_columns=["feature"]
         )
@@ -474,7 +474,7 @@ class TestClassificationEvaluatorIntegration:
         # Arrange
         data_interface = DataInterface(
             entity_columns=["email_id"],
-            task_type="classification",
+            task_choice="classification",
             target_column="spam",
             feature_columns=["word_count", "exclamation_count", "caps_ratio"]
         )
@@ -537,7 +537,7 @@ class TestClassificationEvaluatorSelfRegistration:
         # Verify can create instance through registry
         data_interface = DataInterface(
             entity_columns=["user_id"],
-            task_type="classification",
+            task_choice="classification",
             target_column="target",
             feature_columns=["feature"]
         )
