@@ -37,7 +37,7 @@ class TestInferencePipelineE2E:
             n_features=5,
             n_classes=2,
             add_entity_column=True,
-            random_seed=999  # Different seed for new data
+            random_state=999  # Different seed for new data
         )
         
         # Remove target column for inference
@@ -50,10 +50,12 @@ class TestInferencePipelineE2E:
         # Phase 4: Validate inference results
         assert predictions is not None
         assert len(predictions) == 50  # Same as inference data size
-        assert isinstance(predictions, (list, np.ndarray))
+        assert isinstance(predictions, (list, np.ndarray, pd.Series, pd.DataFrame))
         
         # Verify predictions are within expected range for classification
-        unique_predictions = np.unique(predictions)
+        # Convert pandas types to numpy array for validation
+        predictions_values = predictions.values if hasattr(predictions, 'values') else predictions
+        unique_predictions = np.unique(predictions_values)
         assert len(unique_predictions) <= 2  # Binary classification
         assert all(pred in [0, 1] for pred in unique_predictions)
 
@@ -70,11 +72,11 @@ class TestInferencePipelineE2E:
             n_samples=30,
             n_features=5,
             add_entity_column=True,
-            random_seed=555
+            random_state=555
         )
         
-        # Remove target and entity columns for inference
-        inference_features = inference_data.drop(columns=['target', 'entity_id'])
+        # Remove target column for inference
+        inference_features = inference_data.drop(columns=['target'])
         
         # Phase 3: Perform inference
         model = mlflow.pyfunc.load_model(train_result.model_uri)
@@ -83,10 +85,11 @@ class TestInferencePipelineE2E:
         # Phase 4: Validate regression predictions
         assert predictions is not None
         assert len(predictions) == 30
-        assert isinstance(predictions, (list, np.ndarray))
+        assert isinstance(predictions, (list, np.ndarray, pd.Series, pd.DataFrame))
         
         # Check predictions are reasonable floats (not NaN/inf)
-        predictions_array = np.array(predictions)
+        predictions_values = predictions.values if hasattr(predictions, 'values') else predictions
+        predictions_array = np.array(predictions_values)
         assert np.all(np.isfinite(predictions_array))
         assert predictions_array.dtype in [np.float32, np.float64]
 
@@ -238,7 +241,8 @@ class TestInferencePipelineEdgeCases:
             predictions = model.predict(data_with_nulls)
             # If predictions succeed, verify they are reasonable
             assert len(predictions) == 3
-            predictions_array = np.array(predictions)
+            predictions_values = predictions.values if hasattr(predictions, 'values') else predictions
+            predictions_array = np.array(predictions_values)
             # Check that predictions are not all NaN (some handling occurred)
             assert not np.all(np.isnan(predictions_array))
         except Exception:
@@ -268,7 +272,8 @@ class TestInferencePipelineEdgeCases:
         assert len(predictions) == 3
         
         # Predictions should be finite (not NaN or infinite)
-        predictions_array = np.array(predictions)
+        predictions_values = predictions.values if hasattr(predictions, 'values') else predictions
+        predictions_array = np.array(predictions_values)
         assert np.all(np.isfinite(predictions_array))
 
     def test_inference_with_empty_dataset(self, integration_settings_classification):
@@ -289,7 +294,7 @@ class TestInferencePipelineEdgeCases:
         # Model should handle empty input gracefully
         predictions = model.predict(empty_data)
         assert len(predictions) == 0
-        assert isinstance(predictions, (list, np.ndarray))
+        assert isinstance(predictions, (list, np.ndarray, pd.Series, pd.DataFrame))
 
     def test_inference_data_type_handling(self, integration_settings_classification):
         """Test inference with different data types."""
@@ -321,7 +326,7 @@ class TestInferencePipelineEdgeCases:
         for i, test_data in enumerate(test_cases):
             predictions = model.predict(test_data)
             assert len(predictions) == 2, f"Test case {i} failed"
-            assert isinstance(predictions, (list, np.ndarray)), f"Test case {i} failed"
+            assert isinstance(predictions, (list, np.ndarray, pd.Series, pd.DataFrame)), f"Test case {i} failed"
 
 
 class TestInferencePipelineIntegration:
@@ -415,7 +420,7 @@ class TestInferencePipelineIntegration:
         
         # Verify prediction output type matches expected model signature
         # (This would be more detailed with actual model signature inspection)
-        assert isinstance(predictions, (list, np.ndarray))
+        assert isinstance(predictions, (list, np.ndarray, pd.Series, pd.DataFrame))
         
         # Verify model can handle the expected input schema
         assert hasattr(model, 'predict')  # Basic interface check

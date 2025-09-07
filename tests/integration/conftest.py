@@ -132,20 +132,24 @@ def integration_settings_regression(tmp_mlflow_tracking, tmp_artifacts_dir, test
     
     settings = SettingsBuilder.build(
         env_name="integration_test",
-        task_choice="regression",
-        target_column="target", 
-        entity_columns=["entity_id"],
-        feature_columns=["feature_0", "feature_1", "feature_2", "feature_3", "feature_4"],
-        source_uri=str(csv_path),
-        mlflow_tracking_uri=tmp_mlflow_tracking,
-        adapter_type="storage", 
-        **{
-            "config.artifact_store.config.base_uri": tmp_artifacts_dir,
-            "recipe.model.class_path": "sklearn.ensemble.RandomForestRegressor",
-            "recipe.model.hyperparameters.n_estimators": 10,  # Fast training
-            "recipe.model.hyperparameters.random_state": 42,
-            "recipe.model.hyperparameters.max_depth": 3,
-            "recipe.model.computed.run_name": "integration_test_regression"
+        recipe_name="integration_test_regression",
+        config={
+            "mlflow.tracking_uri": tmp_mlflow_tracking,
+            "mlflow.experiment_name": "integration_test",
+            "data_source.adapter_type": "storage", 
+            "artifact_store.type": "local",
+            "artifact_store.config.base_uri": tmp_artifacts_dir,
+        },
+        recipe={
+            "source_uri": str(csv_path),  # Pass source_uri under recipe key
+            "model_class_path": "sklearn.ensemble.RandomForestRegressor",
+            "task_choice": "regression",
+            "data.data_interface.target_column": "target",
+            "data.data_interface.entity_columns": ["user_id"],
+            "data.data_interface.feature_columns": ["feature_0", "feature_1", "feature_2", "feature_3", "feature_4"],
+            "model.hyperparameters.n_estimators": 10,  # Fast training
+            "model.hyperparameters.random_state": 42,
+            "model.hyperparameters.max_depth": 3,
         }
     )
     return settings

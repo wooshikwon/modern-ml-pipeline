@@ -11,8 +11,8 @@ import shutil
 import os
 import mlflow
 from src.settings import Settings
-from src.settings.config import Config, Environment, MLflow as MLflowConfig, DataSource, FeatureStore, FeastConfig
-from src.settings.recipe import Recipe
+from src.settings.config import Config, Environment, MLflow as MLflowConfig, DataSource, FeatureStore, FeastConfig, FeastOnlineStore, FeastOfflineStore, Output, OutputTarget
+from src.settings.recipe import Recipe, Model, Data, Loader, Fetcher, DataInterface, Evaluation, ValidationConfig, HyperparametersTuning
 from src.pipelines.train_pipeline import run_train_pipeline
 
 
@@ -75,8 +75,28 @@ class TestFeatureStoreIntegrationE2E:
                 feast_config=FeastConfig(
                     project="e2e_test_project",
                     registry=os.path.join(temp_workspace['feast_dir'], "registry.db"),
-                    online_store={"type": "sqlite"},
-                    offline_store={"type": "file"}
+                    online_store=FeastOnlineStore(
+                        type="sqlite",
+                        path=os.path.join(temp_workspace['feast_dir'], "online_store.db")
+                    ),
+                    offline_store=FeastOfflineStore(
+                        type="file",
+                        path=temp_workspace['data_dir']
+                    )
+                )
+            ),
+            output=Output(
+                inference=OutputTarget(
+                    name="e2e_feast_output",
+                    enabled=True,
+                    adapter_type="storage",
+                    config={"base_path": temp_workspace['workspace']}
+                ),
+                preprocessed=OutputTarget(
+                    name="e2e_feast_preprocessed",
+                    enabled=False,
+                    adapter_type="storage",
+                    config={}
                 )
             )
         )
@@ -84,40 +104,36 @@ class TestFeatureStoreIntegrationE2E:
         recipe = Recipe(
             name="e2e_feast_recipe",
             task_choice="classification",
-            data={
-                "data_interface": {
-                    "target_column": "approved",
-                    "drop_columns": []
-                },
-                "feature_view": {
-                    "name": "user_features",
-                    "entities": ["user_id"],
-                    "features": ["age", "income", "credit_score"],
-                    "source": {"path": "train.csv", "timestamp_column": "timestamp"}
-                }
-            },
-            loader={"name": "csv_loader", "batch_size": 50, "shuffle": True},
-            model={
-                "class_path": "sklearn.linear_model.LogisticRegression",
-                "init_args": {"random_state": 42, "max_iter": 500},
-                "compile_args": {},
-                "fit_args": {}
-            },
-            fetcher={
-                "type": "feature_store"  # Use feature store fetcher
-            },
-            preprocessor={
-                "steps": [
-                    {
-                        "name": "scaler",
-                        "params": {
-                            "method": "standard", 
-                            "features": ["age", "income", "credit_score"]
-                        }
+            model=Model(
+                class_path="sklearn.linear_model.LogisticRegression",
+                library="sklearn",
+                hyperparameters=HyperparametersTuning(
+                    tuning_enabled=False,
+                    values={
+                        "random_state": 42,
+                        "max_iter": 500
                     }
-                ]
-            },
-            trainer={"validation_split": 0.2, "stratify": True, "random_state": 42}
+                ),
+                computed={"run_name": "e2e_feast_test_run"}
+            ),
+            data=Data(
+                loader=Loader(source_uri=temp_workspace['train_path']),
+                fetcher=Fetcher(type="feature_store"),  # Use feature store fetcher
+                data_interface=DataInterface(
+                    target_column="approved",
+                    entity_columns=["user_id"],
+                    feature_columns=["age", "income", "credit_score"],
+                    timestamp_column="timestamp"
+                )
+            ),
+            evaluation=Evaluation(
+                metrics=["accuracy", "precision", "recall", "f1"],
+                validation=ValidationConfig(
+                    method="train_test_split",
+                    test_size=0.2,
+                    random_state=42
+                )
+            )
         )
         
         return Settings(config=config, recipe=recipe)
@@ -161,7 +177,7 @@ class TestFeatureStoreIntegrationE2E:
             # Fallback: Test configuration validation
             assert feast_settings.config.feature_store.provider == "feast"
             assert feast_settings.config.feature_store.feast_config is not None
-            assert feast_settings.recipe.fetcher["type"] == "feature_store"
+            assert feast_settings.recipe.data.fetcher.type == "feature_store"
             
             print("✅ Feature store configuration validated")
             
@@ -178,10 +194,10 @@ class TestFeatureStoreIntegrationE2E:
         feast_config = config.feature_store.feast_config
         assert feast_config.project == "e2e_test_project"
         assert feast_config.registry.endswith("registry.db")
-        assert feast_config.online_store["type"] == "sqlite"
-        assert feast_config.offline_store["type"] == "file"
+        assert feast_config.online_store.type == "sqlite"
+        assert feast_config.offline_store.type == "file"
         
         # Validate recipe uses feature store fetcher
-        assert feast_settings.recipe.fetcher["type"] == "feature_store"
+        assert feast_settings.recipe.data.fetcher.type == "feature_store"
         
         print("✅ Feature store configuration validation passed")

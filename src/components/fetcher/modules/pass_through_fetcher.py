@@ -2,7 +2,7 @@
 import pandas as pd
 
 from src.interface import BaseFetcher
-from src.utils.system.logger import logger
+from src.utils.system.console_manager import get_console
 
 
 class PassThroughFetcher(BaseFetcher):
@@ -21,7 +21,9 @@ class PassThroughFetcher(BaseFetcher):
         if run_mode not in valid_modes:
             raise ValueError(f"Invalid run_mode '{run_mode}'. Valid modes: {valid_modes}")
         
-        logger.info("피처 증강을 건너뜁니다. ('passthrough' 모드 또는 레시피에 fetcher 미정의)")
+        console = get_console()
+        console.info("피처 증강을 건너뜁니다. ('passthrough' 모드 또는 레시피에 fetcher 미정의)", 
+                    rich_message="⚡ Skipping feature augmentation (passthrough mode)")
         return df
 
 # Self-registration  

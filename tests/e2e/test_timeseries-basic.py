@@ -14,6 +14,7 @@ from src.settings import Settings
 from src.settings.config import Config, Environment, MLflow as MLflowConfig, DataSource, FeatureStore
 from src.settings.recipe import Recipe
 from src.pipelines.train_pipeline import run_train_pipeline
+from src.utils.system.console_manager import test_phase, test_success
 
 
 class TestTimeseriesBasicE2E:
@@ -100,7 +101,7 @@ class TestTimeseriesBasicE2E:
     
     def test_complete_timeseries_pipeline_e2e(self, timeseries_settings, temp_workspace):
         """Test complete time series analysis pipeline."""
-        print("🚀 Starting E2E Time Series Pipeline...")
+        test_phase("Starting E2E Time Series Pipeline", "🚀")
         
         mlflow.set_experiment(timeseries_settings.config.mlflow.experiment_name)
         train_result = run_train_pipeline(timeseries_settings)
@@ -120,5 +121,5 @@ class TestTimeseriesBasicE2E:
         predictions = model.predict(test_data)
         assert len(predictions) == 3, "Should predict for all samples"
         
-        print("✅ E2E Time Series Pipeline completed successfully!")
+        test_success("E2E Time Series Pipeline completed successfully!")
         return {'train_result': train_result, 'predictions': predictions}

@@ -4,10 +4,12 @@ from typing import Dict, Any, Optional
 
 import mlflow
 from src.utils.system.logger import logger
+from src.utils.system.console_manager import get_console
 
 class PyfuncWrapper(mlflow.pyfunc.PythonModel):
     """
     학습된 컴포넌트와 모든 설정 정보를 캡슐화하는 MLflow PythonModel 구현체.
+    MLflow 직렬화를 위해 최적화된 버전.
     """
     def __init__(
         self,
@@ -21,34 +23,11 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
         data_schema: Optional[Any] = None, # mlflow.types.Schema
         data_interface_schema: Optional[Dict[str, Any]] = None,  # DataInterface 기반 검증용
     ):
-        # 복잡한 Settings 객체를 직렬화 가능한 형태로 변환
-        if hasattr(settings, 'model_dump'):
-            # Pydantic 모델인 경우
-            self.settings_dict = settings.model_dump()
-            self._task_type = settings.recipe.task_choice
-        elif isinstance(settings, dict):
-            # 이미 딕셔너리인 경우
-            self.settings_dict = settings
-            self._task_type = settings.get('recipe', {}).get('task_choice', 'unknown')
-        else:
-            # Settings 객체지만 model_dump가 없는 경우 - 직접 접근
-            try:
-                self._task_type = settings.recipe.task_choice
-                # 최소한의 정보만 추출해서 딕셔너리로 변환
-                self.settings_dict = {
-                    'recipe': {
-                        'task_choice': self._task_type,
-                        'model': {'class_path': getattr(settings.recipe.model, 'class_path', 'unknown')},
-                        'data': {
-                            'loader': {'source_uri': getattr(settings.recipe.data.loader, 'source_uri', '')},
-                            'fetcher': getattr(settings.recipe.data.fetcher, '__dict__', {}) if settings.recipe.data.fetcher else {}
-                        }
-                    }
-                }
-            except Exception as e:
-                # 완전히 실패한 경우 기본값 사용
-                self._task_type = 'unknown'
-                self.settings_dict = {'recipe': {'task_choice': 'unknown'}}
+        # Console은 lazy loading으로 처리 (직렬화 문제 해결)
+        self._console = None
+        
+        # 직렬화 가능한 최소한의 설정 정보만 추출
+        self._task_type, self.settings_dict = self._extract_serializable_settings(settings)
         
         self.trained_model = trained_model
         # 직렬화 문제를 피하기 위해 복잡한 객체들은 None으로 설정
@@ -64,6 +43,64 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
         # Task type별 추론 파이프라인 결정
         self._requires_datahandler = self._task_type in ["timeseries"]  # 향후 deeplearning 추가 가능
 
+    def _extract_serializable_settings(self, settings):
+        """설정에서 직렬화 가능한 최소한의 정보만 추출"""
+        try:
+            if hasattr(settings, 'model_dump'):
+                # Pydantic 모델인 경우 - 안전하게 최소 정보만 추출
+                task_type = settings.recipe.task_choice
+                settings_dict = {
+                    'recipe': {
+                        'task_choice': task_type,
+                        'model': {
+                            'class_path': getattr(settings.recipe.model, 'class_path', 'unknown')
+                        },
+                        'data': {
+                            'data_interface': {
+                                'target_column': getattr(settings.recipe.data.data_interface, 'target_column', None)
+                            }
+                        }
+                    }
+                }
+                return task_type, settings_dict
+            elif isinstance(settings, dict):
+                # 이미 딕셔너리인 경우
+                task_type = settings.get('recipe', {}).get('task_choice', 'unknown')
+                return task_type, settings
+            else:
+                # 기타 경우 - 최소한의 정보만
+                task_type = getattr(settings.recipe, 'task_choice', 'unknown') if hasattr(settings, 'recipe') else 'unknown'
+                settings_dict = {'recipe': {'task_choice': task_type}}
+                return task_type, settings_dict
+        except Exception:
+            # 모든 것이 실패하면 기본값
+            return 'unknown', {'recipe': {'task_choice': 'unknown'}}
+    
+    @property  
+    def console(self):
+        """Console을 lazy loading으로 처리"""
+        if self._console is None:
+            try:
+                from src.utils.system.console_manager import get_console
+                self._console = get_console()
+            except:
+                # 완전 실패 시 logger 폴백
+                import logging
+                self._console = logging.getLogger(__name__)
+        return self._console
+    
+    def __getstate__(self):
+        """직렬화 시 console과 복잡한 객체 제외"""
+        state = self.__dict__.copy()
+        # console 제외 (lazy loading으로 재생성됨)
+        state['_console'] = None
+        return state
+    
+    def __setstate__(self, state):
+        """역직렬화 시 상태 복원"""
+        self.__dict__.update(state)
+        # console은 lazy loading으로 처리되므로 별도 작업 불필요
+
     def _validate_input_schema(self, df: pd.DataFrame):
         """입력 데이터프레임의 스키마를 검증합니다."""
         if self.data_schema:
@@ -75,9 +112,9 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
                 from src.utils.system.schema_utils import SchemaConsistencyValidator
                 validator = SchemaConsistencyValidator(self.data_schema)
                 validator.validate_inference_consistency(df)
-                logger.info("✅ PyfuncWrapper: 입력 스키마 검증 완료.")
+                self.console.info("입력 스키마 검증 완료", rich_message="✅ Input schema validation passed")
             except ValueError as e:
-                logger.error(f"🚨 PyfuncWrapper: 스키마 검증 실패 (Schema Drift 감지): {e}")
+                self.console.error(f"스키마 검증 실패 (Schema Drift 감지): {e}", rich_message=f"🚨 Schema validation failed: [red]{e}[/red]")
                 raise
 
     @property
@@ -113,7 +150,7 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
         run_mode = params.get("run_mode", "batch") if params else "batch"
         
         # 디버깅: params 전달 상태 확인
-        logger.info(f"🔍 Predict called with params: {params}")
+        self.console.info(f"Predict called with params: {params}", rich_message=f"🔍 Prediction request: [cyan]{len(params)} params[/cyan]" if params else "🔍 Prediction request received")
 
         if not isinstance(model_input, pd.DataFrame):
             model_input = pd.DataFrame(model_input)
@@ -121,9 +158,9 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
         # 기본 스키마 검증 (선택적)
         try:
             if self.data_interface_schema:
-                logger.info("✅ Basic input validation passed")
+                self.console.info("Basic input validation passed", rich_message="✅ Input validation passed")
         except:
-            logger.warning("⚠️ Input validation skipped")
+            self.console.warning("Input validation skipped", rich_message="⚠️ Input validation skipped")
 
         # 단순화된 예측: 타겟 컬럼을 제외한 피처만 사용
         try:
@@ -150,10 +187,10 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
                 # Inference Pipeline용: DataFrame 반환 (메타데이터 추가 가능)
                 if not isinstance(predictions, pd.DataFrame):
                     predictions_df = pd.DataFrame({'prediction': predictions}, index=model_input.index)
-                    logger.info(f"✅ Prediction completed: {len(predictions_df)} samples (DataFrame)")
+                    self.console.info(f"Prediction completed: {len(predictions_df)} samples (DataFrame)", rich_message=f"✅ Prediction: [green]{len(predictions_df)}[/green] samples (DataFrame)")
                     return predictions_df
                 else:
-                    logger.info(f"✅ Prediction completed: {len(predictions)} samples (DataFrame)")
+                    self.console.info(f"Prediction completed: {len(predictions)} samples (DataFrame)", rich_message=f"✅ Prediction: [green]{len(predictions)}[/green] samples (DataFrame)")
                     return predictions
             else:
                 # MLflow pyfunc 표준: array/list 반환
@@ -162,11 +199,11 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
                 elif hasattr(predictions, 'tolist'):
                     predictions = predictions.tolist()
                     
-                logger.info(f"✅ Prediction completed: {len(predictions)} samples (array/list)")
+                self.console.info(f"Prediction completed: {len(predictions)} samples (array/list)", rich_message=f"✅ Prediction: [green]{len(predictions)}[/green] samples (array/list)")
                 return predictions
             
         except Exception as e:
-            logger.error(f"❌ Prediction failed: {e}")
+            self.console.error(f"Prediction failed: {e}", rich_message=f"❌ Prediction failed: [red]{e}[/red]")
             # 폴백: 첫 번째 컬럼만 사용
             try:
                 X = model_input.iloc[:, :1]

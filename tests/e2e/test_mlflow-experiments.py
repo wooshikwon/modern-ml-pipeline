@@ -17,8 +17,8 @@ from types import SimpleNamespace
 import time
 
 from src.settings import Settings
-from src.settings.config import Config, Environment, MLflow as MLflowConfig, DataSource, FeatureStore
-from src.settings.recipe import Recipe
+from src.settings.config import Config, Environment, MLflow as MLflowConfig, DataSource, FeatureStore, Output, OutputTarget
+from src.settings.recipe import Recipe, Model, Data, Loader, Fetcher, DataInterface, Evaluation, ValidationConfig, HyperparametersTuning
 from src.pipelines.train_pipeline import run_train_pipeline
 
 
@@ -89,57 +89,51 @@ class TestMLflowExperimentsE2E:
                         adapter_type="storage",
                         config={"base_path": temp_workspace['data_dir']}
                     ),
-                    feature_store=FeatureStore(provider="none")
+                    feature_store=FeatureStore(provider="none"),
+                    output=Output(
+                        inference=OutputTarget(
+                            name="mlflow_e2e_output",
+                            enabled=True,
+                            adapter_type="storage",
+                            config={"base_path": temp_workspace['workspace']}
+                        ),
+                        preprocessed=OutputTarget(
+                            name="mlflow_e2e_preprocessed",
+                            enabled=False,
+                            adapter_type="storage",
+                            config={}
+                        )
+                    )
                 ),
                 recipe=Recipe(
                     name=f"mlflow_test_{task_choice}",
                     task_choice=task_choice,
-                    data={
-                        "data_interface": {
-                            "target_column": target_col,
-                            "drop_columns": []
-                        },
-                        "feature_view": {
-                            "name": f"{task_choice}_features",
-                            "entities": [],
-                            "features": ["feature_1", "feature_2", "feature_3"] if task_choice == "classification" else ["x1", "x2", "x3"],
-                            "source": {
-                                "path": data_file,
-                                "timestamp_column": None
-                            }
-                        }
-                    },
-                    loader={
-                        "name": "csv_loader",
-                        "batch_size": 100,
-                        "shuffle": True
-                    },
-                    model={
-                        "class_path": model_class,
-                        "init_args": {"random_state": 42},
-                        "compile_args": {},
-                        "fit_args": {}
-                    },
-                    fetcher={"type": "pass_through"},
-                    preprocessor={
-                        "steps": [
-                            {
-                                "name": "encoder" if task_choice == "classification" else "scaler",
-                                "params": {
-                                    "categorical_features": ["feature_3"] if task_choice == "classification" else [],
-                                    "encoding_type": "onehot"
-                                } if task_choice == "classification" else {
-                                    "method": "standard",
-                                    "features": ["x1", "x2", "x3"]
-                                }
-                            }
-                        ]
-                    },
-                    trainer={
-                        "validation_split": 0.2,
-                        "stratify": task_choice == "classification",
-                        "random_state": 42
-                    }
+                    model=Model(
+                        class_path=model_class,
+                        library="sklearn",
+                        hyperparameters=HyperparametersTuning(
+                            tuning_enabled=False,
+                            values={"random_state": 42} if model_class != "sklearn.linear_model.LinearRegression" else {}
+                        ),
+                        computed={"run_name": f"mlflow_{task_choice}_test_run"}
+                    ),
+                    data=Data(
+                        loader=Loader(source_uri=os.path.join(temp_workspace['data_dir'], data_file)),
+                        fetcher=Fetcher(type="pass_through"),
+                        data_interface=DataInterface(
+                            target_column=target_col,
+                            entity_columns=[],
+                            feature_columns=["feature_1", "feature_2", "feature_3"] if task_choice == "classification" else ["x1", "x2", "x3"]
+                        )
+                    ),
+                    evaluation=Evaluation(
+                        metrics=["accuracy", "precision", "recall", "f1"] if task_choice == "classification" else ["mae", "mse", "r2"],
+                        validation=ValidationConfig(
+                            method="train_test_split",
+                            test_size=0.2,
+                            random_state=42
+                        )
+                    )
                 )
             )
         
@@ -183,24 +177,26 @@ class TestMLflowExperimentsE2E:
             model_class="sklearn.linear_model.LogisticRegression"
         )
         
-        with mlflow.start_run(run_name="classification_logistic") as run1:
+        # Run 1 - let pipeline manage its own MLflow run
+        train_result_1 = run_train_pipeline(class_settings)
+        
+        # Get the run ID from the result
+        with mlflow.start_run(run_id=train_result_1.run_id):
             # Log additional parameters
             mlflow.log_param("algorithm", "LogisticRegression")
             mlflow.log_param("task_type", "classification")
             mlflow.log_param("dataset_size", len(temp_workspace['df_class']))
             
-            train_result_1 = run_train_pipeline(class_settings)
-            
             # Log custom metrics
             mlflow.log_metric("custom_score", 0.85)
             mlflow.log_metric("validation_score", 0.82)
-            
-            runs_data.append({
-                'run_id': run1.info.run_id,
-                'run_name': 'classification_logistic',
-                'model_uri': train_result_1.model_uri,
-                'task': 'classification'
-            })
+        
+        runs_data.append({
+            'run_id': train_result_1.run_id,
+            'run_name': 'classification_logistic',
+            'model_uri': train_result_1.model_uri,
+            'task': 'classification'
+        })
         
         # Run 2: Classification with RandomForest
         print("  🌳 Run 2: Classification with RandomForestClassifier")
@@ -212,27 +208,29 @@ class TestMLflowExperimentsE2E:
             model_class="sklearn.ensemble.RandomForestClassifier"
         )
         
-        with mlflow.start_run(run_name="classification_rf") as run2:
+        # Update model args for RF
+        class_settings_rf.recipe.model.hyperparameters.values = {"n_estimators": 10, "random_state": 42}
+        
+        # Run 2 - let pipeline manage its own MLflow run
+        train_result_2 = run_train_pipeline(class_settings_rf)
+        
+        # Get the run ID from the result
+        with mlflow.start_run(run_id=train_result_2.run_id):
             mlflow.log_param("algorithm", "RandomForest")
             mlflow.log_param("task_type", "classification")
             mlflow.log_param("n_estimators", 10)  # Small for testing
-            
-            # Update model args for RF
-            class_settings_rf.recipe.model["init_args"] = {"n_estimators": 10, "random_state": 42}
-            
-            train_result_2 = run_train_pipeline(class_settings_rf)
             
             # Log different metrics
             mlflow.log_metric("custom_score", 0.88)
             mlflow.log_metric("validation_score", 0.85)
             mlflow.log_metric("feature_importance_mean", 0.25)
-            
-            runs_data.append({
-                'run_id': run2.info.run_id,
-                'run_name': 'classification_rf',
-                'model_uri': train_result_2.model_uri,
-                'task': 'classification'
-            })
+        
+        runs_data.append({
+            'run_id': train_result_2.run_id,
+            'run_name': 'classification_rf',
+            'model_uri': train_result_2.model_uri,
+            'task': 'classification'
+        })
         
         # Run 3: Regression
         print("  📈 Run 3: Regression with LinearRegression")
@@ -244,24 +242,26 @@ class TestMLflowExperimentsE2E:
             model_class="sklearn.linear_model.LinearRegression"
         )
         
-        with mlflow.start_run(run_name="regression_linear") as run3:
+        # Run 3 - let pipeline manage its own MLflow run
+        train_result_3 = run_train_pipeline(reg_settings)
+        
+        # Get the run ID from the result
+        with mlflow.start_run(run_id=train_result_3.run_id):
             mlflow.log_param("algorithm", "LinearRegression")
             mlflow.log_param("task_type", "regression")
             mlflow.log_param("dataset_size", len(temp_workspace['df_reg']))
-            
-            train_result_3 = run_train_pipeline(reg_settings)
             
             # Log regression-specific metrics
             mlflow.log_metric("mse", 8.5)
             mlflow.log_metric("r2_score", 0.75)
             mlflow.log_metric("rmse", 2.9)
-            
-            runs_data.append({
-                'run_id': run3.info.run_id,
-                'run_name': 'regression_linear',
-                'model_uri': train_result_3.model_uri,
-                'task': 'regression'
-            })
+        
+        runs_data.append({
+            'run_id': train_result_3.run_id,
+            'run_name': 'regression_linear',
+            'model_uri': train_result_3.model_uri,
+            'task': 'regression'
+        })
         
         print(f"✅ Completed {len(runs_data)} training runs")
         
@@ -434,10 +434,9 @@ class TestMLflowExperimentsE2E:
                     model_class="sklearn.linear_model.LogisticRegression"
                 )
                 
-                with mlflow.start_run(run_name=run_name):
-                    time.sleep(0.1)  # Simulate some work
-                    result = run_train_pipeline(settings)
-                    results.append(result)
+                time.sleep(0.1)  # Simulate some work  
+                result = run_train_pipeline(settings)
+                results.append(result)
                     
             except Exception as e:
                 errors.append(e)
@@ -484,25 +483,27 @@ class TestMLflowExperimentsE2E:
             )
             
             # Update model config
-            settings.recipe.model["init_args"].update(config)
+            settings.recipe.model.hyperparameters.values.update(config)
             
-            with mlflow.start_run(run_name=f"config_{i}"):
+            # Let pipeline manage its own MLflow run
+            result = run_train_pipeline(settings)
+            
+            # Get the run ID from the result  
+            with mlflow.start_run(run_id=result.run_id):
                 # Log hyperparameters
                 for key, value in config.items():
                     mlflow.log_param(key, value)
                 
-                result = run_train_pipeline(settings)
-                
                 # Log fake performance metric for comparison
                 performance = 0.8 + (i * 0.05)  # Simulate increasing performance
                 mlflow.log_metric("accuracy", performance)
-                
-                run_results.append({
-                    'run_id': mlflow.active_run().info.run_id,
-                    'config': config,
-                    'accuracy': performance,
-                    'model_uri': result.model_uri
-                })
+            
+            run_results.append({
+                'run_id': result.run_id,
+                'config': config,
+                'accuracy': performance,
+                'model_uri': result.model_uri
+            })
         
         # Find best run by accuracy
         best_run = max(run_results, key=lambda x: x['accuracy'])

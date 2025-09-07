@@ -56,7 +56,9 @@ class Factory:
         이 메서드는 Factory 인스턴스가 처음 생성될 때 한 번만 실행됩니다.
         """
         if not cls._components_registered:
-            logger.info("Initializing component registries...")
+            # Use global console for classmethod
+            console = get_console()
+            console.info("Initializing component registries...", rich_message="🔧 Initializing component registries...")
             
             # 컴포넌트 모듈들을 import하여 self-registration 트리거
             try:
@@ -67,10 +69,10 @@ class Factory:
                 import src.components.preprocessor
                 import src.components.datahandler
             except ImportError as e:
-                logger.warning(f"Some components could not be imported: {e}")
+                console.warning(f"Some components could not be imported: {e}")
             
             cls._components_registered = True
-            logger.info("Component registries initialized successfully")
+            console.info("Component registries initialized successfully", rich_message="✅ Component registries initialized")
     
     def _create_from_class_path(self, class_path: str, hyperparameters: Dict[str, Any]) -> Any:
         """

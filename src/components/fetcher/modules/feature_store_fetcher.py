@@ -2,7 +2,7 @@ from __future__ import annotations
 import pandas as pd
 from typing import TYPE_CHECKING, List, Dict, Any
 from src.interface import BaseFetcher
-from src.utils.system.logger import logger
+from src.utils.system.console_manager import get_console
 
 if TYPE_CHECKING:
     from src.settings import Settings
@@ -19,7 +19,9 @@ class FeatureStoreFetcher(BaseFetcher):
         self.feature_store_adapter = self.factory.create_feature_store_adapter()
 
     def fetch(self, df: pd.DataFrame, run_mode: str = "batch") -> pd.DataFrame:
-        logger.info("Feature Store를 통해 피처 증강을 시작합니다.")
+        console = get_console()
+        console.info("Feature Store를 통해 피처 증강을 시작합니다.",
+                    rich_message="🏦 Starting feature augmentation via Feature Store")
 
         # ✅ 새로운 구조에서 설정 수집
         data_interface = self.settings.recipe.data.data_interface
@@ -48,7 +50,8 @@ class FeatureStoreFetcher(BaseFetcher):
                 features=features,
                 data_interface_config=data_interface_config,
             )
-            logger.info("피처 증강 완료(offline).")
+            console.info("피처 증강 완료(offline).",
+                        rich_message="✅ Feature augmentation complete (offline)")
             return result
         elif run_mode == "serving":
             # 온라인 조회: entity_rows(dict list)로 변환 필요
@@ -57,7 +60,8 @@ class FeatureStoreFetcher(BaseFetcher):
                 entity_rows=entity_rows,
                 features=features,
             )
-            logger.info("피처 증강 완료(online).")
+            console.info("피처 증강 완료(online).",
+                        rich_message="✅ Feature augmentation complete (online)")
             return result
         else:
             raise ValueError(f"Unsupported run_mode: {run_mode}")
