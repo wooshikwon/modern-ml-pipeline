@@ -142,20 +142,17 @@ class TestMLflowExperimentsE2E:
         
         return create_settings
     
-    def test_complete_mlflow_experiments_e2e(self, mlflow_settings, temp_workspace):
+    def test_complete_mlflow_experiments_e2e(self, mlflow_settings, temp_workspace, isolated_mlflow, unique_experiment_name):
         """Test complete MLflow experiment tracking workflow."""
         
-        # Initialize MLflow client
-        client = MlflowClient(tracking_uri=f"file://{temp_workspace['mlruns_dir']}")
+        # Initialize MLflow client using isolated tracking URI
+        client = MlflowClient(tracking_uri=isolated_mlflow)
         
         # Phase 1: Create and Manage Experiments
         print("🧪 Phase 1: Creating and managing experiments...")
         
-        # Set tracking URI
-        mlflow.set_tracking_uri(f"file://{temp_workspace['mlruns_dir']}")
-        
-        # Create experiment
-        experiment_name = "e2e_mlflow_test"
+        # Create experiment with consistent naming (MLflow tracking URI is already set by isolated_mlflow fixture)
+        experiment_name = f"e2e_mlflow_test_{unique_experiment_name}"
         experiment = mlflow.set_experiment(experiment_name)
         
         # Verify experiment creation
@@ -398,9 +395,9 @@ class TestMLflowExperimentsE2E:
         # Verify experiment is active
         assert updated_exp.lifecycle_stage == "active", "Experiment should be active"
         
-        # Check MLflow directory structure
-        assert os.path.exists(temp_workspace['mlruns_dir']), "MLruns directory should exist"
-        assert len(os.listdir(temp_workspace['mlruns_dir'])) > 0, "MLruns should contain experiment data"
+        # Check MLflow tracking is working (using isolated tracking URI)
+        current_tracking_uri = mlflow.get_tracking_uri()
+        assert current_tracking_uri == isolated_mlflow, "Should be using isolated MLflow tracking URI"
         
         print("✅ E2E MLflow Experiments completed successfully!")
         print(f"   - Experiment created: {experiment_name}")

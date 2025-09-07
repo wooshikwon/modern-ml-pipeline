@@ -283,15 +283,15 @@ def _load_config(config_path: str) -> Config:
         base_path = Path("configs") / "base.yaml"
         if base_path.exists():
             logger.warning(
-                f"'{env_name}' config가 없어 base.yaml을 사용합니다. "
-                f"'mmp get-config --env-name {env_name}'로 생성하세요."
+                f"Config file not found, using base.yaml instead. "
+                f"Create proper config with 'mmp get-config --env-name <env_name>'."
             )
             config_path = base_path
         else:
             raise FileNotFoundError(
                 f"Config 파일을 찾을 수 없습니다: {config_path}\n"
                 f"다음 명령으로 생성하세요:\n"
-                f"  mmp get-config --env-name {env_name}"
+                f"  mmp get-config --env-name <env_name>"
             )
     
     # YAML 로드
