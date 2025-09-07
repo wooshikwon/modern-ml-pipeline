@@ -102,6 +102,8 @@ def create_datainterface_based_prediction_request(
 
 class MinimalPredictionResponse(BaseModel):
     """일반 태스크에 공통적인 최소 예측 응답 스키마"""
+    model_config = {"protected_namespaces": ()}
+    
     prediction: Any = Field(..., description="모델 예측 결과")
     model_uri: str = Field(..., description="예측에 사용된 모델의 MLflow URI")
 
@@ -111,6 +113,8 @@ class PredictionResponse(BaseModel):
     단일 예측 결과를 위한 응답 스키마입니다.
     (기존 uplift 중심 필드 유지; 일반 태스크는 MinimalPredictionResponse 사용을 권장)
     """
+    model_config = {"protected_namespaces": ()}
+    
     uplift_score: float = Field(..., json_schema_extra={"example": 0.123}, description="계산된 Uplift 점수")
     model_uri: str = Field(
         ...,
@@ -142,6 +146,8 @@ class BatchPredictionResponse(BaseModel):
     """
     배치 예측 결과를 위한 응답 스키마입니다.
     """
+    model_config = {"protected_namespaces": ()}
+    
     predictions: List[Dict[str, Any]] = Field(
         ..., description="Uplift 점수 리스트 (PK 포함)"
     )
@@ -160,6 +166,8 @@ class HealthCheckResponse(BaseModel):
     """
     헬스 체크 응답 스키마입니다.
     """
+    model_config = {"protected_namespaces": ()}
+    
     status: str = Field(..., json_schema_extra={"example": "healthy"}, description="서비스 상태")
     model_uri: str = Field(
         ...,
@@ -199,6 +207,8 @@ class ModelMetadataResponse(BaseModel):
     """
     모델의 완전한 메타데이터 응답
     """
+    model_config = {"protected_namespaces": ()}
+    
     model_uri: str = Field(..., description="모델 MLflow URI")
     model_class_path: str = Field(default="", description="모델 클래스 경로")
     hyperparameter_optimization: HyperparameterOptimizationInfo = Field(..., description="하이퍼파라미터 최적화 정보")

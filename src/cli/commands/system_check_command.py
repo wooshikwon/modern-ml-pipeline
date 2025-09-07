@@ -14,9 +14,9 @@ from src.cli.utils.config_loader import load_environment
 
 
 def system_check_command(
-    env_name: Annotated[
+    config_path: Annotated[
         str, 
-        typer.Option("--env-name", "-e", help="체크할 환경 이름 (필수)")
+        typer.Option("--config-path", "-c", help="체크할 config YAML 파일 경로 (필수)")
     ],
     actionable: Annotated[
         bool, 
@@ -26,7 +26,7 @@ def system_check_command(
     """
     환경 설정 파일 기반으로 시스템 연결 상태를 검사합니다.
     
-    configs/{env_name}.yaml 파일의 설정을 읽어서 
+    지정된 config YAML 파일의 설정을 읽어서 
     실제로 설정된 서비스들의 연결 상태를 검증합니다:
     
     - MLflow tracking server 연결
@@ -37,18 +37,27 @@ def system_check_command(
     - Monitoring 설정
     
     Examples:
-        # 특정 환경 체크
-        mmp system-check --env-name local
-        mmp system-check --env-name dev
+        # 특정 config 파일 체크
+        mmp system-check --config-path configs/local.yaml
+        mmp system-check --config-path configs/dev.yaml
         
         # 해결책 포함
-        mmp system-check --env-name dev --actionable
+        mmp system-check --config-path configs/dev.yaml --actionable
     """
     console = Console()
     
     try:
-        # 1. 환경 변수 로드 (있는 경우)
+        # 1. Config 파일 경로 검증
+        config_file_path = Path(config_path)
+        if not config_file_path.exists():
+            console.print(f"❌ Config 파일을 찾을 수 없습니다: {config_file_path}", style="red")
+            console.print("\n💡 먼저 'mmp get-config'를 실행하여 설정 파일을 생성하세요.", style="yellow")
+            raise typer.Exit(1)
+        
+        # 2. 환경 이름 추출 (환경 변수 로드용)
+        env_name = config_file_path.stem  # 파일명에서 확장자 제거
         env_file = Path(f".env.{env_name}")
+        
         if env_file.exists():
             try:
                 load_environment(env_name)
@@ -58,25 +67,19 @@ def system_check_command(
         else:
             console.print(f"ℹ️ 환경 변수 파일이 없습니다: .env.{env_name}", style="blue")
         
-        # 2. Config 파일 로드
-        config_path = Path("configs") / f"{env_name}.yaml"
-        if not config_path.exists():
-            console.print(f"❌ Config 파일을 찾을 수 없습니다: {config_path}", style="red")
-            console.print("\n💡 먼저 'mmp get-config'를 실행하여 설정 파일을 생성하세요.", style="yellow")
-            raise typer.Exit(1)
-        
-        with open(config_path, 'r', encoding='utf-8') as f:
+        # 3. Config 파일 로드
+        with open(config_file_path, 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f)
         
-        console.print(f"✅ Config 로드: {config_path}", style="green")
+        console.print(f"✅ Config 로드: {config_file_path}", style="green")
         
-        # 3. System Checker 실행
+        # 4. System Checker 실행
         console.print("\n🔍 시스템 연결 상태를 확인하는 중...\n")
         
         checker = SystemChecker(config, env_name)
         results = checker.run_all_checks()
         
-        # 4. 결과 표시
+        # 5. 결과 표시
         checker.display_results(show_actionable=actionable)
         
     except KeyboardInterrupt:

@@ -1,13 +1,9 @@
 from __future__ import annotations
 import pandas as pd
-from typing import Dict, Any, Optional, TYPE_CHECKING
+from typing import Dict, Any, Optional
 
 import mlflow
 from src.utils.system.logger import logger
-
-if TYPE_CHECKING:
-    from src.interface import BasePreprocessor, BaseFetcher, BaseDataHandler
-    from src.settings import Settings
 
 class PyfuncWrapper(mlflow.pyfunc.PythonModel):
     """
@@ -15,17 +11,26 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
     """
     def __init__(
         self,
-        settings: Settings,
+        settings: Any,  # Settings 객체 (실제 타입은 런타임에 결정)
         trained_model: Any,
-        trained_datahandler: Optional[BaseDataHandler],
-        trained_preprocessor: Optional[BasePreprocessor],
-        trained_fetcher: Optional[BaseFetcher],
+        trained_datahandler: Optional[Any] = None,
+        trained_preprocessor: Optional[Any] = None,
+        trained_fetcher: Optional[Any] = None,
         training_results: Optional[Dict[str, Any]] = None,
         signature: Optional[Any] = None, # mlflow.models.ModelSignature
         data_schema: Optional[Any] = None, # mlflow.types.Schema
-        data_interface_schema: Optional[Dict[str, Any]] = None,  # 🆕 Phase 5.2: DataInterface 기반 검증용
+        data_interface_schema: Optional[Dict[str, Any]] = None,  # DataInterface 기반 검증용
     ):
-        self.settings = settings
+        # 복잡한 Settings 객체를 직렬화 가능한 형태로 변환
+        if hasattr(settings, 'model_dump'):
+            # Pydantic 모델인 경우
+            self.settings_dict = settings.model_dump()
+            self._task_type = settings.recipe.task_choice
+        else:
+            # 이미 딕셔너리인 경우
+            self.settings_dict = settings
+            self._task_type = settings.get('recipe', {}).get('task_choice', 'unknown')
+        
         self.trained_model = trained_model
         self.trained_datahandler = trained_datahandler
         self.trained_preprocessor = trained_preprocessor
@@ -33,10 +38,9 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
         self.training_results = training_results or {}
         self.signature = signature
         self.data_schema = data_schema
-        self.data_interface_schema = data_interface_schema  # 🆕 Phase 5.2: DataInterface 기반 검증용
+        self.data_interface_schema = data_interface_schema  # DataInterface 기반 검증용
         
         # Task type별 추론 파이프라인 결정
-        self._task_type = settings.recipe.data.data_interface.task_type
         self._requires_datahandler = self._task_type in ["timeseries"]  # 향후 deeplearning 추가 가능
 
     def _validate_input_schema(self, df: pd.DataFrame):
@@ -57,24 +61,23 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
 
     @property
     def model_class_path(self) -> str:
-        return self.settings.recipe.model.class_path
+        return self.settings_dict.get('recipe', {}).get('model', {}).get('class_path', 'unknown')
 
     @property
     def loader_sql_snapshot(self) -> str:
-        return self.settings.recipe.data.loader.source_uri
+        return self.settings_dict.get('recipe', {}).get('data', {}).get('loader', {}).get('source_uri', '')
 
     @property
     def fetcher_config_snapshot(self) -> Dict[str, Any]:
-        if self.settings.recipe.data.fetcher:
-            return self.settings.recipe.data.fetcher.model_dump()
-        return {}
+        fetcher = self.settings_dict.get('recipe', {}).get('data', {}).get('fetcher', {})
+        return fetcher if fetcher else {}
 
     @property
     def recipe_yaml_snapshot(self) -> str:
-        # ToDo: Implement a robust way to get original yaml text
-        # For now, we can dump the pydantic model back to yaml string
+        # settings_dict의 recipe 부분을 YAML로 변환
         import yaml
-        return yaml.dump(self.settings.recipe.model_dump())
+        recipe = self.settings_dict.get('recipe', {})
+        return yaml.dump(recipe)
 
     @property
     def hyperparameter_optimization(self) -> Dict[str, Any]:
@@ -90,7 +93,7 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
         if not isinstance(model_input, pd.DataFrame):
             model_input = pd.DataFrame(model_input)
             
-        # 1. 🆕 Phase 5.2: DataInterface 기반 컬럼 검증 (우선순위)
+        # 1. DataInterface 기반 컬럼 검증
         if self.data_interface_schema:
             self._validate_data_interface_columns(model_input)
         else:
@@ -143,9 +146,9 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
 
     def _validate_data_interface_columns(self, df: pd.DataFrame):
         """
-        🆕 Phase 5.2: DataInterface 필수 컬럼 검증
+        DataInterface 필수 컬럼 검증
         
-        Phase 5에서 도입된 DataInterface 기반 검증 로직을 사용하여
+        DataInterface 기반 검증 로직을 사용하여
         추론 시점에 필수 컬럼들이 모두 존재하는지 확인합니다.
         
         **핵심 기능:**
@@ -165,7 +168,7 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
             # DataInterface 객체 복원
             data_interface = DataInterface(**self.data_interface_schema['data_interface'])
             
-            # 🆕 핵심: 학습시 저장된 필수 컬럼 목록 사용
+            # 핵심: 학습시 저장된 필수 컬럼 목록 사용
             stored_required_columns = self.data_interface_schema.get('required_columns', [])
             
             # 필수 컬럼 검증 실행 (저장된 컬럼 목록 기준)

@@ -1,8 +1,8 @@
-# 🚀 {{ project_name }} - Modern ML Pipeline
+# 🚀 my-project - Modern ML Pipeline
 
-**{{ project_name }}** 프로젝트에 오신 것을 환영합니다! 이 가이드는 데이터 준비부터 프로덕션 배포까지 완전한 머신러닝 파이프라인을 구축하는 과정을 안내합니다.
+**my-project** 프로젝트에 오신 것을 환영합니다! 이 가이드는 데이터 준비부터 프로덕션 배포까지 완전한 머신러닝 파이프라인을 구축하는 과정을 안내합니다.
 
-*{{ timestamp }}에 Modern ML Pipeline으로 생성됨*
+*2025-09-08 00:03:22에 Modern ML Pipeline으로 생성됨*
 
 ---
 
@@ -64,7 +64,7 @@ pip install uv
 
 ```bash
 # 프로젝트 디렉토리로 이동
-cd {{ project_name }}
+cd my-project
 
 # 가상 환경 생성 및 동기화
 uv sync
@@ -101,7 +101,7 @@ uv run mmp system-check --env local
 프로젝트는 이미 다음과 같은 구조를 가지고 있습니다:
 
 ```
-{{ project_name }}/
+my-project/
 ├── configs/            # 환경 설정 파일 (get-config로 생성)
 ├── data/              # 훈련 및 추론 데이터 파일
 ├── recipes/           # ML 파이프라인 레시피 (get-recipe로 생성)  
@@ -170,10 +170,10 @@ environment:
   
 mlflow:
   tracking_uri: "file://./mlruns"
-  experiment_name: "{{ project_name }}_experiment"
+  experiment_name: "my-project_experiment"
   
 data_source:
-  name: "{{ project_name }}_data"
+  name: "my-project_data"
   adapter_type: "storage"  # 또는 "sql", "bigquery"
   config:
     base_path: "./data"
@@ -244,7 +244,7 @@ uv run mmp get-recipe
 생성된 레시피 파일 (예: `recipes/classification_recipe.yaml`)을 커스터마이징할 수 있습니다:
 
 ```yaml
-name: "{{ project_name }}_model"
+name: "my-project_model"
 task_choice: "classification"  # 선택에 따라 설정됨
 
 data:
@@ -253,7 +253,7 @@ data:
     drop_columns: []
   
   feature_view:
-    name: "{{ project_name }}_features"
+    name: "my-project_features"
     features: []  # 자동 감지 또는 수동 지정
     source:
       path: "train.csv"  # 데이터 파일
@@ -295,7 +295,7 @@ trainer:
 uv run mmp train \
   --recipe recipes/your_recipe.yaml \
   --env local \
-  --experiment-name "{{ project_name }}_v1"
+  --experiment-name "my-project_v1"
 ```
 
 ### 2단계: 훈련 진행 상황 모니터링
@@ -448,7 +448,7 @@ open http://localhost:5000
 
 ### 실험 보기:
 
-1. **실험** → `{{ project_name }}_experiment`로 이동
+1. **실험** → `my-project_experiment`로 이동
 2. 지표, 파라미터, 훈련 시간으로 실행 비교
 3. 모델 아티팩트와 전처리 파이프라인 다운로드
 4. 프로덕션용 최고 성능 모델 등록
@@ -461,13 +461,13 @@ open http://localhost:5000
 
 ```bash
 # 프로덕션 이미지 빌드
-docker build -f Dockerfile -t {{ project_name }}:latest .
+docker build -f Dockerfile -t my-project:latest .
 
 # 특정 모델 URI로 빌드
 docker build \
   --build-arg MODEL_URI="runs:/abc123def/model" \
   -f Dockerfile \
-  -t {{ project_name }}:v1 .
+  -t my-project:v1 .
 ```
 
 ### 2단계: 컨테이너 실행
@@ -475,14 +475,14 @@ docker build \
 ```bash
 # API 서버 실행
 docker run -d \
-  --name {{ project_name }}-api \
+  --name my-project-api \
   -p 8000:8000 \
   -v $(pwd)/configs:/app/configs \
   -v $(pwd)/mlruns:/app/mlruns \
-  {{ project_name }}:latest
+  my-project:latest
 
 # 컨테이너 상태 확인
-docker logs {{ project_name }}-api
+docker logs my-project-api
 ```
 
 ### 3단계: Docker Compose (권장)
@@ -507,9 +507,9 @@ docker-compose up --scale api=3
 
 ```bash
 # 클라우드 배포 (Google Cloud Run 예시)
-gcloud builds submit --tag gcr.io/your-project/{{ project_name }}
-gcloud run deploy {{ project_name }} \
-  --image gcr.io/your-project/{{ project_name }} \
+gcloud builds submit --tag gcr.io/your-project/my-project
+gcloud run deploy my-project \
+  --image gcr.io/your-project/my-project \
   --platform managed \
   --region us-central1 \
   --allow-unauthenticated
@@ -608,7 +608,7 @@ docker info
 **문제**: `컨테이너가 즉시 종료됨`
 ```bash
 # 해결책: 컨테이너 로그 확인
-docker logs {{ project_name }}-api
+docker logs my-project-api
 
 # 일반적인 원인:
 # - 환경 변수 누락
@@ -680,7 +680,7 @@ curl http://localhost:5000/health
 
 ```bash
 # 피처 스토어 통합 (설정된 경우)
-uv run mmp setup-feast --project {{ project_name }}
+uv run mmp setup-feast --project my-project
 
 # Optuna를 사용한 하이퍼파라미터 최적화
 uv run mmp tune --recipe recipes/your_recipe.yaml --trials 100
@@ -719,7 +719,7 @@ uv run mmp batch-process --recipe recipes/your_recipe.yaml --chunk-size 10000
 이 가이드를 따른 후 프로젝트는 다음과 같은 구조를 가집니다:
 
 ```
-{{ project_name }}/
+my-project/
 ├── configs/
 │   ├── local.yaml              # 로컬 개발 설정
 │   ├── staging.yaml           # 스테이징 환경 (선택사항)
