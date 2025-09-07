@@ -48,6 +48,42 @@ class Trainer(BaseTrainer):
             X_train = preprocessor.transform(X_train)
             X_test = preprocessor.transform(X_test)
 
+        # 전처리 산출물 저장 (선택)
+        try:
+            output_cfg = getattr(self.settings.config, 'output', None)
+            if output_cfg and getattr(output_cfg.preprocessed, 'enabled', True):
+                factory = self._get_factory()
+                target = output_cfg.preprocessed
+                # run_id 확보 (MLflow 활성 런 기준)
+                run = mlflow.active_run() if 'mlflow' in globals() else None
+                run_id = run.info.run_id if run else "no_run"
+                if target.adapter_type == "storage":
+                    storage_adapter = factory.create_data_adapter("storage")
+                    base_path = target.config.get('base_path', './artifacts/preprocessed')
+                    storage_adapter.write(X_train, f"{base_path}/preprocessed_train_{run_id}.parquet")
+                    storage_adapter.write(X_test, f"{base_path}/preprocessed_test_{run_id}.parquet")
+                elif target.adapter_type == "sql":
+                    sql_adapter = factory.create_data_adapter("sql")
+                    table = target.config.get('table')
+                    if not table:
+                        raise ValueError("output.preprocessed.config.table이 필요합니다.")
+                    sql_adapter.write(X_train, f"{table}_train", if_exists='append', index=False)
+                    sql_adapter.write(X_test, f"{table}_test", if_exists='append', index=False)
+                elif target.adapter_type == "bigquery":
+                    bq_adapter = factory.create_data_adapter("bigquery")
+                    project_id = target.config.get('project_id')
+                    dataset = target.config.get('dataset_id')
+                    table = target.config.get('table')
+                    location = target.config.get('location')
+                    if not (project_id and dataset and table):
+                        raise ValueError("BigQuery 출력에는 project_id, dataset_id, table이 필요합니다.")
+                    bq_adapter.write(X_train, f"{dataset}.{table}_train", options={"project_id": project_id, "location": location, "if_exists": "append"})
+                    bq_adapter.write(X_test, f"{dataset}.{table}_test", options={"project_id": project_id, "location": location, "if_exists": "append"})
+                else:
+                    logger.warning(f"알 수 없는 output 어댑터 타입: {target.adapter_type}. 전처리 저장을 스킵합니다.")
+        except Exception as e:
+            logger.error(f"전처리 산출물 저장 중 오류: {e}", exc_info=True)
+
         # 하이퍼파라미터 최적화 또는 직접 학습 (Recipe 설정만 사용)
         recipe_hyperparams = self.settings.recipe.model.hyperparameters
         use_tuning = recipe_hyperparams and getattr(recipe_hyperparams, 'tuning_enabled', False)
@@ -133,7 +169,7 @@ class Trainer(BaseTrainer):
 
     def _get_training_methodology(self):
         """학습 방법론 메타데이터를 반환합니다."""
-        validation_config = self.settings.recipe.validation
+        validation_config = self.settings.recipe.evaluation.validation
         hyperparams_config = self.settings.recipe.model.hyperparameters
         task_type = self.settings.recipe.data.data_interface.task_type
         
@@ -142,7 +178,7 @@ class Trainer(BaseTrainer):
         split_method = 'stratified' if stratify_col else 'simple'
         
         # validation strategy 결정
-        if hyperparams_config.enabled:
+        if hyperparams_config.tuning_enabled:
             validation_strategy = 'train_validation_split'  # Optuna 시 train에서 validation 분할
             note = f'Optuna 사용 시 Train({1-validation_config.test_size:.0%})을 다시 Train(80%)/Val(20%)로 분할'
         else:
@@ -158,9 +194,9 @@ class Trainer(BaseTrainer):
             'stratify_column': stratify_col,
             'task_type': task_type,
             'preprocessing_fit_scope': 'train_only',
-            'hyperparameter_optimization': hyperparams_config.enabled,
-            'n_trials': hyperparams_config.n_trials if hyperparams_config.enabled else None,
-            'optimization_metric': hyperparams_config.optimization_metric if hyperparams_config.enabled else None,
+            'hyperparameter_optimization': hyperparams_config.tuning_enabled,
+            'n_trials': hyperparams_config.n_trials if hyperparams_config.tuning_enabled else None,
+            'optimization_metric': hyperparams_config.optimization_metric if hyperparams_config.tuning_enabled else None,
             'note': note
         }
 

@@ -23,7 +23,7 @@ class TestTimeseriesDataHandlerBasicFunctionality:
     def test_timeseries_handler_inherits_base_datahandler(self):
         """Test TimeseriesDataHandler properly inherits BaseDataHandler."""
         # Arrange
-        mock_settings = Mock(spec=Settings)
+        mock_settings = MagicMock()
         mock_settings.recipe.data.data_interface = Mock()
         
         # Act
@@ -38,7 +38,7 @@ class TestTimeseriesDataHandlerBasicFunctionality:
     def test_timeseries_handler_initialization(self):
         """Test TimeseriesDataHandler initialization."""
         # Arrange
-        mock_settings = Mock(spec=Settings)
+        mock_settings = MagicMock()
         mock_data_interface = Mock()
         mock_settings.recipe.data.data_interface = mock_data_interface
         
@@ -63,7 +63,7 @@ class TestTimeseriesDataHandlerValidation:
             'target': np.random.randn(10)
         })
         
-        self.settings = Mock(spec=Settings)
+        self.settings = MagicMock()
         recipe = RecipeBuilder.build_recipe(
             task_type="timeseries",
             target_column="target",
@@ -146,7 +146,7 @@ class TestTimeseriesDataHandlerSplitData:
         # Shuffle to test sorting
         self.timeseries_df = self.timeseries_df.sample(frac=1, random_state=42).reset_index(drop=True)
         
-        self.settings = Mock(spec=Settings)
+        self.settings = MagicMock()
         recipe = RecipeBuilder.build_recipe(
             task_type="timeseries",
             target_column="target",
@@ -213,7 +213,7 @@ class TestTimeseriesDataHandlerPrepareData:
             'target': np.random.randn(30)
         })
         
-        self.settings = Mock(spec=Settings)
+        self.settings = MagicMock()
         recipe = RecipeBuilder.build_recipe(
             task_type="timeseries",
             target_column="target",
@@ -323,7 +323,7 @@ class TestTimeseriesDataHandlerFeatureGeneration:
             'target': list(range(20))  # Sequential values for easy testing
         })
         
-        self.settings = Mock(spec=Settings)
+        self.settings = MagicMock()
         recipe = RecipeBuilder.build_recipe(
             task_type="timeseries",
             target_column="target",
@@ -410,7 +410,7 @@ class TestTimeseriesDataHandlerUtilityMethods:
     
     def setup_method(self):
         """Set up test environment."""
-        self.settings = Mock(spec=Settings)
+        self.settings = MagicMock()
         recipe = RecipeBuilder.build_recipe(
             task_type="timeseries",
             target_column="target",

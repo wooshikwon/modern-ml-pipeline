@@ -201,8 +201,8 @@ class Factory:
             return self._component_cache[cache_key]
         
         # 일관된 접근 패턴으로 설정 접근
-        env = self._config.environment.env_name if hasattr(self._config, "environment") else "local"
-        provider = self.settings.feature_store.provider if self.settings.feature_store else "none"
+        env = self._config.environment.name if hasattr(self._config, "environment") else "local"
+        provider = self.settings.config.feature_store.provider if self.settings.config.feature_store else "none"
         fetch_conf = self._recipe.data.fetcher if hasattr(self._recipe.data, "fetcher") else None
         fetch_type = fetch_conf.type if fetch_conf else None
 
@@ -291,11 +291,24 @@ class Factory:
         # 일관된 접근 패턴
         class_path = self._model.class_path
         
-        # 하이퍼파라미터 추출 (일관된 패턴)
-        if hasattr(self._model.hyperparameters, 'get_fixed_params'):
-            hyperparameters = self._model.hyperparameters.get_fixed_params()
+        # 하이퍼파라미터 추출 (tuning 메타데이터 제외)
+        hyperparameters = {}
+        if hasattr(self._model.hyperparameters, 'tuning_enabled'):
+            if self._model.hyperparameters.tuning_enabled:
+                # 튜닝 활성화시: fixed 파라미터만 사용
+                if hasattr(self._model.hyperparameters, 'fixed') and self._model.hyperparameters.fixed:
+                    hyperparameters = self._model.hyperparameters.fixed.copy()
+            else:
+                # 튜닝 비활성화시: values 파라미터 사용
+                if hasattr(self._model.hyperparameters, 'values') and self._model.hyperparameters.values:
+                    hyperparameters = self._model.hyperparameters.values.copy()
         else:
+            # 레거시 구조: 전체 dict에서 tuning 메타데이터 제외
             hyperparameters = dict(self._model.hyperparameters) if hasattr(self._model.hyperparameters, '__dict__') else {}
+            # 튜닝 관련 메타데이터 제거
+            tuning_keys = ['tuning_enabled', 'optimization_metric', 'direction', 'n_trials', 'timeout', 'fixed', 'tunable', 'values']
+            for key in tuning_keys:
+                hyperparameters.pop(key, None)
         
         try:
             # 헬퍼 메서드 활용
@@ -323,22 +336,22 @@ class Factory:
             logger.debug(f"Returning cached evaluator")
             return self._component_cache[cache_key]
         
-        # 일관된 접근 패턴
+        # task_choice 활용
+        task_choice = self._recipe.task_choice
         data_interface = self._recipe.data.data_interface
-        task_type = data_interface.task_type
         
         try:
             # Registry 패턴으로 생성
-            evaluator = EvaluatorRegistry.create(task_type, data_interface)
+            evaluator = EvaluatorRegistry.create(task_choice, data_interface)
             
             # 캐싱 저장
             self._component_cache[cache_key] = evaluator
-            logger.info(f"✅ Created evaluator for task: {task_type}")
+            logger.info(f"✅ Created evaluator for task: {task_choice}")
             return evaluator
             
         except Exception as e:
             available = list(EvaluatorRegistry.list_evaluators().keys())
-            logger.error(f"Failed to create evaluator for '{task_type}'. Available: {available}")
+            logger.error(f"Failed to create evaluator for '{task_choice}'. Available: {available}")
             raise
 
     def create_trainer(self, trainer_type: Optional[str] = None) -> Any:
@@ -367,7 +380,7 @@ class Factory:
             # settings와 factory_provider를 전달하여 trainer 생성
             trainer = TrainerRegistry.create(
                 trainer_type, 
-                settings=self._settings,
+                settings=self.settings,
                 factory_provider=lambda: self
             )
             
@@ -398,22 +411,28 @@ class Factory:
         # DataHandlerRegistry import
         from src.components.datahandler import DataHandlerRegistry
         
-        # 일관된 접근 패턴
-        data_interface = self._recipe.data.data_interface
-        task_type = data_interface.task_type
+        # task_choice 활용
+        task_choice = self._recipe.task_choice
         
         try:
-            # Registry 패턴으로 task_type에 따라 자동 생성
-            datahandler = DataHandlerRegistry.get_handler_for_task(task_type, self.settings)
+            # 모델 클래스 경로 추출 (catalog 기반 핸들러 선택을 위해)
+            model_class_path = getattr(self._recipe.model, 'class_path', None)
+            
+            # Registry 패턴으로 catalog 기반 핸들러 선택
+            datahandler = DataHandlerRegistry.get_handler_for_task(
+                task_choice, 
+                self.settings, 
+                model_class_path=model_class_path
+            )
             
             # 캐싱 저장
             self._component_cache[cache_key] = datahandler
-            logger.info(f"✅ Created datahandler for task: {task_type}")
+            logger.info(f"✅ Created datahandler for task: {task_choice}, model: {model_class_path}")
             return datahandler
             
         except Exception as e:
             available = list(DataHandlerRegistry.get_available_handlers().keys())
-            logger.error(f"Failed to create datahandler for '{task_type}'. Available: {available}")
+            logger.error(f"Failed to create datahandler for '{task_choice}'. Available: {available}")
             raise
 
     def create_feature_store_adapter(self) -> "BaseAdapter":
@@ -430,7 +449,7 @@ class Factory:
             return self._component_cache[cache_key]
         
         # 검증
-        if not self.settings.feature_store:
+        if not self.settings.config.feature_store:
             raise ValueError("Feature Store settings are not configured.")
         
         try:

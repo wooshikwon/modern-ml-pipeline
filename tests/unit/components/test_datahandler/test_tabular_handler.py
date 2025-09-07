@@ -23,7 +23,7 @@ class TestTabularDataHandlerBasicFunctionality:
     def test_tabular_handler_inherits_base_datahandler(self):
         """Test TabularDataHandler properly inherits BaseDataHandler."""
         # Arrange
-        mock_settings = Mock(spec=Settings)
+        mock_settings = MagicMock()
         mock_settings.recipe.data.data_interface = Mock()
         
         # Act
@@ -38,7 +38,7 @@ class TestTabularDataHandlerBasicFunctionality:
     def test_tabular_handler_initialization(self):
         """Test TabularDataHandler initialization."""
         # Arrange
-        mock_settings = Mock(spec=Settings)
+        mock_settings = MagicMock()
         mock_data_interface = Mock()
         mock_settings.recipe.data.data_interface = mock_data_interface
         
@@ -69,7 +69,7 @@ class TestTabularDataHandlerSplitData:
             task_type="classification",
             target_column="target"
         )
-        settings = Mock(spec=Settings)
+        settings = MagicMock()
         settings.recipe = recipe
         
         handler = TabularDataHandler(settings)
@@ -102,7 +102,7 @@ class TestTabularDataHandlerSplitData:
             task_type="classification",
             target_column="target"
         )
-        settings = Mock(spec=Settings)
+        settings = MagicMock()
         settings.recipe = recipe
         
         handler = TabularDataHandler(settings)
@@ -122,7 +122,7 @@ class TestTabularDataHandlerSplitData:
             task_type="regression",
             target_column="target"
         )
-        settings = Mock(spec=Settings)
+        settings = MagicMock()
         settings.recipe = recipe
         
         handler = TabularDataHandler(settings)
@@ -151,7 +151,7 @@ class TestTabularDataHandlerSplitData:
             target_column="target",
             treatment_column="treatment"
         )
-        settings = Mock(spec=Settings)
+        settings = MagicMock()
         settings.recipe = recipe
         
         handler = TabularDataHandler(settings)
@@ -191,7 +191,7 @@ class TestTabularDataHandlerPrepareData:
             target_column="target",
             entity_columns=["user_id"]
         )
-        settings = Mock(spec=Settings)
+        settings = MagicMock()
         settings.recipe = recipe
         
         handler = TabularDataHandler(settings)
@@ -224,7 +224,7 @@ class TestTabularDataHandlerPrepareData:
             entity_columns=["user_id"],
             feature_columns=["feature_0", "feature_1"]
         )
-        settings = Mock(spec=Settings)
+        settings = MagicMock()
         settings.recipe = recipe
         
         handler = TabularDataHandler(settings)
@@ -243,7 +243,7 @@ class TestTabularDataHandlerPrepareData:
             task_type="clustering",
             entity_columns=["user_id"]
         )
-        settings = Mock(spec=Settings)
+        settings = MagicMock()
         settings.recipe = recipe
         
         handler = TabularDataHandler(settings)
@@ -274,7 +274,7 @@ class TestTabularDataHandlerPrepareData:
             treatment_column="treatment",
             entity_columns=["user_id"]
         )
-        settings = Mock(spec=Settings)
+        settings = MagicMock()
         settings.recipe = recipe
         
         handler = TabularDataHandler(settings)
@@ -306,7 +306,7 @@ class TestTabularDataHandlerPrepareData:
             task_type="classification",
             target_column="target"
         )
-        settings = Mock(spec=Settings)
+        settings = MagicMock()
         settings.recipe = recipe
         
         handler = TabularDataHandler(settings)
@@ -332,7 +332,7 @@ class TestTabularDataHandlerUtilityMethods:
             task_type="classification",
             entity_columns=["user_id", "session_id"]
         )
-        settings = Mock(spec=Settings)
+        settings = MagicMock()
         settings.recipe = recipe
         
         handler = TabularDataHandler(settings)
@@ -359,7 +359,7 @@ class TestTabularDataHandlerUtilityMethods:
             task_type="classification",
             entity_columns=["user_id", "nonexistent_col"]
         )
-        settings = Mock(spec=Settings)
+        settings = MagicMock()
         settings.recipe = recipe
         
         handler = TabularDataHandler(settings)
@@ -383,7 +383,7 @@ class TestTabularDataHandlerUtilityMethods:
         """Test missing values warning with different thresholds."""
         # Arrange
         recipe = RecipeBuilder.build_recipe(task_type="classification")
-        settings = Mock(spec=Settings)
+        settings = MagicMock()
         settings.recipe = recipe
         
         handler = TabularDataHandler(settings)

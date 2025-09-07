@@ -1,4 +1,6 @@
 from typing import Dict, Any
+from datetime import datetime
+from pathlib import Path
 from src.settings import Settings
 from src.settings.config import Config
 from .recipe_builder import RecipeBuilder
@@ -53,7 +55,45 @@ class SettingsBuilder:
     ) -> Settings:
         config = ConfigBuilder.build(env_name=env_name, **overrides.get('config', {}))
         recipe = RecipeBuilder.build(name=recipe_name, **overrides.get('recipe', {}))
-        return Settings(config=config, recipe=recipe)
+        settings = Settings(config=config, recipe=recipe)
+        
+        # Add computed fields like production (_add_computed_fields logic)
+        SettingsBuilder._add_computed_fields(settings, recipe_name)
+        
+        return settings
+
+    @staticmethod
+    def _add_computed_fields(settings: Settings, recipe_name: str) -> None:
+        """
+        Add computed fields to settings (mirrors src.settings.loader._add_computed_fields).
+        This ensures test Settings objects have the same structure as production.
+        """
+        # Initialize computed fields if not present
+        if not settings.recipe.model.computed:
+            settings.recipe.model.computed = {}
+        
+        # Generate run_name if not already present
+        if "run_name" not in settings.recipe.model.computed:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            run_name = f"{recipe_name}_{timestamp}"
+            settings.recipe.model.computed["run_name"] = run_name
+        
+        # Add environment info
+        settings.recipe.model.computed["environment"] = settings.config.environment.name
+        
+        # Add tuning info if enabled
+        if hasattr(settings.recipe, 'is_tuning_enabled') and settings.recipe.is_tuning_enabled():
+            settings.recipe.model.computed["tuning_enabled"] = True
+            if hasattr(settings.recipe, 'get_tunable_params'):
+                tunable = settings.recipe.get_tunable_params()
+                if tunable:
+                    settings.recipe.model.computed["tunable_param_count"] = len(tunable)
+        else:
+            settings.recipe.model.computed["tuning_enabled"] = False
+            
+        # Add seed if not present (for reproducibility)
+        if "seed" not in settings.recipe.model.computed:
+            settings.recipe.model.computed["seed"] = 42  # Default test seed
 
     @staticmethod
     def build_classification_config() -> Settings:

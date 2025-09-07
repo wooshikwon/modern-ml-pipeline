@@ -164,8 +164,8 @@ class TabularDataHandler(BaseDataHandler):
             exclude_columns.extend(self.data_interface.entity_columns)
         
         # Feature Store timestamp columns 제외 (offline 모드에서)
-        if fetcher_conf.feature_store.enabled and fetcher_conf.feature_store.timestamp_columns:
-            exclude_columns.extend(fetcher_conf.feature_store.timestamp_columns)
+        if fetcher_conf.type == "feature_store" and fetcher_conf.timestamp_column:
+            exclude_columns.append(fetcher_conf.timestamp_column)
         
         # 실제로 존재하는 컬럼만 반환
         return [col for col in exclude_columns if col in df.columns]

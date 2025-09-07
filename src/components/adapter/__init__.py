@@ -17,10 +17,17 @@ except ImportError:
     # Feast는 선택적 의존성이므로 임포트 실패 시 무시
     FeastAdapter = None
 
+# BigQuery 어댑터는 선택 의존성
+try:
+    from .modules.bigquery_adapter import BigQueryAdapter
+except Exception:
+    BigQueryAdapter = None
+
 # 공개 API
 __all__ = [
     "AdapterRegistry",
     "StorageAdapter", 
     "SqlAdapter",
     "FeastAdapter",
+    "BigQueryAdapter",
 ]

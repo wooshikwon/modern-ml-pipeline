@@ -1,52 +1,67 @@
-class_path: "pytorch_tabnet.tab_model.TabNetClassifier"
-description: "TabNet Classifier for tabular data from pytorch-tabnet."
-library: "pytorch-tabnet"
+class_path: pytorch_tabnet.tab_model.TabNetClassifier
+description: TabNet Classifier for tabular data from pytorch-tabnet.
+library: pytorch-tabnet
 hyperparameters:
-  # 고정 파라미터 (모든 환경 동일)
   fixed:
     seed: 42
     verbose: 0
-  # Optuna 최적화 대상 파라미터 (범위 지정)
   tunable:
     n_d:
-      type: "int"
-      range: [8, 64]
+      type: int
+      range:
+      - 8
+      - 64
       default: 8
     n_a:
-      type: "int"
-      range: [8, 64]
+      type: int
+      range:
+      - 8
+      - 64
       default: 8
     n_steps:
-      type: "int"
-      range: [3, 10]
+      type: int
+      range:
+      - 3
+      - 10
       default: 3
     gamma:
-      type: "float"
-      range: [1.0, 2.0]
+      type: float
+      range:
+      - 1.0
+      - 2.0
       default: 1.3
     n_independent:
-      type: "int"
-      range: [1, 5]
+      type: int
+      range:
+      - 1
+      - 5
       default: 2
     n_shared:
-      type: "int"
-      range: [1, 5]
+      type: int
+      range:
+      - 1
+      - 5
       default: 2
     lambda_sparse:
-      type: "float"
-      range: [1e-6, 1e-3]
+      type: float
+      range:
+      - 1e-6
+      - 1e-3
       default: 1e-3
     momentum:
-      type: "float"
-      range: [0.01, 0.4]
+      type: float
+      range:
+      - 0.01
+      - 0.4
       default: 0.02
     clip_value:
-      type: "float"
-      range: [1.0, 10.0]
+      type: float
+      range:
+      - 1.0
+      - 10.0
       default: 1.0
-  # 환경별 기본값
-supported_tasks: ["binary_classification", "multiclass_classification"]
 feature_requirements:
   numerical: true
   categorical: true
   text: false
+data_handler: tabular

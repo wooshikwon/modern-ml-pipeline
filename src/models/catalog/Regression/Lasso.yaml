@@ -1,44 +1,55 @@
-class_path: "sklearn.linear_model.Lasso"
-description: "Lasso Regression with L1 regularization for feature selection."
-library: "scikit-learn"
+class_path: sklearn.linear_model.Lasso
+description: Lasso Regression with L1 regularization for feature selection.
+library: scikit-learn
 hyperparameters:
-  # 고정 파라미터 (모든 환경 동일)
   fixed:
     random_state: 42
     copy_X: true
-  # Optuna 최적화 대상 파라미터 (범위 지정)
   tunable:
     alpha:
-      type: "float"
-      range: [0.001, 10.0]
+      type: float
+      range:
+      - 0.001
+      - 10.0
       default: 1.0
     fit_intercept:
-      type: "categorical"
-      range: [true, false]
+      type: categorical
+      range:
+      - true
+      - false
       default: true
     max_iter:
-      type: "int"
-      range: [100, 5000]
+      type: int
+      range:
+      - 100
+      - 5000
       default: 1000
     tol:
-      type: "float"
-      range: [1e-6, 1e-2]
+      type: float
+      range:
+      - 1e-6
+      - 1e-2
       default: 1e-4
     positive:
-      type: "categorical"
-      range: [true, false]
+      type: categorical
+      range:
+      - true
+      - false
       default: false
     selection:
-      type: "categorical"
-      range: ["cyclic", "random"]
-      default: "cyclic"
+      type: categorical
+      range:
+      - cyclic
+      - random
+      default: cyclic
     warm_start:
-      type: "categorical"
-      range: [true, false]
+      type: categorical
+      range:
+      - true
+      - false
       default: false
-  # 환경별 기본값
-supported_tasks: ["regression"]
 feature_requirements:
   numerical: true
   categorical: false
   text: false
+data_handler: tabular

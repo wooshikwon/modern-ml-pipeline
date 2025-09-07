@@ -5,10 +5,12 @@ from src.interface import BaseDataHandler
 # Import modules to trigger self-registration
 from .modules.tabular_handler import TabularDataHandler
 from .modules.timeseries_handler import TimeseriesDataHandler
+from .modules.deeplearning_handler import DeepLearningDataHandler
 
 __all__ = [
     "DataHandlerRegistry",
     "BaseDataHandler", 
     "TabularDataHandler",
-    "TimeseriesDataHandler"
+    "TimeseriesDataHandler",
+    "DeepLearningDataHandler"
 ]

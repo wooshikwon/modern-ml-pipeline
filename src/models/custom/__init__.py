@@ -19,3 +19,10 @@ try:
     __all__.extend(['ARIMAWrapper', 'ExponentialSmoothingWrapper'])
 except ImportError:
     pass
+
+# Deep Learning 모델들
+try:
+    from .lstm_timeseries import LSTMTimeSeries
+    __all__.extend(['LSTMTimeSeries'])
+except ImportError:
+    pass

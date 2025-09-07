@@ -1,38 +1,50 @@
-class_path: "sklearn.neighbors.KNeighborsClassifier"
-description: "K-Nearest Neighbors Classifier from scikit-learn."
-library: "scikit-learn"
+class_path: sklearn.neighbors.KNeighborsClassifier
+description: K-Nearest Neighbors Classifier from scikit-learn.
+library: scikit-learn
 hyperparameters:
-  # 고정 파라미터 (모든 환경 동일)
   fixed: {}
-  # Optuna 최적화 대상 파라미터 (범위 지정)
   tunable:
     n_neighbors:
-      type: "int"
-      range: [1, 50]
+      type: int
+      range:
+      - 1
+      - 50
       default: 5
     weights:
-      type: "categorical"
-      range: ["uniform", "distance"]
-      default: "uniform"
+      type: categorical
+      range:
+      - uniform
+      - distance
+      default: uniform
     algorithm:
-      type: "categorical"
-      range: ["auto", "ball_tree", "kd_tree", "brute"]
-      default: "auto"
+      type: categorical
+      range:
+      - auto
+      - ball_tree
+      - kd_tree
+      - brute
+      default: auto
     leaf_size:
-      type: "int"
-      range: [10, 100]
+      type: int
+      range:
+      - 10
+      - 100
       default: 30
     p:
-      type: "int"
-      range: [1, 2]
+      type: int
+      range:
+      - 1
+      - 2
       default: 2
     metric:
-      type: "categorical"
-      range: ["euclidean", "manhattan", "minkowski"]
-      default: "minkowski"
-  # 환경별 기본값
-supported_tasks: ["binary_classification", "multiclass_classification"]
+      type: categorical
+      range:
+      - euclidean
+      - manhattan
+      - minkowski
+      default: minkowski
 feature_requirements:
   numerical: true
   categorical: false
   text: false
+data_handler: tabular
