@@ -373,6 +373,17 @@ class UnifiedConsole:
         elif self.mode == "plain":
             print(f"WARNING: {message}")
     
+    def debug(self, message: str, rich_message: str = None, **rich_kwargs):
+        """Unified debug logging"""
+        self.logger.debug(message)
+        
+        if self.mode in ["rich", "test"] and rich_message:
+            self.rich_console.console.print(rich_message, style="dim", **rich_kwargs)
+        elif self.mode in ["rich", "test"] and not rich_message:
+            self.rich_console.console.print(f"🔍 {message}", style="dim")
+        elif self.mode == "plain":
+            print(f"DEBUG: {message}")
+    
     def component_init(self, component_name: str, status: str = "success"):
         """Component initialization logging"""
         if self.mode in ["rich", "test"]:

@@ -102,9 +102,9 @@ class SqlAdapter(BaseAdapter):
         """
         console = get_console()
         try:
-            # DataAdapterSettings 모델의 올바른 접근 방법: 딕셔너리 키로 접근
-            sql_adapter_config = self.settings.data_adapters.adapters['sql']
-            connection_uri = sql_adapter_config.config['connection_uri']
+            # 새로운 Settings 구조: config.data_source 접근
+            data_source_config = self.settings.config.data_source.config
+            connection_uri = data_source_config['connection_uri']
             
             # URI 파싱하여 DB 타입과 엔진 설정 추출
             db_type, processed_uri, engine_kwargs = self._parse_connection_uri(connection_uri)
@@ -117,9 +117,9 @@ class SqlAdapter(BaseAdapter):
                 # BigQuery는 추가 설정이 필요할 수 있음
                 try:
                     # BigQuery 인증 설정이 있는 경우 처리
-                    if 'credentials_path' in sql_adapter_config.config:
+                    if 'credentials_path' in data_source_config:
                         import os
-                        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = sql_adapter_config.config['credentials_path']
+                        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = data_source_config['credentials_path']
                         console.info("BigQuery 인증 파일 설정 완료")
                 except Exception as e:
                     console.warning(f"BigQuery 인증 설정 중 경고: {e}")
@@ -137,7 +137,7 @@ class SqlAdapter(BaseAdapter):
             console.error(f"SQL 어댑터 설정을 찾을 수 없습니다: {e}")
             raise ValueError(f"SQL 어댑터 설정이 누락되었습니다: {e}")
         except Exception as e:
-            console.error(f"SQLAlchemy 엔진 생성 실패: {e}", exc_info=True)
+            console.error(f"SQLAlchemy 엔진 생성 실패: {e}")
             raise
 
     def _enforce_sql_guards(self, sql_query: str) -> None:

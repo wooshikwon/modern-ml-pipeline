@@ -38,6 +38,12 @@ def predict_batch(request: Dict[str, Any]) -> BatchPredictionResponse:
     if input_df.empty:
         raise HTTPException(status_code=400, detail="입력 샘플이 비어있습니다.")
     
+    # 🆕 MLflow 스키마 호환성을 위한 데이터 타입 정리
+    # 정수형 컬럼을 float64로 변환하여 MLflow 스키마와 호환되도록 처리
+    for col in input_df.columns:
+        if input_df[col].dtype in ['int64', 'int32', 'int16', 'int8']:
+            input_df[col] = input_df[col].astype('float64')
+    
     predict_params = { "run_mode": "serving", "return_intermediate": False }
     predictions_df = app_context.model.predict(input_df, params=predict_params)
     
@@ -153,6 +159,12 @@ def get_api_schema() -> Dict[str, Any]:
 
 def predict(request: Dict[str, Any]) -> Dict[str, Any]:
     request_df = pd.DataFrame([request])
+    
+    # 🆕 MLflow 스키마 호환성을 위한 데이터 타입 정리
+    # 정수형 컬럼을 float64로 변환하여 MLflow 스키마와 호환되도록 처리
+    for col in request_df.columns:
+        if request_df[col].dtype in ['int64', 'int32', 'int16', 'int8']:
+            request_df[col] = request_df[col].astype('float64')
     
     # 서빙 경로 강제
     predictions_df = app_context.model.predict(request_df, params={"run_mode": "serving", "return_intermediate": False})

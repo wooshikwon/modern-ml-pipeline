@@ -130,52 +130,42 @@ class TestCLIWorkflowE2E:
                     import yaml
                     yaml.dump(config_content, f)
                 
-                # Create basic recipe file
+                # Create basic recipe file using new Recipe schema structure
                 recipe_content = {
                     "name": "cli_test_recipe",
                     "task_choice": "classification",
-                    "data": {
-                        "data_interface": {
-                            "target_column": "target",
-                            "drop_columns": []
-                        },
-                        "feature_view": {
-                            "name": "cli_features",
-                            "entities": [],
-                            "features": ["feature_1", "feature_2", "feature_3"],
-                            "source": {
-                                "path": "train_data.csv",
-                                "timestamp_column": None
-                            }
-                        }
-                    },
-                    "loader": {
-                        "name": "csv_loader",
-                        "batch_size": 50,
-                        "shuffle": True
-                    },
                     "model": {
                         "class_path": "sklearn.linear_model.LogisticRegression",
-                        "init_args": {"random_state": 42, "max_iter": 1000},
-                        "compile_args": {},
-                        "fit_args": {}
-                    },
-                    "fetcher": {"type": "pass_through"},
-                    "preprocessor": {
-                        "steps": [
-                            {
-                                "name": "encoder",
-                                "params": {
-                                    "categorical_features": ["feature_3"],
-                                    "encoding_type": "onehot"
-                                }
+                        "library": "sklearn",
+                        "hyperparameters": {
+                            "tuning_enabled": False,
+                            "values": {
+                                "random_state": 42,
+                                "max_iter": 1000
                             }
-                        ]
+                        },
+                        "computed": {"run_name": "cli_test_run"}
                     },
-                    "trainer": {
-                        "validation_split": 0.2,
-                        "stratify": True,
-                        "random_state": 42
+                    "data": {
+                        "loader": {
+                            "source_uri": "train_data.csv"
+                        },
+                        "fetcher": {
+                            "type": "pass_through"
+                        },
+                        "data_interface": {
+                            "target_column": "target",
+                            "entity_columns": [],
+                            "feature_columns": ["feature_1", "feature_2", "feature_3"]
+                        }
+                    },
+                    "evaluation": {
+                        "metrics": ["accuracy", "precision", "recall", "f1"],
+                        "validation": {
+                            "method": "train_test_split",
+                            "test_size": 0.2,
+                            "random_state": 42
+                        }
                     }
                 }
                 
@@ -237,7 +227,7 @@ class TestCLIWorkflowE2E:
             
             # Update data source for inference
             inference_recipe_content = recipe_content.copy()
-            inference_recipe_content['data']['feature_view']['source']['path'] = 'inference_data.csv'
+            inference_recipe_content['data']['loader']['source_uri'] = 'inference_data.csv'
             
             inference_recipe_path = os.path.join(config_dir, "inference_recipe.yaml")
             with open(inference_recipe_path, 'w') as f:
@@ -246,9 +236,9 @@ class TestCLIWorkflowE2E:
             
             output_path = os.path.join(workspace, "predictions.csv")
             
-            # Try CLI inference
+            # Try CLI inference (use correct command name)
             inference_result = cli_runner.invoke(app, [
-                'inference',
+                'batch-inference',
                 '--recipe', inference_recipe_path,
                 '--env', 'local',
                 '--config-path', config_path,
@@ -290,7 +280,7 @@ class TestCLIWorkflowE2E:
             # Try to start serving
             serve_cmd = [
                 'python', '-m', 'src.cli.main_commands',  # Adjust based on actual CLI structure
-                'serve',
+                'serve-api',
                 '--recipe', recipe_path,
                 '--env', 'local',
                 '--config-path', config_path,
@@ -315,14 +305,12 @@ class TestCLIWorkflowE2E:
                 if serve_process.poll() is None:
                     print(f"✅ Server started on port {serve_port}")
                     
-                    # Test API endpoint
+                    # Test API endpoint (use flat structure)
                     try:
                         test_payload = {
-                            'features': {
-                                'feature_1': 0.5,
-                                'feature_2': -0.3,
-                                'feature_3': 'A'
-                            }
+                            'feature_1': 0.5,
+                            'feature_2': -0.3,
+                            'feature_3': 'A'
                         }
                         
                         response = requests.post(
@@ -395,7 +383,7 @@ class TestCLIWorkflowE2E:
     
     def test_cli_commands_help(self, cli_runner):
         """Test that all CLI commands show help properly."""
-        commands = ['train', 'inference', 'serve', 'init']
+        commands = ['train', 'batch-inference', 'serve-api', 'init']
         
         for command in commands:
             result = cli_runner.invoke(app, [command, '--help'])

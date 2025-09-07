@@ -69,15 +69,9 @@ def predict_generic(request: Dict[str, Any]) -> MinimalPredictionResponse:
     if not app_context.model or not app_context.settings:
         raise HTTPException(status_code=503, detail="모델이 준비되지 않았습니다.")
     try:
-        # 서빙 정책: pass_through/폴백 차단
-        try:
-            wrapped_model = app_context.model.unwrap_python_model()
-            if isinstance(wrapped_model.trained_fetcher, PassThroughFetcher):
-                raise HTTPException(status_code=503, detail="Serving with 'pass_through' fetcher is not allowed.")
-        except HTTPException:
-            raise
-        except Exception:
-            pass
+        # Data Interface 기반 API 엔드포인트는 모든 fetcher 타입을 지원
+        # target, entity, timestamp columns을 제외한 feature columns로 API 생성되므로
+        # pass_through fetcher도 문제없이 작동
         prediction_result = handlers.predict(request)
         return MinimalPredictionResponse(**prediction_result)
     except HTTPException as he:
