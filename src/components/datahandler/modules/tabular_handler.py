@@ -13,8 +13,9 @@ from src.utils.system.console_manager import UnifiedConsole
 class TabularDataHandler(BaseDataHandler):
     """전통적인 테이블 형태 ML을 위한 데이터 핸들러 (classification, regression, clustering, causal)"""
     
-    def __init__(self, settings, data_interface):
-        super().__init__(settings, data_interface)
+    def __init__(self, settings, data_interface=None):
+        # data_interface는 BaseDataHandler에서 자동으로 설정됨
+        super().__init__(settings)
         self.console = UnifiedConsole(settings)
     
     def split_data(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
@@ -22,14 +23,14 @@ class TabularDataHandler(BaseDataHandler):
         test_size = 0.2
         stratify_series = None
         
-        if self.data_interface.task_type == "classification":
+        if self.settings.recipe.task_choice == "classification":
             target_col = self.data_interface.target_column
             if target_col in df.columns:
                 counts = df[target_col].value_counts()
                 # 각 클래스 최소 2개, 테스트 셋에 최소 1개 이상 들어갈 수 있는지 확인
                 if len(counts) >= 2 and counts.min() >= 2 and int(len(df) * test_size) >= 1:
                     stratify_series = df[target_col]
-        elif self.data_interface.task_type == "causal":
+        elif self.settings.recipe.task_choice == "causal":
             treatment_col = self.data_interface.treatment_column
             if treatment_col in df.columns:
                 counts = df[treatment_col].value_counts()
@@ -43,17 +44,17 @@ class TabularDataHandler(BaseDataHandler):
     
     def prepare_data(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series, Dict[str, Any]]:
         """테이블 형태 데이터 준비 (기존 prepare_training_data 로직)"""
-        task_type = self.data_interface.task_type
+        task_choice = self.settings.recipe.task_choice
         exclude_cols = self._get_exclude_columns(df)
         
-        if task_type in ["classification", "regression"]:
+        if task_choice in ["classification", "regression", "timeseries"]:
             return self._prepare_supervised_data(df, exclude_cols)
-        elif task_type == "clustering":
+        elif task_choice == "clustering":
             return self._prepare_clustering_data(df, exclude_cols)  
-        elif task_type == "causal":
+        elif task_choice == "causal":
             return self._prepare_causal_data(df, exclude_cols)
         else:
-            raise ValueError(f"지원하지 않는 task_type: {task_type}")
+            raise ValueError(f"지원하지 않는 task_choice: {task_choice}")
     
     def _prepare_supervised_data(self, df: pd.DataFrame, exclude_cols: list) -> Tuple[pd.DataFrame, pd.Series, Dict[str, Any]]:
         """Classification/Regression 데이터 준비"""

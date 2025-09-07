@@ -19,7 +19,8 @@ from src.utils.system.logger import logger
 
 def get_required_columns_from_data_interface(
     data_interface: DataInterface, 
-    actual_training_df: pd.DataFrame = None
+    actual_training_df: pd.DataFrame = None,
+    task_choice: str = None
 ) -> List[str]:
     """
     DataInterface에서 필수 컬럼 목록을 추출합니다.
@@ -65,9 +66,12 @@ def get_required_columns_from_data_interface(
     required.extend(data_interface.entity_columns)
     
     # 2. Task별 특수 컬럼 (추론에 필요한 컬럼들)
-    if data_interface.task_type == "timeseries" and data_interface.timestamp_column:
+    # task_choice가 제공된 경우 사용, 아니면 기존 방식으로 fallback
+    task_type = task_choice if task_choice else getattr(data_interface, 'task_type', None)
+    
+    if task_type == "timeseries" and data_interface.timestamp_column:
         required.append(data_interface.timestamp_column)
-    elif data_interface.task_type == "causal" and data_interface.treatment_column:
+    elif task_type == "causal" and data_interface.treatment_column:
         required.append(data_interface.treatment_column)
     
     # 참고: target_column은 추론시 불필요하므로 제외
@@ -113,7 +117,7 @@ def get_required_columns_from_data_interface(
     
     logger.debug(
         f"DataInterface 필수 컬럼 추출 완료 - "
-        f"Task: {data_interface.task_type}, "
+        f"Task: {task_type or 'unknown'}, "
         f"컬럼 수: {len(unique_required)}, "
         f"컬럼들: {unique_required}"
     )
@@ -173,7 +177,7 @@ def validate_data_interface_columns(
         # 상세한 진단 메시지 생성
         error_message = (
             f"DataInterface 필수 컬럼 누락 감지:\n\n"
-            f"📋 Task Type: {data_interface.task_type}\n"
+            f"📋 Task Type: {getattr(data_interface, 'task_type', 'unknown')}\n"
             f"❌ 누락된 컬럼: {sorted(missing_columns)}\n"
             f"✅ 필요한 전체 컬럼: {sorted(required_columns)}\n"
             f"📊 실제 데이터 컬럼: {sorted(actual_columns)}\n\n"
@@ -196,7 +200,7 @@ def validate_data_interface_columns(
     
     logger.info(
         f"DataInterface 컬럼 검증 통과 - "
-        f"Task: {data_interface.task_type}, "
+        f"Task: {getattr(data_interface, 'task_type', 'unknown')}, "
         f"필수 컬럼: {len(required_columns)}개, "
         f"실제 컬럼: {len(actual_columns)}개"
     )
@@ -204,7 +208,8 @@ def validate_data_interface_columns(
 
 def create_data_interface_schema_for_storage(
     data_interface: DataInterface, 
-    df: pd.DataFrame
+    df: pd.DataFrame,
+    task_choice: str = None
 ) -> Dict[str, Any]:
     """
     PyfuncWrapper 저장용 DataInterface 스키마 메타데이터를 생성합니다.
@@ -235,7 +240,7 @@ def create_data_interface_schema_for_storage(
         ['price', 'user_id', 'age', 'income', 'location', 'category']
     """
     # 🆕 핵심: 실제 학습 데이터를 기반으로 필수 컬럼 추출
-    required_columns = get_required_columns_from_data_interface(data_interface, df)
+    required_columns = get_required_columns_from_data_interface(data_interface, df, task_choice)
     
     # 실제 존재하는 컬럼들의 데이터 타입 수집
     column_dtypes = {}
@@ -273,7 +278,7 @@ def create_data_interface_schema_for_storage(
     
     logger.info(
         f"DataInterface 저장용 스키마 생성 완료 - "
-        f"Task: {data_interface.task_type}, "
+        f"Task: {getattr(data_interface, 'task_type', 'unknown')}, "
         f"필수 컬럼: {len(required_columns)}개, "
         f"feature_columns_was_null: {data_interface.feature_columns is None}, "
         f"스키마 버전: 5.1"

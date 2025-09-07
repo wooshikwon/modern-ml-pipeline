@@ -66,7 +66,7 @@ class DataHandlerRegistry:
             cls._validate_task_handler_compatibility(task_choice, catalog_handler)
             
             logger.info(f"🧠 Catalog 기반 핸들러 선택: {catalog_handler} (task: {task_choice})")
-            return cls.create(catalog_handler, settings)
+            return cls.create(catalog_handler, settings, settings.recipe.data.data_interface)
         
         available = list(cls.handlers.keys())
         raise ValueError(f"지원하지 않는 data_handler: '{catalog_handler}'. 사용 가능한 핸들러: {available}")

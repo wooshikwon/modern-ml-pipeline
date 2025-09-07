@@ -1,7 +1,6 @@
 """
-Settings Loader - CLI 호환 로딩 로직 (v3.0)
-새로운 YAML 구조를 정확히 파싱하고 검증
-완전히 재작성됨 - CLI 생성 파일과 100% 호환
+Settings Loader - CLI 호환 로딩 로직
+YAML 구조를 정확히 파싱하고 검증
 """
 
 import os
@@ -90,7 +89,7 @@ class Settings:
 def resolve_env_variables(data: Any) -> Any:
     """
     환경변수 치환 - ${VAR:default} 패턴 지원
-    CLI 템플릿에서 사용하는 패턴과 100% 호환
+    CLI 템플릿에서 사용하는 패턴과 호환
     
     Args:
         data: 환경변수를 치환할 데이터 (문자열, 딕셔너리, 리스트 등)
@@ -178,7 +177,7 @@ def resolve_env_variables(data: Any) -> Any:
 
 def load_settings(recipe_path: str, config_path: str, **kwargs) -> Settings:
     """
-    Settings 로드 - Phase 5.3 리팩토링 (직접 파일 경로 방식)
+    Settings 로드 (직접 파일 경로 방식)
     
     순서:
     1. config_path에서 직접 Config 로드

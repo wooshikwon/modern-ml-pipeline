@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    image: test-project:latest
+    container_name: test-project_app
+    volumes:
+      - ./data:/app/data
+      - ./configs:/app/configs
+      - ./recipes:/app/recipes
+      - ./sql:/app/sql
+    environment:
+      - PROJECT_NAME=test-project
+    networks:
+      - test-project_network
+    
+networks:
+  test-project_network:
+    driver: bridge

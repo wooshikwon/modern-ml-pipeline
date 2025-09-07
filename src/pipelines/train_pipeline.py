@@ -18,8 +18,8 @@ from src.utils.system.reproducibility import set_global_seeds
 def run_train_pipeline(settings: Settings, context_params: Optional[Dict[str, Any]] = None):
     """
     모델 학습 파이프라인을 실행합니다.
-    Factory를 통해 데이터 어댑터와 모든 컴포넌트를 생성하고, 최종적으로
-    순수 로직 PyfuncWrapper를 생성하여 MLflow에 저장합니다.
+    Factory를 통해 데이터 어댑터와 모든 컴포넌트를 생성하고,
+    PyfuncWrapper를 생성하여 MLflow에 저장합니다.
     """
     console = RichConsoleManager()
     
@@ -28,7 +28,7 @@ def run_train_pipeline(settings: Settings, context_params: Optional[Dict[str, An
     set_global_seeds(seed)
 
     # Pipeline context start
-    task_type = settings.recipe.data.data_interface.task_type
+    task_type = settings.recipe.task_choice
     model_name = getattr(settings.recipe.model, 'class_path', 'Unknown')
     pipeline_description = f"Environment: {settings.config.environment.name} | Task: {task_type} | Model: {model_name.split('.')[-1]}"
     
@@ -82,7 +82,7 @@ def run_train_pipeline(settings: Settings, context_params: Optional[Dict[str, An
                 mlflow.log_metrics(metrics)
                 console.display_metrics_table(metrics, "Model Performance Metrics")
             
-            # 🆕 하이퍼파라미터 최적화 결과 로깅
+            # 하이퍼파라미터 최적화 결과 로깅
             if 'hyperparameter_optimization' in training_results:
                 hpo_result = training_results['hyperparameter_optimization']
                 if hpo_result['enabled']:
@@ -90,7 +90,7 @@ def run_train_pipeline(settings: Settings, context_params: Optional[Dict[str, An
                     mlflow.log_metric('best_score', hpo_result['best_score'])
                     mlflow.log_metric('total_trials', hpo_result['total_trials'])
 
-            # 5. Enhanced PyfuncWrapper 생성
+            # 5. PyfuncWrapper 생성
             console.log_phase("Model Packaging", "📦")
             pyfunc_wrapper = factory.create_pyfunc_wrapper(
                 trained_model=trained_model,
@@ -101,14 +101,14 @@ def run_train_pipeline(settings: Settings, context_params: Optional[Dict[str, An
                 training_results=training_results,
             )
             
-            # 6. Enhanced Model + 메타데이터 저장 (RichConsoleManager는 mlflow_integration에서 처리)
+            # 6. Model + 메타데이터 저장
             pip_reqs = get_pip_requirements()
             
             # Signature와 data_schema 검증
             if not (pyfunc_wrapper.signature and pyfunc_wrapper.data_schema):
                 raise ValueError("Failed to generate signature and data_schema. This should not happen.")
             
-            # Phase 5 Enhanced 저장 로직 사용 (내부에서 RichConsoleManager 사용)
+            # 저장 로직 사용
             from src.utils.integrations.mlflow_integration import log_enhanced_model_with_schema
             
             log_enhanced_model_with_schema(
@@ -129,5 +129,5 @@ def run_train_pipeline(settings: Settings, context_params: Optional[Dict[str, An
                 json.dump(metadata, f, indent=4, default=str)
             mlflow.log_artifact(str(metadata_path), "metadata")
 
-            # 8. 결과 객체 반환(run_id 및 model_uri 포함)
+            # 8. 결과 객체 반환
             return SimpleNamespace(run_id=run_id, model_uri=f"runs:/{run_id}/model")

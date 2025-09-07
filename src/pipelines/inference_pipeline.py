@@ -27,7 +27,7 @@ def _is_jinja_template(sql_text: str) -> bool:
 def run_inference_pipeline(settings: Settings, run_id: str, data_path: str = None, context_params: dict = None):
     """
     지정된 Run ID의 모델을 사용하여 배치 추론을 실행합니다.
-    Phase 5.3: --data-path로 직접 데이터 경로를 지정하는 방식으로 단순화
+    --data-path로 직접 데이터 경로를 지정하는 방식
     """
     context_params = context_params or {}
     console = UnifiedConsole(settings)
@@ -56,7 +56,7 @@ def run_inference_pipeline(settings: Settings, run_id: str, data_path: str = Non
             data_adapter = factory.create_data_adapter()
             
             if data_path:
-                # Phase 5.3: CLI에서 지정한 data_path 사용
+                # CLI에서 지정한 data_path 사용
                 console.info(f"CLI data_path 사용: {data_path}",
                            rich_message=f"Using CLI data path: [cyan]{data_path}[/cyan]")
                 final_data_source = data_path
@@ -202,7 +202,7 @@ def run_inference_pipeline(settings: Settings, run_id: str, data_path: str = Non
 
 def _is_jinja_template(sql: str) -> bool:
     """
-    🆕 Phase 3: SQL 문자열이 Jinja2 템플릿인지 감지
+    SQL 문자열이 Jinja2 템플릿인지 감지
     
     Args:
         sql: 검사할 SQL 문자열

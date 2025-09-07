@@ -86,6 +86,8 @@ class AuthConfig(BaseModel):
 
 class Serving(BaseModel):
     """API 서빙 설정"""
+    model_config = {"protected_namespaces": ()}
+    
     enabled: bool = Field(False, description="서빙 활성화 여부")
     host: str = Field("0.0.0.0", description="API 서버 호스트")
     port: int = Field(8000, ge=1024, le=65535, description="API 서버 포트")

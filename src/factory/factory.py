@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 class Factory:
     """
-    현대화된 Recipe 설정(settings.recipe)에 기반하여 모든 핵심 컴포넌트를 생성하는 중앙 팩토리 클래스.
+    Recipe 설정(settings.recipe)에 기반하여 모든 핵심 컴포넌트를 생성하는 중앙 팩토리 클래스.
     일관된 접근 패턴과 캐싱을 통해 효율적인 컴포넌트 생성을 보장합니다.
     """
     # 클래스 변수: 컴포넌트 등록 상태 추적
@@ -33,9 +33,9 @@ class Factory:
         self.settings = settings
         self.console = UnifiedConsole(settings)
         
-        # 현대화된 Recipe 구조 검증
+        # Recipe 구조 검증
         if not self.settings.recipe:
-            raise ValueError("현대화된 Recipe 구조가 필요합니다. settings.recipe가 없습니다.")
+            raise ValueError("Recipe 구조가 필요합니다. settings.recipe가 없습니다.")
         
         # 자주 사용하는 경로 캐싱 (일관된 접근 패턴)
         self._recipe = settings.recipe
@@ -375,7 +375,7 @@ class Factory:
         try:
             # Registry 패턴으로 생성
             self.console.component_init(f"Evaluator ({task_choice})", "success")
-            evaluator = EvaluatorRegistry.create(task_choice, data_interface)
+            evaluator = EvaluatorRegistry.create(task_choice, self.settings)
             
             # 캐싱 저장
             self._component_cache[cache_key] = evaluator
@@ -384,7 +384,7 @@ class Factory:
             return evaluator
             
         except Exception as e:
-            available = list(EvaluatorRegistry.list_evaluators().keys())
+            available = EvaluatorRegistry.get_available_tasks()
             self.console.error(f"Failed to create evaluator for '{task_choice}'", 
                              rich_message=f"❌ Evaluator creation failed: [red]{task_choice}[/red]",
                              context={"task_choice": task_choice, "available_evaluators": available},
@@ -575,7 +575,7 @@ class Factory:
         training_df: Optional[pd.DataFrame] = None,
         training_results: Optional[Dict[str, Any]] = None
     ) -> PyfuncWrapper:
-        """🔄 Phase 5: 완전한 스키마 정보가 캡슐화된 Enhanced Artifact 생성"""
+        """완전한 스키마 정보가 캡슐화된 Artifact 생성"""
         from src.factory.artifact import PyfuncWrapper
         self.console.info("Creating PyfuncWrapper artifact...",
                          rich_message="📦 Creating PyfuncWrapper artifact")
@@ -586,7 +586,7 @@ class Factory:
                             rich_message="🔍 Generating model signature and schema")
             from src.utils.integrations.mlflow_integration import create_enhanced_model_signature_with_schema
             
-            # ✅ 새로운 구조에서 데이터 수집
+            # 데이터 수집
             fetcher_conf = self._recipe.data.fetcher
             data_interface = self._recipe.data.data_interface
             
@@ -598,11 +598,11 @@ class Factory:
                     training_df = training_df.copy()
                     training_df[ts_col] = pd.to_datetime(training_df[ts_col], errors='coerce')
 
-            # ✅ 새로운 구조로 data_interface_config 구성
+            # data_interface_config 구성
             data_interface_config = {
                 'entity_columns': data_interface.entity_columns,
                 'timestamp_column': ts_col,
-                'task_type': data_interface.task_type,
+                'task_type': self._recipe.task_choice,
                 'target_column': data_interface.target_column,
                 'treatment_column': getattr(data_interface, 'treatment_column', None),
             }
@@ -614,13 +614,14 @@ class Factory:
             self.console.info("Signature and data schema created successfully.",
                             rich_message="✅ Signature and schema created successfully")
         
-        # 🆕 Phase 5.2: DataInterface 기반 검증용 스키마 생성
+        # DataInterface 기반 검증용 스키마 생성
         data_interface_schema = None
         if training_df is not None:
             from src.utils.system.data_validation import create_data_interface_schema_for_storage
             data_interface_schema = create_data_interface_schema_for_storage(
                 data_interface=self._recipe.data.data_interface,
-                df=training_df
+                df=training_df,
+                task_choice=self._recipe.task_choice
             )
             required_cols = len(data_interface_schema.get('required_columns', []))
             self.console.info(f"DataInterface 스키마 생성 완료: {required_cols}개 필수 컬럼",
@@ -635,5 +636,5 @@ class Factory:
             training_results=training_results,
             signature=signature,
             data_schema=data_schema,
-            data_interface_schema=data_interface_schema,  # 🆕 Phase 5.2: 추가
+            data_interface_schema=data_interface_schema,
         )
