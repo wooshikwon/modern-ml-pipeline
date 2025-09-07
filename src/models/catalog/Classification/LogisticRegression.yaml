@@ -18,19 +18,6 @@ hyperparameters:
       type: "categorical"
       range: ["liblinear", "lbfgs", "newton-cg", "sag", "saga"]
       default: "lbfgs"
-  environment_defaults:
-    local:
-      C: 1.0
-      penalty: "l2"
-      solver: "lbfgs"
-    dev:
-      C: 1.0
-      penalty: "l2"
-      solver: "lbfgs"
-    prod:
-      C: 1.0
-      penalty: "l2"
-      solver: "saga"
 supported_tasks: ["binary_classification", "multiclass_classification"]
 feature_requirements:
   numerical: true

@@ -70,7 +70,7 @@ class TestOneHotEncoderWrapper:
         assert transformed.shape[1] > test_data.shape[1]   # 열 수는 증가 (원-핫 확장)
         
         # 변환 결과가 0 또는 1만 포함하는지 확인 (원-핫 특성)
-        unique_values = np.unique(transformed)
+        unique_values = np.unique(transformed.values)
         assert all(val in [0, 1] for val in unique_values)
     
     def test_one_hot_encoder_feature_names(self):
@@ -83,7 +83,9 @@ class TestOneHotEncoderWrapper:
         
         # When: fit 후 feature names 확인
         encoder.fit(data)
-        feature_names = encoder.get_feature_names_out(['category'])
+        # OneHotEncoder는 실제로 transform을 통해 열이 생성됨
+        transformed = encoder.transform(data)
+        feature_names = list(transformed.columns)
         
         # Then: 적절한 피처 이름 생성됨
         assert len(feature_names) == 3  # A, B, C = 3개 카테고리
@@ -136,7 +138,7 @@ class TestOrdinalEncoderWrapper:
         assert transformed.shape == test_data.shape  # 형태는 동일
         
         # 변환 결과가 정수인지 확인
-        unique_values = np.unique(transformed[:, 0])
+        unique_values = np.unique(transformed.iloc[:, 0])
         assert all(isinstance(val, (int, float)) for val in unique_values)
         
         # 고유값 개수가 원본 카테고리 개수와 일치하는지 확인
@@ -156,7 +158,7 @@ class TestOrdinalEncoderWrapper:
         transformed = encoder.transform(test_data)
         
         # Then: 미지 카테고리가 지정된 값으로 처리됨
-        assert -999 in transformed[:, 0]  # unknown_value 포함
+        assert -999 in transformed.iloc[:, 0].values  # unknown_value 포함
     
     def test_ordinal_encoder_registry_integration(self):
         """Registry 통합 테스트"""
@@ -218,7 +220,7 @@ class TestCatBoostEncoderWrapper:
         assert np.all(np.isfinite(transformed))  # 유한한 값들
         
         # 원본 문자열과 다른 숫자형 값으로 변환되었는지 확인
-        assert all(col_dtype in [np.float64, np.float32] for col_dtype in transformed.dtypes)
+        assert all(pd.api.types.is_numeric_dtype(dtype) for dtype in transformed.dtypes)
     
     def test_catboost_encoder_requires_target(self):
         """CatBoostEncoder 타겟 변수 필수 요구사항 테스트"""
@@ -247,7 +249,7 @@ class TestCatBoostEncoderWrapper:
         # Then: 정상 동작 확인
         assert isinstance(encoder, CatBoostEncoderWrapper)
         assert result.shape == X.shape
-        assert all(col_dtype in [np.float64, np.float32] for col_dtype in result.dtypes)
+        assert all(pd.api.types.is_numeric_dtype(dtype) for dtype in result.dtypes)
 
 
 class TestEncoderComparison:
@@ -279,14 +281,14 @@ class TestEncoderComparison:
         # Then: 각 인코더의 특성 확인
         # OneHot: 열 수 증가 (더미 변수)
         assert onehot_result.shape[1] > X.shape[1]
-        assert np.all((onehot_result == 0) | (onehot_result == 1))
+        assert np.all((onehot_result.values == 0) | (onehot_result.values == 1))
         
         # Ordinal: 형태 동일, 정수형 값
         assert ordinal_result.shape == X.shape
         
         # CatBoost: 형태 동일, 연속형 값 
         assert catboost_result.shape == X.shape
-        assert all(col_dtype in [np.float64, np.float32] for col_dtype in catboost_result.dtypes)
+        assert all(pd.api.types.is_numeric_dtype(dtype) for dtype in catboost_result.dtypes)
     
     def test_encoder_error_handling(self):
         """인코더 오류 처리 테스트"""
@@ -326,5 +328,5 @@ class TestEncoderComparison:
             
             # 기본 유효성 검증
             assert result.shape[0] == X_cat.shape[0]  # 행 수는 보존
-            assert not np.any(pd.isna(result))  # NaN 값 없음
-            assert not np.any(np.isinf(result))  # 무한값 없음
+            assert not result.isna().any().any()  # NaN 값 없음
+            assert not np.isinf(result.values).any()  # 무한값 없음

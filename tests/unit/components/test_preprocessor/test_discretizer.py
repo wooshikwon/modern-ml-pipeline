@@ -141,10 +141,11 @@ class TestKBinsDiscretizerWrapper:
         
         # Then: ordinal 인코딩 결과 검증
         assert transformed.shape == test_data.shape
-        assert transformed.dtype in [np.float64, np.int64]
+        # DataFrame의 경우 각 컬럼의 dtype 확인
+        assert all(dtype in [np.float64, np.int64] for dtype in transformed.dtypes)
         
         # ordinal 인코딩: 정수 값 (0, 1, 2, ...)
-        unique_values = np.unique(transformed.ravel())
+        unique_values = np.unique(transformed.values.ravel())
         assert all(val == int(val) for val in unique_values)  # 모든 값이 정수
     
     def test_discretizer_onehot_encoding(self):
@@ -176,11 +177,14 @@ class TestKBinsDiscretizerWrapper:
             assert set(unique_values).issubset({0, 1})
         else:
             # dense array인 경우
-            row_sums = np.sum(transformed, axis=1)
+            if isinstance(transformed, pd.DataFrame):
+                row_sums = transformed.sum(axis=1)
+            else:
+                row_sums = np.sum(transformed, axis=1)
             assert np.all(row_sums == 1)  # 각 행의 합은 1
             
             # 모든 값이 0 또는 1
-            unique_values = np.unique(transformed.ravel())
+            unique_values = np.unique(transformed.values.ravel())
             assert set(unique_values).issubset({0, 1})
     
     def test_discretizer_multiple_features(self):
@@ -200,7 +204,7 @@ class TestKBinsDiscretizerWrapper:
         
         # 각 컬럼이 적절한 범위의 값을 가지는지 확인
         for col_idx in range(transformed.shape[1]):
-            col_values = transformed[:, col_idx]
+            col_values = transformed.iloc[:, col_idx]
             assert np.min(col_values) >= 0
             assert np.max(col_values) <= 2  # n_bins=3이므로 최대값은 2
     
@@ -382,7 +386,10 @@ class TestDiscretizerComparison:
             assert np.all(row_sums == 1)
         else:
             # dense array인 경우
-            row_sums = np.sum(onehot_result, axis=1)
+            if isinstance(onehot_result, pd.DataFrame):
+                row_sums = onehot_result.sum(axis=1)
+            else:
+                row_sums = np.sum(onehot_result, axis=1)
             assert np.all(row_sums == 1)
 
 

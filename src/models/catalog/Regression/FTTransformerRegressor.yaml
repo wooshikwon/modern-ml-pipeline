@@ -44,23 +44,6 @@ hyperparameters:
       range: ["ReGLU", "GELU"]
       default: "ReGLU"
   # 환경별 기본값
-  environment_defaults:
-    local:
-      n_blocks: 2
-      d_token: 64
-      n_heads: 4
-      ffn_d_hidden: 128
-    dev:
-      n_blocks: 3
-      d_token: 128
-      n_heads: 8
-      ffn_d_hidden: 256
-    prod:
-      n_blocks: 6
-      d_token: 256
-      n_heads: 12
-      ffn_d_hidden: 512
-# 지원 태스크 및 요구사항
 supported_tasks: ["regression"]
 feature_requirements:
   numerical: true

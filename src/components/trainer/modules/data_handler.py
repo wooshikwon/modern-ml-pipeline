@@ -94,11 +94,25 @@ def prepare_training_data(df: pd.DataFrame, settings: Settings) -> Tuple[pd.Data
             X = df.drop(columns=[c for c in auto_exclude if c in df.columns])
             logger.info(f"Feature columns 자동 선택: {list(X.columns)}")
         else:
-            # 명시적 선택
+            # 명시적 선택 - 금지된 컬럼 validation
+            forbidden_cols = [target_col] + exclude_cols
+            if data_interface.treatment_column:
+                forbidden_cols.append(data_interface.treatment_column)
+            
+            forbidden_cols = [c for c in forbidden_cols if c and c in df.columns]
+            overlap = set(data_interface.feature_columns) & set(forbidden_cols)
+            if overlap:
+                raise ValueError(f"feature_columns에 금지된 컬럼이 포함되어 있습니다: {list(overlap)}. "
+                               f"target, treatment, entity, timestamp 컬럼은 feature로 사용할 수 없습니다.")
+            
             X = df[data_interface.feature_columns]
             
         # 숫자형 컬럼만 사용하여 모델 입력 구성
         X = X.select_dtypes(include=[np.number])
+        
+        # 5% 이상 결측 컬럼 경고
+        _check_missing_values_warning(X)
+        
         y = df[target_col]
         additional_data = {}
         
@@ -109,9 +123,21 @@ def prepare_training_data(df: pd.DataFrame, settings: Settings) -> Tuple[pd.Data
             X = df.drop(columns=[c for c in auto_exclude if c in df.columns])
             logger.info(f"Feature columns 자동 선택 (clustering): {list(X.columns)}")
         else:
+            # 명시적 선택 - 금지된 컬럼 validation
+            forbidden_cols = exclude_cols  # entity, timestamp 컬럼만
+            forbidden_cols = [c for c in forbidden_cols if c and c in df.columns]
+            overlap = set(data_interface.feature_columns) & set(forbidden_cols)
+            if overlap:
+                raise ValueError(f"feature_columns에 금지된 컬럼이 포함되어 있습니다: {list(overlap)}. "
+                               f"entity, timestamp 컬럼은 feature로 사용할 수 없습니다.")
+            
             X = df[data_interface.feature_columns]
             
         X = X.select_dtypes(include=[np.number])
+        
+        # 5% 이상 결측 컬럼 경고
+        _check_missing_values_warning(X)
+        
         y = None
         additional_data = {}
         
@@ -125,9 +151,21 @@ def prepare_training_data(df: pd.DataFrame, settings: Settings) -> Tuple[pd.Data
             X = df.drop(columns=[c for c in auto_exclude if c in df.columns])
             logger.info(f"Feature columns 자동 선택 (causal): {list(X.columns)}")
         else:
+            # 명시적 선택 - 금지된 컬럼 validation
+            forbidden_cols = [target_col, treatment_col] + exclude_cols
+            forbidden_cols = [c for c in forbidden_cols if c and c in df.columns]
+            overlap = set(data_interface.feature_columns) & set(forbidden_cols)
+            if overlap:
+                raise ValueError(f"feature_columns에 금지된 컬럼이 포함되어 있습니다: {list(overlap)}. "
+                               f"target, treatment, entity, timestamp 컬럼은 feature로 사용할 수 없습니다.")
+            
             X = df[data_interface.feature_columns]
             
         X = X.select_dtypes(include=[np.number])
+        
+        # 5% 이상 결측 컬럼 경고
+        _check_missing_values_warning(X)
+        
         y = df[target_col]
         additional_data = {
             'treatment': df[treatment_col],
@@ -137,3 +175,39 @@ def prepare_training_data(df: pd.DataFrame, settings: Settings) -> Tuple[pd.Data
         raise ValueError(f"지원하지 않는 task_type: {task_type}")
     
     return X, y, additional_data
+
+
+def _check_missing_values_warning(X: pd.DataFrame, threshold: float = 0.05):
+    """
+    5% 이상 결측치가 있는 컬럼을 감지하고 경고를 출력합니다.
+    
+    Args:
+        X: 특성 데이터프레임
+        threshold: 결측치 비율 임계값 (기본값: 0.05 = 5%)
+    """
+    if X.empty:
+        return
+        
+    missing_info = []
+    for col in X.columns:
+        missing_count = X[col].isnull().sum()
+        missing_ratio = missing_count / len(X)
+        
+        if missing_ratio >= threshold:
+            missing_info.append({
+                'column': col,
+                'missing_count': missing_count,
+                'missing_ratio': missing_ratio,
+                'total_rows': len(X)
+            })
+    
+    if missing_info:
+        logger.warning("⚠️  결측치가 많은 컬럼이 발견되었습니다:")
+        for info in missing_info:
+            logger.warning(
+                f"   - {info['column']}: {info['missing_count']:,}개 ({info['missing_ratio']:.1%}) "
+                f"/ 전체 {info['total_rows']:,}개 행"
+            )
+        logger.warning("   💡 전처리 단계에서 결측치 처리를 고려해보세요 (Imputation, 컬럼 제거 등)")
+    else:
+        logger.info(f"✅ 모든 특성 컬럼의 결측치 비율이 {threshold:.0%} 미만입니다.")

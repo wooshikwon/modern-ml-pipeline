@@ -6,6 +6,7 @@ from .base_factory import BaseFactory
 from .base_preprocessor import BasePreprocessor
 from .base_trainer import BaseTrainer
 from .base_model import BaseModel
+from .base_datahandler import BaseDataHandler
 
 __all__ = [
     "BaseAdapter",
@@ -15,4 +16,5 @@ __all__ = [
     "BasePreprocessor",
     "BaseTrainer",
     "BaseModel",
+    "BaseDataHandler",
 ]

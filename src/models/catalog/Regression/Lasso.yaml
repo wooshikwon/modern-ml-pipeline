@@ -37,20 +37,6 @@ hyperparameters:
       range: [true, false]
       default: false
   # 환경별 기본값
-  environment_defaults:
-    local:
-      alpha: 1.0
-      max_iter: 1000
-      selection: "cyclic"
-    dev:
-      alpha: 0.1
-      max_iter: 2000
-      selection: "random"
-    prod:
-      alpha: 0.01
-      max_iter: 3000
-      selection: "random"
-# 지원 태스크 및 요구사항
 supported_tasks: ["regression"]
 feature_requirements:
   numerical: true

@@ -77,11 +77,11 @@ class TestTreeBasedFeatureGenerator:
         assert transformed.shape[1] > 0  # 새로운 피처들이 생성됨
         
         # 변환 결과가 binary 값인지 확인 (one-hot encoding 결과)
-        unique_values = np.unique(transformed.ravel())
+        unique_values = np.unique(transformed.values.ravel())
         assert set(unique_values).issubset({0, 1})  # 0과 1만 포함
         
         # 각 행은 정확히 n_estimators개의 1을 가져야 함 (각 트리마다 하나의 leaf)
-        row_sums = np.sum(transformed, axis=1)
+        row_sums = transformed.sum(axis=1)
         assert np.all(row_sums == generator.n_estimators)
     
     def test_tree_based_generator_requires_target(self):
@@ -107,7 +107,9 @@ class TestTreeBasedFeatureGenerator:
         
         # When: fit 후 feature names 확인
         generator.fit(X, y)
-        feature_names = generator.get_feature_names_out()
+        # TreeBasedFeatureGenerator는 실제로 transform을 통해 열이 생성됨
+        transformed = generator.transform(X)
+        feature_names = list(transformed.columns)
         
         # Then: 적절한 피처 이름 생성됨
         assert len(feature_names) > 0
@@ -185,7 +187,7 @@ class TestPolynomialFeaturesWrapper:
         assert transformed.shape[1] == 5  # include_bias=False이므로 상수항 제외
         
         # 원본 피처들이 포함되어 있는지 확인 (첫 두 열)
-        np.testing.assert_allclose(transformed[:, :2], test_data.values, rtol=1e-10)
+        np.testing.assert_allclose(transformed.iloc[:, :2], test_data.values, rtol=1e-10)
     
     def test_polynomial_features_degree_3(self):
         """3차 다항식 피처 생성 테스트"""
@@ -221,7 +223,7 @@ class TestPolynomialFeaturesWrapper:
         assert transformed.shape[1] == 6
         
         # 원본 피처들이 그대로 포함되는지 확인
-        np.testing.assert_allclose(transformed[:, :3], test_data.values, rtol=1e-10)
+        np.testing.assert_allclose(transformed.iloc[:, :3], test_data.values, rtol=1e-10)
     
     def test_polynomial_features_with_bias(self):
         """include_bias 옵션 테스트"""
@@ -240,7 +242,7 @@ class TestPolynomialFeaturesWrapper:
         assert transformed.shape[1] == 3
         
         # 첫 번째 열이 모두 1인지 확인 (bias term)
-        np.testing.assert_allclose(transformed[:, 0], 1.0, rtol=1e-10)
+        np.testing.assert_allclose(transformed.iloc[:, 0], 1.0, rtol=1e-10)
     
     def test_polynomial_features_feature_names(self):
         """PolynomialFeatures 피처 이름 생성 테스트"""
@@ -252,12 +254,13 @@ class TestPolynomialFeaturesWrapper:
         
         # When: fit 후 feature names 확인
         poly.fit(test_data)
-        input_features = ['feature_1', 'feature_2']
-        feature_names = poly.get_feature_names_out(input_features)
+        # PolynomialFeatures는 실제로 transform을 통해 열이 생성됨
+        transformed = poly.transform(test_data)
+        feature_names = list(transformed.columns)
         
         # Then: 적절한 피처 이름 생성됨
         assert len(feature_names) == 5  # x1, x2, x1*x2, x1^2, x2^2
-        assert 'feature_1' in feature_names[0] or 'feature_2' in feature_names[0]
+        assert any('feature_1' in name for name in feature_names)
     
     def test_polynomial_features_registry_integration(self):
         """Registry 통합 테스트"""
@@ -299,7 +302,7 @@ class TestFeatureGeneratorComparison:
         
         # Then: 각 생성기의 특성 확인
         # TreeBased: binary features (0 또는 1)
-        assert set(np.unique(tree_result.ravel())).issubset({0, 1})
+        assert set(np.unique(tree_result.values.ravel())).issubset({0, 1})
         assert tree_result.shape[0] == X.shape[0]
         
         # Polynomial: continuous features, 더 많은 수치적 변화
@@ -307,7 +310,7 @@ class TestFeatureGeneratorComparison:
         assert poly_result.shape[1] == 5  # x1, x2, x1*x2, x1^2, x2^2
         
         # 원본 피처들이 polynomial에서는 보존됨
-        np.testing.assert_allclose(poly_result[:, :2], X.values, rtol=1e-10)
+        np.testing.assert_allclose(poly_result.iloc[:, :2], X.values, rtol=1e-10)
 
 
 class TestFeatureGeneratorErrorHandling:
@@ -350,7 +353,7 @@ class TestFeatureGeneratorErrorHandling:
         assert result.shape[1] == 2
         
         # 모든 행이 동일한 값을 가져야 함
-        assert np.all(result == result[0, :])
+        assert np.all(result.values == result.iloc[0, :].values)
     
     def test_custom_parameters_registry_creation(self):
         """Registry를 통한 커스텀 파라미터 생성 테스트"""

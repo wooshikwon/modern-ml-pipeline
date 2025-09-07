@@ -33,20 +33,6 @@ hyperparameters:
       range: [1e-6, 1e-2]
       default: 1e-3
   # 환경별 기본값
-  environment_defaults:
-    local:
-      alpha: 1.0
-      solver: "auto"
-      max_iter: 1000
-    dev:
-      alpha: 1.0
-      solver: "auto"
-      max_iter: 2000
-    prod:
-      alpha: 1.0
-      solver: "auto"
-      max_iter: 3000
-# 지원 태스크 및 요구사항
 supported_tasks: ["regression"]
 feature_requirements:
   numerical: true

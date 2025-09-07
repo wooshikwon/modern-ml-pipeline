@@ -58,23 +58,6 @@ hyperparameters:
       range: [0.1, 10.0]
       default: 1.0
   # 환경별 기본값
-  environment_defaults:
-    local:
-      n_estimators: 50
-      max_depth: 3
-      learning_rate: 0.1
-      subsample: 0.8
-    dev:
-      n_estimators: 100
-      max_depth: 6
-      learning_rate: 0.1
-      subsample: 0.9
-    prod:
-      n_estimators: 200
-      max_depth: 6
-      learning_rate: 0.05
-      subsample: 0.9
-# 지원 태스크 및 요구사항
 supported_tasks: ["binary_classification", "multiclass_classification"]
 feature_requirements:
   numerical: true

@@ -32,20 +32,6 @@ hyperparameters:
       range: ["lloyd", "elkan"]
       default: "lloyd"
   # 환경별 기본값
-  environment_defaults:
-    local:
-      n_clusters: 3
-      n_init: 10
-      max_iter: 100
-    dev:
-      n_clusters: 5
-      n_init: 20
-      max_iter: 300
-    prod:
-      n_clusters: 8
-      n_init: 30
-      max_iter: 500
-# 지원 태스크 및 요구사항
 supported_tasks: ["clustering"]
 feature_requirements:
   numerical: true

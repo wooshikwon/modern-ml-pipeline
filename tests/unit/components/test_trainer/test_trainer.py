@@ -18,7 +18,7 @@ import pandas as pd
 from unittest.mock import Mock, patch, MagicMock, call
 from typing import Dict, Any
 
-from src.components.trainer.modules.trainer import Trainer
+from src.components.trainer.trainer import Trainer
 from src.settings import Settings
 from src.interface import BaseModel
 from tests.helpers.config_builder import SettingsBuilder

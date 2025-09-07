@@ -36,20 +36,6 @@ hyperparameters:
       range: ["ReLU", "GELU"]
       default: "ReLU"
   # 환경별 기본값
-  environment_defaults:
-    local:
-      n_blocks: 2
-      d_main: 64
-      d_hidden: 128
-    dev:
-      n_blocks: 4
-      d_main: 128
-      d_hidden: 256
-    prod:
-      n_blocks: 6
-      d_main: 256
-      d_hidden: 512
-# 지원 태스크 및 요구사항
 supported_tasks: ["regression"]
 feature_requirements:
   numerical: true

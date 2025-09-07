@@ -5,9 +5,8 @@ from sklearn.model_selection import train_test_split
 
 from src.settings import Settings
 from src.utils.system.logger import logger
-from src.interface import BaseTrainer, BaseModel, BaseFetcher, BasePreprocessor, BaseEvaluator
-from .data_handler import split_data, prepare_training_data
-from .optimizer import OptunaOptimizer
+from src.interface import BaseTrainer, BaseModel, BaseFetcher, BasePreprocessor, BaseEvaluator, BaseDataHandler
+from .modules.optimizer import OptunaOptimizer
 
 if TYPE_CHECKING:
     pass
@@ -32,15 +31,16 @@ class Trainer(BaseTrainer):
         df: pd.DataFrame,
         model: Any,
         fetcher: BaseFetcher,
+        datahandler: BaseDataHandler,
         preprocessor: BasePreprocessor,
         evaluator: BaseEvaluator,
         context_params: Optional[Dict[str, Any]] = None,
     ) -> Tuple[Any, BasePreprocessor, Dict[str, float], Dict[str, Any]]:
         
         # 데이터 분할 및 전처리
-        train_df, test_df = split_data(df, self.settings)
-        X_train, y_train, _ = prepare_training_data(train_df, self.settings)
-        X_test, y_test, _ = prepare_training_data(test_df, self.settings)
+        train_df, test_df = datahandler.split_data(df)
+        X_train, y_train, additional_train_data = datahandler.prepare_data(train_df)
+        X_test, y_test, additional_test_data = datahandler.prepare_data(test_df)
 
         # 전처리 적용
         if preprocessor:
@@ -55,7 +55,7 @@ class Trainer(BaseTrainer):
         if use_tuning:
             logger.info("하이퍼파라미터 최적화를 시작합니다. (Recipe에서 활성화됨)")
             optimizer = OptunaOptimizer(settings=self.settings, factory_provider=self._get_factory)
-            best = optimizer.optimize(train_df, self._single_training_iteration)
+            best = optimizer.optimize(train_df, lambda train_df, params, seed: self._single_training_iteration(train_df, params, seed, datahandler))
             self.training_results['hyperparameter_optimization'] = best
             trained_model = best['model']
         else:
@@ -76,7 +76,7 @@ class Trainer(BaseTrainer):
         
         return trained_model, preprocessor, metrics, self.training_results
 
-    def _single_training_iteration(self, train_df, params, seed):
+    def _single_training_iteration(self, train_df, params, seed, datahandler):
         """
         Data Leakage 방지를 보장하는 단일 학습/검증 사이클.
         
@@ -87,8 +87,8 @@ class Trainer(BaseTrainer):
             train_df, test_size=0.2, random_state=seed, stratify=train_df.get(self._get_stratify_col())
         )
         
-        X_train, y_train, additional_data = prepare_training_data(train_data, self.settings)
-        X_val, y_val, _ = prepare_training_data(val_data, self.settings)
+        X_train, y_train, additional_data = datahandler.prepare_data(train_data)
+        X_val, y_val, _ = datahandler.prepare_data(val_data)
         
         factory = self._get_factory()
         preprocessor = factory.create_preprocessor()
@@ -126,18 +126,42 @@ class Trainer(BaseTrainer):
             model.fit(X)
         elif task_type == "causal":
             model.fit(X, additional_data['treatment'], y)
+        elif task_type == "timeseries":
+            model.fit(X, y)
         else:
             raise ValueError(f"지원하지 않는 task_type: {task_type}")
 
     def _get_training_methodology(self):
         """학습 방법론 메타데이터를 반환합니다."""
+        validation_config = self.settings.recipe.validation
+        hyperparams_config = self.settings.recipe.model.hyperparameters
+        task_type = self.settings.recipe.data.data_interface.task_type
+        
+        # stratification 여부 결정
+        stratify_col = self._get_stratify_col()
+        split_method = 'stratified' if stratify_col else 'simple'
+        
+        # validation strategy 결정
+        if hyperparams_config.enabled:
+            validation_strategy = 'train_validation_split'  # Optuna 시 train에서 validation 분할
+            note = f'Optuna 사용 시 Train({1-validation_config.test_size:.0%})을 다시 Train(80%)/Val(20%)로 분할'
+        else:
+            validation_strategy = validation_config.method
+            note = f'Hyperparameter tuning 비활성화, {validation_config.method} 사용'
+        
         return {
-            'train_test_split_method': 'stratified',
-            'train_ratio': 0.8,  # Train 80% / Test 20%
-            'validation_strategy': 'train_validation_split',  # Optuna 시 Train에서 Val 20% 추가 분할
-            'random_state': 42,
+            'train_test_split_method': split_method,
+            'train_ratio': 1 - validation_config.test_size,
+            'test_ratio': validation_config.test_size,
+            'validation_strategy': validation_strategy,
+            'random_state': validation_config.random_state,
+            'stratify_column': stratify_col,
+            'task_type': task_type,
             'preprocessing_fit_scope': 'train_only',
-            'note': 'Optuna 사용 시 Train을 다시 Train(80%)/Val(20%)로 분할'
+            'hyperparameter_optimization': hyperparams_config.enabled,
+            'n_trials': hyperparams_config.n_trials if hyperparams_config.enabled else None,
+            'optimization_metric': hyperparams_config.optimization_metric if hyperparams_config.enabled else None,
+            'note': note
         }
 
     def _get_stratify_col(self):
@@ -145,5 +169,5 @@ class Trainer(BaseTrainer):
         return di.target_column if di.task_type == "classification" else di.treatment_column if di.task_type == "causal" else None
 
 # Self-registration
-from ..registry import TrainerRegistry
+from .registry import TrainerRegistry
 TrainerRegistry.register("default", Trainer)
