@@ -289,9 +289,17 @@ class SettingsBuilder:
     def with_feature_store(self, enabled: bool = True) -> "SettingsBuilder":
         """Enable/disable feature store."""
         if enabled:
+            # Provide minimal feast_config to satisfy validation
+            from src.settings.config import FeastConfig
             self._feature_store = FeatureStore(
                 provider="feast",
-                feast_config=None  # Will be set when needed in tests
+                feast_config=FeastConfig(
+                    feature_store_path="test_feature_store.yaml",
+                    project="test_project",
+                    registry="registry.db",
+                    online_store={"type": "sqlite", "path": "test_online_store.db"},
+                    offline_store={"type": "file"}
+                )
             )
             self._data.fetcher = Fetcher(
                 type="feature_store",
