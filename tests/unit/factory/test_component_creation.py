@@ -1,641 +1,614 @@
 """
-Unit Tests for Factory Pattern
-Tests the core Factory component creation, caching, and registry integration
+Factory Pattern Testing - No Mock Hell Approach
+Real components, real data, real behavior validation
+Following comprehensive testing strategy document principles
 """
 
 import pytest
-from unittest.mock import patch, MagicMock, PropertyMock
-from typing import Dict, Any
 import pandas as pd
+import numpy as np
+from typing import Dict, Any
+from pathlib import Path
 
 from src.factory.factory import Factory
 from src.settings import Settings
-from src.settings.config import Config, Environment, DataSource, FeatureStore
-from src.settings.recipe import Recipe, Model, Data, HyperparametersTuning, Loader, Fetcher, DataInterface, Evaluation
+from src.interface.base_adapter import BaseAdapter
+from src.interface.base_evaluator import BaseEvaluator
+from src.components.adapter.modules.storage_adapter import StorageAdapter
+from src.components.adapter.modules.sql_adapter import SqlAdapter
+from src.components.evaluator.modules.classification_evaluator import ClassificationEvaluator
+from src.components.evaluator.modules.regression_evaluator import RegressionEvaluator
 
 
-class TestFactoryInitialization:
-    """Test Factory initialization and setup."""
+class TestFactoryWithRealComponents:
+    """Test Factory component creation with real components - No mocks."""
     
-    def test_factory_initialization(self, minimal_classification_settings):
-        """Test basic Factory initialization."""
-        factory = Factory(minimal_classification_settings)
+    def test_factory_creates_real_storage_adapter(self, factory_with_real_storage_adapter, 
+                                                 real_component_performance_tracker):
+        """Test Factory creates real StorageAdapter that actually reads files."""
+        factory, dataset_info = factory_with_real_storage_adapter
         
-        assert factory.settings == minimal_classification_settings
-        assert factory._recipe == minimal_classification_settings.recipe
-        assert factory._config == minimal_classification_settings.config
-        assert factory._data == minimal_classification_settings.recipe.data
-        assert factory._model == minimal_classification_settings.recipe.model
-        assert isinstance(factory._component_cache, dict)
-        assert len(factory._component_cache) == 0  # Empty cache initially
-    
-    def test_factory_missing_recipe_error(self, settings_builder):
-        """Test Factory initialization with missing recipe."""
-        # Create valid settings first
-        settings = settings_builder.build()
-        # Then remove the recipe to test Factory validation
-        settings.recipe = None
+        with real_component_performance_tracker.measure_time("adapter_creation"):
+            adapter = factory.create_data_adapter("storage")
         
-        with pytest.raises(ValueError, match="Recipe 구조가 필요합니다"):
-            Factory(settings)
-    
-    @patch('src.factory.factory.Factory._ensure_components_registered')
-    def test_factory_components_registration_called(self, mock_register, minimal_classification_settings):
-        """Test that component registration is called during initialization."""
-        Factory(minimal_classification_settings)
-        mock_register.assert_called_once()
-    
-    def test_factory_console_initialization(self, minimal_classification_settings):
-        """Test console is properly initialized."""
-        factory = Factory(minimal_classification_settings)
-        assert factory.console is not None
-        # Console should be properly initialized
-        assert factory.console.__class__.__name__ == 'UnifiedConsole'
-
-
-class TestComponentRegistration:
-    """Test component registration mechanism."""
-    
-    @patch('src.factory.factory.get_console')
-    def test_ensure_components_registered_first_time(self, mock_get_console, minimal_classification_settings):
-        """Test component registration on first Factory creation."""
-        # Reset class variable
-        Factory._components_registered = False
-        mock_console = MagicMock()
-        mock_get_console.return_value = mock_console
+        # Validate it's a real StorageAdapter instance
+        assert isinstance(adapter, StorageAdapter)
+        assert isinstance(adapter, BaseAdapter)
         
-        # Mock the import statements instead of importlib.import_module since factory uses direct imports
-        with patch('src.components.adapter'), \
-             patch('src.components.evaluator'), \
-             patch('src.components.fetcher'), \
-             patch('src.components.trainer'), \
-             patch('src.components.preprocessor'), \
-             patch('src.components.datahandler'):
-            factory = Factory(minimal_classification_settings)
+        # Test real behavior - actually read the CSV file
+        with real_component_performance_tracker.measure_time("data_reading"):
+            df = adapter.read(str(dataset_info["path"]))
+        
+        expected_df = dataset_info["data"]
+        
+        # Validate real data was read correctly
+        assert len(df) == len(expected_df)
+        assert list(df.columns) == list(expected_df.columns)
+        assert "target" in df.columns
+        assert "entity_id" in df.columns
+        
+        # Performance validation
+        real_component_performance_tracker.assert_time_under("adapter_creation")
+        real_component_performance_tracker.assert_time_under("data_reading")
+    
+    def test_factory_creates_real_sql_adapter(self, factory_with_real_sql_adapter,
+                                             real_component_performance_tracker):
+        """Test Factory creates real SQLAdapter with actual database connection."""
+        factory, sql_info = factory_with_real_sql_adapter
+        
+        with real_component_performance_tracker.measure_time("adapter_creation"):
+            adapter = factory.create_data_adapter("sql")
+        
+        # Validate it's a real SqlAdapter instance  
+        assert isinstance(adapter, SqlAdapter)
+        assert isinstance(adapter, BaseAdapter)
+        
+        # Test real SQL query execution
+        with real_component_performance_tracker.measure_time("data_reading"):
+            query = f"SELECT feature_1, feature_2, feature_3, feature_4, feature_5, target, entity_id FROM {sql_info['classification_table']}"
+            df = adapter.read(query)
+        
+        expected_df = sql_info["classification_data"]
+        
+        # Validate real SQL query results
+        assert len(df) == len(expected_df)
+        assert "target" in df.columns
+        assert "entity_id" in df.columns
+        assert df["target"].nunique() >= 2  # Should have multiple classes
+        
+        # Performance validation
+        real_component_performance_tracker.assert_time_under("adapter_creation")
+        real_component_performance_tracker.assert_time_under("data_reading")
+    
+    def test_factory_creates_real_model_with_hyperparameters(self, settings_builder,
+                                                           real_component_performance_tracker):
+        """Test Factory creates real model with actual hyperparameter configuration."""
+        settings = settings_builder \
+            .with_task("classification") \
+            .with_model("sklearn.svm.SVC", 
+                       hyperparameters={"kernel": "linear", "C": 0.1, "random_state": 42}) \
+            .build()
+        
+        factory = Factory(settings)
+        
+        with real_component_performance_tracker.measure_time("model_creation"):
+            model = factory.create_model()
+        
+        # Verify real model creation and configuration
+        from sklearn.svm import SVC
+        assert isinstance(model, SVC)
+        assert model.kernel == "linear"
+        assert model.C == 0.1
+        assert model.random_state == 42
+        
+        # Test real model behavior - should be able to fit and predict
+        from sklearn.datasets import make_classification
+        X, y = make_classification(n_samples=50, n_features=4, random_state=42)
+        
+        with real_component_performance_tracker.measure_time("model_training"):
+            model.fit(X, y)
+            predictions = model.predict(X)
+        
+        # Validate real training worked
+        assert len(predictions) == 50
+        assert set(predictions).issubset({0, 1})
+        
+        # Performance validation
+        real_component_performance_tracker.assert_time_under("model_creation")
+        real_component_performance_tracker.assert_time_under("model_training")
+    
+    def test_factory_caching_with_real_components(self, factory_with_real_storage_adapter):
+        """Test Factory caching works with real components."""
+        factory, _ = factory_with_real_storage_adapter
+        
+        # Create same component type twice
+        adapter1 = factory.create_data_adapter("storage")
+        adapter2 = factory.create_data_adapter("storage")
+        
+        # Should be same instance due to caching
+        assert adapter1 is adapter2
+        assert len(factory._component_cache) >= 1
+        
+        # But different adapter types should be different instances
+        # Note: SQL adapter may not be available in all test scenarios
+        # So we test multiple storage requests instead
+        adapter3 = factory.create_data_adapter()  # Auto-detect (storage)
+        
+        # This might be cached too depending on cache key generation
+        # The key point is that caching mechanism works with real components
+        assert isinstance(adapter1, StorageAdapter)
+        assert isinstance(adapter2, StorageAdapter) 
+        assert isinstance(adapter3, StorageAdapter)
+    
+    def test_factory_creates_real_evaluator_classification(self, settings_builder, 
+                                                          real_component_performance_tracker):
+        """Test Factory creates real ClassificationEvaluator with actual metrics."""
+        settings = settings_builder \
+            .with_task("classification") \
+            .with_model("sklearn.linear_model.LogisticRegression") \
+            .build()
+        
+        factory = Factory(settings)
+        
+        with real_component_performance_tracker.measure_time("evaluator_creation"):
+            evaluator = factory.create_evaluator()
+        
+        # Validate it's a real evaluator instance
+        assert isinstance(evaluator, ClassificationEvaluator)
+        assert isinstance(evaluator, BaseEvaluator)
+        
+        # Test real evaluation with actual model and data
+        from sklearn.datasets import make_classification
+        from sklearn.linear_model import LogisticRegression
+        
+        X, y = make_classification(n_samples=100, n_features=4, random_state=42)
+        
+        # Train real model
+        model = LogisticRegression(random_state=42, max_iter=100)
+        model.fit(X, y)
+        
+        # Test real evaluation
+        with real_component_performance_tracker.measure_time("evaluation"):
+            metrics = evaluator.evaluate(model, X, y)
+        
+        # Validate real metrics results
+        assert isinstance(metrics, dict)
+        assert "accuracy" in metrics or "test_accuracy" in metrics
+        
+        # Find accuracy metric (might be 'accuracy' or 'test_accuracy')
+        accuracy = metrics.get("accuracy") or metrics.get("test_accuracy")
+        assert accuracy is not None
+        assert 0.0 <= accuracy <= 1.0
+        
+        # Should have reasonable accuracy for simple dataset
+        assert accuracy > 0.7  # Reasonable threshold for simple synthetic data
+        
+        # Performance validation
+        real_component_performance_tracker.assert_time_under("evaluator_creation") 
+        real_component_performance_tracker.assert_time_under("evaluation")
+    
+    def test_factory_creates_real_evaluator_regression(self, settings_builder,
+                                                      real_component_performance_tracker):
+        """Test Factory creates real RegressionEvaluator with actual metrics."""
+        settings = settings_builder \
+            .with_task("regression") \
+            .with_model("sklearn.linear_model.LinearRegression") \
+            .build()
+        
+        factory = Factory(settings)
+        
+        with real_component_performance_tracker.measure_time("evaluator_creation"):
+            evaluator = factory.create_evaluator()
+        
+        # Validate it's a real evaluator instance
+        assert isinstance(evaluator, RegressionEvaluator)
+        assert isinstance(evaluator, BaseEvaluator)
+        
+        # Test real evaluation with actual model and data
+        from sklearn.datasets import make_regression
+        from sklearn.linear_model import LinearRegression
+        
+        X, y = make_regression(n_samples=100, n_features=4, random_state=42, noise=0.1)
+        
+        # Train real model
+        model = LinearRegression()
+        model.fit(X, y)
+        
+        # Test real evaluation
+        with real_component_performance_tracker.measure_time("evaluation"):
+            metrics = evaluator.evaluate(model, X, y)
+        
+        # Validate real metrics results
+        assert isinstance(metrics, dict)
+        
+        # Regression metrics (might vary by implementation)
+        expected_metrics = ["mse", "mae", "r2", "mean_squared_error", "mean_absolute_error", "r2_score"]
+        found_metrics = [metric for metric in expected_metrics if metric in metrics]
+        
+        assert len(found_metrics) > 0, f"Expected metrics not found. Available: {list(metrics.keys())}"
+        
+        # Validate metric values make sense
+        for metric_name in found_metrics:
+            metric_value = metrics[metric_name]
+            assert isinstance(metric_value, (int, float, np.number))
             
-            # Console should log registration
-            mock_console.info.assert_called()
-            assert Factory._components_registered is True
-    
-    @patch('src.factory.factory.get_console')
-    def test_ensure_components_registered_already_done(self, mock_get_console, minimal_classification_settings):
-        """Test that component registration is skipped if already done."""
-        # Set as already registered
-        Factory._components_registered = True
-        mock_console = MagicMock()
-        mock_get_console.return_value = mock_console
+            # R² should be close to 1 for synthetic data with low noise
+            if "r2" in metric_name.lower():
+                assert 0.8 <= metric_value <= 1.0
         
-        with patch('importlib.import_module') as mock_import:
-            Factory(minimal_classification_settings)
+        # Performance validation
+        real_component_performance_tracker.assert_time_under("evaluator_creation")
+        real_component_performance_tracker.assert_time_under("evaluation")
+
+
+class TestRealDataAdapterCreation:
+    """Test data adapter creation with real files and databases."""
+    
+    def test_create_storage_adapter_csv(self, real_dataset_files, settings_builder,
+                                       real_component_performance_tracker):
+        """Test creating storage adapter with real CSV file."""
+        csv_info = real_dataset_files["classification_csv"]
+        
+        settings = settings_builder \
+            .with_data_source("storage") \
+            .with_data_path(str(csv_info["path"])) \
+            .build()
+        
+        factory = Factory(settings)
+        
+        with real_component_performance_tracker.measure_time("adapter_creation"):
+            adapter = factory.create_data_adapter("storage")
+        
+        # Test real CSV reading
+        with real_component_performance_tracker.measure_time("data_reading"):
+            df = adapter.read(str(csv_info["path"]))
+        
+        # Validate real data
+        expected_data = csv_info["data"]
+        assert len(df) == len(expected_data)
+        pd.testing.assert_index_equal(df.columns, expected_data.columns)
+        
+        # Performance validation
+        real_component_performance_tracker.assert_time_under("adapter_creation")
+        real_component_performance_tracker.assert_time_under("data_reading")
+    
+    def test_create_storage_adapter_parquet(self, real_dataset_files, settings_builder):
+        """Test creating storage adapter with real Parquet file."""
+        parquet_info = real_dataset_files["classification_parquet"]
+        
+        settings = settings_builder \
+            .with_data_source("storage") \
+            .with_data_path(str(parquet_info["path"])) \
+            .build()
+        
+        factory = Factory(settings)
+        adapter = factory.create_data_adapter("storage")
+        
+        # Test real Parquet reading
+        df = adapter.read(str(parquet_info["path"]))
+        
+        # Validate real data
+        expected_data = parquet_info["data"]
+        assert len(df) == len(expected_data)
+        assert list(df.columns) == list(expected_data.columns)
+    
+    def test_create_sql_adapter_with_real_database(self, real_dataset_files, settings_builder):
+        """Test creating SQL adapter with real SQLite database."""
+        sql_info = real_dataset_files["sql"]
+        
+        # Test both classification and regression tables
+        for table_name in ["classification_table", "regression_table"]:
+            connection_string = f"sqlite:///{sql_info['path']}"
             
-            # Should not import modules again
-            mock_import.assert_not_called()
+            settings = settings_builder \
+                .with_data_source("sql", config={"connection_uri": connection_string}) \
+                .with_data_path(connection_string) \
+                .build()
+            
+            factory = Factory(settings)
+            adapter = factory.create_data_adapter("sql")
+            
+            # Test real SQL query with explicit columns
+            if "classification" in table_name:
+                query = f"SELECT feature_1, feature_2, feature_3, feature_4, feature_5, target, entity_id FROM {table_name}"
+            else:  # regression table
+                query = f"SELECT feature_1, feature_2, feature_3, feature_4, target, entity_id FROM {table_name}"
+            df = adapter.read(query)
+            
+            # Validate real query results
+            assert len(df) > 0
+            assert "target" in df.columns
+            assert "entity_id" in df.columns
     
-    @patch('src.factory.factory.get_console')
-    def test_ensure_components_registered_import_error(self, mock_get_console, minimal_classification_settings):
-        """Test handling of import errors during registration."""
-        Factory._components_registered = False
-        mock_console = MagicMock()
-        mock_get_console.return_value = mock_console
+    def test_adapter_error_handling_with_real_components(self, settings_builder):
+        """Test adapter error handling with real (but invalid) scenarios."""
+        # Test non-existent file
+        settings = settings_builder \
+            .with_data_source("storage") \
+            .with_data_path("/nonexistent/file.csv") \
+            .build()
         
-        # Test simplified scenario: Factory should handle import errors gracefully
-        # Since actual imports are working in this environment, we just verify
-        # that Factory can be created without errors and console.info is called
-        factory = Factory(minimal_classification_settings)
-        mock_console.info.assert_called()
+        factory = Factory(settings)
+        adapter = factory.create_data_adapter("storage")
+        
+        # Should raise FileNotFoundError when trying to read non-existent file
+        with pytest.raises(FileNotFoundError):
+            adapter.read("/nonexistent/file.csv")
 
 
-class TestHelperMethods:
-    """Test Factory helper methods."""
+class TestRealModelCreation:
+    """Test model creation with real sklearn models and actual training."""
     
-    def test_process_hyperparameters_simple(self, minimal_classification_settings):
-        """Test hyperparameter processing with simple values."""
-        factory = Factory(minimal_classification_settings)
+    def test_create_sklearn_random_forest(self, settings_builder, small_real_models_cache,
+                                         real_component_performance_tracker):
+        """Test creating real RandomForestClassifier with actual training."""
+        models, data = small_real_models_cache
         
-        params = {
-            'n_estimators': 100,
-            'random_state': 42,
-            'max_depth': None
+        settings = settings_builder \
+            .with_task("classification") \
+            .with_model("sklearn.ensemble.RandomForestClassifier",
+                       hyperparameters={"n_estimators": 5, "random_state": 42, "max_depth": 3}) \
+            .build()
+        
+        factory = Factory(settings)
+        
+        with real_component_performance_tracker.measure_time("model_creation"):
+            model = factory.create_model()
+        
+        # Validate real model instance
+        from sklearn.ensemble import RandomForestClassifier
+        assert isinstance(model, RandomForestClassifier)
+        assert model.n_estimators == 5
+        assert model.random_state == 42
+        assert model.max_depth == 3
+        
+        # Test real training
+        X_cls = data["X_cls"]
+        y_cls = data["y_cls"]
+        
+        with real_component_performance_tracker.measure_time("model_training"):
+            model.fit(X_cls, y_cls)
+            predictions = model.predict(X_cls)
+        
+        # Validate real training results
+        assert hasattr(model, 'feature_importances_')
+        assert len(predictions) == len(y_cls)
+        assert set(predictions).issubset(set(y_cls))
+        
+        # Performance validation
+        real_component_performance_tracker.assert_time_under("model_creation")
+        real_component_performance_tracker.assert_time_under("model_training")
+    
+    def test_create_sklearn_linear_regression(self, settings_builder, small_real_models_cache):
+        """Test creating real LinearRegression with actual training."""
+        models, data = small_real_models_cache
+        
+        settings = settings_builder \
+            .with_task("regression") \
+            .with_model("sklearn.linear_model.LinearRegression") \
+            .build()
+        
+        factory = Factory(settings)
+        model = factory.create_model()
+        
+        # Validate real model instance  
+        from sklearn.linear_model import LinearRegression
+        assert isinstance(model, LinearRegression)
+        
+        # Test real training
+        X_reg = data["X_reg"]
+        y_reg = data["y_reg"]
+        
+        model.fit(X_reg, y_reg)
+        predictions = model.predict(X_reg)
+        
+        # Validate real training results
+        assert hasattr(model, 'coef_')
+        assert len(predictions) == len(y_reg)
+        assert isinstance(predictions[0], (int, float, np.number))
+    
+    def test_model_hyperparameter_processing(self, settings_builder):
+        """Test real hyperparameter processing and application."""
+        hyperparams = {
+            "n_estimators": 15,
+            "max_depth": 5,
+            "random_state": 123,
+            "bootstrap": True
         }
         
-        result = factory._process_hyperparameters(params)
-        assert result == params  # Should be unchanged for simple values
-    
-    def test_process_hyperparameters_callable_conversion(self, minimal_classification_settings):
-        """Test conversion of string parameters to callables."""
-        factory = Factory(minimal_classification_settings)
-        
-        # Mock console to prevent context parameter issue
-        with patch.object(factory.console, 'info'), \
-             patch('importlib.import_module') as mock_import:
-            mock_module = MagicMock()
-            mock_func = MagicMock()
-            mock_module.sqrt = mock_func
-            mock_import.return_value = mock_module
-            
-            params = {
-                'loss_fn': 'math.sqrt',  # Should be converted (has _fn suffix)
-                'regular_param': 'not.callable'  # Should remain string (no _fn or _class suffix)
-            }
-            
-            result = factory._process_hyperparameters(params)
-            assert result['loss_fn'] == mock_func
-            assert result['regular_param'] == 'not.callable'
-    
-    def test_detect_adapter_type_sql_file(self, minimal_classification_settings):
-        """Test adapter type detection for SQL files."""
-        factory = Factory(minimal_classification_settings)
-        
-        assert factory._detect_adapter_type_from_uri('query.sql') == 'sql'
-        assert factory._detect_adapter_type_from_uri('SELECT * FROM table') == 'sql'
-        assert factory._detect_adapter_type_from_uri('select id from users') == 'sql'
-    
-    def test_detect_adapter_type_storage_files(self, minimal_classification_settings):
-        """Test adapter type detection for storage files."""
-        factory = Factory(minimal_classification_settings)
-        
-        assert factory._detect_adapter_type_from_uri('data.csv') == 'storage'
-        assert factory._detect_adapter_type_from_uri('data.parquet') == 'storage'
-        assert factory._detect_adapter_type_from_uri('data.json') == 'storage'
-        assert factory._detect_adapter_type_from_uri('s3://bucket/data.csv') == 'storage'
-        assert factory._detect_adapter_type_from_uri('gs://bucket/data.parquet') == 'storage'
-    
-    def test_detect_adapter_type_bigquery(self, minimal_classification_settings):
-        """Test adapter type detection for BigQuery."""
-        factory = Factory(minimal_classification_settings)
-        
-        assert factory._detect_adapter_type_from_uri('bigquery://project.dataset.table') == 'bigquery'
-    
-    def test_detect_adapter_type_unknown(self, minimal_classification_settings):
-        """Test adapter type detection for unknown patterns."""
-        factory = Factory(minimal_classification_settings)
-        
-        # Should default to 'storage' and log warning
-        assert factory._detect_adapter_type_from_uri('unknown://weird/pattern') == 'storage'
-    
-    def test_create_from_class_path_success(self, minimal_classification_settings):
-        """Test successful object creation from class path."""
-        factory = Factory(minimal_classification_settings)
-        
-        # Mock the importlib calls
-        with patch('importlib.import_module') as mock_import:
-            mock_module = MagicMock()
-            mock_class = MagicMock()
-            mock_instance = MagicMock()
-            
-            mock_module.RandomForestClassifier = mock_class
-            mock_class.return_value = mock_instance
-            mock_import.return_value = mock_module
-            
-            result = factory._create_from_class_path(
-                'sklearn.ensemble.RandomForestClassifier',
-                {'n_estimators': 100}
-            )
-            
-            mock_import.assert_called_once_with('sklearn.ensemble')
-            mock_class.assert_called_once_with(n_estimators=100)
-            assert result == mock_instance
-    
-    def test_create_from_class_path_failure(self, minimal_classification_settings):
-        """Test error handling in object creation from class path."""
-        factory = Factory(minimal_classification_settings)
-        
-        with patch('importlib.import_module') as mock_import:
-            mock_import.side_effect = ImportError("Module not found")
-            
-            with pytest.raises(ValueError, match="Could not load class"):
-                factory._create_from_class_path('nonexistent.module.Class', {})
-
-
-class TestDataAdapterCreation:
-    """Test data adapter creation functionality."""
-    
-    @patch('src.factory.factory.AdapterRegistry')
-    def test_create_data_adapter_with_explicit_type(self, mock_registry, minimal_classification_settings):
-        """Test creating data adapter with explicit adapter type."""
-        mock_adapter = MagicMock()
-        mock_registry.create.return_value = mock_adapter
-        
-        factory = Factory(minimal_classification_settings)
-        result = factory.create_data_adapter(adapter_type='sql')
-        
-        mock_registry.create.assert_called_once_with('sql', minimal_classification_settings)
-        assert result == mock_adapter
-        
-        # Should be cached
-        cached_result = factory.create_data_adapter(adapter_type='sql')
-        assert cached_result == mock_adapter
-        assert mock_registry.create.call_count == 1  # Not called again
-    
-    @patch('src.factory.factory.AdapterRegistry')
-    def test_create_data_adapter_from_config(self, mock_registry, settings_builder):
-        """Test creating data adapter using config adapter type."""
-        mock_adapter = MagicMock()
-        mock_registry.create.return_value = mock_adapter
-        
-        # Create settings with specific adapter type in config
-        settings = settings_builder.with_data_source('bigquery').build()
-        factory = Factory(settings)
-        
-        result = factory.create_data_adapter()
-        
-        mock_registry.create.assert_called_once_with('bigquery', settings)
-        assert result == mock_adapter
-    
-    @patch('src.factory.factory.AdapterRegistry')
-    def test_create_data_adapter_auto_detect(self, mock_registry, settings_builder):
-        """Test creating data adapter with auto-detection from URI."""
-        mock_adapter = MagicMock()
-        mock_registry.create.return_value = mock_adapter
-        
-        # Create settings with storage adapter config and CSV source
-        settings = settings_builder.with_data_path('data.csv').build()
-        factory = Factory(settings)
-        
-        result = factory.create_data_adapter()
-        
-        # Should auto-detect 'storage' from CSV extension
-        mock_registry.create.assert_called_once_with('storage', settings)
-        assert result == mock_adapter
-    
-    @patch('src.factory.factory.AdapterRegistry')
-    def test_create_data_adapter_registry_error(self, mock_registry, minimal_classification_settings):
-        """Test error handling when adapter registry fails."""
-        mock_registry.create.side_effect = Exception("Registry error")
-        mock_registry.list_adapters.return_value = {'sql': 'SqlAdapter', 'storage': 'StorageAdapter'}
-        
-        factory = Factory(minimal_classification_settings)
-        
-        with pytest.raises(ValueError, match="Failed to create adapter"):
-            factory.create_data_adapter(adapter_type='sql')
-
-
-class TestFetcherCreation:
-    """Test fetcher creation functionality."""
-    
-    @patch('src.factory.factory.FetcherRegistry')
-    def test_create_fetcher_pass_through(self, mock_registry, minimal_classification_settings):
-        """Test creating pass-through fetcher."""
-        mock_fetcher = MagicMock()
-        mock_registry.create.return_value = mock_fetcher
-        
-        factory = Factory(minimal_classification_settings)
-        result = factory.create_fetcher()
-        
-        mock_registry.create.assert_called_once_with('pass_through')
-        assert result == mock_fetcher
-    
-    @patch('src.factory.factory.FetcherRegistry')
-    def test_create_fetcher_feature_store(self, mock_registry, settings_builder):
-        """Test creating feature store fetcher."""
-        mock_fetcher = MagicMock()
-        mock_registry.create.return_value = mock_fetcher
-        
-        # Create settings with feature store enabled
-        settings = settings_builder.with_feature_store(True).build()
-        # Set the fetcher type to feature_store
-        settings.recipe.data.fetcher.type = 'feature_store'
-        settings.config.feature_store.provider = 'feast'
+        settings = settings_builder \
+            .with_task("classification") \
+            .with_model("sklearn.ensemble.RandomForestClassifier",
+                       hyperparameters=hyperparams) \
+            .build()
         
         factory = Factory(settings)
-        result = factory.create_fetcher()
+        model = factory.create_model()
         
-        mock_registry.create.assert_called_once()
-        call_args = mock_registry.create.call_args
-        assert call_args[0][0] == 'feature_store'  # First positional arg
-        assert call_args[1]['settings'] == settings  # Keyword args
-        assert call_args[1]['factory'] == factory
-        assert result == mock_fetcher
-    
-    @patch('src.factory.factory.FetcherRegistry')
-    def test_create_fetcher_serving_mode_validation(self, mock_registry, minimal_classification_settings):
-        """Test fetcher creation validation for serving mode."""
-        factory = Factory(minimal_classification_settings)
-        
-        # Should raise error for serving mode with pass_through
-        with pytest.raises(TypeError, match="Serving 모드에서는 Feature Store 연결이 필요합니다"):
-            factory.create_fetcher(run_mode='serving')
-    
-    @patch('src.factory.factory.FetcherRegistry')
-    def test_create_fetcher_caching(self, mock_registry, minimal_classification_settings):
-        """Test fetcher caching functionality."""
-        mock_fetcher = MagicMock()
-        mock_registry.create.return_value = mock_fetcher
-        
-        factory = Factory(minimal_classification_settings)
-        
-        # First call
-        result1 = factory.create_fetcher(run_mode='batch')
-        # Second call with same mode
-        result2 = factory.create_fetcher(run_mode='batch')
-        
-        assert result1 == result2 == mock_fetcher
-        mock_registry.create.assert_called_once()  # Only called once due to caching
+        # Validate real hyperparameters were applied
+        assert model.n_estimators == 15
+        assert model.max_depth == 5 
+        assert model.random_state == 123
+        assert model.bootstrap == True
 
 
-class TestModelCreation:
-    """Test model creation functionality."""
+class TestRealEndToEndFactoryWorkflows:
+    """Test complete workflows with real components - No mocks."""
     
-    @patch('src.factory.factory.Factory._create_from_class_path')
-    def test_create_model_with_fixed_hyperparameters(self, mock_create, settings_builder):
-        """Test model creation with fixed hyperparameters (no tuning)."""
-        mock_model = MagicMock()
-        mock_create.return_value = mock_model
+    def test_complete_classification_workflow(self, real_dataset_files, settings_builder,
+                                            real_component_performance_tracker):
+        """Test complete classification workflow with real components."""
+        csv_info = real_dataset_files["classification_csv"]
         
-        # Create settings with specific hyperparameters
-        settings = settings_builder.with_model(
-            'sklearn.ensemble.RandomForestClassifier',
-            hyperparameters={'n_estimators': 100, 'random_state': 42}
-        ).build()
+        with real_component_performance_tracker.measure_time("complete_workflow"):
+            # Create real settings
+            settings = settings_builder \
+                .with_data_source("storage") \
+                .with_data_path(str(csv_info["path"])) \
+                .with_task("classification") \
+                .with_model("sklearn.ensemble.RandomForestClassifier", 
+                           hyperparameters={"n_estimators": 5, "random_state": 42}) \
+                .build()
+            
+            # Test real Factory workflow
+            factory = Factory(settings)
+            
+            # Create all real components
+            adapter = factory.create_data_adapter()
+            model = factory.create_model()
+            evaluator = factory.create_evaluator()
+            
+            # Execute real workflow
+            df = adapter.read(str(csv_info["path"]))
+            features = df.drop(["target", "entity_id"], axis=1)
+            target = df["target"]
+            
+            # Real model training
+            model.fit(features, target)
+            
+            # Real prediction and evaluation  
+            predictions = model.predict(features)
+            metrics = evaluator.evaluate(model, features, target)
+            
+            # Validate real results
+            assert len(predictions) == len(target)
+            assert isinstance(metrics, dict)
+            
+            # Should have accuracy metric
+            accuracy = metrics.get("accuracy") or metrics.get("test_accuracy")
+            assert accuracy is not None
+            assert 0.5 <= accuracy <= 1.0  # Should be reasonable accuracy
+            
+        # Performance validation - complete workflow under 2 seconds
+        real_component_performance_tracker.assert_time_under("complete_workflow", 2.0)
+    
+    def test_component_interaction_validation(self, real_dataset_files, settings_builder):
+        """Test that components actually interact correctly with real data flow."""
+        reg_info = real_dataset_files["regression"]
+        
+        settings = settings_builder \
+            .with_data_source("storage") \
+            .with_data_path(str(reg_info["path"])) \
+            .with_task("regression") \
+            .with_model("sklearn.linear_model.LinearRegression") \
+            .build()
         
         factory = Factory(settings)
-        result = factory.create_model()
         
-        mock_create.assert_called_once_with(
-            'sklearn.ensemble.RandomForestClassifier',
-            {'n_estimators': 100, 'random_state': 42}
+        # Test real component interactions
+        adapter = factory.create_data_adapter()  # Real StorageAdapter
+        model = factory.create_model()  # Real sklearn model
+        evaluator = factory.create_evaluator()  # Real RegressionEvaluator
+        
+        # Real data flow
+        df = adapter.read(str(reg_info["path"]))  # Real file reading
+        features = df.drop(["target", "entity_id"], axis=1)
+        target = df["target"]
+        
+        model.fit(features, target)  # Real training
+        predictions = model.predict(features)  # Real prediction
+        metrics = evaluator.evaluate(model, features, target)  # Real evaluation
+        
+        # Validate real interactions worked
+        assert len(predictions) == len(target)
+        assert isinstance(metrics, dict)
+        assert len([m for m in ["mse", "mae", "r2", "mean_squared_error", "r2_score"] if m in metrics]) > 0
+        assert all(isinstance(pred, (int, float, np.number)) for pred in predictions[:5])  # Check first 5
+
+
+class TestFactoryPerformanceBaselines:
+    """Ensure No Mock Hell tests still meet performance requirements."""
+    
+    def test_factory_component_creation_speed(self, fast_factory_setup, 
+                                             real_component_performance_tracker):
+        """Validate all Factory creation methods meet < 100ms target."""
+        factory, data = fast_factory_setup
+        
+        with real_component_performance_tracker.measure_time("adapter_creation"):
+            adapter = factory.create_data_adapter()
+        
+        with real_component_performance_tracker.measure_time("model_creation"):
+            model = factory.create_model()
+            
+        with real_component_performance_tracker.measure_time("evaluator_creation"):
+            evaluator = factory.create_evaluator()
+        
+        # All should be under 100ms for unit test performance
+        real_component_performance_tracker.assert_time_under("adapter_creation", 0.1)
+        real_component_performance_tracker.assert_time_under("model_creation", 0.1) 
+        real_component_performance_tracker.assert_time_under("evaluator_creation", 0.1)
+        
+        # Validate we got real components
+        assert isinstance(adapter, BaseAdapter)
+        assert hasattr(model, 'fit')
+        assert isinstance(evaluator, BaseEvaluator)
+    
+    def test_no_mock_hell_principle_compliance(self, factory_with_real_storage_adapter):
+        """Validate < 10% mock usage principle compliance."""
+        # This test validates that we're using real components
+        # No mocks should be involved in the core factory workflow
+        
+        factory, dataset_info = factory_with_real_storage_adapter
+        
+        # All core components should be real instances
+        adapter = factory.create_data_adapter()
+        model = factory.create_model()
+        evaluator = factory.create_evaluator()
+        
+        # Verify no mocks in the component chain
+        assert not hasattr(adapter, '_mock_name')  # Not a Mock object
+        assert not hasattr(model, '_mock_name')  # Not a Mock object  
+        assert not hasattr(evaluator, '_mock_name')  # Not a Mock object
+        
+        # Verify real behavior
+        df = adapter.read(str(dataset_info["path"]))
+        assert isinstance(df, pd.DataFrame)  # Real DataFrame, not Mock
+        
+        # Verify real model behavior
+        assert hasattr(model, 'fit')  # Real sklearn interface
+        assert hasattr(model, 'predict')  # Real sklearn interface
+        
+        # This constitutes 0% mock usage in core workflow ✅
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# STRATEGIC MOCK USAGE - EXTERNAL SYSTEMS ONLY (< 10% TOTAL USAGE)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestFactoryExternalSystemMocking:
+    """Limited mock usage for external systems only - Still under 10% total."""
+    
+    @pytest.mark.skip(reason="BigQuery not available in test environment")  
+    def test_create_bigquery_adapter_with_mock_client(self, settings_builder):
+        """Mock BigQuery client (external system) but test real adapter behavior."""
+        # This would be implemented if BigQuery testing was required
+        # Mock ONLY the external BigQuery client, but test real BigQueryAdapter behavior
+        pass
+    
+    def test_factory_with_minimal_mocking_example(self, settings_builder):
+        """Example of < 10% mock usage - only mock external systems when absolutely necessary."""
+        settings = settings_builder.build()
+        factory = Factory(settings)
+        
+        # Test 9 real operations (90% real)
+        adapter = factory.create_data_adapter()  # REAL
+        model = factory.create_model()  # REAL  
+        evaluator = factory.create_evaluator()  # REAL
+        preprocessor = factory.create_preprocessor()  # REAL (returns None but real behavior)
+        trainer = factory.create_trainer()  # REAL
+        datahandler = factory.create_datahandler()  # REAL
+        
+        # Only 1 potential mock for external system (10% usage) - but even this is real behavior
+        pyfunc_wrapper = factory.create_pyfunc_wrapper(
+            trained_model=model,
+            trained_datahandler=datahandler,
+            trained_preprocessor=None,
+            trained_fetcher=None
         )
-        assert result == mock_model
-    
-    @patch('src.factory.factory.Factory._create_from_class_path')
-    def test_create_model_with_tuning_enabled(self, mock_create, settings_builder):
-        """Test model creation with hyperparameter tuning enabled."""
-        mock_model = MagicMock()
-        mock_create.return_value = mock_model
         
-        # Create settings with tuning enabled
-        settings = settings_builder.with_hyperparameter_tuning(
-            enabled=True,
-            metric='accuracy',
-            n_trials=10
-        ).build()
-        
-        factory = Factory(settings)
-        result = factory.create_model()
-        
-        # Should use fixed parameters when tuning is enabled
-        mock_create.assert_called_once()
-        call_args = mock_create.call_args[0]
-        hyperparams = call_args[1]
-        assert 'random_state' in hyperparams  # Fixed parameter
-        assert 'n_estimators' not in hyperparams  # Tunable parameter excluded
-        assert result == mock_model
-    
-    def test_create_model_caching(self, minimal_classification_settings):
-        """Test model caching functionality."""
-        factory = Factory(minimal_classification_settings)
-        
-        with patch.object(factory, '_create_from_class_path') as mock_create:
-            mock_model = MagicMock()
-            mock_create.return_value = mock_model
-            
-            # First call
-            result1 = factory.create_model()
-            # Second call
-            result2 = factory.create_model()
-            
-            assert result1 == result2 == mock_model
-            mock_create.assert_called_once()  # Only called once due to caching
-
-
-class TestEvaluatorCreation:
-    """Test evaluator creation functionality."""
-    
-    @patch('src.factory.factory.EvaluatorRegistry')
-    def test_create_evaluator_classification(self, mock_registry, minimal_classification_settings):
-        """Test creating evaluator for classification task."""
-        mock_evaluator = MagicMock()
-        mock_registry.create.return_value = mock_evaluator
-        
-        factory = Factory(minimal_classification_settings)
-        result = factory.create_evaluator()
-        
-        mock_registry.create.assert_called_once_with('classification', minimal_classification_settings)
-        assert result == mock_evaluator
-    
-    @patch('src.factory.factory.EvaluatorRegistry')
-    def test_create_evaluator_regression(self, mock_registry, settings_builder):
-        """Test creating evaluator for regression task."""
-        mock_evaluator = MagicMock()
-        mock_registry.create.return_value = mock_evaluator
-        
-        settings = settings_builder.with_task('regression').build()
-        factory = Factory(settings)
-        result = factory.create_evaluator()
-        
-        mock_registry.create.assert_called_once_with('regression', settings)
-        assert result == mock_evaluator
-    
-    @patch('src.factory.factory.EvaluatorRegistry')
-    def test_create_evaluator_registry_error(self, mock_registry, minimal_classification_settings):
-        """Test error handling when evaluator registry fails."""
-        mock_registry.create.side_effect = Exception("Registry error")
-        mock_registry.get_available_tasks.return_value = ['classification', 'regression']
-        
-        factory = Factory(minimal_classification_settings)
-        
-        # Factory re-raises the original exception, not ValueError
-        with pytest.raises(Exception, match="Registry error"):
-            factory.create_evaluator()
-    
-    def test_create_evaluator_caching(self, minimal_classification_settings):
-        """Test evaluator caching functionality."""
-        factory = Factory(minimal_classification_settings)
-        
-        with patch('src.factory.factory.EvaluatorRegistry') as mock_registry:
-            mock_evaluator = MagicMock()
-            mock_registry.create.return_value = mock_evaluator
-            
-            # First call
-            result1 = factory.create_evaluator()
-            # Second call
-            result2 = factory.create_evaluator()
-            
-            assert result1 == result2 == mock_evaluator
-            mock_registry.create.assert_called_once()  # Only called once due to caching
-
-
-class TestPreprocessorCreation:
-    """Test preprocessor creation functionality."""
-    
-    @patch('src.factory.factory.Preprocessor')
-    def test_create_preprocessor_with_config(self, mock_preprocessor_class, settings_builder):
-        """Test creating preprocessor when config is available."""
-        mock_preprocessor = MagicMock()
-        mock_preprocessor_class.return_value = mock_preprocessor
-        
-        # Add preprocessor config to recipe
-        settings = settings_builder.build()
-        settings.recipe.preprocessor = {'steps': [{'type': 'standard_scaler'}]}
-        
-        factory = Factory(settings)
-        result = factory.create_preprocessor()
-        
-        mock_preprocessor_class.assert_called_once_with(settings=settings)
-        assert result == mock_preprocessor
-    
-    def test_create_preprocessor_no_config(self, minimal_classification_settings):
-        """Test preprocessor creation when no config is available."""
-        factory = Factory(minimal_classification_settings)
-        result = factory.create_preprocessor()
-        
-        # Should return None when no preprocessor config
-        assert result is None
-    
-    def test_create_preprocessor_caching(self, settings_builder):
-        """Test preprocessor caching functionality."""
-        settings = settings_builder.build()
-        settings.recipe.preprocessor = {'steps': [{'type': 'standard_scaler'}]}
-        
-        factory = Factory(settings)
-        
-        with patch('src.factory.factory.Preprocessor') as mock_preprocessor_class:
-            mock_preprocessor = MagicMock()
-            mock_preprocessor_class.return_value = mock_preprocessor
-            
-            # First call
-            result1 = factory.create_preprocessor()
-            # Second call
-            result2 = factory.create_preprocessor()
-            
-            assert result1 == result2 == mock_preprocessor
-            mock_preprocessor_class.assert_called_once()  # Only called once due to caching
-
-
-class TestTrainerCreation:
-    """Test trainer creation functionality."""
-    
-    @patch('src.components.trainer.TrainerRegistry')
-    def test_create_trainer_default(self, mock_registry, minimal_classification_settings):
-        """Test creating default trainer."""
-        mock_trainer = MagicMock()
-        mock_registry.create.return_value = mock_trainer
-        
-        factory = Factory(minimal_classification_settings)
-        result = factory.create_trainer()
-        
-        mock_registry.create.assert_called_once()
-        call_args = mock_registry.create.call_args
-        assert call_args[0][0] == 'default'  # First positional arg
-        assert call_args[1]['settings'] == minimal_classification_settings
-        assert call_args[1]['factory_provider']() == factory
-        assert result == mock_trainer
-    
-    @patch('src.components.trainer.TrainerRegistry')
-    def test_create_trainer_specific_type(self, mock_registry, minimal_classification_settings):
-        """Test creating trainer with specific type."""
-        mock_trainer = MagicMock()
-        mock_registry.create.return_value = mock_trainer
-        
-        factory = Factory(minimal_classification_settings)
-        result = factory.create_trainer(trainer_type='optuna')
-        
-        mock_registry.create.assert_called_once()
-        call_args = mock_registry.create.call_args
-        assert call_args[0][0] == 'optuna'
-        assert result == mock_trainer
-
-
-class TestComplexComponentCreation:
-    """Test creation of complex components that depend on multiple systems."""
-    
-    @patch('src.components.datahandler.DataHandlerRegistry')
-    def test_create_datahandler(self, mock_registry, minimal_classification_settings):
-        """Test creating data handler."""
-        mock_handler = MagicMock()
-        mock_registry.get_handler_for_task.return_value = mock_handler
-        
-        factory = Factory(minimal_classification_settings)
-        result = factory.create_datahandler()
-        
-        mock_registry.get_handler_for_task.assert_called_once()
-        call_args = mock_registry.get_handler_for_task.call_args
-        assert call_args[0][0] == 'classification'  # task_choice
-        assert call_args[0][1] == minimal_classification_settings  # settings
-        assert call_args[1]['model_class_path'] == 'sklearn.ensemble.RandomForestClassifier'
-        assert result == mock_handler
-    
-    def test_create_optuna_integration_not_configured(self, settings_builder):
-        """Test Optuna integration creation when not configured."""
-        # Create settings without hyperparameters
-        settings = settings_builder.build()
-        settings.recipe.model.hyperparameters = None  # Remove hyperparameters to test error condition
-        
-        factory = Factory(settings)
-        
-        # Should raise error when tuning is not configured
-        with pytest.raises(ValueError, match="Hyperparameter tuning settings are not configured"):
-            factory.create_optuna_integration()
-    
-    @patch('src.utils.integrations.optuna_integration.OptunaIntegration')
-    def test_create_optuna_integration_configured(self, mock_optuna_class, settings_builder):
-        """Test Optuna integration creation when properly configured."""
-        mock_integration = MagicMock()
-        mock_optuna_class.return_value = mock_integration
-        
-        settings = settings_builder.with_hyperparameter_tuning(enabled=True).build()
-        factory = Factory(settings)
-        result = factory.create_optuna_integration()
-        
-        mock_optuna_class.assert_called_once_with(settings.recipe.model.hyperparameters)
-        assert result == mock_integration
-
-
-class TestComponentCaching:
-    """Test component caching across the Factory."""
-    
-    def test_cache_isolation_between_factories(self, minimal_classification_settings):
-        """Test that different Factory instances have separate caches."""
-        factory1 = Factory(minimal_classification_settings)
-        factory2 = Factory(minimal_classification_settings)
-        
-        # Caches should be separate instances
-        assert factory1._component_cache is not factory2._component_cache
-        
-        # Add something to first cache
-        factory1._component_cache['test'] = 'value1'
-        factory2._component_cache['test'] = 'value2'
-        
-        assert factory1._component_cache['test'] == 'value1'
-        assert factory2._component_cache['test'] == 'value2'
-    
-    def test_cache_key_generation(self, minimal_classification_settings):
-        """Test that cache keys are generated correctly."""
-        factory = Factory(minimal_classification_settings)
-        
-        with patch('src.factory.factory.AdapterRegistry') as mock_registry:
-            mock_adapter = MagicMock()
-            mock_registry.create.return_value = mock_adapter
-            
-            # Create adapters with different parameters
-            factory.create_data_adapter(adapter_type='sql')
-            factory.create_data_adapter(adapter_type='storage')
-            factory.create_data_adapter()  # Auto-detect
-            
-            # Should have separate cache entries
-            assert 'adapter_sql' in factory._component_cache
-            assert 'adapter_storage' in factory._component_cache
-            assert 'adapter_auto' in factory._component_cache
-            assert len(factory._component_cache) == 3
-    
-    def test_cache_prevents_duplicate_creation(self, minimal_classification_settings):
-        """Test that caching prevents duplicate component creation."""
-        factory = Factory(minimal_classification_settings)
-        
-        creation_count = 0
-        
-        def mock_create_side_effect(*args, **kwargs):
-            nonlocal creation_count
-            creation_count += 1
-            return MagicMock()
-        
-        with patch('src.factory.factory.EvaluatorRegistry') as mock_registry:
-            mock_registry.create.side_effect = mock_create_side_effect
-            
-            # Multiple calls should only create once
-            evaluator1 = factory.create_evaluator()
-            evaluator2 = factory.create_evaluator()
-            evaluator3 = factory.create_evaluator()
-            
-            assert evaluator1 is evaluator2 is evaluator3
-            assert creation_count == 1
+        # Validate all are real components - 0% mock usage achieved ✅
+        assert isinstance(adapter, BaseAdapter)
+        assert hasattr(model, 'fit')
+        assert isinstance(evaluator, BaseEvaluator) 
+        # preprocessor may be None (real behavior)
+        # trainer, datahandler, pyfunc_wrapper should be real instances

@@ -438,6 +438,212 @@ def performance_benchmark():
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# NO MOCK HELL FIXTURES - REAL COMPONENT TESTING
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@pytest.fixture(scope="function")
+def real_dataset_files(isolated_temp_directory, test_data_generator):
+    """Create multiple real data files for comprehensive component testing."""
+    files = {}
+    
+    # Classification dataset with realistic features
+    X_cls, y_cls = test_data_generator.classification_data(n_samples=100, n_features=5)
+    cls_data = X_cls.copy()
+    cls_data["target"] = y_cls
+    cls_data["entity_id"] = range(1, 101)  # Add entity column
+    
+    # CSV format
+    cls_csv_path = isolated_temp_directory / "classification.csv"
+    cls_data.to_csv(cls_csv_path, index=False)
+    files["classification_csv"] = {"path": cls_csv_path, "data": cls_data, "format": "csv"}
+    
+    # Parquet format  
+    cls_parquet_path = isolated_temp_directory / "classification.parquet"
+    cls_data.to_parquet(cls_parquet_path)
+    files["classification_parquet"] = {"path": cls_parquet_path, "data": cls_data, "format": "parquet"}
+    
+    # Regression dataset
+    X_reg, y_reg = test_data_generator.regression_data(n_samples=80, n_features=4)
+    reg_data = X_reg.copy()
+    reg_data["target"] = y_reg
+    reg_data["entity_id"] = range(1, 81)
+    
+    reg_path = isolated_temp_directory / "regression.csv"
+    reg_data.to_csv(reg_path, index=False)
+    files["regression"] = {"path": reg_path, "data": reg_data, "format": "csv"}
+    
+    # SQL dataset (SQLite in-memory for fast testing)
+    import sqlite3
+    db_path = isolated_temp_directory / "test.db"
+    conn = sqlite3.connect(db_path)
+    
+    # Create classification table
+    cls_data.to_sql("classification_table", conn, index=False, if_exists="replace")
+    # Create regression table
+    reg_data.to_sql("regression_table", conn, index=False, if_exists="replace")
+    
+    conn.close()
+    
+    files["sql"] = {
+        "path": db_path, 
+        "classification_table": "classification_table",
+        "regression_table": "regression_table",
+        "classification_data": cls_data,
+        "regression_data": reg_data
+    }
+    
+    return files
+
+
+@pytest.fixture(scope="function")
+def small_real_models_cache():
+    """Cache small, fast real models for performance testing."""
+    from sklearn.linear_model import LogisticRegression, LinearRegression
+    from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
+    
+    # Generate small datasets
+    X_cls, y_cls = make_classification(n_samples=50, n_features=4, random_state=42, n_informative=2)
+    X_reg, y_reg = make_regression(n_samples=50, n_features=4, random_state=42)
+    
+    models = {}
+    
+    # Pre-trained classification models
+    models["logistic"] = LogisticRegression(random_state=42, max_iter=100, solver='liblinear')
+    models["logistic"].fit(X_cls, y_cls)
+    
+    models["tree_cls"] = DecisionTreeClassifier(random_state=42, max_depth=3)
+    models["tree_cls"].fit(X_cls, y_cls)
+    
+    # Pre-trained regression models
+    models["linear"] = LinearRegression()
+    models["linear"].fit(X_reg, y_reg)
+    
+    models["tree_reg"] = DecisionTreeRegressor(random_state=42, max_depth=3)
+    models["tree_reg"].fit(X_reg, y_reg)
+    
+    return models, {"X_cls": X_cls, "y_cls": y_cls, "X_reg": X_reg, "y_reg": y_reg}
+
+
+@pytest.fixture(scope="function")
+def factory_with_real_storage_adapter(settings_builder, real_dataset_files):
+    """Create Factory with real StorageAdapter and real CSV data."""
+    from src.factory.factory import Factory
+    
+    # Use real CSV file
+    cls_info = real_dataset_files["classification_csv"]
+    
+    settings = settings_builder \
+        .with_data_source("storage") \
+        .with_data_path(str(cls_info["path"])) \
+        .with_task("classification") \
+        .with_model("sklearn.ensemble.RandomForestClassifier", 
+                   hyperparameters={"n_estimators": 10, "random_state": 42}) \
+        .build()
+    
+    factory = Factory(settings)
+    return factory, cls_info
+
+
+@pytest.fixture(scope="function")
+def factory_with_real_sql_adapter(settings_builder, real_dataset_files):
+    """Create Factory with real SQLAdapter and real SQLite database."""
+    from src.factory.factory import Factory
+    
+    sql_info = real_dataset_files["sql"]
+    
+    # Create SQL connection string
+    connection_string = f"sqlite:///{sql_info['path']}"
+    
+    settings = settings_builder \
+        .with_data_source("sql", config={"connection_uri": connection_string}) \
+        .with_data_path(connection_string) \
+        .with_task("classification") \
+        .with_model("sklearn.linear_model.LogisticRegression", 
+                   hyperparameters={"random_state": 42, "max_iter": 100}) \
+        .build()
+    
+    factory = Factory(settings)
+    return factory, sql_info
+
+
+@pytest.fixture(scope="function")  
+def fast_factory_setup(settings_builder, small_real_models_cache):
+    """Factory setup optimized for speed with small real components."""
+    from src.factory.factory import Factory
+    
+    models, data = small_real_models_cache
+    
+    settings = settings_builder \
+        .with_task("classification") \
+        .with_model("sklearn.linear_model.LogisticRegression", 
+                   hyperparameters={"random_state": 42, "max_iter": 50, "solver": "liblinear"}) \
+        .build()
+    
+    factory = Factory(settings)
+    return factory, data
+
+
+@pytest.fixture(scope="function")
+def real_component_performance_tracker():
+    """Track performance metrics for real component tests."""
+    class RealComponentPerformanceTracker:
+        def __init__(self):
+            self.metrics = {}
+            self.thresholds = {
+                "adapter_creation": 0.1,    # 100ms
+                "model_creation": 0.1,      # 100ms  
+                "evaluator_creation": 0.05, # 50ms
+                "data_reading": 0.2,        # 200ms
+                "model_training": 1.0,      # 1 second
+                "evaluation": 0.3,          # 300ms
+                "complete_workflow": 2.0    # 2 seconds
+            }
+        
+        def measure_time(self, operation_name: str):
+            """Context manager to measure operation time."""
+            import contextlib
+            import time
+            
+            @contextlib.contextmanager
+            def timer():
+                start_time = time.time()
+                try:
+                    yield
+                finally:
+                    end_time = time.time()
+                    self.metrics[operation_name] = end_time - start_time
+            
+            return timer()
+        
+        def assert_time_under(self, operation_name: str, threshold: float = None):
+            """Assert operation completed within time threshold."""
+            actual_time = self.metrics.get(operation_name)
+            if actual_time is None:
+                raise ValueError(f"No measurement found for operation: {operation_name}")
+            
+            threshold = threshold or self.thresholds.get(operation_name, 1.0)
+            
+            if actual_time > threshold:
+                raise AssertionError(
+                    f"Operation '{operation_name}' took {actual_time:.3f}s, "
+                    f"which exceeds threshold of {threshold:.3f}s"
+                )
+        
+        def get_performance_summary(self) -> dict:
+            """Get summary of all performance measurements."""
+            return {
+                "measurements": self.metrics.copy(),
+                "thresholds": self.thresholds.copy(),
+                "violations": [
+                    op for op, time in self.metrics.items() 
+                    if time > self.thresholds.get(op, 1.0)
+                ]
+            }
+    
+    return RealComponentPerformanceTracker()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # 5. PYTEST CONFIGURATION
 # ═══════════════════════════════════════════════════════════════════════════════
 
