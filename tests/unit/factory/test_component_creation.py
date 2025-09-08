@@ -192,7 +192,7 @@ class TestFactoryWithRealComponents:
         """Test Factory creates real RegressionEvaluator with actual metrics."""
         settings = settings_builder \
             .with_task("regression") \
-            .with_model("sklearn.linear_model.LinearRegression") \
+            .with_model("sklearn.linear_model.LinearRegression", hyperparameters={}) \
             .build()
         
         factory = Factory(settings)
@@ -385,7 +385,7 @@ class TestRealModelCreation:
         
         settings = settings_builder \
             .with_task("regression") \
-            .with_model("sklearn.linear_model.LinearRegression") \
+            .with_model("sklearn.linear_model.LinearRegression", hyperparameters={}) \
             .build()
         
         factory = Factory(settings)

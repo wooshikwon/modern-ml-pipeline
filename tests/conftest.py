@@ -242,7 +242,14 @@ class SettingsBuilder:
             else:
                 library = "unknown"
         
-        hyperparams = hyperparameters or {"random_state": 42}
+        # Default hyperparameters based on model type
+        if hyperparameters is None:
+            if "LinearRegression" in class_path:
+                hyperparams = {}  # LinearRegression doesn't accept random_state
+            else:
+                hyperparams = {"random_state": 42}
+        else:
+            hyperparams = hyperparameters
         
         self._model = Model(
             class_path=class_path,
