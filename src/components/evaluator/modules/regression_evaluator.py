@@ -4,6 +4,9 @@ from src.interface import BaseEvaluator
 from src.settings import DataInterface
 
 class RegressionEvaluator(BaseEvaluator):
+    
+    METRIC_KEYS = ["r2_score", "mean_squared_error"]
+
     def __init__(self, data_interface_settings: DataInterface):
         super().__init__(data_interface_settings)
 

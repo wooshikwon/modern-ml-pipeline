@@ -4,6 +4,8 @@ from src.interface import BaseEvaluator
 from src.settings import DataInterface
 
 class CausalEvaluator(BaseEvaluator):
+    METRIC_KEYS = ["ate", "ate_std", "treatment_effect_significance"]
+    
     def __init__(self, data_interface_settings: DataInterface):
         super().__init__(data_interface_settings)
 

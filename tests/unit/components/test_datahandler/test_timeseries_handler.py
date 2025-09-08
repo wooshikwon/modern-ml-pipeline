@@ -64,10 +64,12 @@ class TestTimeseriesDataHandlerValidation:
         })
         
         self.settings = MagicMock()
-        recipe = RecipeBuilder.build_recipe(
+        recipe = RecipeBuilder.build(
             task_choice="timeseries",
-            target_column="target",
-            timestamp_column="timestamp"
+            **{
+                'data.data_interface.target_column': 'target',
+                'data.data_interface.timestamp_column': 'timestamp'
+            }
         )
         self.settings.recipe = recipe
     
@@ -147,10 +149,12 @@ class TestTimeseriesDataHandlerSplitData:
         self.timeseries_df = self.timeseries_df.sample(frac=1, random_state=42).reset_index(drop=True)
         
         self.settings = MagicMock()
-        recipe = RecipeBuilder.build_recipe(
+        recipe = RecipeBuilder.build(
             task_choice="timeseries",
-            target_column="target",
-            timestamp_column="timestamp"
+            **{
+                'data.data_interface.target_column': 'target',
+                'data.data_interface.timestamp_column': 'timestamp'
+            }
         )
         self.settings.recipe = recipe
     
@@ -214,11 +218,13 @@ class TestTimeseriesDataHandlerPrepareData:
         })
         
         self.settings = MagicMock()
-        recipe = RecipeBuilder.build_recipe(
+        recipe = RecipeBuilder.build(
             task_choice="timeseries",
-            target_column="target",
-            timestamp_column="timestamp",
-            entity_columns=["user_id"]
+            **{
+                'data.data_interface.target_column': 'target',
+                'data.data_interface.timestamp_column': 'timestamp',
+                'data.data_interface.entity_columns': ['user_id']
+            }
         )
         self.settings.recipe = recipe
     
@@ -274,12 +280,14 @@ class TestTimeseriesDataHandlerPrepareData:
     def test_prepare_data_with_explicit_feature_columns(self):
         """Test data preparation with explicitly specified feature columns."""
         # Arrange
-        recipe = RecipeBuilder.build_recipe(
+        recipe = RecipeBuilder.build(
             task_choice="timeseries",
-            target_column="target",
-            timestamp_column="timestamp",
-            entity_columns=["user_id"],
-            feature_columns=["feature_0", "feature_1"]
+            **{
+                'data.data_interface.target_column': 'target',
+                'data.data_interface.timestamp_column': 'timestamp',
+                'data.data_interface.entity_columns': ['user_id'],
+                'data.data_interface.feature_columns': ['feature_0', 'feature_1']
+            }
         )
         self.settings.recipe = recipe
         
@@ -294,12 +302,14 @@ class TestTimeseriesDataHandlerPrepareData:
     def test_prepare_data_feature_columns_validation_fails(self):
         """Test that forbidden columns in feature_columns raise error."""
         # Arrange
-        recipe = RecipeBuilder.build_recipe(
+        recipe = RecipeBuilder.build(
             task_choice="timeseries",
-            target_column="target",
-            timestamp_column="timestamp",
-            entity_columns=["user_id"],
-            feature_columns=["feature_0", "timestamp", "target"]  # Including forbidden columns
+            **{
+                'data.data_interface.target_column': 'target',
+                'data.data_interface.timestamp_column': 'timestamp',
+                'data.data_interface.entity_columns': ['user_id'],
+                'data.data_interface.feature_columns': ['feature_0', 'timestamp', 'target']  # Including forbidden columns
+            }
         )
         self.settings.recipe = recipe
         
@@ -324,10 +334,12 @@ class TestTimeseriesDataHandlerFeatureGeneration:
         })
         
         self.settings = MagicMock()
-        recipe = RecipeBuilder.build_recipe(
+        recipe = RecipeBuilder.build(
             task_choice="timeseries",
-            target_column="target",
-            timestamp_column="timestamp"
+            **{
+                'data.data_interface.target_column': 'target',
+                'data.data_interface.timestamp_column': 'timestamp'
+            }
         )
         self.settings.recipe = recipe
     
@@ -411,11 +423,13 @@ class TestTimeseriesDataHandlerUtilityMethods:
     def setup_method(self):
         """Set up test environment."""
         self.settings = MagicMock()
-        recipe = RecipeBuilder.build_recipe(
+        recipe = RecipeBuilder.build(
             task_choice="timeseries",
-            target_column="target",
-            timestamp_column="timestamp",
-            entity_columns=["user_id"]
+            **{
+                'data.data_interface.target_column': 'target',
+                'data.data_interface.timestamp_column': 'timestamp',
+                'data.data_interface.entity_columns': ['user_id']
+            }
         )
         self.settings.recipe = recipe
     

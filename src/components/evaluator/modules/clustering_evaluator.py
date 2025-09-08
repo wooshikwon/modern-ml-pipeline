@@ -4,6 +4,8 @@ from src.interface import BaseEvaluator
 from src.settings import DataInterface
 
 class ClusteringEvaluator(BaseEvaluator):
+    METRIC_KEYS = ["silhouette_score", "inertia", "n_clusters"]
+    
     def __init__(self, data_interface_settings: DataInterface):
         super().__init__(data_interface_settings)
 

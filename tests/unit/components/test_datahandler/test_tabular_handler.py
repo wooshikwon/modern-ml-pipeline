@@ -65,7 +65,7 @@ class TestTabularDataHandlerSplitData:
     def test_split_data_classification_with_stratify(self):
         """Test classification data splitting with stratification."""
         # Arrange
-        recipe = RecipeBuilder.build_recipe(
+        recipe = RecipeBuilder.build(
             task_choice="classification",
             target_column="target"
         )
@@ -98,7 +98,7 @@ class TestTabularDataHandlerSplitData:
             'target': [0, 1, 0, 1]  # Only 2 samples per class
         })
         
-        recipe = RecipeBuilder.build_recipe(
+        recipe = RecipeBuilder.build(
             task_choice="classification",
             target_column="target"
         )
@@ -118,7 +118,7 @@ class TestTabularDataHandlerSplitData:
     def test_split_data_regression_no_stratify(self):
         """Test regression data splitting without stratification."""
         # Arrange
-        recipe = RecipeBuilder.build_recipe(
+        recipe = RecipeBuilder.build(
             task_choice="regression",
             target_column="target"
         )
@@ -146,7 +146,7 @@ class TestTabularDataHandlerSplitData:
             'target': np.random.randn(100)
         })
         
-        recipe = RecipeBuilder.build_recipe(
+        recipe = RecipeBuilder.build(
             task_choice="causal",
             target_column="target",
             treatment_column="treatment"
@@ -186,7 +186,7 @@ class TestTabularDataHandlerPrepareData:
     def test_prepare_data_classification_basic(self):
         """Test basic data preparation for classification."""
         # Arrange
-        recipe = RecipeBuilder.build_recipe(
+        recipe = RecipeBuilder.build(
             task_choice="classification",
             target_column="target",
             entity_columns=["user_id"]
@@ -218,7 +218,7 @@ class TestTabularDataHandlerPrepareData:
     def test_prepare_data_with_explicit_feature_columns(self):
         """Test data preparation with explicitly specified feature columns."""
         # Arrange
-        recipe = RecipeBuilder.build_recipe(
+        recipe = RecipeBuilder.build(
             task_choice="classification",
             target_column="target",
             entity_columns=["user_id"],
@@ -239,7 +239,7 @@ class TestTabularDataHandlerPrepareData:
     def test_prepare_data_clustering_no_target(self):
         """Test data preparation for clustering (no target)."""
         # Arrange
-        recipe = RecipeBuilder.build_recipe(
+        recipe = RecipeBuilder.build(
             task_choice="clustering",
             entity_columns=["user_id"]
         )
@@ -268,7 +268,7 @@ class TestTabularDataHandlerPrepareData:
             'target': np.random.randn(50)
         })
         
-        recipe = RecipeBuilder.build_recipe(
+        recipe = RecipeBuilder.build(
             task_choice="causal",
             target_column="target",
             treatment_column="treatment",
@@ -302,7 +302,7 @@ class TestTabularDataHandlerPrepareData:
         df_with_missing = self.test_df.copy()
         df_with_missing.loc[0:10, 'feature_0'] = np.nan  # ~20% missing
         
-        recipe = RecipeBuilder.build_recipe(
+        recipe = RecipeBuilder.build(
             task_choice="classification",
             target_column="target"
         )
@@ -328,7 +328,7 @@ class TestTabularDataHandlerUtilityMethods:
     def test_get_exclude_columns_with_entity_columns(self):
         """Test _get_exclude_columns includes entity columns."""
         # Arrange
-        recipe = RecipeBuilder.build_recipe(
+        recipe = RecipeBuilder.build(
             task_choice="classification",
             entity_columns=["user_id", "session_id"]
         )
@@ -355,7 +355,7 @@ class TestTabularDataHandlerUtilityMethods:
     def test_get_exclude_columns_nonexistent_entity_ignored(self):
         """Test that non-existent entity columns are ignored."""
         # Arrange
-        recipe = RecipeBuilder.build_recipe(
+        recipe = RecipeBuilder.build(
             task_choice="classification",
             entity_columns=["user_id", "nonexistent_col"]
         )
@@ -382,7 +382,7 @@ class TestTabularDataHandlerUtilityMethods:
     def test_check_missing_values_warning_threshold(self, mock_logger):
         """Test missing values warning with different thresholds."""
         # Arrange
-        recipe = RecipeBuilder.build_recipe(task_choice="classification")
+        recipe = RecipeBuilder.build(task_choice="classification")
         settings = MagicMock()
         settings.recipe = recipe
         
