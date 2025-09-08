@@ -12,7 +12,7 @@ from src.cli.utils.template_engine import TemplateEngine
 from src.cli.utils.interactive_ui import InteractiveUI
 
 
-def init_command(project_name: Optional[str] = None) -> None:
+def init_command(project_name: Optional[str] = typer.Argument(None, help="프로젝트 이름")) -> None:
     """
     대화형 프로젝트 초기화.
     

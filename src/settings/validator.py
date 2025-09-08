@@ -339,8 +339,8 @@ class Validator:
         
         # 5. Fetcher 검증
         if recipe.data.fetcher.type == "feature_store":
-            if not recipe.data.fetcher.features:
-                logger.warning("feature_store fetcher에 features가 정의되지 않았습니다")
+            if not recipe.data.fetcher.feature_views:
+                logger.warning("feature_store fetcher에 feature_views가 정의되지 않았습니다")
         
         # 6. 모델 클래스 임포트 검증
         self._validate_model_import(recipe.model.class_path, errors)

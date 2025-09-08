@@ -59,7 +59,7 @@ def list_preprocessors() -> None:
     StandardScaler, OneHotEncoder 등이 포함됩니다.
     """
     cli_success("Available Preprocessor Steps:")
-    available_items = sorted(PreprocessorStepRegistry._steps.keys())
+    available_items = sorted(PreprocessorStepRegistry.preprocessor_steps.keys())
     for item in available_items:
         cli_print(f"  - [cyan]{item}[/cyan]")
     

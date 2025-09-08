@@ -1,550 +1,617 @@
 """
-Global pytest fixtures and configuration for the test suite.
-This file provides shared fixtures that can be used across all test modules.
+Modern ML Pipeline - Core Test Fixtures
+No Mock Hell: Real objects with test data, minimal mocking, fast execution
+Based on comprehensive testing strategy document
 """
 
-import os
-import sys
-from pathlib import Path
-from typing import Dict, Any, Generator
-from unittest.mock import Mock, MagicMock, patch
+import uuid
 import tempfile
-import shutil
-
-import pytest
+import time
+from pathlib import Path
+from typing import Dict, Any, Optional, Tuple
 import pandas as pd
-import yaml
+import pytest
+import numpy as np
+from sklearn.datasets import make_classification, make_regression
 
-# Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from src.settings import Settings, Config, Recipe
-from src.settings.config import Environment, MLflow, DataSource, FeatureStore
-from src.settings.recipe import Model, Data, Loader, DataInterface, FeatureView
-from src.factory import Factory
-from src.components.adapter import AdapterRegistry
-from src.components.fetcher import FetcherRegistry
-from src.components.evaluator import EvaluatorRegistry
-from src.components.preprocessor.registry import PreprocessorStepRegistry
-from src.components.trainer.registry import TrainerRegistry
-from tests.helpers.builders import (
-    ConfigBuilder,
-    RecipeBuilder,
-    SettingsBuilder,
-    DataFrameBuilder,
-    FileBuilder,
+# Import Settings system
+from src.settings import (
+    Settings, Config, Recipe, Environment, MLflow, DataSource,
+    FeatureStore, Model, HyperparametersTuning, Data, Loader, 
+    DataInterface, Fetcher, FeatureView, Evaluation
 )
 
 
-# ============================================================================
-# Directory and File System Fixtures
-# ============================================================================
+# ═══════════════════════════════════════════════════════════════════════════════
+# GLOBAL FIXTURES (AS PER PLANNING DOCUMENT)
+# ═══════════════════════════════════════════════════════════════════════════════
 
-@pytest.fixture
-def temp_workspace() -> Generator[Path, None, None]:
-    """Create a temporary workspace directory for tests."""
+@pytest.fixture(scope="session")
+def test_data_directory():
+    """Provides path to test data directory."""
+    return Path(__file__).parent / "fixtures" / "data"
+
+@pytest.fixture(scope="session") 
+def test_configs_directory():
+    """Provides path to test configuration files."""
+    return Path(__file__).parent / "fixtures" / "configs"
+
+@pytest.fixture(scope="session")
+def test_recipes_directory():
+    """Provides path to test recipe files."""
+    return Path(__file__).parent / "fixtures" / "recipes"
+
+@pytest.fixture(scope="session")
+def test_expected_directory():
+    """Provides path to expected outputs directory."""
+    return Path(__file__).parent / "fixtures" / "expected"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 1. TEST DATA GENERATION UTILITIES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestDataGenerator:
+    """Generate realistic test datasets for different ML tasks."""
+    
+    @staticmethod
+    def classification_data(
+        n_samples: int = 100, 
+        n_features: int = 5, 
+        n_classes: int = 2,
+        random_state: int = 42
+    ) -> Tuple[pd.DataFrame, np.ndarray]:
+        """Generate classification dataset."""
+        X, y = make_classification(
+            n_samples=n_samples,
+            n_features=n_features,
+            n_informative=max(2, n_features-1),
+            n_redundant=0,
+            n_classes=n_classes,
+            random_state=random_state
+        )
+        
+        # Create realistic column names
+        feature_cols = [f"feature_{i+1}" for i in range(n_features)]
+        df = pd.DataFrame(X, columns=feature_cols)
+        df['entity_id'] = range(1, n_samples + 1)  # Add entity column
+        
+        return df, y
+    
+    @staticmethod
+    def regression_data(
+        n_samples: int = 100, 
+        n_features: int = 5, 
+        random_state: int = 42
+    ) -> Tuple[pd.DataFrame, np.ndarray]:
+        """Generate regression dataset."""
+        X, y = make_regression(
+            n_samples=n_samples,
+            n_features=n_features,
+            n_informative=max(2, n_features-1),
+            noise=0.1,
+            random_state=random_state
+        )
+        
+        feature_cols = [f"feature_{i+1}" for i in range(n_features)]
+        df = pd.DataFrame(X, columns=feature_cols)
+        df['entity_id'] = range(1, n_samples + 1)
+        
+        return df, y
+    
+    @staticmethod
+    def timeseries_data(
+        n_samples: int = 100, 
+        n_features: int = 3,
+        random_state: int = 42
+    ) -> Tuple[pd.DataFrame, np.ndarray]:
+        """Generate time series dataset."""
+        np.random.seed(random_state)
+        
+        # Generate time series with trend and seasonality
+        time_index = pd.date_range('2023-01-01', periods=n_samples, freq='D')
+        
+        # Base trend
+        trend = np.linspace(0, 10, n_samples)
+        
+        # Seasonal pattern
+        seasonal = 2 * np.sin(2 * np.pi * np.arange(n_samples) / 7)  # Weekly
+        
+        # Generate features
+        features_data = {}
+        for i in range(n_features):
+            noise = np.random.normal(0, 0.5, n_samples)
+            features_data[f'feature_{i+1}'] = trend * (i+1) + seasonal + noise
+        
+        df = pd.DataFrame(features_data)
+        df['timestamp'] = time_index
+        df['entity_id'] = range(1, n_samples + 1)
+        
+        # Target is sum of features with some noise
+        y = df[[f'feature_{i+1}' for i in range(n_features)]].sum(axis=1) + np.random.normal(0, 1, n_samples)
+        
+        return df, y.values
+
+
+@pytest.fixture(scope="session")
+def test_data_generator():
+    """Provide TestDataGenerator for all tests."""
+    return TestDataGenerator()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 2. SETTINGS BUILDER PATTERN
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class SettingsBuilder:
+    """Builder pattern for creating test Settings objects."""
+    
+    def __init__(self):
+        # Default minimal config
+        self._environment = Environment(name="test")
+        self._mlflow = MLflow(
+            tracking_uri="sqlite:///test_mlflow.db",
+            experiment_name="test_experiment"
+        )
+        self._data_source = DataSource(
+            name="test_storage",
+            adapter_type="storage",
+            config={}
+        )
+        self._feature_store = FeatureStore(
+            provider="none"
+        )
+        
+        # Default minimal recipe
+        self._task_choice = "classification"
+        self._model = Model(
+            class_path="sklearn.ensemble.RandomForestClassifier",
+            library="sklearn",
+            hyperparameters=HyperparametersTuning(
+                tuning_enabled=False,
+                values={"n_estimators": 10, "random_state": 42}
+            ),
+            computed={"run_name": f"test_run_{uuid.uuid4().hex[:8]}"}
+        )
+        self._data = Data(
+            loader=Loader(source_uri="test_data.csv"),
+            data_interface=DataInterface(
+                target_column="target",
+                entity_columns=["entity_id"]
+            ),
+            fetcher=Fetcher(
+                type="pass_through",
+                feature_views=None
+            )
+        )
+        self._evaluation = Evaluation(
+            metrics=["accuracy", "roc_auc"]
+        )
+    
+    # Environment configuration
+    def with_environment(self, name: str) -> "SettingsBuilder":
+        """Set environment name."""
+        self._environment = Environment(name=name)
+        return self
+    
+    # MLflow configuration  
+    def with_mlflow(self, tracking_uri: str, experiment_name: str) -> "SettingsBuilder":
+        """Set MLflow configuration."""
+        self._mlflow = MLflow(
+            tracking_uri=tracking_uri,
+            experiment_name=experiment_name
+        )
+        return self
+    
+    # Data source configuration
+    def with_data_source(self, adapter_type: str, name: str = "test_source", config: Dict[str, Any] = None) -> "SettingsBuilder":
+        """Set data source configuration."""
+        self._data_source = DataSource(
+            name=name,
+            adapter_type=adapter_type,
+            config=config or {}
+        )
+        return self
+    
+    def with_data_path(self, path: str) -> "SettingsBuilder":
+        """Set data file path."""
+        self._data = Data(
+            loader=Loader(source_uri=path),
+            data_interface=self._data.data_interface,
+            fetcher=self._data.fetcher
+        )
+        return self
+    
+    # Task configuration
+    def with_task(self, task_type: str) -> "SettingsBuilder":
+        """Set task type (classification, regression, timeseries, etc.)."""
+        self._task_choice = task_type
+        return self
+    
+    # Model configuration
+    def with_model(self, class_path: str, library: str = None, hyperparameters: Dict[str, Any] = None) -> "SettingsBuilder":
+        """Set model configuration."""
+        # Infer library from class_path if not provided
+        if library is None:
+            if "sklearn" in class_path:
+                library = "sklearn"
+            elif "xgboost" in class_path:
+                library = "xgboost"
+            elif "lightgbm" in class_path:
+                library = "lightgbm"
+            else:
+                library = "unknown"
+        
+        hyperparams = hyperparameters or {"random_state": 42}
+        
+        self._model = Model(
+            class_path=class_path,
+            library=library,
+            hyperparameters=HyperparametersTuning(
+                tuning_enabled=False,
+                values=hyperparams
+            ),
+            computed=self._model.computed
+        )
+        return self
+    
+    def with_hyperparameter_tuning(self, enabled: bool = True, metric: str = "accuracy", 
+                                 direction: str = "maximize", n_trials: int = 10) -> "SettingsBuilder":
+        """Enable hyperparameter tuning."""
+        if enabled:
+            self._model.hyperparameters = HyperparametersTuning(
+                tuning_enabled=True,
+                optimization_metric=metric,
+                direction=direction,
+                n_trials=n_trials,
+                fixed={"random_state": 42},
+                tunable={
+                    "n_estimators": {"type": "int", "range": [10, 100]},
+                    "max_depth": {"type": "int", "range": [3, 10]}
+                }
+            )
+        else:
+            self._model.hyperparameters.tuning_enabled = False
+        return self
+    
+    # Data interface configuration
+    def with_target_column(self, target_col: str) -> "SettingsBuilder":
+        """Set target column name."""
+        self._data.data_interface.target_column = target_col
+        return self
+    
+    def with_entity_columns(self, entity_cols: list) -> "SettingsBuilder":
+        """Set entity columns."""
+        self._data.data_interface.entity_columns = entity_cols
+        return self
+    
+    # Feature store configuration
+    def with_feature_store(self, enabled: bool = True) -> "SettingsBuilder":
+        """Enable/disable feature store."""
+        if enabled:
+            self._feature_store = FeatureStore(
+                provider="feast",
+                feast_config=None  # Will be set when needed in tests
+            )
+            self._data.fetcher = Fetcher(
+                type="feature_store",
+                feature_views={}
+            )
+        else:
+            self._feature_store = FeatureStore(provider="none")
+            self._data.fetcher = Fetcher(
+                type="pass_through",
+                feature_views=None
+            )
+        return self
+    
+    def build(self) -> Settings:
+        """Build the Settings object."""
+        config = Config(
+            environment=self._environment,
+            mlflow=self._mlflow,
+            data_source=self._data_source,
+            feature_store=self._feature_store
+        )
+        
+        recipe = Recipe(
+            name="test_recipe",
+            description="Test recipe generated by SettingsBuilder",
+            task_choice=self._task_choice,
+            model=self._model,
+            data=self._data,
+            evaluation=self._evaluation
+        )
+        
+        return Settings(config=config, recipe=recipe)
+
+
+@pytest.fixture(scope="function")
+def settings_builder():
+    """Provide SettingsBuilder for creating test Settings."""
+    return SettingsBuilder()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 3. ISOLATED ENVIRONMENT FIXTURES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@pytest.fixture(scope="function")
+def isolated_temp_directory():
+    """Provide clean temporary directory for each test."""
     with tempfile.TemporaryDirectory() as temp_dir:
-        workspace = Path(temp_dir)
-        
-        # Create standard directory structure
-        (workspace / "configs").mkdir()
-        (workspace / "recipes").mkdir()
-        (workspace / "data").mkdir()
-        (workspace / "mlruns").mkdir()
-        (workspace / "artifacts").mkdir()
-        
-        # Change to workspace directory
-        original_cwd = os.getcwd()
-        os.chdir(workspace)
-        
-        yield workspace
-        
-        # Restore original directory
-        os.chdir(original_cwd)
+        yield Path(temp_dir)
 
 
-@pytest.fixture
-def sample_csv_data(temp_workspace: Path) -> Path:
-    """Create a sample CSV file for testing."""
-    # Use FileBuilder to create and cleanup CSV
-    with FileBuilder.build_csv_file_context(
-        data=DataFrameBuilder.build_classification_data(n_samples=5, n_features=2)
-    ) as csv_path:
-        # Move file into temp_workspace/data to keep previous semantics
-        dest = temp_workspace / "data" / Path(csv_path).name
-        dest.parent.mkdir(exist_ok=True, parents=True)
-        Path(csv_path).replace(dest)
-        yield dest
+@pytest.fixture(scope="function")
+def isolated_mlflow_tracking(isolated_temp_directory):
+    """Provide isolated MLflow tracking URI for each test."""
+    tracking_uri = f"file://{isolated_temp_directory}/mlruns"
+    return tracking_uri
 
 
-
-# ============================================================================
-# Factory Fixtures
-# ============================================================================
-
-@pytest.fixture
-def test_factory(test_settings: Settings) -> Factory:
-    """Provide a test Factory instance."""
-    return Factory(settings=test_settings)
-
-
-# ============================================================================
-# Component Registry Fixtures
-# ============================================================================
-
-@pytest.fixture(autouse=True)
-def clean_registries():
-    """
-    Clean component registries before and after each test.
-    This ensures test isolation.
-    """
-    # Store original state
-    original_adapters = AdapterRegistry.adapters.copy()
-    original_fetchers = FetcherRegistry.fetchers.copy()
-    original_evaluators = EvaluatorRegistry.evaluators.copy()
-    original_preprocessor_steps = PreprocessorStepRegistry.preprocessor_steps.copy()
-    original_trainers = TrainerRegistry.trainers.copy()
+@pytest.fixture(scope="function")
+def test_data_files(isolated_temp_directory, test_data_generator):
+    """Create test data files in isolated directory."""
+    data_dir = isolated_temp_directory / "data"
+    data_dir.mkdir()
     
-    yield
+    # Generate and save classification data
+    X_cls, y_cls = test_data_generator.classification_data(n_samples=50)
+    cls_data = X_cls.copy()
+    cls_data['target'] = y_cls
+    cls_path = data_dir / "classification_data.csv"
+    cls_data.to_csv(cls_path, index=False)
     
-    # Restore original state
-    AdapterRegistry.adapters = original_adapters
-    FetcherRegistry.fetchers = original_fetchers
-    EvaluatorRegistry.evaluators = original_evaluators
-    PreprocessorStepRegistry.preprocessor_steps = original_preprocessor_steps
-    TrainerRegistry.trainers = original_trainers
-
-
-# ============================================================================
-# Logger and Environment Fixtures
-# ============================================================================
-
-@pytest.fixture(autouse=True)
-def silence_logger():
-    """
-    Silence logger output for all tests (autouse).
-    This ensures tests run quietly without log spam.
-    """
-    import logging
-    logging.disable(logging.CRITICAL)
-    yield
-    logging.disable(logging.NOTSET)
-
-
-@pytest.fixture
-def isolated_env(temp_workspace: Path, monkeypatch) -> Path:
-    """
-    Provide a completely isolated execution environment.
-    Sets environment variables and creates necessary directories.
-    """
-    # Set test environment variables
-    monkeypatch.setenv("ENV_NAME", "test")
-    monkeypatch.setenv("MLFLOW_TRACKING_URI", str(temp_workspace / "mlruns"))
-    monkeypatch.setenv("FEAST_REPO_PATH", str(temp_workspace / "feast"))
-    monkeypatch.setenv("DATA_PATH", str(temp_workspace / "data"))
+    # Generate and save regression data
+    X_reg, y_reg = test_data_generator.regression_data(n_samples=50)
+    reg_data = X_reg.copy()
+    reg_data['target'] = y_reg
+    reg_path = data_dir / "regression_data.csv"
+    reg_data.to_csv(reg_path, index=False)
     
-    # Create additional directories if needed
-    (temp_workspace / "logs").mkdir(exist_ok=True)
-    (temp_workspace / "models").mkdir(exist_ok=True)
-    (temp_workspace / "feast").mkdir(exist_ok=True)
+    return {
+        "classification": cls_path,
+        "regression": reg_path,
+        "classification_df": cls_data,
+        "regression_df": reg_data
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 4. PERFORMANCE BENCHMARKING UTILITIES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@pytest.fixture(scope="function")
+def performance_benchmark():
+    """Provide performance benchmarking utilities."""
+    class PerformanceBenchmark:
+        def __init__(self):
+            self.measurements = {}
+        
+        def measure_time(self, name: str):
+            """Context manager for measuring execution time."""
+            return self.Timer(name, self.measurements)
+        
+        def assert_time_under(self, name: str, max_seconds: float):
+            """Assert that measured time is under threshold."""
+            if name not in self.measurements:
+                raise ValueError(f"No measurement found for '{name}'")
+            
+            actual_time = self.measurements[name]
+            assert actual_time < max_seconds, (
+                f"Performance test failed: {name} took {actual_time:.3f}s "
+                f"but should be under {max_seconds}s"
+            )
+        
+        def get_measurement(self, name: str) -> float:
+            """Get measurement by name."""
+            return self.measurements.get(name, 0.0)
+        
+        def report_all(self) -> Dict[str, float]:
+            """Get all measurements."""
+            return self.measurements.copy()
+        
+        class Timer:
+            def __init__(self, name: str, measurements: Dict[str, float]):
+                self.name = name
+                self.measurements = measurements
+                self.start_time = None
+            
+            def __enter__(self):
+                self.start_time = time.perf_counter()
+                return self
+            
+            def __exit__(self, exc_type, exc_val, exc_tb):
+                end_time = time.perf_counter()
+                self.measurements[self.name] = end_time - self.start_time
     
-    return temp_workspace
+    return PerformanceBenchmark()
 
 
-# ============================================================================
-# Async Fixtures
-# ============================================================================
-
-@pytest.fixture
-def event_loop():
-    """Create event loop for async tests."""
-    import asyncio
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
-
-
-# ============================================================================
-# Factory Fixtures with Cache Management
-# ============================================================================
-
-@pytest.fixture
-def factory_with_clean_cache(test_settings: Settings) -> Factory:
-    """
-    Provide a Factory instance with cleaned cache.
-    This ensures no component caching interference between tests.
-    """
-    factory = Factory(settings=test_settings)
-    factory._component_cache.clear()
-    return factory
-
-
-@pytest.fixture
-def mock_factory():
-    """
-    Provide a completely mocked Factory for isolated component tests.
-    """
-    from unittest.mock import MagicMock
-    from tests.helpers.builders import MockBuilder, DataFrameBuilder
-    
-    factory = MagicMock(spec=Factory)
-    
-    # Mock component creation methods
-    factory.create_model.return_value = MockBuilder.build_mock_model()
-    factory.create_data_adapter.return_value = MockBuilder.build_mock_adapter()
-    factory.create_fetcher.return_value = MockBuilder.build_mock_fetcher()
-    factory.create_evaluator.return_value = MockBuilder.build_mock_evaluator()
-    factory.create_preprocessor.return_value = None
-    
-    return factory
-
-
-# ============================================================================
-# Console and Logger Mock Fixtures
-# ============================================================================
-
-@pytest.fixture(autouse=True)
-def mock_console_system_autouse():
-    """
-    Auto-applied console system mock to prevent import-time issues.
-    
-    This fixture automatically mocks the console system for ALL tests to prevent
-    console-related errors during component registration at import time.
-    """
-    with patch('src.utils.system.console_manager.get_console') as mock_get_console:
-        mock_console = Mock()
-        
-        # Mock all console methods that components use (support all keyword arguments)
-        mock_console.info = Mock()
-        mock_console.debug = Mock()  
-        mock_console.warning = Mock()
-        mock_console.error = Mock()  # Accept any keyword args including exc_info
-        
-        # Mock logger attribute (for any direct logger access)
-        mock_logger = Mock()
-        mock_logger.info = Mock()
-        mock_logger.debug = Mock()
-        mock_logger.warning = Mock()
-        mock_logger.error = Mock()
-        mock_console.logger = mock_logger
-        
-        mock_get_console.return_value = mock_console
-        yield mock_console
-
-
-@pytest.fixture
-def mock_console_with_logger():
-    """
-    Standardized console mock with logger attribute for components.
-    
-    This fixture provides access to the mocked console for test assertions.
-    Use this fixture when you need to verify console method calls in tests.
-    """
-    with patch('src.utils.system.console_manager.get_console') as mock_get_console:
-        mock_console = Mock()
-        
-        # Mock all console methods that components use (support all keyword arguments)
-        mock_console.info = Mock()
-        mock_console.debug = Mock()
-        mock_console.warning = Mock()
-        mock_console.error = Mock()  # Accept any keyword args including exc_info
-        
-        # Mock logger attribute (for any direct logger access)
-        mock_logger = Mock()
-        mock_logger.info = Mock()
-        mock_logger.debug = Mock()
-        mock_logger.warning = Mock()
-        mock_logger.error = Mock()
-        mock_console.logger = mock_logger
-        
-        mock_get_console.return_value = mock_console
-        yield mock_console
-
-
-@pytest.fixture
-def mock_unified_console():
-    """
-    Mock UnifiedConsole class with proper logger import handling.
-    
-    This fixture directly mocks the UnifiedConsole class to prevent
-    the dynamic logger import in __init__ that causes AttributeErrors.
-    """
-    with patch('src.utils.system.console_manager.UnifiedConsole') as mock_class:
-        mock_instance = Mock()
-        
-        # Mock all console methods
-        mock_instance.info = Mock()
-        mock_instance.debug = Mock()
-        mock_instance.warning = Mock()
-        mock_instance.error = Mock()
-        
-        # Mock logger attribute 
-        mock_logger = Mock()
-        mock_logger.info = Mock()
-        mock_logger.debug = Mock()
-        mock_logger.warning = Mock()
-        mock_logger.error = Mock()
-        mock_instance.logger = mock_logger
-        
-        mock_class.return_value = mock_instance
-        yield mock_instance
-
-
-@pytest.fixture
-def mock_console_system():
-    """
-    Comprehensive console system mock that handles all console-related imports.
-    
-    This fixture mocks:
-    - get_console() function
-    - UnifiedConsole class
-    - logger import in console_manager
-    
-    Use this for tests that need complete console system isolation.
-    """
-    with patch('src.utils.system.console_manager.logger') as mock_logger, \
-         patch('src.utils.system.console_manager.get_console') as mock_get_console, \
-         patch('src.utils.system.console_manager.UnifiedConsole') as mock_unified_console_class:
-        
-        # Setup mock logger
-        mock_logger.info = Mock()
-        mock_logger.debug = Mock()
-        mock_logger.warning = Mock()
-        mock_logger.error = Mock()
-        
-        # Setup mock console instance
-        mock_console = Mock()
-        mock_console.info = Mock()
-        mock_console.debug = Mock()
-        mock_console.warning = Mock()
-        mock_console.error = Mock()
-        mock_console.logger = mock_logger
-        
-        # Setup mock UnifiedConsole class
-        mock_unified_instance = Mock()
-        mock_unified_instance.info = Mock()
-        mock_unified_instance.debug = Mock()
-        mock_unified_instance.warning = Mock()
-        mock_unified_instance.error = Mock()
-        mock_unified_instance.logger = mock_logger
-        
-        # Wire up the mocks
-        mock_get_console.return_value = mock_console
-        mock_unified_console_class.return_value = mock_unified_instance
-        
-        yield {
-            'console': mock_console,
-            'logger': mock_logger,
-            'unified_console': mock_unified_instance
-        }
-
-
-# ============================================================================
-# Path and Template Engine Mock Fixtures
-# ============================================================================
-
-@pytest.fixture
-def mock_template_engine():
-    """
-    Mock TemplateEngine with proper Path handling.
-    
-    This fixture prevents TypeError issues when tests try to perform
-    Path operations on Mock objects. It provides a properly configured
-    TemplateEngine mock that handles Path operations correctly.
-    """
-    with patch('src.cli.utils.template_engine.TemplateEngine') as mock_class:
-        mock_instance = Mock()
-        
-        # Mock all Path operations with actual Path objects instead of Mock
-        mock_instance.template_dir = Path("/mock/template/dir")
-        
-        # Mock all TemplateEngine methods
-        mock_instance.render_template = Mock(return_value="rendered content")
-        mock_instance.write_rendered_file = Mock()
-        mock_instance.copy_static_file = Mock()
-        mock_instance.list_templates = Mock(return_value=["template1.j2", "template2.j2"])
-        
-        mock_class.return_value = mock_instance
-        yield mock_instance
-
-
-@pytest.fixture
-def mock_path_operations():
-    """
-    Mock common Path operations that cause issues in tests.
-    
-    This fixture mocks Path-related operations that often fail when
-    performed on Mock objects in tests.
-    """
-    with patch('pathlib.Path') as mock_path_class:
-        # Create a mock Path class that behaves properly
-        def create_mock_path(path_str):
-            mock_path = Mock()
-            mock_path.__str__ = Mock(return_value=str(path_str))
-            mock_path.__truediv__ = Mock(side_effect=lambda x: create_mock_path(f"{path_str}/{x}"))
-            mock_path.exists = Mock(return_value=True)
-            mock_path.mkdir = Mock()
-            mock_path.parent = create_mock_path(str(Path(path_str).parent))
-            mock_path.name = Path(path_str).name
-            return mock_path
-        
-        mock_path_class.side_effect = create_mock_path
-        yield mock_path_class
-
-
-# ============================================================================
-# Mock Fixtures
-# ============================================================================
-
-@pytest.fixture
-def mock_mlflow():
-    """Mock MLflow for tests."""
-    with patch('mlflow.start_run') as mock_start_run, \
-         patch('mlflow.log_metric') as mock_log_metric, \
-         patch('mlflow.log_metrics') as mock_log_metrics, \
-         patch('mlflow.log_params') as mock_log_params, \
-         patch('mlflow.log_artifact') as mock_log_artifact, \
-         patch('mlflow.pyfunc.save_model') as mock_save_model, \
-         patch('mlflow.pyfunc.load_model') as mock_load_model:
-        
-        # Configure mock behaviors
-        mock_run = MagicMock()
-        mock_run.info.run_id = 'test_run_id'
-        mock_start_run.return_value.__enter__.return_value = mock_run
-        mock_start_run.return_value.__exit__.return_value = None
-        
-        yield {
-            'start_run': mock_start_run,
-            'log_metric': mock_log_metric,
-            'log_metrics': mock_log_metrics,
-            'log_params': mock_log_params,
-            'log_artifact': mock_log_artifact,
-            'save_model': mock_save_model,
-            'load_model': mock_load_model,
-            'run': mock_run
-        }
-
-
-@pytest.fixture
-def mock_database():
-    """Mock database connection for tests."""
-    from unittest.mock import Mock
-    
-    mock_conn = Mock()
-    mock_cursor = Mock()
-    mock_conn.cursor.return_value = mock_cursor
-    mock_cursor.fetchall.return_value = []
-    mock_cursor.fetchone.return_value = None
-    
-    return mock_conn
-
-
-@pytest.fixture
-def mock_filesystem():
-    """Mock filesystem operations for tests."""
-    with patch('builtins.open', create=True) as mock_open, \
-         patch('os.path.exists') as mock_exists, \
-         patch('os.makedirs') as mock_makedirs:
-        
-        mock_exists.return_value = True
-        yield {
-            'open': mock_open,
-            'exists': mock_exists,
-            'makedirs': mock_makedirs
-        }
-
-
-# ============================================================================
-# Data Generation Fixtures
-# ============================================================================
-
-# removed: data generation fixtures; use DataFrameBuilder directly in tests
-
-
-# ============================================================================
-# Assertion Helpers
-# ============================================================================
-
-@pytest.fixture
-def assert_dataframe_equal():
-    """Provide a helper function to assert dataframe equality."""
-    def _assert_dataframe_equal(df1: pd.DataFrame, df2: pd.DataFrame, **kwargs):
-        pd.testing.assert_frame_equal(df1, df2, **kwargs)
-    return _assert_dataframe_equal
-
-
-@pytest.fixture
-def assert_series_equal():
-    """Provide a helper function to assert series equality."""
-    def _assert_series_equal(s1: pd.Series, s2: pd.Series, **kwargs):
-        pd.testing.assert_series_equal(s1, s2, **kwargs)
-    return _assert_series_equal
-
-
-# ============================================================================
-# Session-level Fixtures
-# ============================================================================
-
-@pytest.fixture(scope='session')
-def test_data_dir() -> Path:
-    """Provide the path to test data directory."""
-    return Path(__file__).parent / 'fixtures' / 'data'
-
-
-@pytest.fixture(scope='session')
-def test_configs_dir() -> Path:
-    """Provide the path to test configs directory."""
-    return Path(__file__).parent / 'fixtures' / 'configs'
-
-
-# ============================================================================
-# Markers and Configuration
-# ============================================================================
+# ═══════════════════════════════════════════════════════════════════════════════
+# 5. PYTEST CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════════════════
 
 def pytest_configure(config):
     """Configure pytest with custom markers."""
     config.addinivalue_line(
-        "markers", "unit: mark test as a unit test"
+        "markers", 
+        "slow: marks tests as slow (deselect with '-m \"not slow\"')"
     )
     config.addinivalue_line(
-        "markers", "integration: mark test as an integration test"
+        "markers",
+        "integration: marks tests as integration tests"
     )
     config.addinivalue_line(
-        "markers", "e2e: mark test as an end-to-end test"
+        "markers",
+        "e2e: marks tests as end-to-end tests"
     )
     config.addinivalue_line(
-        "markers", "slow: mark test as slow running"
+        "markers",
+        "performance: marks tests as performance benchmarks"
     )
 
 
-# ============================================================================
-# Test Execution Hooks
-# ============================================================================
-
-def pytest_runtest_setup(item):
-    """Setup for each test."""
-    # Skip slow tests in quick mode
-    if 'slow' in item.keywords and item.config.getoption("--quick"):
-        pytest.skip("skipping slow test in quick mode")
+def pytest_collection_modifyitems(config, items):
+    """Automatically mark slow tests."""
+    for item in items:
+        # Mark integration and e2e tests as slow
+        if "integration" in str(item.fspath) or "e2e" in str(item.fspath):
+            item.add_marker(pytest.mark.slow)
 
 
-def pytest_addoption(parser):
-    """Add custom command line options."""
-    parser.addoption(
-        "--quick",
-        action="store_true",
-        default=False,
-        help="Run quick tests only (skip slow tests)"
-    )
-    parser.addoption(
-        "--integration",
-        action="store_true",
-        default=False,
-        help="Run integration tests"
-    )
-    parser.addoption(
-        "--e2e",
-        action="store_true",
-        default=False,
-        help="Run end-to-end tests"
-    )
+# ═══════════════════════════════════════════════════════════════════════════════
+# 6. COMMON TEST PATTERNS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@pytest.fixture(scope="function")
+def minimal_classification_settings(settings_builder, test_data_files, isolated_mlflow_tracking):
+    """Pre-configured Settings for classification tests."""
+    return settings_builder \
+        .with_task("classification") \
+        .with_model("sklearn.ensemble.RandomForestClassifier") \
+        .with_data_path(str(test_data_files["classification"])) \
+        .with_target_column("target") \
+        .with_mlflow(isolated_mlflow_tracking, "test_classification") \
+        .build()
+
+
+@pytest.fixture(scope="function")
+def minimal_regression_settings(settings_builder, test_data_files, isolated_mlflow_tracking):
+    """Pre-configured Settings for regression tests."""
+    return settings_builder \
+        .with_task("regression") \
+        .with_model("sklearn.ensemble.RandomForestRegressor") \
+        .with_data_path(str(test_data_files["regression"])) \
+        .with_target_column("target") \
+        .with_mlflow(isolated_mlflow_tracking, "test_regression") \
+        .build()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TEST ISOLATION FIXTURES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@pytest.fixture(scope="function")
+def isolated_working_directory(tmp_path, monkeypatch):
+    """
+    완전히 격리된 작업 디렉토리를 제공합니다.
+    
+    CLI 테스트에서 파일 생성이 메인 프로젝트 디렉토리에 영향을 주지 않도록
+    임시 디렉토리로 작업 디렉토리를 변경합니다.
+    
+    Args:
+        tmp_path: pytest가 제공하는 임시 디렉토리
+        monkeypatch: pytest monkeypatch fixture for mocking
+        
+    Returns:
+        Path: 격리된 임시 작업 디렉토리 경로
+        
+    Usage:
+        def test_something(isolated_working_directory):
+            # 이제 Path.cwd()는 임시 디렉토리를 가리킴
+            current_dir = Path.cwd()
+            assert current_dir == isolated_working_directory
+    """
+    # 현재 작업 디렉토리를 임시 디렉토리로 변경
+    original_cwd = Path.cwd()
+    monkeypatch.chdir(tmp_path)
+    
+    # 추가로 Path.cwd()도 임시 디렉토리를 반환하도록 보장
+    monkeypatch.setattr(Path, "cwd", lambda: tmp_path)
+    
+    yield tmp_path
+    
+    # 테스트 후 원래 디렉토리로 복원 (사실상 자동으로 되지만 명시적으로)
+    # monkeypatch가 자동으로 복원해주므로 별도 cleanup 불필요
+
+
+@pytest.fixture(scope="function") 
+def cli_test_environment(isolated_working_directory):
+    """
+    CLI 테스트를 위한 완전한 격리 환경을 제공합니다.
+    
+    - 격리된 작업 디렉토리
+    - 테스트용 config 및 recipe 파일 생성
+    - 테스트 데이터 파일 생성
+    
+    Returns:
+        dict: CLI 테스트에 필요한 파일 경로들
+    """
+    work_dir = isolated_working_directory
+    
+    # 기본 디렉토리 구조 생성
+    (work_dir / "configs").mkdir(exist_ok=True)
+    (work_dir / "recipes").mkdir(exist_ok=True)
+    (work_dir / "data").mkdir(exist_ok=True)
+    
+    # 테스트용 설정 파일들 생성
+    test_config = """
+environment:
+  name: "test"
+  description: "Test environment"
+
+mlflow:
+  tracking_uri: "sqlite:///test_mlflow.db"
+  experiment_name: "test_experiment"
+
+data_source:
+  name: "test_storage"
+  adapter_type: "storage"
+  config: {}
+
+feature_store:
+  provider: "none"
+"""
+    
+    test_recipe = """
+name: "test_recipe"
+task_choice: "classification"
+
+model:
+  class_path: "sklearn.ensemble.RandomForestClassifier"
+  library: "sklearn"
+  hyperparameters:
+    tuning_enabled: false
+    values:
+      n_estimators: 10
+      random_state: 42
+
+data:
+  loader:
+    source_uri: "data/test.csv"
+  data_interface:
+    task_type: "classification"
+    target_column: "target"
+    entity_columns: ["entity_id"]
+  fetcher:
+    type: "pass_through"
+
+evaluation:
+  metrics: ["accuracy"]
+"""
+    
+    config_path = work_dir / "configs" / "test.yaml"
+    recipe_path = work_dir / "recipes" / "test.yaml"
+    
+    config_path.write_text(test_config)
+    recipe_path.write_text(test_recipe)
+    
+    # 테스트 데이터 생성
+    import pandas as pd
+    test_data = pd.DataFrame({
+        "entity_id": range(1, 51),
+        "feature_1": range(50),
+        "feature_2": range(50, 100),
+        "target": [i % 2 for i in range(50)]
+    })
+    data_path = work_dir / "data" / "test.csv"
+    test_data.to_csv(data_path, index=False)
+    
+    return {
+        "work_dir": work_dir,
+        "config_path": config_path,
+        "recipe_path": recipe_path,
+        "data_path": data_path
+    }

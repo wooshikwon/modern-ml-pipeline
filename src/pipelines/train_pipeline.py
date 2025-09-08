@@ -89,6 +89,16 @@ def run_train_pipeline(settings: Settings, context_params: Optional[Dict[str, An
                     mlflow.log_params(hpo_result['best_params'])
                     mlflow.log_metric('best_score', hpo_result['best_score'])
                     mlflow.log_metric('total_trials', hpo_result['total_trials'])
+                else:
+                    # HPO 비활성화 시에도 고정 하이퍼파라미터 기록
+                    if hasattr(settings.recipe.model, 'hyperparameters'):
+                        if hasattr(settings.recipe.model.hyperparameters, 'values') and settings.recipe.model.hyperparameters.values:
+                            mlflow.log_params(settings.recipe.model.hyperparameters.values)
+            else:
+                # hyperparameter_optimization 키가 없는 경우에도 하이퍼파라미터 로깅
+                if hasattr(settings.recipe.model, 'hyperparameters'):
+                    if hasattr(settings.recipe.model.hyperparameters, 'values') and settings.recipe.model.hyperparameters.values:
+                        mlflow.log_params(settings.recipe.model.hyperparameters.values)
 
             # 5. PyfuncWrapper 생성
             console.log_phase("Model Packaging", "📦")
