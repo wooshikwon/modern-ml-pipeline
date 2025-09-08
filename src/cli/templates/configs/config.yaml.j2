@@ -23,14 +23,14 @@ data_source:
   adapter_type: sql
   config:
     connection_uri: "postgresql://${DB_USER:postgres}:${DB_PASSWORD:postgres}@${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:mmp_db}"
-    query_timeout: ${DB_TIMEOUT:30}
+    query_timeout: ${DB_TIMEOUT:300}
   {%- elif data_source == "BigQuery" %}
   adapter_type: bigquery
   config:
     project_id: "${GCP_PROJECT_ID:{{ gcp_project|default('') }}}"
     dataset_id: "${BQ_DATASET_ID:mmp_dataset}"
     location: "${BQ_LOCATION:US}"
-    query_timeout: ${BQ_TIMEOUT:30}
+    query_timeout: ${BQ_TIMEOUT:300}
   {%- elif data_source == "Local Files" %}
   adapter_type: storage
   config:
