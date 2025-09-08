@@ -1,10 +1,12 @@
 # src/components/_evaluator/_classification.py
 import numpy as np
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 from src.interface import BaseEvaluator
 from src.settings import DataInterface
 
 class ClassificationEvaluator(BaseEvaluator):
+    METRIC_KEYS = ["accuracy", "precision", "recall", "f1", "roc_auc"]
+    
     def __init__(self, data_interface_settings: DataInterface):
         super().__init__(data_interface_settings)
 
@@ -17,6 +19,9 @@ class ClassificationEvaluator(BaseEvaluator):
         recall_per_class = recall_score(y, predictions, average=None)
         f1_per_class = f1_score(y, predictions, average=None)
         
+        # ROC AUC 계산
+        metrics["roc_auc"] = roc_auc_score(y, predictions)
+
         # 클래스별 샘플 수
         unique_classes, support_per_class = np.unique(y, return_counts=True)
         

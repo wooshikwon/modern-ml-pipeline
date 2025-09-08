@@ -6,6 +6,8 @@ from src.settings import Settings
 class TimeSeriesEvaluator(BaseEvaluator):
     """시계열 태스크 전용 Evaluator - MAPE, SMAPE 등 시계열 특화 메트릭 제공"""
     
+    METRIC_KEYS = ["mse", "rmse", "mae", "mape", "smape"]
+
     def __init__(self, settings: Settings):
         super().__init__(settings)
 

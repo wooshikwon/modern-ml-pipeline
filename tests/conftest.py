@@ -7,7 +7,7 @@ import os
 import sys
 from pathlib import Path
 from typing import Dict, Any, Generator
-from unittest.mock import MagicMock, patch
+from unittest.mock import Mock, MagicMock, patch
 import tempfile
 import shutil
 
@@ -197,6 +197,199 @@ def mock_factory():
     factory.create_preprocessor.return_value = None
     
     return factory
+
+
+# ============================================================================
+# Console and Logger Mock Fixtures
+# ============================================================================
+
+@pytest.fixture(autouse=True)
+def mock_console_system_autouse():
+    """
+    Auto-applied console system mock to prevent import-time issues.
+    
+    This fixture automatically mocks the console system for ALL tests to prevent
+    console-related errors during component registration at import time.
+    """
+    with patch('src.utils.system.console_manager.get_console') as mock_get_console:
+        mock_console = Mock()
+        
+        # Mock all console methods that components use (support all keyword arguments)
+        mock_console.info = Mock()
+        mock_console.debug = Mock()  
+        mock_console.warning = Mock()
+        mock_console.error = Mock()  # Accept any keyword args including exc_info
+        
+        # Mock logger attribute (for any direct logger access)
+        mock_logger = Mock()
+        mock_logger.info = Mock()
+        mock_logger.debug = Mock()
+        mock_logger.warning = Mock()
+        mock_logger.error = Mock()
+        mock_console.logger = mock_logger
+        
+        mock_get_console.return_value = mock_console
+        yield mock_console
+
+
+@pytest.fixture
+def mock_console_with_logger():
+    """
+    Standardized console mock with logger attribute for components.
+    
+    This fixture provides access to the mocked console for test assertions.
+    Use this fixture when you need to verify console method calls in tests.
+    """
+    with patch('src.utils.system.console_manager.get_console') as mock_get_console:
+        mock_console = Mock()
+        
+        # Mock all console methods that components use (support all keyword arguments)
+        mock_console.info = Mock()
+        mock_console.debug = Mock()
+        mock_console.warning = Mock()
+        mock_console.error = Mock()  # Accept any keyword args including exc_info
+        
+        # Mock logger attribute (for any direct logger access)
+        mock_logger = Mock()
+        mock_logger.info = Mock()
+        mock_logger.debug = Mock()
+        mock_logger.warning = Mock()
+        mock_logger.error = Mock()
+        mock_console.logger = mock_logger
+        
+        mock_get_console.return_value = mock_console
+        yield mock_console
+
+
+@pytest.fixture
+def mock_unified_console():
+    """
+    Mock UnifiedConsole class with proper logger import handling.
+    
+    This fixture directly mocks the UnifiedConsole class to prevent
+    the dynamic logger import in __init__ that causes AttributeErrors.
+    """
+    with patch('src.utils.system.console_manager.UnifiedConsole') as mock_class:
+        mock_instance = Mock()
+        
+        # Mock all console methods
+        mock_instance.info = Mock()
+        mock_instance.debug = Mock()
+        mock_instance.warning = Mock()
+        mock_instance.error = Mock()
+        
+        # Mock logger attribute 
+        mock_logger = Mock()
+        mock_logger.info = Mock()
+        mock_logger.debug = Mock()
+        mock_logger.warning = Mock()
+        mock_logger.error = Mock()
+        mock_instance.logger = mock_logger
+        
+        mock_class.return_value = mock_instance
+        yield mock_instance
+
+
+@pytest.fixture
+def mock_console_system():
+    """
+    Comprehensive console system mock that handles all console-related imports.
+    
+    This fixture mocks:
+    - get_console() function
+    - UnifiedConsole class
+    - logger import in console_manager
+    
+    Use this for tests that need complete console system isolation.
+    """
+    with patch('src.utils.system.console_manager.logger') as mock_logger, \
+         patch('src.utils.system.console_manager.get_console') as mock_get_console, \
+         patch('src.utils.system.console_manager.UnifiedConsole') as mock_unified_console_class:
+        
+        # Setup mock logger
+        mock_logger.info = Mock()
+        mock_logger.debug = Mock()
+        mock_logger.warning = Mock()
+        mock_logger.error = Mock()
+        
+        # Setup mock console instance
+        mock_console = Mock()
+        mock_console.info = Mock()
+        mock_console.debug = Mock()
+        mock_console.warning = Mock()
+        mock_console.error = Mock()
+        mock_console.logger = mock_logger
+        
+        # Setup mock UnifiedConsole class
+        mock_unified_instance = Mock()
+        mock_unified_instance.info = Mock()
+        mock_unified_instance.debug = Mock()
+        mock_unified_instance.warning = Mock()
+        mock_unified_instance.error = Mock()
+        mock_unified_instance.logger = mock_logger
+        
+        # Wire up the mocks
+        mock_get_console.return_value = mock_console
+        mock_unified_console_class.return_value = mock_unified_instance
+        
+        yield {
+            'console': mock_console,
+            'logger': mock_logger,
+            'unified_console': mock_unified_instance
+        }
+
+
+# ============================================================================
+# Path and Template Engine Mock Fixtures
+# ============================================================================
+
+@pytest.fixture
+def mock_template_engine():
+    """
+    Mock TemplateEngine with proper Path handling.
+    
+    This fixture prevents TypeError issues when tests try to perform
+    Path operations on Mock objects. It provides a properly configured
+    TemplateEngine mock that handles Path operations correctly.
+    """
+    with patch('src.cli.utils.template_engine.TemplateEngine') as mock_class:
+        mock_instance = Mock()
+        
+        # Mock all Path operations with actual Path objects instead of Mock
+        mock_instance.template_dir = Path("/mock/template/dir")
+        
+        # Mock all TemplateEngine methods
+        mock_instance.render_template = Mock(return_value="rendered content")
+        mock_instance.write_rendered_file = Mock()
+        mock_instance.copy_static_file = Mock()
+        mock_instance.list_templates = Mock(return_value=["template1.j2", "template2.j2"])
+        
+        mock_class.return_value = mock_instance
+        yield mock_instance
+
+
+@pytest.fixture
+def mock_path_operations():
+    """
+    Mock common Path operations that cause issues in tests.
+    
+    This fixture mocks Path-related operations that often fail when
+    performed on Mock objects in tests.
+    """
+    with patch('pathlib.Path') as mock_path_class:
+        # Create a mock Path class that behaves properly
+        def create_mock_path(path_str):
+            mock_path = Mock()
+            mock_path.__str__ = Mock(return_value=str(path_str))
+            mock_path.__truediv__ = Mock(side_effect=lambda x: create_mock_path(f"{path_str}/{x}"))
+            mock_path.exists = Mock(return_value=True)
+            mock_path.mkdir = Mock()
+            mock_path.parent = create_mock_path(str(Path(path_str).parent))
+            mock_path.name = Path(path_str).name
+            return mock_path
+        
+        mock_path_class.side_effect = create_mock_path
+        yield mock_path_class
 
 
 # ============================================================================

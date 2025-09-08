@@ -15,6 +15,7 @@ import yaml
 
 from src.cli.utils.interactive_ui import InteractiveUI
 from src.cli.utils.template_engine import TemplateEngine
+from src.components.evaluator.registry import EvaluatorRegistry
 
 
 class RecipeBuilder:
@@ -23,17 +24,6 @@ class RecipeBuilder:
     사용자와의 대화형 인터페이스를 통해 모델 선택 및 Recipe 파일을 생성합니다.
     환경 설정과 분리되어 Recipe만을 다룹니다.
     """
-    
-    # Task별 기본 메트릭 매핑
-    TASK_METRICS = {
-        "Classification": ["accuracy", "precision", "recall", "f1", "roc_auc"],
-        "Regression": ["mae", "mse", "rmse", "r2", "mape"],
-        "Clustering": ["silhouette_score", "davies_bouldin", "calinski_harabasz"],
-        "Causal": ["ate", "att", "confidence_intervals"],
-        "Timeseries": ["mse", "rmse", "mae", "mape", "smape"]
-    }
-    
-    # Optuna 최적화를 위한 metric별 방향 매핑
     
     def __init__(self):
         """RecipeBuilder 초기화."""
@@ -435,7 +425,13 @@ class RecipeBuilder:
         self.ui.show_info("평가 설정")
         
         # Task별 메트릭 자동 설정
-        metrics = self.TASK_METRICS.get(task, ["accuracy"])
+        try:
+            evaluator_class = EvaluatorRegistry.get_evaluator_class(task)
+            metrics = evaluator_class.METRIC_KEYS
+        except KeyError:
+            self.ui.show_error(f"사용 가능한 평가 메트릭이 없습니다. {task} Task에 대한 평가 메트릭을 직접 설정해주세요.")
+            raise ValueError(f"No metrics available for task: {task}")
+
         selections["metrics"] = metrics
         
         # Validation 설정

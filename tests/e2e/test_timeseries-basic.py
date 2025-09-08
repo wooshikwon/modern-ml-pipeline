@@ -125,4 +125,3 @@ class TestTimeseriesBasicE2E:
         assert len(predictions) == 3, "Should predict for all samples"
         
         success_print("E2E Time Series Pipeline completed successfully!")
-        return {'train_result': train_result, 'predictions': predictions}

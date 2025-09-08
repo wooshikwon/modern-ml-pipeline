@@ -245,10 +245,10 @@ class TestStorageAdapterWriteOperations:
         # Arrange
         storage_options = {'aws_access_key_id': 'test'}
         mock_settings = Mock(spec=Settings)
-        mock_settings.data_adapters = Mock()
-        mock_settings.data_adapters.adapters = {
-            'storage': Mock(config={'storage_options': storage_options})
-        }
+        # Fix: StorageAdapter expects settings.config.data_source.config structure
+        mock_settings.config = Mock()
+        mock_settings.config.data_source = Mock()
+        mock_settings.config.data_source.config = {'storage_options': storage_options}
         adapter = StorageAdapter(mock_settings)
         
         df = pd.DataFrame({'num': [1, 2, 3]})

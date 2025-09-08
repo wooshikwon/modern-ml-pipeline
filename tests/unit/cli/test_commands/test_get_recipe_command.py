@@ -29,8 +29,8 @@ class TestGetRecipeCommandInitialization:
 class TestGetRecipeCommandRecipeBuilderIntegration:
     """Test get_recipe command integration with RecipeBuilder."""
     
-    @patch('src.cli.commands.get_recipe_command.RecipeBuilder')
-    @patch('src.cli.commands.get_recipe_command.InteractiveUI')
+    @patch('src.cli.utils.recipe_builder.RecipeBuilder')
+    @patch('src.cli.utils.interactive_ui.InteractiveUI')
     @patch('src.cli.commands.get_recipe_command.console')
     def test_get_recipe_command_successful_workflow(self, mock_console, mock_ui_class, mock_builder_class):
         """Test successful recipe generation workflow."""
@@ -69,8 +69,8 @@ class TestGetRecipeCommandRecipeBuilderIntegration:
             mock_builder.generate_recipe_file.assert_called_once_with(mock_selections)
             mock_show_success.assert_called_once_with(Path("recipes/my_model.yaml"), mock_selections)
     
-    @patch('src.cli.commands.get_recipe_command.RecipeBuilder')
-    @patch('src.cli.commands.get_recipe_command.InteractiveUI')
+    @patch('src.cli.utils.recipe_builder.RecipeBuilder')
+    @patch('src.cli.utils.interactive_ui.InteractiveUI')
     @patch('src.cli.commands.get_recipe_command.console')
     def test_get_recipe_command_recipe_builder_initialization(self, mock_console, mock_ui_class, mock_builder_class):
         """Test that RecipeBuilder is properly initialized."""
@@ -98,8 +98,8 @@ class TestGetRecipeCommandRecipeBuilderIntegration:
             mock_builder_class.assert_called_once()  # RecipeBuilder() called
             mock_builder.run_interactive_flow.assert_called_once()
     
-    @patch('src.cli.commands.get_recipe_command.RecipeBuilder')
-    @patch('src.cli.commands.get_recipe_command.InteractiveUI')
+    @patch('src.cli.utils.recipe_builder.RecipeBuilder')
+    @patch('src.cli.utils.interactive_ui.InteractiveUI')
     @patch('src.cli.commands.get_recipe_command.console')
     def test_get_recipe_command_console_output(self, mock_console, mock_ui_class, mock_builder_class):
         """Test that appropriate console messages are displayed."""
@@ -131,8 +131,8 @@ class TestGetRecipeCommandRecipeBuilderIntegration:
 class TestGetRecipeCommandErrorHandling:
     """Test get_recipe command error scenarios."""
     
-    @patch('src.cli.commands.get_recipe_command.RecipeBuilder')
-    @patch('src.cli.commands.get_recipe_command.InteractiveUI')
+    @patch('src.cli.utils.recipe_builder.RecipeBuilder')
+    @patch('src.cli.utils.interactive_ui.InteractiveUI')
     def test_get_recipe_command_keyboard_interrupt(self, mock_ui_class, mock_builder_class):
         """Test handling of KeyboardInterrupt during interactive flow."""
         runner = CliRunner()
@@ -157,8 +157,8 @@ class TestGetRecipeCommandErrorHandling:
         assert result.exit_code == 0  # KeyboardInterrupt exits with code 0
         mock_ui.show_error.assert_called_once_with("Recipe 생성이 취소되었습니다.")
     
-    @patch('src.cli.commands.get_recipe_command.RecipeBuilder')
-    @patch('src.cli.commands.get_recipe_command.InteractiveUI')
+    @patch('src.cli.utils.recipe_builder.RecipeBuilder')
+    @patch('src.cli.utils.interactive_ui.InteractiveUI')
     @patch('src.cli.commands.get_recipe_command.console')
     def test_get_recipe_command_file_not_found_error(self, mock_console, mock_ui_class, mock_builder_class):
         """Test handling of FileNotFoundError during recipe generation."""
@@ -185,8 +185,8 @@ class TestGetRecipeCommandErrorHandling:
         assert result.exit_code == 1
         mock_ui.show_error.assert_called_once_with("파일을 찾을 수 없습니다: Template file not found")
     
-    @patch('src.cli.commands.get_recipe_command.RecipeBuilder')
-    @patch('src.cli.commands.get_recipe_command.InteractiveUI')
+    @patch('src.cli.utils.recipe_builder.RecipeBuilder')
+    @patch('src.cli.utils.interactive_ui.InteractiveUI')
     @patch('src.cli.commands.get_recipe_command.console')
     def test_get_recipe_command_value_error(self, mock_console, mock_ui_class, mock_builder_class):
         """Test handling of ValueError during recipe generation."""
@@ -212,8 +212,8 @@ class TestGetRecipeCommandErrorHandling:
         assert result.exit_code == 1
         mock_ui.show_error.assert_called_once_with("잘못된 값: Invalid model selection")
     
-    @patch('src.cli.commands.get_recipe_command.RecipeBuilder')
-    @patch('src.cli.commands.get_recipe_command.InteractiveUI')
+    @patch('src.cli.utils.recipe_builder.RecipeBuilder')
+    @patch('src.cli.utils.interactive_ui.InteractiveUI')
     @patch('src.cli.commands.get_recipe_command.console')
     def test_get_recipe_command_general_exception(self, mock_console, mock_ui_class, mock_builder_class):
         """Test handling of general exceptions during recipe generation."""
@@ -240,8 +240,8 @@ class TestGetRecipeCommandErrorHandling:
         mock_ui.show_error.assert_called_once_with("Recipe 생성 중 오류가 발생했습니다: Unexpected error")
         mock_console.print.assert_called_with("[dim]자세한 오류 정보는 로그를 확인하세요.[/dim]")
     
-    @patch('src.cli.commands.get_recipe_command.RecipeBuilder')
-    @patch('src.cli.commands.get_recipe_command.InteractiveUI')
+    @patch('src.cli.utils.recipe_builder.RecipeBuilder')
+    @patch('src.cli.utils.interactive_ui.InteractiveUI')
     def test_get_recipe_command_recipe_builder_initialization_error(self, mock_ui_class, mock_builder_class):
         """Test handling of RecipeBuilder initialization error."""
         runner = CliRunner()
@@ -370,8 +370,8 @@ class TestGetRecipeCommandSuccessMessage:
 class TestGetRecipeCommandIntegration:
     """Test get_recipe command integration scenarios."""
     
-    @patch('src.cli.commands.get_recipe_command.RecipeBuilder')
-    @patch('src.cli.commands.get_recipe_command.InteractiveUI')
+    @patch('src.cli.utils.recipe_builder.RecipeBuilder')
+    @patch('src.cli.utils.interactive_ui.InteractiveUI')
     @patch('src.cli.commands.get_recipe_command.console')
     @patch('src.cli.commands.get_recipe_command._show_success_message')
     def test_get_recipe_command_complete_workflow(self, mock_show_success, mock_console, mock_ui_class, mock_builder_class):
@@ -433,8 +433,8 @@ class TestGetRecipeCommandIntegration:
         # Verify success message
         mock_show_success.assert_called_once_with(recipe_path, mock_selections)
     
-    @patch('src.cli.commands.get_recipe_command.RecipeBuilder')
-    @patch('src.cli.commands.get_recipe_command.InteractiveUI')
+    @patch('src.cli.utils.recipe_builder.RecipeBuilder')
+    @patch('src.cli.utils.interactive_ui.InteractiveUI')
     @patch('src.cli.commands.get_recipe_command.console')
     def test_get_recipe_command_welcome_message_display(self, mock_console, mock_ui_class, mock_builder_class):
         """Test that welcome message is properly displayed."""
@@ -478,8 +478,8 @@ class TestGetRecipeCommandIntegration:
 class TestGetRecipeCommandEdgeCases:
     """Test get_recipe command edge cases and boundary conditions."""
     
-    @patch('src.cli.commands.get_recipe_command.RecipeBuilder')
-    @patch('src.cli.commands.get_recipe_command.InteractiveUI')
+    @patch('src.cli.utils.recipe_builder.RecipeBuilder')
+    @patch('src.cli.utils.interactive_ui.InteractiveUI')
     @patch('src.cli.commands.get_recipe_command.console')
     def test_get_recipe_command_minimal_selections(self, mock_console, mock_ui_class, mock_builder_class):
         """Test get_recipe command with minimal recipe selections."""
@@ -514,8 +514,8 @@ class TestGetRecipeCommandEdgeCases:
             mock_builder.generate_recipe_file.assert_called_once_with(minimal_selections)
             mock_show_success.assert_called_once_with(Path("recipes/minimal.yaml"), minimal_selections)
     
-    @patch('src.cli.commands.get_recipe_command.RecipeBuilder')
-    @patch('src.cli.commands.get_recipe_command.InteractiveUI')
+    @patch('src.cli.utils.recipe_builder.RecipeBuilder')
+    @patch('src.cli.utils.interactive_ui.InteractiveUI')
     @patch('src.cli.commands.get_recipe_command.console')
     def test_get_recipe_command_long_recipe_name(self, mock_console, mock_ui_class, mock_builder_class):
         """Test get_recipe command with very long recipe name."""

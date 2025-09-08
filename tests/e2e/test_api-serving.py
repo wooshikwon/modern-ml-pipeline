@@ -428,13 +428,6 @@ class TestAPIServingE2E:
         print(f"   - Error handling working: ✓")
         print(f"   - Stress test passed: ✓")
         print(f"   - Model URI: {model_uri}")
-        
-        return {
-            'model_uri': model_uri,
-            'train_result': train_result,
-            'server_url': f"{serving_settings.config.serving.host}:{serving_settings.config.serving.port}",
-            'stress_test_success_rate': success_rate
-        }
     
     def test_serving_configuration_validation(self, serving_settings):
         """Test serving configuration validation."""

@@ -97,13 +97,21 @@ class TestStartRun:
         # Act & Assert
         with start_run(mock_settings, "test_run"):
             mock_mlflow.set_experiment.assert_called_once_with("test_exp")
-            mock_mlflow.start_run.assert_called_once_with(run_name="test_run")
+            # Check that start_run was called with a run_name that starts with "test_run"
+            mock_mlflow.start_run.assert_called_once()
+            args, kwargs = mock_mlflow.start_run.call_args
+            assert 'run_name' in kwargs
+            assert kwargs['run_name'].startswith('test_run_')
+            # Extract the actual run name used
+            actual_run_name = kwargs['run_name']
             mock_console.log_milestone.assert_called_with(
-                "MLflow Run started: test_run_123 (test_run)", "mlflow"
+                f"MLflow Run started: test_run_123 ({actual_run_name})", "mlflow"
             )
         
-        # Check success status was set
-        mock_mlflow.set_tag.assert_called_with("status", "success")
+        # Check tags were set correctly
+        mock_mlflow.set_tag.assert_any_call("original_run_name", "test_run")
+        mock_mlflow.set_tag.assert_any_call("unique_run_name", actual_run_name)
+        mock_mlflow.set_tag.assert_any_call("status", "success")
         assert mock_console.log_milestone.call_count == 2  # start and finish
     
     @patch('src.utils.integrations.mlflow_integration.RichConsoleManager')
@@ -289,6 +297,7 @@ class TestLoadPyfuncModel:
     def test_load_pyfunc_model_invalid_runs_uri(self, mock_logger):
         """Test error with invalid runs:// URI."""
         mock_settings = Mock()
+        mock_settings.config.mlflow.tracking_uri = "http://localhost:5000"
         invalid_uri = "runs:/invalid"
         
         with pytest.raises(ValueError, match="올바른 'runs:/' URI가 아닙니다"):
@@ -427,12 +436,12 @@ class TestCreateModelSignature:
         assert len(signature.outputs.inputs) == 2  # 2 output columns
         
         # Check input types are properly inferred
-        input_types = [col.type for col in signature.inputs.inputs]
-        assert "long" in input_types      # int_col
-        assert "double" in input_types    # float_col
-        assert "boolean" in input_types   # bool_col
-        assert "string" in input_types    # str_col
-        assert "datetime" in input_types  # datetime_col
+        input_types = [str(col.type) for col in signature.inputs.inputs]
+        assert "DataType.long" in input_types or "long" in input_types      # int_col
+        assert "DataType.double" in input_types or "double" in input_types    # float_col
+        assert "DataType.boolean" in input_types or "boolean" in input_types   # bool_col
+        assert "DataType.string" in input_types or "string" in input_types    # str_col
+        assert "DataType.datetime" in input_types or "datetime" in input_types  # datetime_col
     
     @patch('src.utils.integrations.mlflow_integration.logger')
     def test_create_model_signature_error_handling(self, mock_logger):
@@ -511,7 +520,7 @@ class TestInferPandasDtypeToMlflowType:
 class TestCreateEnhancedModelSignatureWithSchema:
     """Test Phase 5 enhanced model signature creation."""
     
-    @patch('src.utils.integrations.mlflow_integration.generate_training_schema_metadata')
+    @patch('src.utils.system.schema_utils.generate_training_schema_metadata')
     @patch('src.utils.integrations.mlflow_integration.create_model_signature')
     @patch('src.utils.integrations.mlflow_integration.logger')
     @patch('src.utils.integrations.mlflow_integration.mlflow')
@@ -561,7 +570,7 @@ class TestCreateEnhancedModelSignatureWithSchema:
         mock_generate_schema.assert_called_once_with(training_df, data_interface_config)
         mock_logger.info.assert_called()
     
-    @patch('src.utils.integrations.mlflow_integration.generate_training_schema_metadata')
+    @patch('src.utils.system.schema_utils.generate_training_schema_metadata')
     @patch('src.utils.integrations.mlflow_integration.create_model_signature')
     @patch('src.utils.integrations.mlflow_integration.logger')
     @patch('src.utils.integrations.mlflow_integration.mlflow')
@@ -582,7 +591,8 @@ class TestCreateEnhancedModelSignatureWithSchema:
         mock_schema_metadata = {
             'inference_columns': ['entity_id', 'timestamp'],
             'timestamp_column': 'timestamp',
-            'schema_version': '2.0'
+            'schema_version': '2.0',
+            'feature_columns': ['feature1']  # Add feature_columns which the implementation uses
         }
         mock_generate_schema.return_value = mock_schema_metadata
         
@@ -601,8 +611,8 @@ class TestCreateEnhancedModelSignatureWithSchema:
         call_args = mock_create_signature.call_args[0]
         input_example = call_args[0]
         
-        # Check columns are filtered correctly
-        assert list(input_example.columns) == ['entity_id', 'timestamp']
+        # Check columns are filtered correctly - should only include feature columns
+        assert list(input_example.columns) == ['feature1']
 
 
 class TestLogEnhancedModelWithSchema:

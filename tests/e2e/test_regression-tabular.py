@@ -317,15 +317,3 @@ class TestRegressionTabularE2E:
         print(f"   - R² Score: {r2:.3f}")
         print(f"   - Price range: ${min_true:,.0f} - ${max_true:,.0f} (true), ${min_pred:,.0f} - ${max_pred:,.0f} (pred)")
         print(f"   - MLflow run: {train_result.run_id}")
-        
-        return {
-            'train_result': train_result,
-            'inference_result': inference_result,
-            'model': model,
-            'predictions_path': predictions_path,
-            'metrics': {
-                'rmse': rmse,
-                'r2': r2,
-                'relative_rmse': relative_rmse
-            }
-        }

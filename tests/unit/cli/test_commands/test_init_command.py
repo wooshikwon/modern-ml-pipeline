@@ -29,7 +29,7 @@ class TestInitCommandInitialization:
 class TestInitCommandParameterHandling:
     """Test init command parameter processing and validation."""
     
-    @patch('src.cli.commands.init_command.InteractiveUI')
+    @patch('src.cli.utils.interactive_ui.InteractiveUI')
     @patch('src.cli.commands.init_command.Console')
     @patch('src.cli.commands.init_command.create_project_structure')
     def test_init_command_with_project_name(self, mock_create_structure, mock_console, mock_ui_class):
@@ -67,7 +67,7 @@ class TestInitCommandParameterHandling:
             mock_ui.show_success.assert_called_once()
             mock_ui.show_panel.assert_called_once()
     
-    @patch('src.cli.commands.init_command.InteractiveUI')
+    @patch('src.cli.utils.interactive_ui.InteractiveUI')
     @patch('src.cli.commands.init_command.Console')
     @patch('src.cli.commands.init_command.create_project_structure')
     def test_init_command_without_project_name_interactive(self, mock_create_structure, mock_console, mock_ui_class):
@@ -110,7 +110,7 @@ class TestInitCommandParameterHandling:
 class TestInitCommandDirectoryHandling:
     """Test init command directory handling scenarios."""
     
-    @patch('src.cli.commands.init_command.InteractiveUI')
+    @patch('src.cli.utils.interactive_ui.InteractiveUI')
     @patch('src.cli.commands.init_command.Console')
     @patch('src.cli.commands.init_command.create_project_structure')
     def test_init_command_existing_directory_confirm(self, mock_create_structure, mock_console, mock_ui_class):
@@ -149,7 +149,7 @@ class TestInitCommandDirectoryHandling:
             mock_create_structure.assert_called_once()
             mock_ui.show_success.assert_called_once()
     
-    @patch('src.cli.commands.init_command.InteractiveUI')
+    @patch('src.cli.utils.interactive_ui.InteractiveUI')
     @patch('src.cli.commands.init_command.Console')
     def test_init_command_existing_directory_cancel(self, mock_console, mock_ui_class):
         """Test init command with existing directory - user cancels."""
@@ -294,7 +294,7 @@ class TestInitCommandFileGeneration:
 class TestInitCommandErrorHandling:
     """Test init command error scenarios."""
     
-    @patch('src.cli.commands.init_command.InteractiveUI')
+    @patch('src.cli.utils.interactive_ui.InteractiveUI')
     def test_init_command_keyboard_interrupt(self, mock_ui_class):
         """Test handling of KeyboardInterrupt during interactive input."""
         runner = CliRunner()
@@ -314,7 +314,7 @@ class TestInitCommandErrorHandling:
         assert result.exit_code == 1
         mock_ui.show_error.assert_called_once()
     
-    @patch('src.cli.commands.init_command.InteractiveUI')
+    @patch('src.cli.utils.interactive_ui.InteractiveUI')
     @patch('src.cli.commands.init_command.Console')
     @patch('src.cli.commands.init_command.create_project_structure')
     def test_init_command_general_exception(self, mock_create_structure, mock_console, mock_ui_class):
@@ -364,7 +364,7 @@ class TestInitCommandErrorHandling:
 class TestInitCommandIntegration:
     """Test init command integration scenarios."""
     
-    @patch('src.cli.commands.init_command.InteractiveUI')
+    @patch('src.cli.utils.interactive_ui.InteractiveUI')
     @patch('src.cli.commands.init_command.Console')
     @patch('src.cli.commands.init_command.TemplateEngine')
     @patch('src.cli.commands.init_command.Path')
@@ -430,7 +430,7 @@ class TestInitCommandIntegration:
             # Verify console output
             mock_console_instance.print.assert_called()
     
-    @patch('src.cli.commands.init_command.InteractiveUI')
+    @patch('src.cli.utils.interactive_ui.InteractiveUI')
     @patch('src.cli.commands.init_command.Console')
     @patch('src.cli.commands.init_command.TemplateEngine')
     @patch('src.cli.commands.init_command.Path')
@@ -480,7 +480,7 @@ class TestInitCommandIntegration:
 class TestInitCommandValidation:
     """Test init command input validation scenarios."""
     
-    @patch('src.cli.commands.init_command.InteractiveUI')
+    @patch('src.cli.utils.interactive_ui.InteractiveUI')
     def test_init_command_project_name_validation(self, mock_ui_class):
         """Test project name validation logic."""
         # Mock UI instance

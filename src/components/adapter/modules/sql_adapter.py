@@ -204,7 +204,7 @@ class SqlAdapter(BaseAdapter):
             df.to_sql(table_name, self.engine, **kwargs)
             console.info(f"Successfully wrote {len(df)} rows to {table_name}.")
         except Exception as e:
-            console.error(f"SQL write 작업 실패: {e}", exc_info=True)
+            console.error(f"SQL write 작업 실패: {e}", context={"exception": str(e)})
             raise
 
 # Self-registration

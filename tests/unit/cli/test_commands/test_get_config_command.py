@@ -29,7 +29,7 @@ class TestGetConfigCommandInitialization:
 class TestGetConfigCommandParameterHandling:
     """Test get_config command parameter processing and validation."""
     
-    @patch('src.cli.commands.get_config_command.InteractiveConfigBuilder')
+    @patch('src.cli.utils.config_builder.InteractiveConfigBuilder')
     @patch('src.cli.commands.get_config_command.console')
     def test_get_config_command_with_env_name(self, mock_console, mock_builder_class):
         """Test get_config command with env_name provided."""
@@ -58,7 +58,7 @@ class TestGetConfigCommandParameterHandling:
         mock_builder.generate_env_template.assert_called_once()
         mock_console.print.assert_called()  # Completion message displayed
     
-    @patch('src.cli.commands.get_config_command.InteractiveConfigBuilder')
+    @patch('src.cli.utils.config_builder.InteractiveConfigBuilder')
     @patch('src.cli.commands.get_config_command.console')
     def test_get_config_command_without_env_name_interactive(self, mock_console, mock_builder_class):
         """Test get_config command without env_name (interactive mode)."""
@@ -86,7 +86,7 @@ class TestGetConfigCommandParameterHandling:
         mock_builder.generate_config_file.assert_called_once()
         mock_builder.generate_env_template.assert_called_once()
     
-    @patch('src.cli.commands.get_config_command.InteractiveConfigBuilder')
+    @patch('src.cli.utils.config_builder.InteractiveConfigBuilder')
     @patch('src.cli.commands.get_config_command.console')
     def test_get_config_command_short_option(self, mock_console, mock_builder_class):
         """Test get_config command with short option -e."""
@@ -116,7 +116,7 @@ class TestGetConfigCommandParameterHandling:
 class TestGetConfigCommandConfigBuilderIntegration:
     """Test get_config command integration with InteractiveConfigBuilder."""
     
-    @patch('src.cli.commands.get_config_command.InteractiveConfigBuilder')
+    @patch('src.cli.utils.config_builder.InteractiveConfigBuilder')
     @patch('src.cli.commands.get_config_command.console')
     def test_get_config_command_config_builder_workflow(self, mock_console, mock_builder_class):
         """Test complete workflow with InteractiveConfigBuilder."""
@@ -151,7 +151,7 @@ class TestGetConfigCommandConfigBuilderIntegration:
         mock_builder.generate_config_file.assert_called_once_with("staging", mock_selections)
         mock_builder.generate_env_template.assert_called_once_with("staging", mock_selections)
     
-    @patch('src.cli.commands.get_config_command.InteractiveConfigBuilder')
+    @patch('src.cli.utils.config_builder.InteractiveConfigBuilder')
     @patch('src.cli.commands.get_config_command.console')
     def test_get_config_command_verifies_file_paths(self, mock_console, mock_builder_class):
         """Test that generated file paths are correctly passed to completion message."""
@@ -181,7 +181,7 @@ class TestGetConfigCommandConfigBuilderIntegration:
 class TestGetConfigCommandErrorHandling:
     """Test get_config command error scenarios."""
     
-    @patch('src.cli.commands.get_config_command.InteractiveConfigBuilder')
+    @patch('src.cli.utils.config_builder.InteractiveConfigBuilder')
     @patch('src.cli.commands.get_config_command.console')
     def test_get_config_command_keyboard_interrupt(self, mock_console, mock_builder_class):
         """Test handling of KeyboardInterrupt during interactive flow."""
@@ -201,7 +201,7 @@ class TestGetConfigCommandErrorHandling:
         assert result.exit_code == 1
         mock_console.print.assert_called_with("\n❌ 설정 생성이 취소되었습니다.", style="red")
     
-    @patch('src.cli.commands.get_config_command.InteractiveConfigBuilder')
+    @patch('src.cli.utils.config_builder.InteractiveConfigBuilder')
     @patch('src.cli.commands.get_config_command.console')
     def test_get_config_command_config_builder_initialization_error(self, mock_console, mock_builder_class):
         """Test handling of InteractiveConfigBuilder initialization error."""
@@ -219,7 +219,7 @@ class TestGetConfigCommandErrorHandling:
         assert result.exit_code == 1
         mock_console.print.assert_called_with("❌ 오류 발생: Config builder initialization failed", style="red")
     
-    @patch('src.cli.commands.get_config_command.InteractiveConfigBuilder')
+    @patch('src.cli.utils.config_builder.InteractiveConfigBuilder')
     @patch('src.cli.commands.get_config_command.console')
     def test_get_config_command_file_generation_error(self, mock_console, mock_builder_class):
         """Test handling of file generation errors."""
@@ -240,7 +240,7 @@ class TestGetConfigCommandErrorHandling:
         assert result.exit_code == 1
         mock_console.print.assert_called_with("❌ 오류 발생: Cannot write config file", style="red")
     
-    @patch('src.cli.commands.get_config_command.InteractiveConfigBuilder')
+    @patch('src.cli.utils.config_builder.InteractiveConfigBuilder')
     @patch('src.cli.commands.get_config_command.console')
     def test_get_config_command_env_template_generation_error(self, mock_console, mock_builder_class):
         """Test handling of env template generation errors."""
@@ -320,7 +320,7 @@ class TestGetConfigCommandCompletionMessage:
 class TestGetConfigCommandIntegration:
     """Test get_config command integration scenarios."""
     
-    @patch('src.cli.commands.get_config_command.InteractiveConfigBuilder')
+    @patch('src.cli.utils.config_builder.InteractiveConfigBuilder')
     @patch('src.cli.commands.get_config_command.console')
     @patch('src.cli.commands.get_config_command._show_completion_message')
     def test_get_config_command_complete_workflow(self, mock_show_completion, mock_console, mock_builder_class):
@@ -363,7 +363,7 @@ class TestGetConfigCommandIntegration:
         # Verify completion message
         mock_show_completion.assert_called_once_with("integration-test", config_path, env_template_path)
     
-    @patch('src.cli.commands.get_config_command.InteractiveConfigBuilder')
+    @patch('src.cli.utils.config_builder.InteractiveConfigBuilder')
     @patch('src.cli.commands.get_config_command.console')
     def test_get_config_command_interactive_workflow(self, mock_console, mock_builder_class):
         """Test interactive workflow without env_name parameter."""
@@ -401,7 +401,7 @@ class TestGetConfigCommandIntegration:
 class TestGetConfigCommandEdgeCases:
     """Test get_config command edge cases and boundary conditions."""
     
-    @patch('src.cli.commands.get_config_command.InteractiveConfigBuilder')
+    @patch('src.cli.utils.config_builder.InteractiveConfigBuilder')
     @patch('src.cli.commands.get_config_command.console')
     def test_get_config_command_empty_selections(self, mock_console, mock_builder_class):
         """Test get_config command with minimal/empty selections."""
@@ -427,7 +427,7 @@ class TestGetConfigCommandEdgeCases:
         assert result.exit_code == 0
         mock_builder.generate_config_file.assert_called_once_with("minimal", minimal_selections)
     
-    @patch('src.cli.commands.get_config_command.InteractiveConfigBuilder')
+    @patch('src.cli.utils.config_builder.InteractiveConfigBuilder')
     @patch('src.cli.commands.get_config_command.console')
     def test_get_config_command_long_env_name(self, mock_console, mock_builder_class):
         """Test get_config command with very long environment name."""

@@ -111,9 +111,17 @@ class Factory:
                     module_path, func_name = value.rsplit('.', 1)
                     module = importlib.import_module(module_path)
                     processed[key] = getattr(module, func_name)
-                    self.console.info(f"Converted hyperparameter '{key}' to callable: {value}", rich_message=f"🔧 Converted param: [yellow]{key}[/yellow] → callable")
+                    self.console.info(
+                        f"Converted hyperparameter '{key}' to callable: {value}", 
+                        rich_message=f"🔧 Converted param: [yellow]{key}[/yellow] → callable",
+                        context={"module_path": module_path, "func_name": func_name}
+                    )
                 except (ImportError, AttributeError):
-                    self.console.info(f"Keeping hyperparameter '{key}' as string: {value}", rich_message=f"📝 Keeping param: [yellow]{key}[/yellow] as string")
+                    self.console.info(
+                        f"Keeping hyperparameter '{key}' as string: {value}", 
+                        rich_message=f"📝 Keeping param: [yellow]{key}[/yellow] as string",
+                        context={"module_path": module_path, "func_name": func_name}
+                    )
         
         return processed
 
@@ -146,7 +154,10 @@ class Factory:
             return 'storage'
         
         # 기본값
-        self.console.warning(f"source_uri 패턴을 인식할 수 없습니다: {source_uri}. 'storage' 어댑터를 사용합니다.", rich_message=f"⚠️ Unknown source_uri pattern: [red]{source_uri}[/red] → using 'storage' adapter")
+        self.console.warning(
+            f"source_uri 패턴을 인식할 수 없습니다: {source_uri}. 'storage' 어댑터를 사용합니다.", 
+            rich_message=f"⚠️ Unknown source_uri pattern: [red]{source_uri}[/red] → using 'storage' adapter"
+        )
         return 'storage'
     
     def create_data_adapter(self, adapter_type: Optional[str] = None) -> "BaseAdapter":

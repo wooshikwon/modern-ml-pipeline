@@ -406,13 +406,6 @@ class TestMLflowExperimentsE2E:
         print(f"   - Artifacts verified: ✓")
         print(f"   - Tags and metadata: ✓")
         print(f"   - MLflow URI: {mlflow.get_tracking_uri()}")
-        
-        return {
-            'experiment': experiment,
-            'runs_data': runs_data,
-            'mlflow_uri': mlflow.get_tracking_uri(),
-            'total_runs': len(all_runs)
-        }
     
     def test_mlflow_concurrent_runs(self, mlflow_settings, temp_workspace):
         """Test MLflow handling of concurrent training runs."""

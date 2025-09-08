@@ -131,4 +131,3 @@ class TestCausalTabularE2E:
         assert len(predictions) == 3, "Should predict for all samples"
         
         print("✅ E2E Causal Pipeline completed successfully!")
-        return {'train_result': train_result, 'predictions': predictions}
