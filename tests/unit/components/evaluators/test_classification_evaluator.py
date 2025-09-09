@@ -54,13 +54,17 @@ class TestClassificationEvaluator:
         # Then: Metrics are calculated correctly
         assert isinstance(metrics, dict)
         assert 'accuracy' in metrics
-        assert 'precision' in metrics
-        assert 'recall' in metrics
-        assert 'f1' in metrics
+        # Check for class-specific metrics (binary classification has 2 classes: 0 and 1)
+        assert 'class_0_precision' in metrics
+        assert 'class_0_recall' in metrics
+        assert 'class_0_f1' in metrics
+        assert 'class_1_precision' in metrics
+        assert 'class_1_recall' in metrics
+        assert 'class_1_f1' in metrics
         assert 0 <= metrics['accuracy'] <= 1
-        assert 0 <= metrics['precision'] <= 1
-        assert 0 <= metrics['recall'] <= 1
-        assert 0 <= metrics['f1'] <= 1
+        assert 0 <= metrics['class_0_precision'] <= 1
+        assert 0 <= metrics['class_0_recall'] <= 1
+        assert 0 <= metrics['class_0_f1'] <= 1
     
     def test_evaluate_with_logistic_regression(self, settings_builder, test_data_generator):
         """Test evaluation with LogisticRegression model."""
@@ -91,8 +95,8 @@ class TestClassificationEvaluator:
         """Test evaluation with multiclass classification."""
         # Given: Multiclass data and model
         from sklearn.datasets import make_classification
-        X, y = make_classification(n_samples=150, n_features=4, n_classes=3, 
-                                 n_informative=3, random_state=42)
+        X, y = make_classification(n_samples=150, n_features=5, n_classes=3, 
+                                 n_informative=3, n_redundant=0, random_state=42)
         X_train, y_train = X[:100], y[:100]
         X_test, y_test = X[100:], y[100:]
         

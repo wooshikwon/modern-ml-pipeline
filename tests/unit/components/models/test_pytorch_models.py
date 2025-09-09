@@ -7,9 +7,11 @@ Following comprehensive testing strategy document principles
 import pytest
 import pandas as pd
 import numpy as np
-import torch
-import torch.nn as nn
-import torch.optim as optim
+
+# Skip all tests in this module if PyTorch is not installed
+torch = pytest.importorskip("torch")
+nn = pytest.importorskip("torch.nn")
+optim = pytest.importorskip("torch.optim")
 from torch.utils.data import DataLoader, TensorDataset
 
 

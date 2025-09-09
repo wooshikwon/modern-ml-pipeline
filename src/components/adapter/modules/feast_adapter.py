@@ -16,6 +16,8 @@ except ImportError:
 if TYPE_CHECKING:
     from src.settings import Settings
 
+console = get_console()
+
 
 class FeastAdapter(BaseAdapter):
     """

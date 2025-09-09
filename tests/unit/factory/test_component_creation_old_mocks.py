@@ -234,12 +234,12 @@ class TestDataAdapterCreation:
         mock_registry.create.return_value = mock_adapter
         
         # Create settings with specific adapter type in config
-        settings = settings_builder.with_data_source('bigquery').build()
+        settings = settings_builder.with_data_source('sql').build()
         factory = Factory(settings)
         
         result = factory.create_data_adapter()
         
-        mock_registry.create.assert_called_once_with('bigquery', settings)
+        mock_registry.create.assert_called_once_with('sql', settings)
         assert result == mock_adapter
     
     @patch('src.factory.factory.AdapterRegistry')

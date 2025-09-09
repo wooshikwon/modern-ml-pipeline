@@ -54,16 +54,16 @@ class TestRegressionEvaluator:
         
         # Then: Metrics are calculated correctly
         assert isinstance(metrics, dict)
-        assert 'mse' in metrics or 'mean_squared_error' in metrics
-        assert 'mae' in metrics or 'mean_absolute_error' in metrics
-        assert 'r2' in metrics or 'r2_score' in metrics
+        assert 'mean_squared_error' in metrics
+        assert 'r2_score' in metrics
         
         # Verify metrics are reasonable
         y_pred = model.predict(X_test)
         expected_mse = mean_squared_error(y_test, y_pred)
+        expected_r2 = r2_score(y_test, y_pred)
         
-        mse_key = 'mse' if 'mse' in metrics else 'mean_squared_error'
-        assert abs(metrics[mse_key] - expected_mse) < 0.001
+        assert abs(metrics['mean_squared_error'] - expected_mse) < 0.001
+        assert abs(metrics['r2_score'] - expected_r2) < 0.001
     
     def test_evaluate_with_random_forest_regressor(self, settings_builder, test_data_generator):
         """Test evaluation with RandomForestRegressor."""
@@ -84,13 +84,11 @@ class TestRegressionEvaluator:
         metrics = evaluator.evaluate(model, X_test, y_test)
         
         # Then: All regression metrics are valid
-        mse_key = 'mse' if 'mse' in metrics else 'mean_squared_error'
-        mae_key = 'mae' if 'mae' in metrics else 'mean_absolute_error'
-        r2_key = 'r2' if 'r2' in metrics else 'r2_score'
+        assert 'mean_squared_error' in metrics
+        assert 'r2_score' in metrics
         
-        assert metrics[mse_key] >= 0  # MSE is always non-negative
-        assert metrics[mae_key] >= 0  # MAE is always non-negative
-        assert metrics[r2_key] <= 1  # R2 score is at most 1
+        assert metrics['mean_squared_error'] >= 0  # MSE is always non-negative
+        assert metrics['r2_score'] <= 1  # R2 score is at most 1
     
     def test_evaluate_with_perfect_predictions(self, settings_builder):
         """Test evaluation when model makes perfect predictions."""
@@ -115,13 +113,11 @@ class TestRegressionEvaluator:
         metrics = evaluator.evaluate(model, X_test, y_test)
         
         # Then: Metrics should be perfect
-        mse_key = 'mse' if 'mse' in metrics else 'mean_squared_error'
-        mae_key = 'mae' if 'mae' in metrics else 'mean_absolute_error'
-        r2_key = 'r2' if 'r2' in metrics else 'r2_score'
+        assert 'mean_squared_error' in metrics
+        assert 'r2_score' in metrics
         
-        assert metrics[mse_key] == 0.0
-        assert metrics[mae_key] == 0.0
-        assert metrics[r2_key] == 1.0
+        assert metrics['mean_squared_error'] == 0.0
+        assert metrics['r2_score'] == 1.0
     
     def test_evaluate_with_poor_predictions(self, settings_builder):
         """Test evaluation with poor model predictions."""
@@ -144,8 +140,8 @@ class TestRegressionEvaluator:
         metrics = evaluator.evaluate(model, X_test, y_test)
         
         # Then: Metrics should reflect poor performance
-        mse_key = 'mse' if 'mse' in metrics else 'mean_squared_error'
-        mae_key = 'mae' if 'mae' in metrics else 'mean_absolute_error'
+        assert 'mean_squared_error' in metrics
+        assert 'r2_score' in metrics
         
-        assert metrics[mse_key] > 50  # Large error
-        assert metrics[mae_key] > 5   # Large absolute error
+        assert metrics['mean_squared_error'] > 50  # Large error
+        # R2 score can be negative for very poor models

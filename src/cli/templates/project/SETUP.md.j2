@@ -1,0 +1,199 @@
+# 🚀 {{ project_name }} - 패키지 의존성 설정 가이드
+
+이 문서는 프로젝트에 필요한 패키지를 **선택적으로 설치**하는 방법을 안내합니다.
+
+## 📦 의존성 전략
+
+Modern ML Pipeline은 **최소한의 기본 패키지**만 설치하고, 사용자가 필요한 기능을 선택적으로 추가하는 방식을 사용합니다.
+
+```
+🔴 필수 (자동 설치)     → modern-ml-pipeline 프레임워크
+🟡 선택적 (사용자 선택) → S3, BigQuery, Feast, PyTorch 등
+```
+
+## 🎯 Quick Start - 권장 설정
+
+### 1. UV 패키지 매니저 설치 (권장)
+
+```bash
+# UV 설치 (Python 패키지 관리자)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 또는 pip으로 설치
+pip install uv
+```
+
+### 2. 프로젝트 초기화
+
+```bash
+# UV 프로젝트 초기화
+uv venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+
+# 기본 프레임워크만 설치
+uv pip install -e .
+```
+
+### 3. 필요한 기능 선택적 설치
+
+```bash
+# 🟢 대부분 사용자 (기본 ML 워크플로우)
+uv pip install -e ".[standard]"
+
+# 추가 기능 선택
+uv pip install -e ".[storage]"       # S3, GCS 지원
+uv pip install -e ".[databases]"     # PostgreSQL, MySQL
+uv pip install -e ".[bigquery]"      # BigQuery 전용
+uv pip install -e ".[feature-store]" # Feast
+```
+
+## 📊 기능별 패키지 선택 가이드
+
+### 사용 케이스별 권장 설치
+
+#### 🏢 **케이스 1: 로컬 개발 (CSV 파일)**
+```bash
+uv pip install -e ".[standard]"
+```
+**포함**: pandas, scikit-learn, xgboost, mlflow, fastapi
+
+#### ☁️ **케이스 2: AWS S3 + PostgreSQL**
+```bash
+uv pip install -e ".[standard,storage,databases]"
+```
+**추가**: s3fs, psycopg2, sqlalchemy
+
+#### 🔷 **케이스 3: Google Cloud (BigQuery + GCS)**
+```bash
+uv pip install -e ".[standard,storage,bigquery]"
+```
+**추가**: gcsfs, google-cloud-bigquery
+
+#### 🚀 **케이스 4: 프로덕션 (모든 기능)**
+```bash
+uv pip install -e ".[all]"
+```
+**포함**: 모든 선택적 패키지
+
+## 📋 패키지 그룹 상세 설명
+
+### `[standard]` - 기본 ML 워크플로우
+- **데이터**: pandas, numpy, pyarrow
+- **ML 모델**: scikit-learn, xgboost, lightgbm, catboost  
+- **MLOps**: mlflow
+- **API**: fastapi, uvicorn
+- **용량**: ~500MB
+- **사용자**: 80% 이상
+
+### `[storage]` - 클라우드 스토리지
+- **AWS S3**: s3fs
+- **Google Cloud Storage**: gcsfs
+- **Azure**: adlfs
+- **용량**: ~50MB
+- **사용자**: 클라우드 사용자
+
+### `[databases]` - 데이터베이스
+- **PostgreSQL**: psycopg2-binary
+- **MySQL**: pymysql
+- **Redis**: redis
+- **SQLAlchemy**: ORM
+- **용량**: ~30MB
+
+### `[bigquery]` - Google BigQuery
+- **BigQuery 클라이언트**: google-cloud-bigquery
+- **BigQuery Storage API**: 고속 읽기
+- **용량**: ~100MB
+- **사용자**: GCP 사용자
+
+### `[feature-store]` - Feature Store
+- **Feast**: 피처 스토어
+- **Redis**: 온라인 스토어
+- **용량**: ~200MB
+- **사용자**: MLOps 고급 사용자
+
+### `[deep-learning]` - 딥러닝
+- **PyTorch**: torch
+- **TabNet**: pytorch-tabnet
+- **FT-Transformer**: rtdl
+- **용량**: ~2GB
+- **사용자**: 딥러닝 모델 사용자
+
+## 🔧 환경별 설정 예시
+
+### 개발 환경
+```bash
+# 개발자 전체 설정
+uv pip install -e ".[standard,dev]"
+```
+
+### 스테이징 환경
+```bash
+# 프로덕션과 동일하지만 개발 도구 포함
+uv pip install -e ".[all,dev]"
+```
+
+### 프로덕션 환경
+```bash
+# 필요한 기능만 선택
+uv pip install -e ".[standard,storage,databases]"
+```
+
+## 📝 pyproject.toml 커스터마이징
+
+필요에 따라 `pyproject.toml`을 수정하여 팀 전용 패키지 그룹을 만들 수 있습니다:
+
+```toml
+[project.optional-dependencies]
+# 팀 전용 설정 추가
+team-ml = [
+    "{{ project_name }}[standard]",
+    "s3fs>=2023.9.0",
+    "wandb>=0.15.0",  # 실험 추적
+]
+
+team-data = [
+    "{{ project_name }}[standard,databases]",
+    "great-expectations>=0.17.0",  # 데이터 검증
+]
+```
+
+## 🚨 트러블슈팅
+
+### 패키지 충돌
+```bash
+# UV lock 파일 재생성
+uv pip compile pyproject.toml -o requirements.txt
+uv pip sync requirements.txt
+```
+
+### 특정 패키지 버전 고정
+```bash
+# uv.lock 생성 (팀 전체 동일 버전)
+uv lock
+git add uv.lock
+git commit -m "Lock dependencies"
+```
+
+### 팀원과 동일한 환경
+```bash
+# uv.lock 기반 설치
+uv sync
+```
+
+## 💡 Best Practices
+
+1. **최소 설치 원칙**: 필요한 것만 설치
+2. **UV 사용**: pip보다 빠르고 안정적
+3. **Lock 파일 공유**: 팀 전체 버전 통일
+4. **환경별 분리**: dev/staging/prod 구분
+5. **정기 업데이트**: 보안 패치 적용
+
+## 📚 추가 리소스
+
+- [UV 공식 문서](https://github.com/astral-sh/uv)
+- [Modern ML Pipeline 문서](https://github.com/your-org/modern-ml-pipeline)
+- [패키지 의존성 관리 가이드](https://packaging.python.org/)
+
+---
+
+**팁**: 처음에는 `[standard]`만 설치하고, 필요할 때마다 추가하는 것을 권장합니다!

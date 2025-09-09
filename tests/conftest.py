@@ -226,6 +226,29 @@ class SettingsBuilder:
     def with_task(self, task_type: str) -> "SettingsBuilder":
         """Set task type (classification, regression, timeseries, etc.)."""
         self._task_choice = task_type
+        
+        # For clustering (unsupervised), target_column must be None
+        if task_type == "clustering":
+            self._data = Data(
+                loader=self._data.loader,
+                data_interface=DataInterface(
+                    target_column=None,  # Clustering has no target
+                    entity_columns=self._data.data_interface.entity_columns
+                ),
+                fetcher=self._data.fetcher
+            )
+        # For timeseries, timestamp_column is required
+        elif task_type == "timeseries":
+            self._data = Data(
+                loader=self._data.loader,
+                data_interface=DataInterface(
+                    target_column=self._data.data_interface.target_column,
+                    entity_columns=self._data.data_interface.entity_columns,
+                    timestamp_column="timestamp"  # Default timestamp column for testing
+                ),
+                fetcher=self._data.fetcher
+            )
+        
         return self
     
     # Model configuration

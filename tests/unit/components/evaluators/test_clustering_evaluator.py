@@ -7,7 +7,8 @@ Following comprehensive testing strategy document principles
 import pytest
 import pandas as pd
 import numpy as np
-from sklearn.cluster import KMeans, DBSCAN, AgglomerativeClustering
+from sklearn.cluster import KMeans, Birch
+from sklearn.mixture import GaussianMixture
 from sklearn.metrics import silhouette_score, davies_bouldin_score, calinski_harabasz_score
 
 from src.components.evaluator.modules.clustering_evaluator import ClusteringEvaluator
@@ -68,17 +69,17 @@ class TestClusteringEvaluator:
             assert -1 <= metrics['silhouette_score'] <= 1
             assert metrics['silhouette_score'] > 0.3  # Reasonably good clustering
     
-    def test_evaluate_with_dbscan_clustering(self, settings_builder):
-        """Test evaluation with DBSCAN clustering."""
-        # Given: Data with density-based clusters
+    def test_evaluate_with_gaussian_mixture(self, settings_builder):
+        """Test evaluation with Gaussian Mixture Model clustering."""
+        # Given: Data suitable for GMM
         np.random.seed(42)
-        # Create two dense regions
-        region1 = np.random.randn(50, 2) * 0.5 + [0, 0]
-        region2 = np.random.randn(50, 2) * 0.5 + [3, 3]
-        X = np.vstack([region1, region2])
+        # Create two Gaussian distributions
+        cluster1 = np.random.randn(50, 2) * 0.5 + [0, 0]
+        cluster2 = np.random.randn(50, 2) * 0.5 + [3, 3]
+        X = np.vstack([cluster1, cluster2])
         
-        # Train DBSCAN model
-        model = DBSCAN(eps=0.5, min_samples=5)
+        # Train GaussianMixture model
+        model = GaussianMixture(n_components=2, random_state=42)
         model.fit(X)
         
         settings = settings_builder \
@@ -86,25 +87,30 @@ class TestClusteringEvaluator:
             .build()
         evaluator = ClusteringEvaluator(settings)
         
-        # When: Evaluating DBSCAN model
+        # When: Evaluating GMM model
         metrics = evaluator.evaluate(model, X, y=None)
         
-        # Then: Metrics are calculated (if clusters were found)
+        # Then: Metrics are calculated correctly
         assert isinstance(metrics, dict)
-        
-        # DBSCAN might find noise points (-1 label)
-        n_clusters = len(set(model.labels_)) - (1 if -1 in model.labels_ else 0)
-        if n_clusters > 1:  # Only if multiple clusters found
-            assert len(metrics) > 0
+        assert 'n_clusters' in metrics
+        assert metrics['n_clusters'] == 2
+        assert 'silhouette_score' in metrics
+        assert 'bic' in metrics  # GMM-specific
+        assert 'aic' in metrics  # GMM-specific
+        assert metrics['silhouette_score'] > 0.3  # Should have good separation
     
-    def test_evaluate_with_hierarchical_clustering(self, settings_builder):
-        """Test evaluation with hierarchical clustering."""
-        # Given: Small dataset for hierarchical clustering
+    def test_evaluate_with_birch_clustering(self, settings_builder):
+        """Test evaluation with Birch clustering."""
+        # Given: Dataset for Birch clustering
         np.random.seed(42)
-        X = np.random.randn(30, 3)
+        # Create three small clusters
+        cluster1 = np.random.randn(20, 3) * 0.3 + [0, 0, 0]
+        cluster2 = np.random.randn(20, 3) * 0.3 + [2, 2, 0]
+        cluster3 = np.random.randn(20, 3) * 0.3 + [1, 1, 3]
+        X = np.vstack([cluster1, cluster2, cluster3])
         
-        # Train AgglomerativeClustering model
-        model = AgglomerativeClustering(n_clusters=3)
+        # Train Birch model
+        model = Birch(n_clusters=3, threshold=0.5)
         model.fit(X)
         
         settings = settings_builder \
@@ -112,9 +118,12 @@ class TestClusteringEvaluator:
             .build()
         evaluator = ClusteringEvaluator(settings)
         
-        # When: Evaluating hierarchical model
+        # When: Evaluating Birch model
         metrics = evaluator.evaluate(model, X, y=None)
         
-        # Then: Metrics are calculated
+        # Then: Metrics are valid
         assert isinstance(metrics, dict)
-        assert len(metrics) >= 0  # May have no metrics or some metrics
+        assert 'n_clusters' in metrics
+        assert 'silhouette_score' in metrics
+        assert metrics['n_clusters'] <= 3  # Birch might merge clusters
+        assert metrics['silhouette_score'] > 0  # Should have some separation

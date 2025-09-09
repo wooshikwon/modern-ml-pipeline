@@ -82,8 +82,7 @@ Component Layer (src/components/)
 │   ├── registry.py         # AdapterRegistry.register()
 │   └── modules/
 │       ├── storage_adapter.py    # File system data loading
-│       ├── sql_adapter.py        # SQL database queries
-│       ├── bigquery_adapter.py   # Google BigQuery integration
+│       ├── sql_adapter.py        # SQL database queries (includes BigQuery)
 │       └── feast_adapter.py      # Feature store integration
 │
 ├── evaluator/              # Performance evaluation
@@ -214,12 +213,12 @@ Settings Layer (src/settings/)
      ├── Database connections
      └── Component interactions
 
-🔶🔶🔶 Unit Tests (70% - ~210 tests)
+🔶🔶🔶 Unit Tests (70% - ~207 tests)
   ├── CLI command functions (24 tests)
   ├── Settings parsing & validation (35 tests)  
   ├── Factory component creation (24 tests)
-  ├── Component functionality (105 tests)
-  │   ├── Adapters (21 tests)
+  ├── Component functionality (102 tests)
+  │   ├── Adapters (18 tests)
   │   ├── Models (21 tests)
   │   ├── Evaluators (21 tests)
   │   ├── Fetchers (14 tests)
@@ -274,8 +273,7 @@ tests/
 │   ├── components/
 │   │   ├── adapters/
 │   │   │   ├── test_storage_adapter.py    # File system data loading
-│   │   │   ├── test_sql_adapter.py        # SQL query execution  
-│   │   │   ├── test_bigquery_adapter.py   # BigQuery integration
+│   │   │   ├── test_sql_adapter.py        # SQL query execution (includes BigQuery support)
 │   │   │   └── test_feast_adapter.py      # Feature store integration
 │   │   │
 │   │   ├── models/
@@ -620,11 +618,10 @@ Expected Output:
 **Days 1-3: Component Unit Tests**
 ```bash
 Priority 4: Individual component functionality
-├── Data Adapters (21 tests)
-│   ├── StorageAdapter with real CSV/Parquet files
-│   ├── SQLAdapter with in-memory SQLite database
-│   ├── BigQueryAdapter with mock BigQuery client  
-│   └── FeastAdapter with test feature store
+├── Data Adapters (18 tests)
+│   ├── StorageAdapter with real CSV/Parquet files (6 tests)
+│   ├── SQLAdapter with SQLite and BigQuery support (9 tests)
+│   └── FeastAdapter with test feature store (3 tests)
 ├── Models (21 tests)
 │   ├── Sklearn model wrapping and training
 │   ├── PyTorch model integration
@@ -639,7 +636,7 @@ Priority 4: Individual component functionality
 │   └── Error handling and edge cases
 
 Expected Output:
-- 105 component tests passing
+- 102 component tests passing
 - Real data processing validated
 - All evaluation metrics verified
 ```
@@ -711,9 +708,9 @@ Expected Output:
 #### Quantitative Metrics
 | Week | Unit Tests | Integration Tests | E2E Tests | Coverage | Execution Time |
 |------|------------|-------------------|-----------|----------|----------------|
-| Week 1 | 59/210 (28%) | 0/60 (0%) | 0/30 (0%) | 40% | < 30s |
-| Week 2 | 210/210 (100%) | 60/60 (100%) | 0/30 (0%) | 85% | < 2min |
-| Week 3 | 210/210 (100%) | 60/60 (100%) | 30/30 (100%) | 95%+ | < 5min |
+| Week 1 | 59/207 (29%) | 0/60 (0%) | 0/30 (0%) | 40% | < 30s |
+| Week 2 | 207/207 (100%) | 60/60 (100%) | 0/30 (0%) | 85% | < 2min |
+| Week 3 | 207/207 (100%) | 60/60 (100%) | 30/30 (100%) | 95%+ | < 5min |
 
 #### Qualitative Success Criteria
 - ✅ **No Mock Hell**: < 10% of tests use mocks, all mocks are simple

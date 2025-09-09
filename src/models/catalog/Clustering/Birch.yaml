@@ -1,0 +1,41 @@
+class_path: sklearn.cluster.Birch
+description: Birch Clustering from scikit-learn.
+library: scikit-learn
+hyperparameters:
+  fixed: {}
+  tunable:
+    n_clusters:
+      type: int
+      range:
+      - 2
+      - 20
+      default: 3
+    threshold:
+      type: float
+      range:
+      - 0.1
+      - 1.0
+      default: 0.5
+    branching_factor:
+      type: int
+      range:
+      - 10
+      - 100
+      default: 50
+    compute_labels:
+      type: categorical
+      range:
+      - true
+      - false
+      default: true
+    copy:
+      type: categorical
+      range:
+      - true
+      - false
+      default: true
+feature_requirements:
+  numerical: true
+  categorical: false
+  text: false
+data_handler: tabular

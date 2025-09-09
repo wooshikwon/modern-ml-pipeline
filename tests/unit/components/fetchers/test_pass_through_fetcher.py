@@ -15,20 +15,17 @@ from src.interface.base_fetcher import BaseFetcher
 class TestPassThroughFetcher:
     """Test PassThroughFetcher with real data passing."""
     
-    def test_pass_through_fetcher_initialization(self, settings_builder):
+    def test_pass_through_fetcher_initialization(self):
         """Test PassThroughFetcher initialization."""
-        # Given: Valid settings
-        settings = settings_builder.build()
-        
         # When: Creating PassThroughFetcher
-        fetcher = PassThroughFetcher(settings)
+        fetcher = PassThroughFetcher()
         
         # Then: Fetcher is properly initialized
         assert isinstance(fetcher, PassThroughFetcher)
         assert isinstance(fetcher, BaseFetcher)
-        assert hasattr(fetcher, 'settings')
+        assert hasattr(fetcher, 'fetch')
     
-    def test_fetch_returns_data_unchanged(self, settings_builder, test_data_generator):
+    def test_fetch_returns_data_unchanged(self, test_data_generator):
         """Test that fetch returns data unchanged."""
         # Given: Data and fetcher
         X, y = test_data_generator.classification_data(n_samples=50, n_features=4)
@@ -36,8 +33,7 @@ class TestPassThroughFetcher:
         df['target'] = y
         df['entity_id'] = range(len(df))
         
-        settings = settings_builder.build()
-        fetcher = PassThroughFetcher(settings)
+        fetcher = PassThroughFetcher()
         
         # When: Fetching data
         result = fetcher.fetch(df)
@@ -46,7 +42,7 @@ class TestPassThroughFetcher:
         assert isinstance(result, pd.DataFrame)
         pd.testing.assert_frame_equal(result, df)
     
-    def test_fetch_preserves_column_types(self, settings_builder):
+    def test_fetch_preserves_column_types(self):
         """Test that fetch preserves column data types."""
         # Given: DataFrame with mixed types
         df = pd.DataFrame({
@@ -56,8 +52,7 @@ class TestPassThroughFetcher:
             'bool_col': [True, False, True]
         })
         
-        settings = settings_builder.build()
-        fetcher = PassThroughFetcher(settings)
+        fetcher = PassThroughFetcher()
         
         # When: Fetching data
         result = fetcher.fetch(df)
@@ -68,13 +63,12 @@ class TestPassThroughFetcher:
         assert result['str_col'].dtype == df['str_col'].dtype
         assert result['bool_col'].dtype == df['bool_col'].dtype
     
-    def test_fetch_with_empty_dataframe(self, settings_builder):
+    def test_fetch_with_empty_dataframe(self):
         """Test fetching empty DataFrame."""
         # Given: Empty DataFrame
         df = pd.DataFrame()
         
-        settings = settings_builder.build()
-        fetcher = PassThroughFetcher(settings)
+        fetcher = PassThroughFetcher()
         
         # When: Fetching empty data
         result = fetcher.fetch(df)
@@ -84,7 +78,7 @@ class TestPassThroughFetcher:
         assert len(result) == 0
         assert len(result.columns) == 0
     
-    def test_fetch_with_null_values(self, settings_builder):
+    def test_fetch_with_null_values(self):
         """Test fetching DataFrame with null values."""
         # Given: DataFrame with nulls
         df = pd.DataFrame({
@@ -93,8 +87,7 @@ class TestPassThroughFetcher:
             'col3': ['a', None, 'c']
         })
         
-        settings = settings_builder.build()
-        fetcher = PassThroughFetcher(settings)
+        fetcher = PassThroughFetcher()
         
         # When: Fetching data with nulls
         result = fetcher.fetch(df)
@@ -104,15 +97,14 @@ class TestPassThroughFetcher:
         assert result['col2'].isna().sum() == 1
         assert result['col3'].isna().sum() == 1
     
-    def test_fetch_preserves_index(self, settings_builder):
+    def test_fetch_preserves_index(self):
         """Test that fetch preserves DataFrame index."""
         # Given: DataFrame with custom index
         df = pd.DataFrame({
             'value': [10, 20, 30]
         }, index=['a', 'b', 'c'])
         
-        settings = settings_builder.build()
-        fetcher = PassThroughFetcher(settings)
+        fetcher = PassThroughFetcher()
         
         # When: Fetching data
         result = fetcher.fetch(df)
@@ -120,19 +112,18 @@ class TestPassThroughFetcher:
         # Then: Index is preserved
         assert list(result.index) == list(df.index)
     
-    def test_fetch_with_large_dataset(self, settings_builder, test_data_generator):
+    def test_fetch_with_large_dataset(self, test_data_generator):
         """Test fetching large dataset."""
         # Given: Large dataset
         X, y = test_data_generator.regression_data(n_samples=1000, n_features=20)
         df = pd.DataFrame(X, columns=[f'feature_{i}' for i in range(X.shape[1])])
         df['target'] = y
         
-        settings = settings_builder.build()
-        fetcher = PassThroughFetcher(settings)
+        fetcher = PassThroughFetcher()
         
         # When: Fetching large data
         result = fetcher.fetch(df)
         
         # Then: All data is returned
         assert len(result) == 1000
-        assert len(result.columns) == 21
+        assert len(result.columns) == X.shape[1] + 1  # features + target
