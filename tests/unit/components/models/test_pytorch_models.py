@@ -56,8 +56,10 @@ class TestPyTorchModels:
         """Test PyTorch classification model training with real data."""
         # Given: Real classification data
         X, y = test_data_generator.classification_data(n_samples=100, n_features=5)
-        X_tensor = torch.FloatTensor(X)
-        y_tensor = torch.LongTensor(y)
+        # Remove entity_id column for PyTorch training
+        X_features = X.drop('entity_id', axis=1) if 'entity_id' in X.columns else X
+        X_tensor = torch.FloatTensor(X_features.values if hasattr(X_features, 'values') else X_features)
+        y_tensor = torch.LongTensor(y.values if hasattr(y, 'values') else y)
         
         # When: Training PyTorch model
         model = SimpleClassificationNet(input_dim=5)
@@ -88,8 +90,10 @@ class TestPyTorchModels:
         """Test PyTorch regression model training with real data."""
         # Given: Real regression data
         X, y = test_data_generator.regression_data(n_samples=100, n_features=5)
-        X_tensor = torch.FloatTensor(X)
-        y_tensor = torch.FloatTensor(y)
+        # Remove entity_id column for PyTorch training
+        X_features = X.drop('entity_id', axis=1) if 'entity_id' in X.columns else X
+        X_tensor = torch.FloatTensor(X_features.values if hasattr(X_features, 'values') else X_features)
+        y_tensor = torch.FloatTensor(y.values if hasattr(y, 'values') else y)
         
         # When: Training PyTorch regression model
         model = SimpleRegressionNet(input_dim=5)
@@ -128,8 +132,9 @@ class TestPyTorchModels:
         X, y = test_data_generator.classification_data(n_samples=50, n_features=4)
         model = SimpleClassificationNet(input_dim=4)
         
-        # Simple training
-        X_tensor = torch.FloatTensor(X)
+        # Simple training - remove entity_id column
+        X_features = X.drop('entity_id', axis=1) if 'entity_id' in X.columns else X
+        X_tensor = torch.FloatTensor(X_features.values if hasattr(X_features, 'values') else X_features)
         optimizer = optim.Adam(model.parameters())
         for _ in range(5):
             optimizer.zero_grad()
@@ -177,6 +182,8 @@ class TestPyTorchModels:
         """Test PyTorch model with different batch sizes."""
         # Given: Model and data
         X, _ = test_data_generator.classification_data(n_samples=100, n_features=5)
+        # Remove entity_id column for PyTorch training
+        X_features = X.drop('entity_id', axis=1) if 'entity_id' in X.columns else X
         model = SimpleClassificationNet(input_dim=5)
         model.eval()
         
@@ -186,7 +193,8 @@ class TestPyTorchModels:
         
         with torch.no_grad():
             for batch_size in batch_sizes:
-                X_batch = torch.FloatTensor(X[:batch_size])
+                X_batch_data = X_features[:batch_size]
+                X_batch = torch.FloatTensor(X_batch_data.values if hasattr(X_batch_data, 'values') else X_batch_data)
                 output = model(X_batch)
                 outputs.append(output)
         
