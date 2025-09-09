@@ -36,10 +36,10 @@ class FeastAdapter(BaseAdapter):
     def _init_feature_store(self) -> FeatureStore:
         """Initializes the Feast FeatureStore object."""
         try:
-            # FeastAdapter는 settings.feature_store.feast_config에서 설정을 읽음
+            # FeastAdapter는 settings.config.feature_store.feast_config에서 설정을 읽음
             # (다른 어댑터와 달리 복잡한 Feast 설정 구조로 인해 별도 섹션 사용)
-            config_data = self.settings.feature_store.feast_config
-            console.info(f"Feast 설정 로드됨. project: {config_data.get('project', 'unknown')}")
+            config_data = self.settings.config.feature_store.feast_config
+            console.info(f"Feast 설정 로드됨. project: {getattr(config_data, 'project', 'unknown')}")
 
             if isinstance(config_data, dict):
                 # Convert dict to RepoConfig object before passing to FeatureStore
@@ -54,7 +54,7 @@ class FeastAdapter(BaseAdapter):
             console.info("Feature Store adapter initialized successfully.")
             return fs
         except Exception as e:
-            console.error(f"Failed to initialize Feast FeatureStore: {e}", exc_info=True)
+            console.error(f"Failed to initialize Feast FeatureStore: {e}")
             return None
 
     def get_historical_features(self, entity_df: pd.DataFrame, features: List[str], **kwargs) -> pd.DataFrame:
@@ -67,7 +67,7 @@ class FeastAdapter(BaseAdapter):
             )
             return retrieval_job.to_df()
         except Exception as e:
-            console.error(f"Failed to get historical features: {e}", exc_info=True)
+            console.error(f"Failed to get historical features: {e}")
             raise
     
     def get_historical_features_with_validation(
@@ -166,7 +166,7 @@ class FeastAdapter(BaseAdapter):
             )
             return retrieval_job.to_df()
         except Exception as e:
-            console.error(f"Failed to get online features: {e}", exc_info=True)
+            console.error(f"Failed to get online features: {e}")
             raise
 
     def read(self, **kwargs) -> pd.DataFrame:

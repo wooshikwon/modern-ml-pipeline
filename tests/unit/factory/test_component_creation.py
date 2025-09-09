@@ -578,12 +578,32 @@ class TestFactoryPerformanceBaselines:
 class TestFactoryExternalSystemMocking:
     """Limited mock usage for external systems only - Still under 10% total."""
     
-    @pytest.mark.skip(reason="BigQuery not available in test environment")  
     def test_create_bigquery_adapter_with_mock_client(self, settings_builder):
         """Mock BigQuery client (external system) but test real adapter behavior."""
-        # This would be implemented if BigQuery testing was required
-        # Mock ONLY the external BigQuery client, but test real BigQueryAdapter behavior
-        pass
+        # Given: Settings with BigQuery configuration
+        settings = settings_builder \
+            .with_data_source("sql", config={
+                "connection_uri": "bigquery://test-project/test-dataset",
+                "project_id": "test-project",
+                "dataset_id": "test-dataset"
+            }) \
+            .build()
+        
+        factory = Factory(settings)
+        
+        # When: Creating adapter with proper mocking
+        from unittest.mock import patch, MagicMock
+        mock_engine = MagicMock()
+        mock_engine.connect.return_value.__enter__ = MagicMock(return_value=MagicMock())
+        mock_engine.connect.return_value.__exit__ = MagicMock(return_value=None)
+        
+        with patch('src.components.adapter.modules.sql_adapter.sqlalchemy.create_engine') as mock_create_engine:
+            mock_create_engine.return_value = mock_engine
+            adapter = factory.create_data_adapter()
+        
+        # Then: Adapter should be created successfully
+        assert isinstance(adapter, SqlAdapter)
+        assert adapter.db_type == 'bigquery'
     
     def test_factory_with_minimal_mocking_example(self, settings_builder):
         """Example of < 10% mock usage - only mock external systems when absolutely necessary."""
