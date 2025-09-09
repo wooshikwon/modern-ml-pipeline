@@ -25,7 +25,7 @@ class MLflow(BaseModel):
 class DataSource(BaseModel):
     """데이터 소스 설정 - CLI 템플릿 구조 그대로"""
     name: str = Field(..., description="데이터 소스 이름")
-    adapter_type: Literal["sql", "bigquery", "storage"] = Field(..., description="어댑터 타입")
+    adapter_type: Literal["sql", "storage"] = Field(..., description="어댑터 타입")  # bigquery 제거
     config: Dict[str, Any] = Field(default_factory=dict, description="어댑터별 설정")
     
     # TODO: Pydantic V2 validator
@@ -108,7 +108,7 @@ class OutputTarget(BaseModel):
     """출력 타겟 설정 - 데이터 소스 스타일과 동일한 adapter_type + config 구조"""
     name: str = Field(..., description="출력 타겟 이름")
     enabled: bool = Field(True, description="저장 활성화 여부")
-    adapter_type: Optional[Literal["storage", "sql", "bigquery"]] = Field(None, description="저장 어댑터 타입")
+    adapter_type: Optional[Literal["storage", "sql"]] = Field(None, description="저장 어댑터 타입")  # bigquery 제거
     config: Optional[Dict[str, Any]] = Field(default=None, description="어댑터별 설정 (base_path/table 등)")
 
 

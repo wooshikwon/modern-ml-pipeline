@@ -201,13 +201,16 @@ class SystemChecker:
         class_name = adapter_config.get("class_name", "")
         config = adapter_config.get("config", {})
         
-        # PostgreSQL/SQL Adapter
-        if "SqlAdapter" in class_name or "postgresql://" in str(config.get("connection_uri", "")):
-            return self._check_postgresql(adapter_name, config)
-        
-        # BigQuery Adapter
-        elif "BigQueryAdapter" in class_name:
-            return self._check_bigquery(adapter_name, config)
+        # SQL Adapter (PostgreSQL, BigQuery, etc.)
+        if "SqlAdapter" in class_name:
+            connection_uri = str(config.get("connection_uri", ""))
+            if "postgresql://" in connection_uri:
+                return self._check_postgresql(adapter_name, config)
+            elif "bigquery://" in connection_uri:
+                return self._check_bigquery(adapter_name, config)
+            else:
+                # Other SQL databases
+                return self._check_postgresql(adapter_name, config)
         
         # Storage Adapter (Local Files)
         elif "StorageAdapter" in class_name:

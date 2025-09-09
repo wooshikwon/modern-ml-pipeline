@@ -212,8 +212,7 @@ class TabularDataHandler(BaseDataHandler):
                     rich_message=f"     [yellow]{info['column']}[/yellow]: [red]{info['missing_ratio']:.1%}[/red] missing"
                 )
             self.console.warning("전처리 단계에서 결측치 처리를 고려해보세요",
-                               rich_message="💡 Consider handling missing values in preprocessing (Imputation, column removal, etc.)",
-                               suggestion="Add imputation steps or remove high-missing columns in preprocessing")
+                               rich_message="💡 Consider handling missing values in preprocessing (Imputation, column removal, etc.)")
         else:
             self.console.info(f"모든 특성 컬럼의 결측치 비율이 {threshold:.0%} 미만입니다.",
                             rich_message=f"✅ All feature columns have <{threshold:.0%} missing values")

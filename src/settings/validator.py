@@ -374,11 +374,13 @@ class Validator:
         if config.data_source.adapter_type == "sql":
             if 'connection_uri' not in config.data_source.config:
                 errors.append("SQL adapter는 connection_uri가 필요합니다")
-        elif config.data_source.adapter_type == "bigquery":
-            required = ['project_id', 'dataset_id']
-            missing = [f for f in required if f not in config.data_source.config]
-            if missing:
-                errors.append(f"BigQuery adapter 필수 필드: {missing}")
+            else:
+                # BigQuery URI인 경우 추가 검증
+                connection_uri = config.data_source.config.get('connection_uri', '')
+                if connection_uri.startswith('bigquery://'):
+                    # BigQuery의 경우 project_id가 필요할 수 있음
+                    if 'project_id' not in config.data_source.config:
+                        self.console.warning("BigQuery는 project_id 설정을 권장합니다")
         
         # 4. Feature Store 검증
         if config.feature_store.provider == "feast":
@@ -468,14 +470,21 @@ class Validator:
         loader_adapter = settings.recipe.data.loader.get_adapter_type()
         config_adapter = settings.config.data_source.adapter_type
         
-        # SQL은 모든 SQL 타입과 호환
-        if loader_adapter == "sql" and config_adapter not in ["sql", "bigquery"]:
+        # SQL은 모든 SQL 타입과 호환 (bigquery 포함)
+        if loader_adapter == "sql" and config_adapter != "sql":
             errors.append(
                 f"Recipe loader가 SQL 타입이지만 Config adapter가 {config_adapter}입니다"
             )
         elif loader_adapter == "storage" and config_adapter != "storage":
             errors.append(
                 f"Recipe loader가 storage 타입이지만 Config adapter가 {config_adapter}입니다"
+            )
+        
+        # BigQuery URI와 SQL adapter 호환성 확인
+        source_uri = settings.recipe.data.loader.source_uri
+        if source_uri.startswith('bigquery://') and config_adapter != 'sql':
+            errors.append(
+                f"BigQuery URI이지만 Config adapter가 {config_adapter}입니다 (sql이어야 함)"
             )
         
         return errors
