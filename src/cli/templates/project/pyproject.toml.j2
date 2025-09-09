@@ -1,13 +1,21 @@
 [project]
 name = "{{ project_name }}"
 version = "0.1.0"
-description = "ML Pipeline project generated with Modern ML Pipeline"
+description = "ML Pipeline project powered by Modern ML Pipeline"
 readme = "README.md"
 requires-python = ">=3.11"
+
+# 🔴 필수 의존성 - 핵심 기능만
 dependencies = [
-    # 핵심 프레임워크
+    # Modern ML Pipeline Framework (기본 설치)
     "modern-ml-pipeline>=0.2.0",
-    
+]
+
+# 🟡 선택적 의존성 - 사용자가 필요한 것만 선택
+[project.optional-dependencies]
+
+# 기본 ML 워크플로우 (대부분 사용자가 필요)
+standard = [
     # 데이터 처리
     "pandas>=2.0.0",
     "numpy>=1.24.0",
@@ -16,63 +24,59 @@ dependencies = [
     # 기본 ML
     "scikit-learn>=1.3.0",
     
-    # Gradient Boosting 모델들 (필수)
+    # Gradient Boosting
     "xgboost>=2.0.0",
-    "lightgbm>=4.0.0", 
+    "lightgbm>=4.0.0",
     "catboost>=1.2.0",
     
-    # MLOps & 실험 추적
+    # MLOps
     "mlflow>=2.8.0",
-    
-    # CLI & 설정
-    "typer>=0.9.0",
-    "rich>=13.0.0",
-    "pydantic>=2.0.0",
-    "PyYAML>=6.0",
-    "python-dotenv>=1.0.0",
-    "jinja2>=3.1.0",  # 템플릿 엔진
-    
-    # 하이퍼파라미터 튜닝
-    "optuna>=3.4.0",
     
     # API 서빙
     "fastapi>=0.104.0",
     "uvicorn[standard]>=0.24.0",
-    
-    # 데이터베이스 연결
-    "psycopg2-binary>=2.9.0",  # PostgreSQL
-    "sqlalchemy>=2.0.0",
-    
-    # 클라우드 스토리지
-    "fsspec>=2023.9.0",  # 파일시스템 추상화
-    "s3fs>=2023.9.0",    # S3 지원
-    "gcsfs>=2023.9.0",   # GCS 지원
 ]
 
-[project.optional-dependencies]
-# 고급 ML 모델들
+# 클라우드 스토리지
+storage = [
+    "fsspec>=2023.9.0",
+    "s3fs>=2023.9.0",     # AWS S3
+    "gcsfs>=2023.9.0",    # Google Cloud Storage
+    "adlfs>=2023.9.0",    # Azure Data Lake
+]
+
+# 데이터베이스 연결
+databases = [
+    "sqlalchemy>=2.0.0",
+    "psycopg2-binary>=2.9.0",  # PostgreSQL
+    "pymysql>=1.1.0",          # MySQL
+    "redis>=5.0.0",            # Redis
+]
+
+# BigQuery 전용
+bigquery = [
+    "google-cloud-bigquery>=3.12.0",
+    "google-cloud-bigquery-storage>=2.22.0",
+    "db-dtypes>=1.1.1",
+]
+
+# Feature Store
+feature-store = [
+    "feast>=0.34.0",
+    "redis>=5.0.0",  # Feast online store
+]
+
+# 딥러닝 모델
 deep-learning = [
     "torch>=2.1.0",
     "pytorch-tabnet>=4.1.0",
     "rtdl-revisiting-models>=0.0.4",  # FT-Transformer
 ]
 
-# BigQuery 지원
-bigquery = [
-    "google-cloud-bigquery>=3.12.0",
-    "google-cloud-bigquery-storage>=2.22.0",
-    "db-dtypes>=1.1.1",  # BigQuery 데이터 타입
-]
-
-# Feature Store 연동
-feature-store = [
-    "feast>=0.34.0",
-]
-
-# 시계열 모델
+# 시계열 분석
 timeseries = [
     "statsmodels>=0.14.0",  # ARIMA
-    "prophet>=1.1.4",       # Prophet (선택)
+    "prophet>=1.1.4",       # Facebook Prophet
 ]
 
 # 인과추론
@@ -81,9 +85,15 @@ causal = [
     "dowhy>=0.11.0",
 ]
 
-# 전체 패키지 (개발용)
+# 하이퍼파라미터 튜닝
+tuning = [
+    "optuna>=3.4.0",
+    "optuna-dashboard>=0.14.0",  # 웹 대시보드
+]
+
+# 전체 설치 (모든 기능)
 all = [
-    "modern-ml-pipeline[deep-learning,bigquery,feature-store,timeseries,causal]",
+    "{{ project_name }}[standard,storage,databases,bigquery,feature-store,deep-learning,timeseries,causal,tuning]",
 ]
 
 # 개발 도구
@@ -96,8 +106,16 @@ dev = [
     "pre-commit>=3.5.0",
 ]
 
-[project.scripts]
-mmp = "modern_ml_pipeline.cli.main_commands:app"
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+# UV 패키지 매니저 설정
+dev-dependencies = [
+    "ipykernel>=6.0.0",
+    "jupyter>=1.0.0",
+]
 
 [tool.ruff]
 line-length = 100

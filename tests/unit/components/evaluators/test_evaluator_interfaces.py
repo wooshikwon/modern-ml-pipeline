@@ -62,7 +62,7 @@ class TestEvaluatorInterfaceContract:
         """Test custom evaluator properly implements BaseEvaluator interface."""
         # Given: Custom evaluator and mock model
         settings = settings_builder \
-            .with_task("custom") \
+            .with_task("classification") \
             .build()
         evaluator = CustomTestEvaluator(settings)
         
@@ -96,8 +96,10 @@ class TestEvaluatorInterfaceContract:
         tasks = ['classification', 'regression', 'clustering', 'timeseries']
         
         for evaluator_class, task in zip(evaluator_classes, tasks):
-            # Create evaluator instance
-            settings = settings_builder.with_task(task).build()
+            # Create evaluator instance with fresh builder for each task
+            from tests.conftest import SettingsBuilder
+            fresh_builder = SettingsBuilder()
+            settings = fresh_builder.with_task(task).build()
             evaluator = evaluator_class(settings)
             
             # Then: Each evaluator follows the contract

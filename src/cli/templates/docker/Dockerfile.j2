@@ -72,11 +72,8 @@ FROM app as api
 # API 포트 노출
 EXPOSE 8000
 
-# API 서버 실행
-CMD ["mmp", "serve-api", \
-     "--config-path", "configs/production.yaml", \
-     "--host", "0.0.0.0", \
-     "--port", "8000"]
+# API 서버 실행 (run-id는 환경변수에서 가져옴)
+CMD ["sh", "-c", "mmp serve-api --run-id ${MODEL_RUN_ID} --config-path configs/production.yaml --host 0.0.0.0 --port 8000"]
 
 ###########################################
 # Stage 5: Training Job
@@ -84,9 +81,7 @@ CMD ["mmp", "serve-api", \
 FROM app as training
 
 # 학습 작업 실행
-CMD ["mmp", "train", \
-     "--recipe-file", "recipes/production_model.yaml", \
-     "--config-path", "configs/production.yaml"]
+CMD ["sh", "-c", "mmp train --recipe-path recipes/production_model.yaml --config-path configs/production.yaml --data-path ${TRAIN_DATA_PATH:-data/train.csv}"]
 
 ###########################################
 # Stage 6: Batch Inference
@@ -94,10 +89,7 @@ CMD ["mmp", "train", \
 FROM app as inference
 
 # 배치 추론 실행
-CMD ["mmp", "batch-inference", \
-     "--config-path", "configs/production.yaml", \
-     "--run-id", "${MODEL_RUN_ID}", \
-     "--data-path", "${INFERENCE_DATA_PATH}"]
+CMD ["sh", "-c", "mmp batch-inference --run-id ${MODEL_RUN_ID} --config-path configs/production.yaml --data-path ${INFERENCE_DATA_PATH}"]
 
 ###########################################
 # Stage 7: Scheduler (Cron Jobs)

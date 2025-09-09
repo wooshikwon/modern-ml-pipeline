@@ -22,8 +22,9 @@ class TestSklearnClassificationModels:
     def test_random_forest_classifier_training(self, test_data_generator):
         """Test RandomForestClassifier training with real data."""
         # Given: Real classification data
-        X, y = test_data_generator.classification_data(n_samples=100, n_features=5)
-        X_df = pd.DataFrame(X, columns=[f"feature_{i}" for i in range(X.shape[1])])
+        X_df, y = test_data_generator.classification_data(n_samples=100, n_features=5)
+        # Remove entity_id column for model training
+        X_df = X_df.drop(columns=['entity_id'])
         y_series = pd.Series(y, name="target")
         
         # When: Training RandomForest model
@@ -40,8 +41,9 @@ class TestSklearnClassificationModels:
     def test_logistic_regression_training(self, test_data_generator):
         """Test LogisticRegression training with real data."""
         # Given: Real classification data
-        X, y = test_data_generator.classification_data(n_samples=100, n_features=5)
-        X_df = pd.DataFrame(X, columns=[f"feature_{i}" for i in range(X.shape[1])])
+        X_df, y = test_data_generator.classification_data(n_samples=100, n_features=5)
+        # Remove entity_id column for model training
+        X_df = X_df.drop(columns=['entity_id'])
         y_series = pd.Series(y, name="target")
         
         # When: Training LogisticRegression model
@@ -50,15 +52,16 @@ class TestSklearnClassificationModels:
         
         # Then: Model is trained successfully
         assert hasattr(model, 'coef_')
-        assert model.coef_.shape == (1, X.shape[1]) or model.coef_.shape == (2, X.shape[1])
+        assert model.coef_.shape == (1, X_df.shape[1]) or model.coef_.shape == (2, X_df.shape[1])
         predictions = model.predict(X_df)
         assert len(predictions) == len(y_series)
     
     def test_decision_tree_classifier_training(self, test_data_generator):
         """Test DecisionTreeClassifier training with real data."""
         # Given: Real classification data
-        X, y = test_data_generator.classification_data(n_samples=80, n_features=4)
-        X_df = pd.DataFrame(X, columns=[f"feature_{i}" for i in range(X.shape[1])])
+        X_df, y = test_data_generator.classification_data(n_samples=80, n_features=4)
+        # Remove entity_id column for model training
+        X_df = X_df.drop(columns=['entity_id'])
         y_series = pd.Series(y, name="target")
         
         # When: Training DecisionTree model
@@ -75,8 +78,9 @@ class TestSklearnClassificationModels:
     def test_svm_classifier_training(self, test_data_generator):
         """Test SVM classifier training with real data."""
         # Given: Small dataset for SVM (computationally expensive)
-        X, y = test_data_generator.classification_data(n_samples=50, n_features=3)
-        X_df = pd.DataFrame(X, columns=[f"feature_{i}" for i in range(X.shape[1])])
+        X_df, y = test_data_generator.classification_data(n_samples=50, n_features=3)
+        # Remove entity_id column for model training
+        X_df = X_df.drop(columns=['entity_id'])
         y_series = pd.Series(y, name="target")
         
         # When: Training SVM model
@@ -92,8 +96,9 @@ class TestSklearnClassificationModels:
     def test_model_predict_proba_functionality(self, test_data_generator):
         """Test predict_proba functionality for probabilistic models."""
         # Given: Data and probabilistic model
-        X, y = test_data_generator.classification_data(n_samples=60, n_features=4)
-        X_df = pd.DataFrame(X, columns=[f"feature_{i}" for i in range(X.shape[1])])
+        X_df, y = test_data_generator.classification_data(n_samples=60, n_features=4)
+        # Remove entity_id column for model training
+        X_df = X_df.drop(columns=['entity_id'])
         y_series = pd.Series(y, name="target")
         
         model = RandomForestClassifier(n_estimators=5, random_state=42)
@@ -114,8 +119,9 @@ class TestSklearnRegressionModels:
     def test_linear_regression_training(self, test_data_generator):
         """Test LinearRegression training with real data."""
         # Given: Real regression data
-        X, y = test_data_generator.regression_data(n_samples=100, n_features=5)
-        X_df = pd.DataFrame(X, columns=[f"feature_{i}" for i in range(X.shape[1])])
+        X_df, y = test_data_generator.regression_data(n_samples=100, n_features=5)
+        # Remove entity_id column for model training
+        X_df = X_df.drop(columns=['entity_id'])
         y_series = pd.Series(y, name="target")
         
         # When: Training LinearRegression model
@@ -124,7 +130,7 @@ class TestSklearnRegressionModels:
         
         # Then: Model is trained successfully
         assert hasattr(model, 'coef_')
-        assert len(model.coef_) == X.shape[1]
+        assert len(model.coef_) == X_df.shape[1]
         predictions = model.predict(X_df)
         mse = mean_squared_error(y_series, predictions)
         assert mse < 1.0  # Should fit synthetic data well
@@ -132,8 +138,9 @@ class TestSklearnRegressionModels:
     def test_decision_tree_regressor_training(self, test_data_generator):
         """Test DecisionTreeRegressor training with real data."""
         # Given: Real regression data
-        X, y = test_data_generator.regression_data(n_samples=80, n_features=4)
-        X_df = pd.DataFrame(X, columns=[f"feature_{i}" for i in range(X.shape[1])])
+        X_df, y = test_data_generator.regression_data(n_samples=80, n_features=4)
+        # Remove entity_id column for model training
+        X_df = X_df.drop(columns=['entity_id'])
         y_series = pd.Series(y, name="target")
         
         # When: Training DecisionTreeRegressor
@@ -149,8 +156,9 @@ class TestSklearnRegressionModels:
     def test_model_feature_importance_extraction(self, test_data_generator):
         """Test extracting feature importance from tree-based models."""
         # Given: Data and tree-based model
-        X, y = test_data_generator.classification_data(n_samples=100, n_features=5)
-        X_df = pd.DataFrame(X, columns=[f"feature_{i}" for i in range(X.shape[1])])
+        X_df, y = test_data_generator.classification_data(n_samples=100, n_features=5)
+        # Remove entity_id column for model training
+        X_df = X_df.drop(columns=['entity_id'])
         y_series = pd.Series(y, name="target")
         
         # When: Training model and extracting feature importance
@@ -159,6 +167,6 @@ class TestSklearnRegressionModels:
         
         # Then: Feature importance is available
         assert hasattr(model, 'feature_importances_')
-        assert len(model.feature_importances_) == X.shape[1]
+        assert len(model.feature_importances_) == X_df.shape[1]
         assert np.sum(model.feature_importances_) > 0
         assert np.allclose(np.sum(model.feature_importances_), 1.0, rtol=1e-3)
