@@ -25,11 +25,14 @@ data_source:
     connection_uri: "postgresql://${DB_USER:postgres}:${DB_PASSWORD:postgres}@${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:mmp_db}"
     query_timeout: ${DB_TIMEOUT:300}
   {%- elif data_source == "BigQuery" %}
-  adapter_type: bigquery
+  adapter_type: sql  # bigquery → sql 변경
   config:
+    # BigQuery는 connection_uri 또는 개별 설정 사용 가능
+    connection_uri: "bigquery://${GCP_PROJECT_ID:{{ gcp_project|default('') }}}/${BQ_DATASET_ID:mmp_dataset}"
     project_id: "${GCP_PROJECT_ID:{{ gcp_project|default('') }}}"
     dataset_id: "${BQ_DATASET_ID:mmp_dataset}"
     location: "${BQ_LOCATION:US}"
+    use_pandas_gbq: true  # pandas_gbq 사용 옵션
     query_timeout: ${BQ_TIMEOUT:300}
   {%- elif data_source == "Local Files" %}
   adapter_type: storage
@@ -166,12 +169,14 @@ output:
       connection_uri: "postgresql://${DB_USER:postgres}:${DB_PASSWORD:postgres}@${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:mmp_db}"
       table: "${INFER_OUTPUT_PG_TABLE:predictions_{{ env_name }}}"
     {%- elif inference_output_source == "BigQuery" %}
-    adapter_type: bigquery
+    adapter_type: sql  # bigquery → sql 변경
     config:
+      connection_uri: "bigquery://${GCP_PROJECT_ID:{{ gcp_project|default('') }}}/${INFER_OUTPUT_BQ_DATASET:analytics}"
       project_id: "${GCP_PROJECT_ID:{{ gcp_project|default('') }}}"
       dataset_id: "${INFER_OUTPUT_BQ_DATASET:analytics}"
       table: "${INFER_OUTPUT_BQ_TABLE:predictions_{{ env_name }}}"
       location: "${BQ_LOCATION:US}"
+      use_pandas_gbq: true
     {%- endif %}
 
   preprocessed:
@@ -193,11 +198,13 @@ output:
       connection_uri: "postgresql://${DB_USER:postgres}:${DB_PASSWORD:postgres}@${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:mmp_db}"
       table: "${PREPROC_OUTPUT_PG_TABLE:preprocessed_{{ env_name }}}"
     {%- elif preproc_output_source == "BigQuery" %}
-    adapter_type: bigquery
+    adapter_type: sql  # bigquery → sql 변경
     config:
+      connection_uri: "bigquery://${GCP_PROJECT_ID:{{ gcp_project|default('') }}}/${PREPROC_OUTPUT_BQ_DATASET:feature_store}"
       project_id: "${GCP_PROJECT_ID:{{ gcp_project|default('') }}}"
       dataset_id: "${PREPROC_OUTPUT_BQ_DATASET:feature_store}"
       table: "${PREPROC_OUTPUT_BQ_TABLE:preprocessed_{{ env_name }}}"
       location: "${BQ_LOCATION:US}"
+      use_pandas_gbq: true
     {%- endif %}
 

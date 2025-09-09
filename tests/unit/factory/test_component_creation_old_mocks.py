@@ -161,10 +161,10 @@ class TestHelperMethods:
         assert factory._detect_adapter_type_from_uri('gs://bucket/data.parquet') == 'storage'
     
     def test_detect_adapter_type_bigquery(self, minimal_classification_settings):
-        """Test adapter type detection for BigQuery."""
+        """Test adapter type detection for BigQuery - now maps to sql adapter."""
         factory = Factory(minimal_classification_settings)
         
-        assert factory._detect_adapter_type_from_uri('bigquery://project.dataset.table') == 'bigquery'
+        assert factory._detect_adapter_type_from_uri('bigquery://project.dataset.table') == 'sql'
     
     def test_detect_adapter_type_unknown(self, minimal_classification_settings):
         """Test adapter type detection for unknown patterns."""

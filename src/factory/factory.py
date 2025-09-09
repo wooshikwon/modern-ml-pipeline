@@ -141,9 +141,9 @@ class Factory:
         if uri_lower.endswith('.sql') or 'select' in uri_lower or 'from' in uri_lower:
             return 'sql'
         
-        # BigQuery 패턴
+        # BigQuery 패턴 → SQL adapter로 통합
         if uri_lower.startswith('bigquery://'):
-            return 'bigquery'
+            return 'sql'  # 'bigquery' 대신 'sql' 반환
         
         # Cloud Storage 패턴
         if any(uri_lower.startswith(prefix) for prefix in ['s3://', 'gs://', 'az://']):

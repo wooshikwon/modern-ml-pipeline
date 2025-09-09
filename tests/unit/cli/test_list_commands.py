@@ -32,8 +32,7 @@ class TestListCommandsArgumentParsing:
         # Setup mock
         mock_list_adapters.return_value = {
             'storage': 'StorageAdapter',
-            'sql': 'SQLAdapter', 
-            'bigquery': 'BigQueryAdapter'
+            'sql': 'SQLAdapter'
         }
         
         # Execute command
@@ -44,7 +43,6 @@ class TestListCommandsArgumentParsing:
         assert 'Available Adapters:' in result.output
         assert 'storage' in result.output
         assert 'sql' in result.output
-        assert 'bigquery' in result.output
         
         # Verify registry was called
         mock_list_adapters.assert_called_once()

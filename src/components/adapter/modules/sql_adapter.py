@@ -19,14 +19,28 @@ class SqlAdapter(BaseAdapter):
     다양한 SQL 데이터베이스(PostgreSQL, BigQuery, MySQL, SQLite 등)와의 연결을 표준화합니다.
     
     URI 스키마에 따라 자동으로 적절한 데이터베이스 엔진을 선택합니다:
-    - bigquery:// → BigQuery 엔진
+    - bigquery:// → BigQuery 엔진 (pandas_gbq 지원)
     - postgresql:// or postgres:// → PostgreSQL 엔진
     - mysql:// → MySQL 엔진
     - sqlite:// → SQLite 엔진
     """
     def __init__(self, settings: Settings, **kwargs):
         self.settings = settings
+        self.db_type = None  # Will be set by _create_engine
         self.engine = self._create_engine()
+        
+        # BigQuery 전용 플래그 및 설정
+        self.use_pandas_gbq = False
+        self.project_id = None
+        self.dataset_id = None
+        self.location = 'US'
+        
+        if self.db_type == 'bigquery':
+            config = self.settings.config.data_source.config
+            self.use_pandas_gbq = config.get('use_pandas_gbq', False)
+            self.project_id = config.get('project_id')
+            self.dataset_id = config.get('dataset_id')
+            self.location = config.get('location', 'US')
 
     def _parse_connection_uri(self, uri: str) -> Tuple[str, str, Dict[str, Any]]:
         """
@@ -108,6 +122,7 @@ class SqlAdapter(BaseAdapter):
             
             # URI 파싱하여 DB 타입과 엔진 설정 추출
             db_type, processed_uri, engine_kwargs = self._parse_connection_uri(connection_uri)
+            self.db_type = db_type  # Store db_type for later use
             
             console.info(f"데이터베이스 타입: {db_type}")
             console.info(f"SQLAlchemy 엔진 생성. URI: {processed_uri[:50]}...")  # 보안을 위해 URI 일부만 로깅
@@ -161,13 +176,35 @@ class SqlAdapter(BaseAdapter):
         if " LIMIT " not in upper:
             console.warning("SQL LIMIT 가드: LIMIT 절이 없습니다. 대용량 쿼리일 수 있습니다.")
 
-    def read(self, sql_query: str, **kwargs) -> pd.DataFrame:
+    def read(self, source: str, params: Optional[Dict] = None, **kwargs) -> pd.DataFrame:
         """SQL 쿼리를 실행하여 결과를 DataFrame으로 반환합니다.
+        BigQuery의 경우 pandas_gbq를 사용할 수 있습니다.
         
         Args:
-            sql_query: SQL 쿼리 문자열 또는 .sql 파일 경로
+            source: SQL 쿼리 문자열 또는 .sql 파일 경로
+            params: 쿼리 파라미터 (Optional)
         """
         console = get_console()
+        
+        # BigQuery + pandas_gbq 사용 시
+        if self.db_type == 'bigquery' and self.use_pandas_gbq:
+            try:
+                import pandas_gbq
+                console.info("BigQuery read using pandas_gbq")
+                return pandas_gbq.read_gbq(
+                    source, 
+                    project_id=self.project_id,
+                    location=self.location,
+                    **kwargs
+                )
+            except ImportError:
+                console.warning("pandas_gbq not installed, falling back to SQLAlchemy")
+            except Exception as e:
+                console.warning(f"pandas_gbq read failed: {e}, falling back to SQLAlchemy")
+        
+        # 기존 SQLAlchemy 방식 (기본값 및 fallback)
+        sql_query = source  # Rename for compatibility
+        
         # 파일 경로인지 확인 (.sql 확장자로 끝나는 경우)
         if sql_query.endswith('.sql'):
             sql_file_path = Path(sql_query)
@@ -190,19 +227,50 @@ class SqlAdapter(BaseAdapter):
         console.info(f"Executing SQL query:\n{sql_query[:200]}...")
         try:
             # Pandas + SQLAlchemy 2.x 호환: 엔진 객체를 직접 전달
-            return pd.read_sql_query(sql_query, self.engine, **kwargs)
+            return pd.read_sql_query(sql_query, self.engine, params=params, **kwargs)
         except Exception as e:
             snippet = sql_query[:200].replace('\n', ' ')
-            console.error(f"SQL read 작업 실패: {e} | SQL(head): {snippet}", exc_info=True)
+            console.error(f"SQL read 작업 실패: {e} | SQL(head): {snippet}")
             raise
 
-    def write(self, df: pd.DataFrame, table_name: str, **kwargs):
-        """DataFrame을 지정된 테이블에 씁니다."""
+    def write(self, df: pd.DataFrame, target: str, **kwargs):
+        """DataFrame을 지정된 테이블에 씁니다.
+        BigQuery의 경우 pandas_gbq를 사용할 수 있습니다.
+        
+        Args:
+            df: 저장할 DataFrame
+            target: 대상 테이블 이름
+        """
         console = get_console()
-        console.info(f"Writing DataFrame to table: {table_name}")
+        
+        # BigQuery 전용 처리
+        if self.db_type == 'bigquery' and (self.use_pandas_gbq or kwargs.get('if_exists') == 'replace'):
+            try:
+                import pandas_gbq
+                # dataset_id가 있으면 테이블명에 추가
+                destination_table = f"{self.dataset_id}.{target}" if self.dataset_id and '.' not in target else target
+                
+                console.info(f"BigQuery write using pandas_gbq to {destination_table}")
+                pandas_gbq.to_gbq(
+                    df,
+                    destination_table=destination_table,
+                    project_id=self.project_id,
+                    location=self.location,
+                    if_exists=kwargs.get('if_exists', 'append'),
+                    **{k: v for k, v in kwargs.items() if k not in ['if_exists']}
+                )
+                console.info(f"BigQuery write complete: {len(df)} rows to {destination_table}")
+                return
+            except ImportError:
+                console.warning("pandas_gbq not installed, falling back to SQLAlchemy")
+            except Exception as e:
+                console.warning(f"pandas_gbq write failed: {e}, falling back to SQLAlchemy")
+        
+        # 기존 SQLAlchemy 방식 (기본값 및 fallback)
+        console.info(f"Writing DataFrame to table: {target}")
         try:
-            df.to_sql(table_name, self.engine, **kwargs)
-            console.info(f"Successfully wrote {len(df)} rows to {table_name}.")
+            df.to_sql(target, self.engine, **kwargs)
+            console.info(f"Successfully wrote {len(df)} rows to {target}.")
         except Exception as e:
             console.error(f"SQL write 작업 실패: {e}", context={"exception": str(e)})
             raise
