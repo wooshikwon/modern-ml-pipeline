@@ -1658,6 +1658,7 @@ dependencies = [
     { name = "rtdl-revisiting-models" },
     { name = "scikit-learn" },
     { name = "setuptools" },
+    { name = "sqlalchemy-bigquery" },
     { name = "typer" },
     { name = "uvicorn", extra = ["standard"] },
 ]
@@ -1798,6 +1799,7 @@ requires-dist = [
     { name = "shap", marker = "extra == 'ml-extras'", specifier = ">=0.41.0" },
     { name = "sqlalchemy", marker = "extra == 'cloud-extras'", specifier = ">=2.0.0" },
     { name = "sqlalchemy", marker = "extra == 'feature-store'", specifier = ">=2.0.0" },
+    { name = "sqlalchemy-bigquery", specifier = ">=1.15.0" },
     { name = "sqlparse", marker = "extra == 'cloud-extras'", specifier = ">=0.4.0" },
     { name = "torch", marker = "extra == 'ml-extras'", specifier = ">=2.0.0" },
     { name = "typer" },
@@ -3164,6 +3166,22 @@ wheels = [
 [package.optional-dependencies]
 mypy = [
     { name = "mypy" },
+]
+
+[[package]]
+name = "sqlalchemy-bigquery"
+version = "1.15.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "google-api-core" },
+    { name = "google-auth" },
+    { name = "google-cloud-bigquery" },
+    { name = "packaging" },
+    { name = "sqlalchemy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e1/dc/3d97752601932f84ad832b92037d3aba7e2dd9a40ab5bec50588967f263c/sqlalchemy_bigquery-1.15.0.tar.gz", hash = "sha256:13bce11fc7af40705dd142fe0fa6f01126ff62ff26d5e514c858ec7351076764", size = 119559, upload-time = "2025-06-23T18:10:37.322Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/23/e3/2295c0dd2d9e90ea6d6a2211186328ada65980dae69cc76a0b62032fa309/sqlalchemy_bigquery-1.15.0-py3-none-any.whl", hash = "sha256:5066b6557c1fa7f67bb284897db56ba51e36543386ce95f0e92c7fde75bbbcf4", size = 40541, upload-time = "2025-06-23T18:10:36.131Z" },
 ]
 
 [[package]]

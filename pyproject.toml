@@ -44,6 +44,7 @@ dependencies = [
     "rich>=14.0.0",
     "rtdl-revisiting-models>=0.0.2",
     "category-encoders>=2.8.1",
+    "sqlalchemy-bigquery>=1.15.0",
 ]
 
 [project.optional-dependencies]
