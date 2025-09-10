@@ -9,6 +9,47 @@
 
 ---
 
+## ⚡ Quickstart: 새 Context 기반 테스트 작성
+
+1. 컨텍스트 픽스처 사용: `mlflow_test_context` 또는 목적에 맞는 컨텍스트 픽스처를 테스트 시그니처에 추가
+2. 컨텍스트 매니저로 설정/데이터/리소스 자동 준비: `with ... as ctx:`
+3. 파이프라인/퍼블릭 API 호출 후, 컨텍스트의 검증 헬퍼로 관찰/검증만 수행
+
+```python
+def test_quickstart_mlflow(mlflow_test_context):
+    with mlflow_test_context.for_classification(experiment="quickstart") as ctx:
+        result = run_train_pipeline(ctx.settings)
+        assert result is not None
+        assert ctx.experiment_exists()
+        assert ctx.get_experiment_run_count() == 1
+        assert isinstance(ctx.get_run_metrics(), dict)
+```
+
+## 🔤 Naming Conventions
+
+- **Context 파일**: `tests/fixtures/contexts/<area>_context.py` (예: `mlflow_context.py`)
+- **Context 클래스**: `*TestContext`, 내부 매니저는 `*ContextManager`
+- **픽스처 이름**: `<area>_test_context` (예: `mlflow_test_context`)
+- **테스트 함수**: `test_<area>_<behavior>[_v2]` (A/B 공존 시 `_v2` 접미사)
+- **템플릿 파일**: `tests/fixtures/templates/configs/<task>_base.yaml`
+
+## 🚫 Testing Anti-Patterns
+
+- **비즈니스 로직 재구현**: 컨텍스트 내부에서 파이프라인/팩토리 로직을 재현하지 않는다(퍼블릭 API만 호출).
+- **상태 공유**: 테스트 간 `Factory`/`Settings`/리소스를 공유하지 않는다(테스트당 새 생성).
+- **시간 기반 이름**: `time.time()` 등 시간 의존적 명명 금지 → uuid 기반 사용.
+- **숨은 전역 변경**: 글로벌 환경 변수/작업 디렉토리 변경은 컨텍스트 범위 내에서만 하고 자동 복원.
+- **불필요한 모킹**: 레지스트리/팩토리 경로를 모킹하지 말고, 실제 경량 컴포넌트로 검증.
+
+## 🧰 Operational Considerations
+
+- **데이터 수명주기**: 모든 임시 파일은 테스트 전용 temp 디렉토리 안에서 생성/삭제.
+- **MLflow 저장소**: `file://{temp_dir}/mlruns` 고정 사용(외부 경로 불가).
+- **격리**: 테스트당 1 run 기준, 교차 테스트 의존 금지.
+- **성능 예산**: 컨텍스트 초기화/파이프라인 실행에 대해 상한선 설정 및 측정(`performance_benchmark`).
+
+---
+
 ## 🎯 Core Problems: 현재 구조의 진짜 문제점
 
 ### Problem 1: Setup Overhead Dominance
@@ -95,6 +136,15 @@ model = factory.create_model()
 3. **Zero Configuration**: 최소한의 설정으로 최대한의 setup
 4. **Incremental Migration**: 기존 테스트와 새 구조 공존
 
+#### Context Minimal Contract
+
+- **역할 최소화**: 컨텍스트는 오케스트레이션을 "호출"하고 결과를 "관찰"만 한다.
+- **퍼블릭 API만 사용**: `run_train_pipeline`, `Factory.create_*` 등 공개 API만 호출하고 비즈니스 로직 재구현은 금지한다.
+- **필수 속성**: `ctx.settings`, `ctx.data_path`, `ctx.tracking_uri`, `ctx.experiment_name`
+- **필수 헬퍼**: `experiment_exists()`, `get_experiment_run_count()`, `get_run_metrics()`
+- **선택 헬퍼(MLflow 확장)**: `verify_mlflow_artifacts()`
+- **상태 격리**: 테스트마다 새 `Settings`/새 `Factory` 생성(컴포넌트 캐시/상태 누수 방지)
+
 ### Architecture Overview
 
 ```
@@ -129,6 +179,13 @@ tests/
 └── integration/                    # 기존 테스트 + 새 버전 공존
 ```
 
+### Standardization for Tests
+
+- **MLflow tracking_uri**: `file://{temp_dir}/mlruns` (테스트 전용, 로컬 경로 고정)
+- **Experiment name**: `{prefix}-{uuid4().hex[:8]}` (시간 의존 제거, 충돌 방지)
+- **데이터 생성 시드**: 모든 컨텍스트에서 고정 시드 사용(`seed=42` 기본)
+- **상태 격리 원칙**: 각 테스트에서 `Settings`/`Factory`를 새로 생성
+
 ---
 
 ## 🔧 Implementation Examples
@@ -158,23 +215,26 @@ def test_mlflow_experiment_creation(self, isolated_temp_directory, settings_buil
 ```python
 def test_mlflow_experiment_creation(self, mlflow_test_context):
     with mlflow_test_context.for_classification(experiment="experiment_creation") as ctx:
-        # 8 lines of focused verification
         result = run_train_pipeline(ctx.settings)
-        
         assert result is not None
         assert ctx.experiment_exists()
-        assert ctx.has_active_run()
-        assert len(ctx.get_run_metrics()) > 0
         assert ctx.get_experiment_run_count() == 1
+        metrics = ctx.get_run_metrics()
+        assert isinstance(metrics, dict) and len(metrics) > 0
 ```
 
 **MLflowTestContext 구현**:
 ```python
+from uuid import uuid4
+import pandas as pd
+from mlflow.tracking import MlflowClient
+
 class MLflowTestContext:
-    def __init__(self, isolated_temp_directory, settings_builder, test_data_generator):
+    def __init__(self, isolated_temp_directory, settings_builder, test_data_generator, seed: int = 42):
         self.temp_dir = isolated_temp_directory
         self.settings_builder = settings_builder
         self.data_generator = test_data_generator
+        self.seed = seed
         
     def for_classification(self, experiment: str, model: str = "RandomForestClassifier"):
         return MLflowContextManager(
@@ -186,19 +246,20 @@ class MLflowTestContext:
 
 class MLflowContextManager:
     def __enter__(self):
-        # All setup automation
-        self.mlflow_uri = f"sqlite:///{self.context.temp_dir}/mlflow_{self.experiment_suffix}.db"
-        self.experiment_name = f"{self.experiment_suffix}_{int(time.time())}"
+        # 1) MLflow URI 표준화
+        self.mlflow_uri = f"file://{self.context.temp_dir}/mlruns"
+        # 2) 실험명은 uuid 기반
+        self.experiment_name = f"{self.experiment_suffix}-{uuid4().hex[:8]}"
         
-        # Auto-generate test data
-        X, y = self.context.data_generator.classification_data(50, 4)
+        # 3) 결정론적 데이터 생성
+        X, y = self.context.data_generator.classification_data(n_samples=50, n_features=4, random_state=self.context.seed)
         self.test_data = pd.DataFrame(X, columns=[f'feature_{i}' for i in range(4)])
         self.test_data['target'] = y
         
         self.data_path = self.context.temp_dir / f"data_{self.experiment_suffix}.csv"
         self.test_data.to_csv(self.data_path, index=False)
         
-        # Auto-configure settings
+        # 4) Settings 자동 구성
         self.settings = self.context.settings_builder \
             .with_task(self.task) \
             .with_model(self.model_class) \
@@ -206,21 +267,28 @@ class MLflowContextManager:
             .with_mlflow(self.mlflow_uri, self.experiment_name) \
             .build()
         
-        # Setup MLflow client
+        # 5) MLflow client 준비 및 experiment id 확보
         self.mlflow_client = MlflowClient(tracking_uri=self.mlflow_uri)
+        exp = self.mlflow_client.get_experiment_by_name(self.experiment_name)
+        if exp is None:
+            self.experiment_id = self.mlflow_client.create_experiment(self.experiment_name)
+        else:
+            self.experiment_id = exp.experiment_id
         
         return self
         
     def experiment_exists(self):
-        try:
-            exp = self.mlflow_client.get_experiment_by_name(self.experiment_name)
-            return exp is not None
-        except:
-            return False
+        return self.mlflow_client.get_experiment_by_name(self.experiment_name) is not None
     
-    def has_active_run(self):
+    def get_experiment_run_count(self):
         runs = self.mlflow_client.list_run_infos(self.experiment_id)
-        return len(runs) > 0
+        return len(runs)
+    
+    def get_run_metrics(self):
+        runs = self.mlflow_client.search_runs([self.experiment_id], max_results=1, order_by=["attributes.start_time DESC"])
+        if not runs:
+            return {}
+        return runs[0].data.metrics
 ```
 
 ### Example 2: Component Test Context
@@ -324,6 +392,10 @@ mlflow:
   experiment_name: "{{experiment_name}}"
 ```
 
+4. **가이드/성능 계측 추가**:
+- `tests/fixtures/contexts/README.md`에 컨텍스트 최소 규약·금지사항(엔진 재구현 금지) 명시
+- 컨텍스트 초기화 시간 `performance_benchmark`로 계측(권장 임계: 120ms)
+
 ### Phase 2: Pilot Testing (Week 2-3)
 
 **A/B 테스팅 방식**:
@@ -346,6 +418,7 @@ def test_compare_old_vs_new_approach(self, isolated_temp_directory, settings_bui
 - ✅ 새 방식과 기존 방식 결과 100% 일치
 - ✅ 새 방식이 더 짧고 명확한 코드
 - ✅ 새 방식이 더 많은 검증 로직 포함 가능
+- ✅ 성능 회귀 없음(컨텍스트 init/파이프라인 실행 시간 상한 만족)
 
 ### Phase 3: Category-wise Migration (Week 4-6)
 
@@ -378,6 +451,11 @@ pytest tests/integration/ -v
 - 일치하지 않는 경우 두 방식 공존 유지
 - 사용하지 않는 setup 코드만 정리
 
+**Rollback Plan**:
+- 임계 카테고리에서 실패/회귀 발생 시, 해당 파일의 v2 테스트를 일시 비활성화하고 기존(v1)만 유지
+- 컨텍스트/템플릿 변경은 PR 단위로 격리하여 빠른 revert 가능하도록 유지
+- 실패 유형을 리그레션 노트로 기록하고, 컨텍스트 최소 규약 위반 여부 우선 점검
+
 ---
 
 ## 📊 Expected Benefits
@@ -408,6 +486,10 @@ pytest tests/integration/ -v
 | **호환성 문제** | 기존 fixture들 절대 변경하지 않고 새 fixture 추가 |
 | **성능 저하** | Context 초기화 비용 vs Setup 중복 제거 효과 측정 |
 | **학습 비용** | 단계적 도입과 문서화로 점진적 학습 |
+| **Context 과기능화** | 컨텍스트 최소 규약 준수, 퍼블릭 API만 호출 |
+| **상태/캐시 누수** | 테스트당 새 Factory/Settings 생성, 컨텍스트 재사용 금지 |
+| **플레이키(이름/시간 종속)** | uuid 기반 명명, 고정 시드 적용 |
+| **초기화 비용 증가** | performance_benchmark로 컨텍스트 init 시간 모니터링(임계 120ms) |
 
 ---
 
@@ -418,12 +500,20 @@ pytest tests/integration/ -v
 - ✅ **Average test length < 15 lines**
 - ✅ **Setup code ratio < 30%**
 - ✅ **Zero new flaky tests**
+- ✅ **Context init time < 0.12s (p75)**
+- ✅ **Zero test state leakage across tests**
+ - ✅ **Artifact equivalence maintained (metrics/params/signature/schema)**
 
 ### Developer Experience KPIs  
 - ✅ **New test creation time < 10 minutes**
 - ✅ **Test readability score > 8/10** (peer review)
 - ✅ **Context adoption rate > 80%** (new tests)
 - ✅ **Developer satisfaction score > 4/5**
+
+### CI/Execution Strategy
+- **스위트 분리**: `unit`/`integration`/`e2e`를 워크플로 잡으로 분리, 컨텍스트 도입 테스트를 별도 매트릭스에 배치
+- **게이팅**: A/B 동등성/성능 상한을 PR 게이트로 추가, 위배 시 머지 차단
+- **아티팩트 비교**: MLflow run-level 메트릭/파라미터/시그니처/스키마 요약을 비교하여 동등성 검증 리포트 첨부
 
 ---
 
@@ -437,6 +527,10 @@ pytest tests/integration/ -v
 - [ ] Create YAML templates in `tests/fixtures/templates/`
 - [ ] Add new fixtures to `conftest.py`
 - [ ] Verify all existing tests still pass (62/62)
+- [ ] Standardize MLflow tracking URI and experiment naming
+- [ ] Enforce deterministic seed usage in contexts
+- [ ] Add `tests/fixtures/contexts/README.md` (minimal contract & anti-patterns)
+- [ ] Add performance measurement for context init
 
 ### Pilot Phase
 - [ ] Migrate 2-3 MLflow tests to new approach
@@ -444,6 +538,8 @@ pytest tests/integration/ -v
 - [ ] Measure code length reduction
 - [ ] Collect developer feedback
 - [ ] Refine Context implementations based on feedback
+- [ ] Include performance upper-bound checks in A/B (init + run)
+ - [ ] Add artifact equivalence gate (metrics/params/signature/schema) in CI
 
 ### Migration Phase  
 - [ ] Migrate remaining MLflow tests (8-9 tests)
@@ -457,6 +553,7 @@ pytest tests/integration/ -v
 - [ ] Update documentation
 - [ ] Create developer guidelines for new Context usage
 - [ ] Final validation: 62/62 tests passing
+- [ ] Replace time-based names with uuid-based naming (standardization)
 
 ---
 
