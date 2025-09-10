@@ -863,6 +863,9 @@ evaluation:
 # ===== Context Fixtures (Phase 1) =====
 import importlib
 from tests.fixtures.contexts.mlflow_context import MLflowTestContext
+from tests.fixtures.contexts.component_context import ComponentTestContext
+from tests.fixtures.contexts.database_context import DatabaseTestContext
+
 
 
 import pytest
@@ -870,3 +873,12 @@ import pytest
 @pytest.fixture
 def mlflow_test_context(isolated_temp_directory, settings_builder, test_data_generator):
     return MLflowTestContext(isolated_temp_directory, settings_builder, test_data_generator)
+
+
+@pytest.fixture
+def component_test_context(isolated_temp_directory, settings_builder, test_data_generator):
+    return ComponentTestContext(isolated_temp_directory, settings_builder, test_data_generator)
+
+@pytest.fixture
+def database_test_context(isolated_temp_directory):
+    return DatabaseTestContext(isolated_temp_directory)
