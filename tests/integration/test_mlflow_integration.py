@@ -824,6 +824,8 @@ class TestMLflowIntegration:
     def test_mlflow_experiment_creation_and_tracking_v2(self, mlflow_test_context):
         # Context-based version per Phase 2
         with mlflow_test_context.for_classification(experiment="experiment_creation_v2") as ctx:
+            import mlflow
+            mlflow.set_tracking_uri(ctx.mlflow_uri)
             result = run_train_pipeline(ctx.settings)
             assert result is not None
             assert ctx.experiment_exists()
@@ -854,6 +856,8 @@ class TestMLflowIntegration:
 
         # New (context) approach
         with mlflow_test_context.for_classification(experiment="ab_new") as ctx:
+            import mlflow
+            mlflow.set_tracking_uri(ctx.mlflow_uri)
             result_new = run_train_pipeline(ctx.settings)
             assert result_new is not None
             # Validate both produced a run and metrics
