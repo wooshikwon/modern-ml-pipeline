@@ -859,3 +859,14 @@ evaluation:
         "recipe_path": recipe_path,
         "data_path": data_path
     }
+
+# ===== Context Fixtures (Phase 1) =====
+import importlib
+from tests.fixtures.contexts.mlflow_context import MLflowTestContext
+
+
+import pytest
+
+@pytest.fixture
+def mlflow_test_context(isolated_temp_directory, settings_builder, test_data_generator):
+    return MLflowTestContext(isolated_temp_directory, settings_builder, test_data_generator)
