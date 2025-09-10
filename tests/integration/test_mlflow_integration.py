@@ -951,3 +951,17 @@ class TestMLflowIntegration:
         assert set(metrics_old.keys()) == set(metrics_new.keys())
         assert set(params_old.keys()) == set(params_new.keys())
 
+    def test_mlflow_metrics_keys_match_baseline_v2(self, mlflow_test_context):
+        # Run v2 and compare metrics key-set against baseline
+        with mlflow_test_context.for_classification(experiment="metrics_baseline_v2") as ctx:
+            import mlflow, json
+            mlflow.set_tracking_uri(ctx.mlflow_uri)
+            result = run_train_pipeline(ctx.settings)
+            assert result is not None
+            from mlflow.tracking import MlflowClient
+            client = MlflowClient(tracking_uri=ctx.mlflow_uri)
+            run = client.get_run(result.run_id)
+            metrics = run.data.metrics
+            baseline = json.loads(Path('tests/fixtures/expected/metrics/classification_baseline.json').read_text())
+            assert set(metrics.keys()) == set(baseline["metrics_keys"])  # key-set equivalence
+
