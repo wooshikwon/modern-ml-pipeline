@@ -820,3 +820,50 @@ class TestMLflowIntegration:
             assert any(keyword in error_message for keyword in [
                 'cleanup', 'resource', 'management', 'mlflow'
             ]), f"Unexpected resource management error: {e}"
+
+    def test_mlflow_experiment_creation_and_tracking_v2(self, mlflow_test_context):
+        # Context-based version per Phase 2
+        with mlflow_test_context.for_classification(experiment="experiment_creation_v2") as ctx:
+            result = run_train_pipeline(ctx.settings)
+            assert result is not None
+            assert ctx.experiment_exists()
+            assert ctx.get_experiment_run_count() == 1
+            metrics = ctx.get_run_metrics()
+            assert isinstance(metrics, dict) and len(metrics) > 0
+
+    def test_compare_old_vs_new_approach(self, isolated_temp_directory, settings_builder, mlflow_test_context):
+        # Old approach
+        import numpy as np, pandas as pd, time
+        mlflow_uri_old = f"sqlite:///{isolated_temp_directory}/ab_old.db"
+        experiment_old = f"ab_old_{int(time.time())}"
+        df_old = pd.DataFrame({
+            'feature1': np.random.rand(30),
+            'feature2': np.random.rand(30),
+            'target': np.random.randint(0, 2, 30)
+        })
+        data_path_old = isolated_temp_directory / 'ab_old.csv'
+        df_old.to_csv(data_path_old, index=False)
+        settings_old = settings_builder             .with_task('classification')             .with_model('sklearn.ensemble.RandomForestClassifier')             .with_data_path(str(data_path_old))             .with_mlflow(mlflow_uri_old, experiment_old)             .build()
+        result_old = run_train_pipeline(settings_old)
+        assert result_old is not None
+
+        # New (context) approach
+        with mlflow_test_context.for_classification(experiment="ab_new") as ctx:
+            result_new = run_train_pipeline(ctx.settings)
+            assert result_new is not None
+            # Validate both produced a run and metrics
+            from mlflow.tracking import MlflowClient
+            client_old = MlflowClient(tracking_uri=mlflow_uri_old)
+            exp_old = client_old.get_experiment_by_name(experiment_old)
+            assert exp_old is not None
+            runs_old = client_old.list_run_infos(exp_old.experiment_id)
+            assert len(runs_old) == 1
+            assert ctx.experiment_exists() and ctx.get_experiment_run_count() == 1
+
+    def test_mlflow_context_init_performance_v2(self, mlflow_test_context, performance_benchmark):
+        # Ensure context init meets threshold (< 0.12s)
+        with performance_benchmark.measure_time('mlflow_context_init'):
+            with mlflow_test_context.for_classification(experiment='perf') as ctx:
+                assert ctx.experiment_exists()
+        performance_benchmark.assert_time_under('mlflow_context_init', 0.12)
+
