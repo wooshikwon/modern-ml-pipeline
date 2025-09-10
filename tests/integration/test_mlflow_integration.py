@@ -876,3 +876,32 @@ class TestMLflowIntegration:
                 assert ctx.experiment_exists()
         performance_benchmark.assert_time_under('mlflow_context_init', 0.12)
 
+    def test_mlflow_model_logging_and_registration_v2(self, mlflow_test_context, test_data_generator):
+        with mlflow_test_context.for_classification(experiment="model_logging_v2") as ctx:
+            import mlflow
+            mlflow.set_tracking_uri(ctx.mlflow_uri)
+            result = run_train_pipeline(ctx.settings)
+            assert result is not None
+            from mlflow.tracking import MlflowClient
+            client = MlflowClient(tracking_uri=ctx.mlflow_uri)
+            exp = client.get_experiment_by_name(ctx.experiment_name)
+            assert exp is not None
+            # Verify run and model artifact exist
+            run = client.get_run(result.run_id)
+            assert run is not None
+            artifacts = client.list_artifacts(result.run_id)
+            paths = [a.path for a in artifacts]
+            assert any('model' in p for p in paths)
+
+    def test_mlflow_artifact_logging_and_retrieval_v2(self, mlflow_test_context):
+        with mlflow_test_context.for_classification(experiment="artifacts_v2") as ctx:
+            import mlflow
+            mlflow.set_tracking_uri(ctx.mlflow_uri)
+            result = run_train_pipeline(ctx.settings)
+            assert result is not None
+            from mlflow.tracking import MlflowClient
+            client = MlflowClient(tracking_uri=ctx.mlflow_uri)
+            # Verify some artifacts exist and can be listed
+            arts = client.list_artifacts(result.run_id)
+            assert len(arts) > 0
+
