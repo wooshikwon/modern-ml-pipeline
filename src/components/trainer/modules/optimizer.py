@@ -6,6 +6,7 @@ from src.settings import Settings
 from src.utils.system.logger import logger
 from src.utils.system.console_manager import RichConsoleManager
 from src.utils.integrations.optuna_integration import logging_callback
+from ..registry import TrainerRegistry
 
 class OptunaOptimizer:
     def __init__(self, settings: Settings, factory_provider: Callable[[], Any]):
@@ -113,3 +114,6 @@ class OptunaOptimizer:
             'optimization_time': optimization_time,
             'search_space': self.settings.recipe.model.hyperparameters.tunable or {}
         }
+
+# Self registration under TrainerRegistry (same layer)
+TrainerRegistry.register("optuna", OptunaOptimizer)

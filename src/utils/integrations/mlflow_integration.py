@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 
 from src.utils.system.logger import logger
 from src.utils.system.console_manager import RichConsoleManager
+from src.utils.system.console_manager import UnifiedConsole
 
 def generate_unique_run_name(base_run_name: str) -> str:
     """
@@ -507,3 +508,42 @@ def log_enhanced_model_with_schema(
         )
     
     console.log_milestone("Enhanced Model + metadata MLflow storage completed", "success") 
+
+
+# --- Simple results logging helper -------------------------------------------------
+
+def log_training_results(settings: "Settings", metrics: dict, training_results: dict) -> None:
+    """
+    파이프라인에서 간결하게 호출하기 위한 결과 로깅 헬퍼.
+    - 메트릭 로깅 및 콘솔 출력
+    - HPO(on/off) 분기 및 하이퍼파라미터/최적 점수 로깅
+    """
+    console = UnifiedConsole(settings)
+
+    # 1) Metrics
+    if metrics:
+        mlflow.log_metrics(metrics)
+        try:
+            console.display_metrics_table(metrics, "Model Performance Metrics")
+        except Exception:
+            # 통합 콘솔이 없을 수 있는 환경 대비
+            pass
+
+    # 2) Hyperparameters / HPO
+    hpo = (training_results or {}).get('trainer', {}).get('hyperparameter_optimization')
+    if hpo and hpo.get('enabled'):
+        best_params = hpo.get('best_params') or {}
+        if best_params:
+            mlflow.log_params(best_params)
+        if 'best_score' in hpo:
+            mlflow.log_metric('best_score', hpo['best_score'])
+        if 'total_trials' in hpo:
+            mlflow.log_metric('total_trials', hpo['total_trials'])
+    else:
+        # HPO 비활성화 시에도 고정 하이퍼파라미터 기록을 시도
+        try:
+            hp = settings.recipe.model.hyperparameters
+            if hasattr(hp, 'values') and hp.values:
+                mlflow.log_params(hp.values)
+        except Exception:
+            pass

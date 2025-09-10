@@ -14,7 +14,7 @@ from src.utils.system.logger import logger
 from src.utils.system.console_manager import UnifiedConsole, get_console
 
 if TYPE_CHECKING:
-    from src.factory.artifact import PyfuncWrapper
+    from src.utils.integrations.pyfunc_wrapper import PyfuncWrapper
     from src.interface import BaseFetcher
 
 
@@ -596,7 +596,7 @@ class Factory:
         training_results: Optional[Dict[str, Any]] = None
     ) -> PyfuncWrapper:
         """완전한 스키마 정보가 캡슐화된 Artifact 생성"""
-        from src.factory.artifact import PyfuncWrapper
+        from src.utils.integrations.pyfunc_wrapper import PyfuncWrapper
         self.console.info("Creating PyfuncWrapper artifact...",
                          rich_message="📦 Creating PyfuncWrapper artifact")
         
