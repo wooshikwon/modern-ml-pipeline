@@ -4,7 +4,7 @@ Model Catalog Validator (v3.0)
 CLI 구조와 완벽 호환 - 완전히 재작성됨
 """
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from typing import Dict, List, Any, Optional, Union, Literal
 from pathlib import Path
 import yaml
@@ -20,10 +20,10 @@ class TunableParameter(BaseModel):
     default: Optional[Any] = Field(None, description="기본값")
     log: bool = Field(False, description="로그 스케일 사용 여부 (Optuna용)")
     
-    @validator('range')
-    def validate_range(cls, v, values):
+    @field_validator('range')
+    def validate_range(cls, v, info):
         """범위 타입 검증"""
-        param_type = values.get('type')
+        param_type = info.data.get('type')
         
         if param_type in ['int', 'float']:
             # 숫자형은 [min, max] 형태

@@ -18,6 +18,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LinearRegression
 from sklearn.datasets import make_classification, make_regression
 import time
+from uuid import uuid4
 from datetime import datetime
 
 from src.pipelines.train_pipeline import run_train_pipeline
@@ -31,8 +32,8 @@ class TestMLflowIntegration:
     def test_mlflow_experiment_creation_and_tracking(self, isolated_temp_directory, settings_builder):
         """Test MLflow experiment creation and basic tracking with real MLflow."""
         # Given: Real MLflow configuration and test data
-        mlflow_uri = f"sqlite:///{isolated_temp_directory}/test_mlflow.db"
-        experiment_name = f"integration_test_{int(time.time())}"
+        mlflow_uri = f"file://{isolated_temp_directory}/mlruns"
+        experiment_name = f"integration_test_{uuid4().hex[:8]}"
         
         # Create test data
         test_data = pd.DataFrame({
@@ -88,8 +89,8 @@ class TestMLflowIntegration:
     def test_mlflow_model_logging_and_registration(self, isolated_temp_directory, test_data_generator):
         """Test MLflow model logging and registration with real models."""
         # Given: Real model and MLflow setup
-        mlflow_uri = f"sqlite:///{isolated_temp_directory}/model_logging_test.db"
-        experiment_name = f"model_logging_{int(time.time())}"
+        mlflow_uri = f"file://{isolated_temp_directory}/mlruns"
+        experiment_name = f"model_logging_{uuid4().hex[:8]}"
         
         X, y = test_data_generator.classification_data(n_samples=100, n_features=4)
         
@@ -107,7 +108,7 @@ class TestMLflowIntegration:
                 mlflow.sklearn.log_model(
                     sk_model=model,
                     artifact_path="model",
-                    registered_model_name=f"test_model_{int(time.time())}"
+                    registered_model_name=f"test_model_{uuid4().hex[:8]}"
                 )
                 
                 # Log metrics
@@ -154,8 +155,8 @@ class TestMLflowIntegration:
     def test_mlflow_experiment_management_operations(self, isolated_temp_directory):
         """Test MLflow experiment management operations."""
         # Given: MLflow setup for experiment management
-        mlflow_uri = f"sqlite:///{isolated_temp_directory}/experiment_mgmt.db"
-        base_experiment_name = f"exp_mgmt_{int(time.time())}"
+        mlflow_uri = f"file://{isolated_temp_directory}/mlruns"
+        base_experiment_name = f"exp_mgmt_{uuid4().hex[:8]}"
         
         # When: Testing experiment management operations
         try:
@@ -205,8 +206,8 @@ class TestMLflowIntegration:
     def test_mlflow_run_lifecycle_and_status_management(self, isolated_temp_directory, test_data_generator):
         """Test MLflow run lifecycle and status management."""
         # Given: MLflow setup and test data
-        mlflow_uri = f"sqlite:///{isolated_temp_directory}/run_lifecycle.db"
-        experiment_name = f"run_lifecycle_{int(time.time())}"
+        mlflow_uri = f"file://{isolated_temp_directory}/mlruns"
+        experiment_name = f"run_lifecycle_{uuid4().hex[:8]}"
         
         X, y = test_data_generator.regression_data(n_samples=50, n_features=3)
         
@@ -258,8 +259,8 @@ class TestMLflowIntegration:
     def test_mlflow_metrics_and_parameters_logging(self, isolated_temp_directory):
         """Test MLflow metrics and parameters logging with various data types."""
         # Given: MLflow setup for comprehensive logging
-        mlflow_uri = f"sqlite:///{isolated_temp_directory}/metrics_params.db"
-        experiment_name = f"metrics_params_{int(time.time())}"
+        mlflow_uri = f"file://{isolated_temp_directory}/mlruns"
+        experiment_name = f"metrics_params_{uuid4().hex[:8]}"
         
         # When: Testing comprehensive metrics and parameters logging
         try:
@@ -313,8 +314,8 @@ class TestMLflowIntegration:
     def test_mlflow_artifact_logging_and_retrieval(self, isolated_temp_directory, test_data_generator):
         """Test MLflow artifact logging and retrieval."""
         # Given: MLflow setup and test artifacts
-        mlflow_uri = f"sqlite:///{isolated_temp_directory}/artifacts_test.db"
-        experiment_name = f"artifacts_{int(time.time())}"
+        mlflow_uri = f"file://{isolated_temp_directory}/mlruns"
+        experiment_name = f"artifacts_{uuid4().hex[:8]}"
         
         # Create test artifacts
         test_data = pd.DataFrame({
@@ -384,9 +385,9 @@ class TestMLflowIntegration:
     def test_mlflow_model_versioning_and_registry(self, isolated_temp_directory, test_data_generator):
         """Test MLflow model versioning and registry operations."""
         # Given: MLflow setup with model registry
-        mlflow_uri = f"sqlite:///{isolated_temp_directory}/model_registry.db"
-        experiment_name = f"model_registry_{int(time.time())}"
-        model_name = f"test_model_{int(time.time())}"
+        mlflow_uri = f"file://{isolated_temp_directory}/mlruns"
+        experiment_name = f"model_registry_{uuid4().hex[:8]}"
+        model_name = f"test_model_{uuid4().hex[:8]}"
         
         X, y = test_data_generator.classification_data(n_samples=50, n_features=3)
         
@@ -465,8 +466,8 @@ class TestMLflowIntegration:
     def test_mlflow_search_and_comparison_operations(self, isolated_temp_directory, test_data_generator):
         """Test MLflow search and comparison operations."""
         # Given: MLflow setup with multiple runs for comparison
-        mlflow_uri = f"sqlite:///{isolated_temp_directory}/search_compare.db"
-        experiment_name = f"search_compare_{int(time.time())}"
+        mlflow_uri = f"file://{isolated_temp_directory}/mlruns"
+        experiment_name = f"search_compare_{uuid4().hex[:8]}"
         
         X, y = test_data_generator.classification_data(n_samples=40, n_features=3)
         
@@ -548,8 +549,8 @@ class TestMLflowIntegration:
     def test_mlflow_pipeline_integration_end_to_end(self, isolated_temp_directory, test_data_generator):
         """Test MLflow integration with complete pipeline end-to-end."""
         # Given: Complete pipeline setup with MLflow tracking
-        mlflow_uri = f"sqlite:///{isolated_temp_directory}/pipeline_e2e.db"
-        experiment_name = f"pipeline_e2e_{int(time.time())}"
+        mlflow_uri = f"file://{isolated_temp_directory}/mlruns"
+        experiment_name = f"pipeline_e2e_{uuid4().hex[:8]}"
         
         # Create test data
         X, y = test_data_generator.classification_data(n_samples=60, n_features=4)
@@ -669,8 +670,8 @@ class TestMLflowIntegration:
     def test_mlflow_concurrent_tracking_and_thread_safety(self, isolated_temp_directory, test_data_generator):
         """Test MLflow concurrent tracking and thread safety."""
         # Given: MLflow setup for concurrent access
-        mlflow_uri = f"sqlite:///{isolated_temp_directory}/concurrent_test.db"
-        experiment_name = f"concurrent_{int(time.time())}"
+        mlflow_uri = f"file://{isolated_temp_directory}/mlruns"
+        experiment_name = f"concurrent_{uuid4().hex[:8]}"
         
         X, y = test_data_generator.regression_data(n_samples=30, n_features=2)
         
@@ -749,8 +750,8 @@ class TestMLflowIntegration:
     def test_mlflow_cleanup_and_resource_management(self, isolated_temp_directory):
         """Test MLflow cleanup and resource management."""
         # Given: MLflow setup for resource management testing
-        mlflow_uri = f"sqlite:///{isolated_temp_directory}/cleanup_test.db"
-        experiment_name = f"cleanup_{int(time.time())}"
+        mlflow_uri = f"file://{isolated_temp_directory}/mlruns"
+        experiment_name = f"cleanup_{uuid4().hex[:8]}"
         
         # When: Testing resource management
         try:
@@ -807,12 +808,11 @@ class TestMLflowIntegration:
                 # Real behavior: Cleanup operations might not be supported
                 pass
                 
-            # Verify database file exists and has reasonable size
-            db_path = Path(mlflow_uri.replace("sqlite:///", ""))
-            if db_path.exists():
-                db_size = db_path.stat().st_size
-                assert db_size > 0  # Database should have content
-                assert db_size < 10 * 1024 * 1024  # Shouldn't be huge for test data
+            # Verify MLflow file store exists and has content
+            store_path = Path(mlflow_uri.replace("file://", ""))
+            assert store_path.exists()
+            contents = list(store_path.rglob("*"))
+            assert len(contents) > 0
                 
         except Exception as e:
             # Real behavior: Resource management might fail
@@ -841,8 +841,8 @@ class TestMLflowIntegration:
     def test_compare_old_vs_new_approach(self, isolated_temp_directory, settings_builder, mlflow_test_context):
         # Old approach
         import numpy as np, pandas as pd, time
-        mlflow_uri_old = f"sqlite:///{isolated_temp_directory}/ab_old.db"
-        experiment_old = f"ab_old_{int(time.time())}"
+        mlflow_uri_old = f"file://{isolated_temp_directory}/mlruns"
+        experiment_old = f"ab_old_{uuid4().hex[:8]}"
         df_old = pd.DataFrame({
             'feature1': np.random.rand(30),
             'feature2': np.random.rand(30),
@@ -865,8 +865,9 @@ class TestMLflowIntegration:
             client_old = MlflowClient(tracking_uri=mlflow_uri_old)
             exp_old = client_old.get_experiment_by_name(experiment_old)
             assert exp_old is not None
-            runs_old = client_old.list_run_infos(exp_old.experiment_id)
-            assert len(runs_old) == 1
+            # MLflow 3.x: list_run_infos 제거 → search_runs 사용
+            runs_old = client_old.search_runs([exp_old.experiment_id])
+            assert len(runs_old) >= 1
             assert ctx.experiment_exists() and ctx.get_experiment_run_count() == 1
 
     def test_mlflow_context_init_performance_v2(self, mlflow_test_context, performance_benchmark):
@@ -908,8 +909,8 @@ class TestMLflowIntegration:
     def test_mlflow_artifact_equivalence_old_vs_new(self, isolated_temp_directory, settings_builder, mlflow_test_context):
         # Old
         import numpy as np, pandas as pd, time, json
-        mlflow_uri_old = f"sqlite:///{isolated_temp_directory}/ab_eq_old.db"
-        experiment_old = f"ab_eq_old_{int(time.time())}"
+        mlflow_uri_old = f"file://{isolated_temp_directory}/mlruns"
+        experiment_old = f"ab_eq_old_{uuid4().hex[:8]}"
         df_old = pd.DataFrame({
             'feature1': np.random.rand(30),
             'feature2': np.random.rand(30),

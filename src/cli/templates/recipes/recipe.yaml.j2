@@ -37,8 +37,7 @@ model:
 
 data:
   loader:
-    # source_uri는 CLI에서 --data-path로 런타임에 주입됨
-    # .sql → SQL adapter, .csv/.parquet → Storage adapter
+    # source_uri는 레시피에서 관리하지 않습니다. CLI --data-path로만 주입됩니다.
   
   # Fetcher 설정 (Feature Store 연동)
   fetcher:
@@ -56,7 +55,7 @@ data:
   
   # Data interface 설정
   data_interface:
-    target_column: {{ target_column }}
+    target_column: {{ target_column if task|lower != 'clustering' else 'null' }}
     {% if task|lower == "causal" %}
     treatment_column: {{ treatment_column }}  # 처치 변수 (causal task 전용)
     {% endif %}

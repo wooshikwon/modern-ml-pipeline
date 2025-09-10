@@ -33,6 +33,10 @@ def train_command(
         Optional[str], 
         typer.Option("--params", "-p", help="Jinja 템플릿 파라미터 (JSON)")
     ] = None,
+    record_reqs: Annotated[
+        bool,
+        typer.Option("--record-reqs", help="현재 환경의 패키지 요구사항을 MLflow 아티팩트에 기록합니다(기본 비활성화).")
+    ] = False,
 ) -> None:
     """
     학습 파이프라인 실행.
@@ -61,8 +65,11 @@ def train_command(
         settings = load_settings(recipe_path, config_path)
         setup_logging(settings)
 
-        # 2. CLI data_path 처리
-        if data_path.endswith('.sql.j2') or data_path.endswith('.sql') and params:
+        # 2. CLI data_path 처리 (레시피에 source_uri를 두지 않고 인자만 사용)
+        if not data_path:
+            raise ValueError("--data-path는 필수입니다. 레시피에서 source_uri를 사용하지 않습니다.")
+
+        if data_path.endswith('.sql.j2') or (data_path.endswith('.sql') and params):
             # Jinja 템플릿 렌더링
             from src.utils.system.templating_utils import render_template_from_string
             from pathlib import Path
@@ -98,8 +105,11 @@ def train_command(
         run_name = computed.get("run_name", "unknown") if computed else "unknown"
         logger.info(f"Run Name: {run_name}")
         
-        # 4. 학습 파이프라인 실행
-        run_train_pipeline(settings=settings, context_params=params)
+        # 4. 학습 파이프라인 실행 (기본값 False일 때는 인자를 생략하여 하위호환 유지)
+        if record_reqs:
+            run_train_pipeline(settings=settings, context_params=params, record_requirements=True)
+        else:
+            run_train_pipeline(settings=settings, context_params=params)
         
         logger.info("✅ 학습이 성공적으로 완료되었습니다.")
 

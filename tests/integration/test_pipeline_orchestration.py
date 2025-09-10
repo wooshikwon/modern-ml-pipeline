@@ -145,6 +145,19 @@ class TestPipelineOrchestration:
         
         # When: Running training pipeline (which uses Factory internally)
         try:
+            # Ensure local MLflow file store exists for file:// URIs
+            import mlflow, os
+            tracking_uri = f"file://{isolated_temp_directory}/mlruns"
+            os.makedirs(f"{isolated_temp_directory}/mlruns", exist_ok=True)
+            mlflow.set_tracking_uri(tracking_uri)
+            # Override settings' mlflow to consistent file store for this test
+            settings = settings_builder \
+                .with_task("classification") \
+                .with_model("sklearn.ensemble.RandomForestClassifier") \
+                .with_data_source("storage") \
+                .with_data_path(str(data_path)) \
+                .with_mlflow(tracking_uri, f"pipeline_orch_{Path(data_path).stem}") \
+                .build()
             result = run_train_pipeline(settings)
             
             # Then: Pipeline succeeds with Factory-created components

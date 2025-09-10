@@ -304,7 +304,7 @@ data:
             .with_task("classification") \
             .with_model("sklearn.ensemble.RandomForestClassifier") \
             .with_data_path(str(data_path)) \
-            .with_mlflow(tracking_uri="sqlite:///test_recovery.db", experiment_name="test_cross_layer_recovery") \
+            .with_mlflow(tracking_uri=f"file://{isolated_temp_directory}/mlruns", experiment_name="test_cross_layer_recovery") \
             .build()
         
         # When: Testing cross-layer error propagation and recovery
@@ -338,7 +338,7 @@ data:
                         .with_task("classification") \
                         .with_model("sklearn.ensemble.RandomForestClassifier") \
                         .with_data_path(str(cleaned_path)) \
-                        .with_mlflow(tracking_uri="sqlite:///test_recovery.db") \
+                        .with_mlflow(tracking_uri=f"file://{isolated_temp_directory}/mlruns") \
                         .build()
                     
                     # Retry with cleaned data
@@ -386,12 +386,12 @@ data:
                 'expected_layer': 'settings'
             },
             'invalid_model_import': {
-                'config': 'environment:\n  name: test\nmlflow:\n  tracking_uri: sqlite:///test.db',
+                'config': 'environment:\n  name: test\nmlflow:\n  tracking_uri: file://./mlruns',
                 'recipe': 'name: test\ntask_choice: classification\nmodel:\n  class_path: invalid.module.Class',
                 'expected_layer': 'factory'
             },
             'nonexistent_data_file': {
-                'config': 'environment:\n  name: test\nmlflow:\n  tracking_uri: sqlite:///test.db',
+                'config': 'environment:\n  name: test\nmlflow:\n  tracking_uri: file://./mlruns',
                 'recipe': 'name: test\ntask_choice: classification\nmodel:\n  class_path: sklearn.linear_model.LogisticRegression\ndata:\n  loader:\n    source_uri: /nonexistent/file.csv',
                 'expected_layer': 'component'
             }

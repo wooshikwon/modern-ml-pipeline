@@ -15,7 +15,11 @@ from src.utils.system.environment_check import get_pip_requirements
 from src.utils.system.reproducibility import set_global_seeds
 
 
-def run_train_pipeline(settings: Settings, context_params: Optional[Dict[str, Any]] = None):
+def run_train_pipeline(
+    settings: Settings,
+    context_params: Optional[Dict[str, Any]] = None,
+    record_requirements: bool = False,
+):
     """
     모델 학습 파이프라인을 실행합니다.
     Factory를 통해 데이터 어댑터와 모든 컴포넌트를 생성하고,
@@ -112,7 +116,8 @@ def run_train_pipeline(settings: Settings, context_params: Optional[Dict[str, An
             )
             
             # 6. Model + 메타데이터 저장
-            pip_reqs = get_pip_requirements()
+            # 기본은 요구사항 캡처 비활성화. --record-reqs 옵션/환경변수로만 활성화
+            pip_reqs = get_pip_requirements() if record_requirements else []
             
             # Signature와 data_schema 검증
             if not (pyfunc_wrapper.signature and pyfunc_wrapper.data_schema):

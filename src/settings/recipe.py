@@ -4,7 +4,7 @@ Optuna 튜닝, Feature Store 통합 등 신규 기능 포함
 완전히 재작성됨 - CLI recipe.yaml.j2와 100% 호환
 """
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
 from typing import Dict, List, Any, Optional, Union, Literal
 
 
@@ -80,10 +80,14 @@ class FeatureView(BaseModel):
 
 class Loader(BaseModel):
     """데이터 로더 설정"""
-    source_uri: str = Field(..., description="데이터 소스 URI (SQL 파일 경로 또는 데이터 파일 경로)")
+    source_uri: Optional[str] = Field(None, description="데이터 소스 URI (SQL 파일 경로 또는 데이터 파일 경로)")
     
     def get_adapter_type(self) -> str:
         """source_uri에서 어댑터 타입 자동 추론"""
+        if not self.source_uri:
+            # 런타임 인자(예: context_params['data_source_uri'])로 주입하는 구조를 우선
+            # 미지정 시 기본은 SQL로 간주하여 어댑터 선택
+            return 'sql'
         uri = self.source_uri.lower()
         
         # .sql 파일은 SQL adapter
@@ -378,9 +382,8 @@ class Recipe(BaseModel):
             return self.model.hyperparameters.tunable
         return None
     
-    class Config:
-        """Pydantic 설정"""
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "name": "classification_rf",
                 "task_choice": "classification",
@@ -456,3 +459,4 @@ class Recipe(BaseModel):
                 }
             }
         }
+    )

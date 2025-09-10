@@ -4,7 +4,7 @@ CLI 템플릿과 완벽히 호환되는 새로운 구조
 완전히 재작성됨 - CLI config.yaml.j2와 100% 호환
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Dict, Optional, Any, Literal
 
 
@@ -151,9 +151,8 @@ class Config(BaseModel):
             return self.feature_store.feast_config
         return None
     
-    class Config:
-        """Pydantic 설정"""
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "environment": {
                     "name": "local"
@@ -192,3 +191,4 @@ class Config(BaseModel):
                 }
             }
         }
+    )

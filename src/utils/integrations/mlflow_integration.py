@@ -1,12 +1,14 @@
 # src/utils/system/mlflow_utils.py
 
 import mlflow
+import os
 import json
 from contextlib import contextmanager
 import pandas as pd
 from mlflow.models.signature import ModelSignature
 from mlflow.types import Schema, ColSpec, ParamSpec, ParamSchema
 from typing import Optional, List
+from urllib.parse import urlparse
 import uuid
 import datetime
 
@@ -64,7 +66,20 @@ def start_run(settings: "Settings", run_name: str) -> "Run":
     # 🆕 충돌 방지를 위해 유니크한 run name 생성
     unique_run_name = generate_unique_run_name(run_name)
     
-    # 외부에서 지정된 tracking_uri(예: 테스트)가 있다면 존중하고, 실험명만 설정
+    # 외부에서 지정된 tracking_uri(예: 테스트)가 있다면 존중: 명시적으로 설정
+    tracking_uri = settings.config.mlflow.tracking_uri
+    if tracking_uri:
+        # file:// 스토어는 루트 디렉토리를 미리 생성해야 함
+        parsed = urlparse(tracking_uri)
+        if parsed.scheme == "file" and parsed.path:
+            try:
+                os.makedirs(parsed.path, exist_ok=True)
+            except Exception:
+                # 디렉토리 생성 실패는 아래 설정 시점에서 에러로 노출됨
+                pass
+        mlflow.set_tracking_uri(tracking_uri)
+
+    # 실험명 설정 (tracking_uri 설정 이후)
     mlflow.set_experiment(settings.config.mlflow.experiment_name)
     
     try:

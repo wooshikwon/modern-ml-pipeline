@@ -30,7 +30,7 @@ dependencies = [
     "scikit-learn",
     "pyarrow",
     # ML Experiment Tracking
-    "mlflow",
+    "mlflow>=3,<4",
     # API Serving
     "fastapi",
     "uvicorn[standard]",
