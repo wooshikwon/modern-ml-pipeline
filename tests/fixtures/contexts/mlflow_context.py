@@ -85,7 +85,7 @@ class _MLflowContextManager:
 
     def get_experiment_run_count(self) -> int:
         assert self.mlflow_client is not None and self.experiment_id is not None
-        runs = self.mlflow_client.list_run_infos(self.experiment_id)
+        runs = self.mlflow_client.search_runs([self.experiment_id])
         return len(runs)
 
     def get_run_metrics(self) -> dict[str, Any]:
