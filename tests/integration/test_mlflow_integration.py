@@ -905,3 +905,49 @@ class TestMLflowIntegration:
             arts = client.list_artifacts(result.run_id)
             assert len(arts) > 0
 
+    def test_mlflow_artifact_equivalence_old_vs_new(self, isolated_temp_directory, settings_builder, mlflow_test_context):
+        # Old
+        import numpy as np, pandas as pd, time, json
+        mlflow_uri_old = f"sqlite:///{isolated_temp_directory}/ab_eq_old.db"
+        experiment_old = f"ab_eq_old_{int(time.time())}"
+        df_old = pd.DataFrame({
+            'feature1': np.random.rand(30),
+            'feature2': np.random.rand(30),
+            'target': np.random.randint(0, 2, 30)
+        })
+        data_path_old = isolated_temp_directory / 'ab_eq_old.csv'
+        df_old.to_csv(data_path_old, index=False)
+        settings_old = settings_builder             .with_task('classification')             .with_model('sklearn.ensemble.RandomForestClassifier')             .with_data_path(str(data_path_old))             .with_mlflow(mlflow_uri_old, experiment_old)             .build()
+        import mlflow
+        mlflow.set_tracking_uri(mlflow_uri_old)
+        result_old = run_train_pipeline(settings_old)
+        assert result_old is not None
+
+        # New
+        with mlflow_test_context.for_classification(experiment="ab_eq_new") as ctx:
+            mlflow.set_tracking_uri(ctx.mlflow_uri)
+            result_new = run_train_pipeline(ctx.settings)
+            assert result_new is not None
+
+        # Compare
+        from mlflow.tracking import MlflowClient
+        client_old = MlflowClient(tracking_uri=mlflow_uri_old)
+        exp_old = client_old.get_experiment_by_name(experiment_old)
+        run_old = client_old.get_run(result_old.run_id)
+        metrics_old = run_old.data.metrics
+        params_old = run_old.data.params
+
+        client_new = MlflowClient(tracking_uri=ctx.mlflow_uri)
+        run_new = client_new.get_run(result_new.run_id)
+        metrics_new = run_new.data.metrics
+        params_new = run_new.data.params
+
+        # Signature/schema are logged as artifacts/metadata under model folder
+        arts_new = client_new.list_artifacts(result_new.run_id, path='model')
+        new_names = {a.path for a in arts_new}
+        assert 'data_schema.json' in new_names
+
+        # Basic equivalence: key sets should overlap; allow value differences due to randomness
+        assert set(metrics_old.keys()) == set(metrics_new.keys())
+        assert set(params_old.keys()) == set(params_new.keys())
+
