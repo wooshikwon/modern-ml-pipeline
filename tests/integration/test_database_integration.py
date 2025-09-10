@@ -341,6 +341,62 @@ class TestDatabaseIntegration:
             assert any(keyword in error_message for keyword in [
                 'schema', 'migration', 'database', 'metadata'
             ]), f"Unexpected schema operation error: {e}"
+
+    def test_sql_adapter_read_v2(self, database_test_context, settings_builder):
+        """Context-based v2: SqlAdapter reads from SQLite with safe query guards."""
+        import pandas as pd
+        # Prepare a small deterministic DataFrame
+        df = pd.DataFrame({
+            'user_id': range(1, 11),
+            'age': [25, 28, 31, 22, 45, 38, 29, 54, 33, 41],
+            'income': [35000, 42000, 50000, 31000, 90000, 65000, 48000, 120000, 70000, 82000],
+        })
+
+        with database_test_context.sqlite_db({"user_data": df}) as db:
+            # Build settings for SQL adapter
+            settings = settings_builder \
+                .with_data_source("sql", config={"connection_uri": db.connection_uri}) \
+                .with_data_path(db.connection_uri) \
+                .with_task("classification") \
+                .with_model("sklearn.linear_model.LogisticRegression", 
+                           hyperparameters={"random_state": 42, "max_iter": 100}) \
+                .build()
+
+            from src.factory.factory import Factory
+            factory = Factory(settings)
+            sql_adapter = factory.create_data_adapter()
+
+            # Guarded query: no SELECT *; include LIMIT
+            result_df = sql_adapter.read("SELECT user_id, age, income FROM user_data WHERE age > 20 LIMIT 50")
+
+            assert result_df is not None
+            assert len(result_df) > 0
+            assert {"user_id", "age", "income"}.issubset(set(result_df.columns))
+
+    def test_sql_adapter_groupby_v2(self, database_test_context, settings_builder):
+        """Context-based v2: GROUP BY aggregation with explicit columns (no SELECT *)."""
+        import pandas as pd
+        df = pd.DataFrame({
+            'region': ['North', 'South', 'East', 'West'] * 5,
+            'value': [i * 1.0 for i in range(20)],
+        })
+
+        with database_test_context.sqlite_db({"agg_data": df}) as db:
+            settings = settings_builder \
+                .with_data_source("sql", config={"connection_uri": db.connection_uri}) \
+                .with_data_path(db.connection_uri) \
+                .with_task("regression") \
+                .with_model("sklearn.linear_model.LinearRegression") \
+                .build()
+
+            from src.factory.factory import Factory
+            sql_adapter = Factory(settings).create_data_adapter()
+
+            # Explicit columns and GROUP BY
+            query = "SELECT region, AVG(value) AS avg_value FROM agg_data GROUP BY region LIMIT 10"
+            result = sql_adapter.read(query)
+            assert result is not None and len(result) > 0
+            assert {"region", "avg_value"}.issubset(set(result.columns))
     
     def test_database_query_performance_and_optimization(self, isolated_temp_directory):
         """Test database query performance and optimization."""

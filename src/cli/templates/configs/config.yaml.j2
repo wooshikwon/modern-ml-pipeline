@@ -8,7 +8,7 @@ environment:
 {%- if use_mlflow %}
 
 mlflow:
-  tracking_uri: "${MLFLOW_TRACKING_URI:./mlruns}"
+  tracking_uri: "${MLFLOW_TRACKING_URI:file://./mlruns}"
   experiment_name: "${MLFLOW_EXPERIMENT_NAME:mmp-{{ env_name }}}"
   # Optional authentication
   tracking_username: "${MLFLOW_TRACKING_USERNAME:}"

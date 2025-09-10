@@ -37,12 +37,16 @@ class ComponentTestContext:
         factory = Factory(settings)
         adapter = factory.create_data_adapter()
         model_obj = factory.create_model()
+        evaluator = factory.create_evaluator()
+        preprocessor = factory.create_preprocessor()
 
         ctx = _ComponentStackContext(
             settings=settings,
             factory=factory,
             adapter=adapter,
             model=model_obj,
+            evaluator=evaluator,
+            preprocessor=preprocessor,
             data_path=str(data_path),
         )
         try:
@@ -52,11 +56,13 @@ class ComponentTestContext:
 
 
 class _ComponentStackContext:
-    def __init__(self, settings, factory, adapter, model, data_path: str):
+    def __init__(self, settings, factory, adapter, model, evaluator, preprocessor, data_path: str):
         self.settings = settings
         self.factory = factory
         self.adapter = adapter
         self.model = model
+        self.evaluator = evaluator
+        self.preprocessor = preprocessor
         self.data_path = data_path
 
     def prepare_model_input(self, raw_df: pd.DataFrame) -> pd.DataFrame:

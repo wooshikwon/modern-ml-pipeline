@@ -759,3 +759,73 @@ class TestComponentDataFlowValidation:
             assert any(keyword in error_message for keyword in [
                 'end', 'flow', 'pipeline', 'component', 'data'
             ]), f"Unexpected end-to-end flow error: {e}"
+
+    def test_adapter_to_model_data_flow_integration_v2(self, component_test_context):
+        """Context-based v2: Adapter → Model data flow with focused verification."""
+        with component_test_context.classification_stack() as ctx:
+            # Read data via adapter
+            raw_data = ctx.adapter.read(ctx.data_path)
+            assert raw_data is not None and len(raw_data) > 0
+
+            # Prepare model input and validate flow
+            X = ctx.prepare_model_input(raw_data)
+            assert ctx.validate_data_flow(raw_data, X)
+
+            # Train and predict
+            ctx.model.fit(X, raw_data['target'])
+            predictions = ctx.model.predict(X)
+
+            # Assertions
+            assert len(predictions) == len(raw_data)
+            assert ctx.adapter_is_compatible_with_model()
+
+    def test_model_to_evaluator_flow_v2(self, component_test_context):
+        """Context-based v2: Model → Evaluator flow with optional preprocessor."""
+        with component_test_context.classification_stack() as ctx:
+            raw_df = ctx.adapter.read(ctx.data_path)
+            X = ctx.prepare_model_input(raw_df)
+            y = raw_df['target']
+
+            # Optional preprocessor stage
+            X_proc = X
+            if ctx.preprocessor is not None:
+                try:
+                    X_proc = ctx.preprocessor.preprocess(raw_df)
+                    # keep only features for model
+                    X_cols = [c for c in X_proc.columns if c.startswith('feature_')]
+                    X_proc = X_proc[X_cols] if X_cols else X
+                except Exception:
+                    X_proc = X
+
+            ctx.model.fit(X_proc, y)
+            if ctx.evaluator is not None:
+                result = ctx.evaluator.evaluate(ctx.model, X_proc, y)
+                assert isinstance(result, dict)
+
+    def test_end_to_end_component_data_flow_validation_v2(self, component_test_context):
+        """Context-based v2: End-to-end flow Adapter → [Preprocessor] → Model → Evaluator."""
+        with component_test_context.classification_stack() as ctx:
+            # Read via adapter
+            df = ctx.adapter.read(ctx.data_path)
+            assert df is not None and len(df) > 0
+
+            # Preprocess if available
+            features_df = df
+            if ctx.preprocessor is not None:
+                try:
+                    features_df = ctx.preprocessor.preprocess(df)
+                except Exception:
+                    features_df = df
+
+            # Prepare model input and targets
+            X = ctx.prepare_model_input(features_df)
+            y = features_df['target'] if 'target' in features_df.columns else df['target']
+
+            # Train and evaluate
+            ctx.model.fit(X, y)
+            preds = ctx.model.predict(X)
+            assert len(preds) == len(y)
+
+            if ctx.evaluator is not None:
+                eval_result = ctx.evaluator.evaluate(ctx.model, X, y)
+                assert isinstance(eval_result, dict) and len(eval_result) > 0

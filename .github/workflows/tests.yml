@@ -52,3 +52,6 @@ jobs:
           pytest -q tests/integration/test_mlflow_integration.py::TestMLflowIntegration::test_mlflow_model_logging_and_registration_v2
           pytest -q tests/integration/test_mlflow_integration.py::TestMLflowIntegration::test_mlflow_artifact_logging_and_retrieval_v2
           pytest -q tests/integration/test_mlflow_integration.py::TestMLflowIntegration::test_mlflow_artifact_equivalence_old_vs_new
+          pytest -q tests/integration/test_mlflow_integration.py::TestMLflowIntegration::test_mlflow_metrics_keys_match_baseline_v2
+          pytest -q tests/integration/test_component_interactions.py::TestComponentDataFlowValidation::test_adapter_to_model_data_flow_integration_v2
+          pytest -q tests/integration/test_database_integration.py::TestDatabaseIntegration::test_sql_adapter_read_v2

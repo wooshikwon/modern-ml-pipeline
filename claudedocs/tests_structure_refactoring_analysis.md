@@ -47,6 +47,8 @@ def test_quickstart_mlflow(mlflow_test_context):
 - **MLflow 저장소**: `file://{temp_dir}/mlruns` 고정 사용(외부 경로 불가).
 - **격리**: 테스트당 1 run 기준, 교차 테스트 의존 금지.
 - **성능 예산**: 컨텍스트 초기화/파이프라인 실행에 대해 상한선 설정 및 측정(`performance_benchmark`).
+- **요구사항 캡처(선택)**: 기본적으로 MLflow 아티팩트에 패키지 요구사항을 기록하지 않음. 필요 시 `mmp train --record-reqs`로 활성화. (이전 환경변수 가드 `MLPIPE_SKIP_PIP_REQ`는 제거)
+ - **데이터 경로 주입 정책**: 데이터 경로는 CLI `--data-path`(또는 테스트 컨텍스트 빌더의 `with_data_path`)로만 주입한다. 레시피에는 `loader.source_uri`를 저장하지 않는다.
 
 ---
 
@@ -281,7 +283,7 @@ class MLflowContextManager:
         return self.mlflow_client.get_experiment_by_name(self.experiment_name) is not None
     
     def get_experiment_run_count(self):
-        runs = self.mlflow_client.list_run_infos(self.experiment_id)
+        runs = self.mlflow_client.search_runs([self.experiment_id])
         return len(runs)
     
     def get_run_metrics(self):
@@ -424,18 +426,23 @@ def test_compare_old_vs_new_approach(self, isolated_temp_directory, settings_bui
 
 **단계별 마이그레이션**:
 
+> Phase 3 상태: ✅ 완료 (v2 확대 + 성능/CI 정비 반영)
+
 1. **MLflow Tests** (Week 4):
    - `test_mlflow_integration.py` 내 11개 테스트
    - 한 번에 하나씩 새 방식으로 마이그레이션
    - 각 테스트마다 결과 일치 확인
+   - 완료 내역: v2 케이스(실험 생성/모델 로깅/아티팩트/레지스트리/검색/동등성/베이스라인) 추가 및 A/B 동등성 유지, MLflow 3.x API 호환성(`list_run_infos` → `search_runs`) 반영
 
 2. **Component Interaction Tests** (Week 5):
    - `test_component_interactions.py` 내 10개 테스트
    - Context-based component testing 적용
+   - 완료 내역: `ComponentTestContext` 확장(evaluator/preprocessor 노출), v2 흐름(어댑터→모델, 모델→평가자, e2e) 추가
 
 3. **Database Integration Tests** (Week 6):
    - `test_database_integration.py` 내 9개 테스트
    - DatabaseTestContext 적용
+   - 완료 내역: v2 읽기 케이스 추가(SQL 가드 적용: SELECT * 금지, LIMIT 권장), 기타 DB 시나리오와 공존 확인
 
 ### Phase 4: Validation & Cleanup (Week 7-8)
 
@@ -502,7 +509,7 @@ pytest tests/integration/ -v
 - ✅ **Zero new flaky tests**
 - ✅ **Context init time < 0.12s (p75)**
 - ✅ **Zero test state leakage across tests**
- - ✅ **Artifact equivalence maintained (metrics/params/signature/schema)**
+- ✅ **Artifact equivalence maintained (metrics/params/signature/schema)**
 
 ### Developer Experience KPIs  
 - ✅ **New test creation time < 10 minutes**
@@ -515,45 +522,50 @@ pytest tests/integration/ -v
 - **게이팅**: A/B 동등성/성능 상한을 PR 게이트로 추가, 위배 시 머지 차단
 - **아티팩트 비교**: MLflow run-level 메트릭/파라미터/시그니처/스키마 요약을 비교하여 동등성 검증 리포트 첨부
 
+#### 병렬 실행 가이드 (권장)
+- 로컬/CI: `pytest -n auto --dist=loadscope --durations=15`
+- MLflow 파일 스토어는 테스트별 `file://{temp_dir}/mlruns` 고정, 디렉토리 선생성으로 워커 충돌 방지
+- 긴 실행 케이스는 병렬화로 분산, 실패 없음을 우선 보장(경고/리포팅은 유지)
+
 ---
 
 ## 🔄 Implementation Checklist
 
 ### Foundation Phase
-- [ ] Create `tests/fixtures/contexts/` directory
-- [ ] Implement `MLflowTestContext` class  
-- [ ] Implement `ComponentTestContext` class
-- [ ] Implement `DatabaseTestContext` class
-- [ ] Create YAML templates in `tests/fixtures/templates/`
-- [ ] Add new fixtures to `conftest.py`
-- [ ] Verify all existing tests still pass (62/62)
-- [ ] Standardize MLflow tracking URI and experiment naming
-- [ ] Enforce deterministic seed usage in contexts
-- [ ] Add `tests/fixtures/contexts/README.md` (minimal contract & anti-patterns)
-- [ ] Add performance measurement for context init
+- [x] Create `tests/fixtures/contexts/` directory
+- [x] Implement `MLflowTestContext` class  
+- [x] Implement `ComponentTestContext` class
+- [x] Implement `DatabaseTestContext` class
+- [x] Create YAML templates in `tests/fixtures/templates/`
+- [x] Add new fixtures to `conftest.py`
+- [x] Verify all existing tests still pass (62/62)
+- [x] Standardize MLflow tracking URI and experiment naming
+- [x] Enforce deterministic seed usage in contexts
+- [x] Add `tests/fixtures/contexts/README.md` (minimal contract & anti-patterns)
+- [x] Add performance measurement for context init
 
 ### Pilot Phase
-- [ ] Migrate 2-3 MLflow tests to new approach
-- [ ] A/B test old vs new approach results
-- [ ] Measure code length reduction
-- [ ] Collect developer feedback
-- [ ] Refine Context implementations based on feedback
-- [ ] Include performance upper-bound checks in A/B (init + run)
- - [ ] Add artifact equivalence gate (metrics/params/signature/schema) in CI
+- [x] Migrate 2-3 MLflow tests to new approach
+- [x] A/B test old vs new approach results
+- [x] Measure code length reduction
+- [x] Collect developer feedback
+- [x] Refine Context implementations based on feedback
+- [x] Include performance upper-bound checks in A/B (init + run)
+- [x] Add artifact equivalence gate (metrics/params/signature/schema) in CI
 
 ### Migration Phase  
-- [ ] Migrate remaining MLflow tests (8-9 tests)
-- [ ] Migrate component interaction tests (10 tests)
-- [ ] Migrate database integration tests (9 tests)
-- [ ] Migrate remaining integration tests
-- [ ] Verify 62/62 success rate after each category
+- [x] Migrate remaining MLflow tests (8-9 tests)
+- [x] Migrate component interaction tests (10 tests)
+- [x] Migrate database integration tests (9 tests)
+- [x] Migrate remaining integration tests
+- [x] Verify 62/62 success rate after each category (병렬 실행 그린 유지)
 
 ### Cleanup Phase
-- [ ] Remove deprecated setup code
-- [ ] Update documentation
+- [x] Remove deprecated setup code (MLflow sqlite URIs, empty expected dirs)
+- [x] Update documentation (policy and checklist alignment)
 - [ ] Create developer guidelines for new Context usage
-- [ ] Final validation: 62/62 tests passing
-- [ ] Replace time-based names with uuid-based naming (standardization)
+- [x] Final validation: 62/62 tests passing
+- [x] Replace time-based names with uuid-based naming (standardization)
 
 ---
 

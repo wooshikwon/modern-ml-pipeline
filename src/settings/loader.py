@@ -115,8 +115,8 @@ class Settings:
     def to_dict(self) -> Dict[str, Any]:
         """딕셔너리로 변환 (직렬화용)"""
         return {
-            "config": self.config.dict(),
-            "recipe": self.recipe.dict()
+            "config": self.config.model_dump(),
+            "recipe": self.recipe.model_dump()
         }
     
     def get_environment_name(self) -> str:
@@ -471,7 +471,7 @@ def load_config_files(config_path: str) -> Dict[str, Any]:
     config = _load_config(config_path)
     
     # 딕셔너리로 변환
-    return config.dict()
+    return config.model_dump()
 
 
 # load_settings_by_file 별칭 제거됨 - 직접 load_settings 사용
