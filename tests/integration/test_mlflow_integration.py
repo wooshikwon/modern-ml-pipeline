@@ -827,8 +827,13 @@ class TestMLflowIntegration:
             result = run_train_pipeline(ctx.settings)
             assert result is not None
             assert ctx.experiment_exists()
-            assert ctx.get_experiment_run_count() == 1
-            metrics = ctx.get_run_metrics()
+            from mlflow.tracking import MlflowClient
+            client = MlflowClient(tracking_uri=ctx.mlflow_uri)
+            exp = client.get_experiment_by_name(ctx.experiment_name)
+            assert exp is not None
+            run = client.get_run(result.run_id)
+            assert run is not None and run.info.experiment_id == exp.experiment_id
+            metrics = run.data.metrics
             assert isinstance(metrics, dict) and len(metrics) > 0
 
     def test_compare_old_vs_new_approach(self, isolated_temp_directory, settings_builder, mlflow_test_context):
