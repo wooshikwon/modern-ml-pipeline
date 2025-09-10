@@ -945,7 +945,7 @@ class TestMLflowIntegration:
         # Signature/schema are logged as artifacts/metadata under model folder
         arts_new = client_new.list_artifacts(result_new.run_id, path='model')
         new_names = {a.path for a in arts_new}
-        assert 'data_schema.json' in new_names
+        assert any(name.endswith('data_schema.json') for name in new_names)
 
         # Basic equivalence: key sets should overlap; allow value differences due to randomness
         assert set(metrics_old.keys()) == set(metrics_new.keys())
