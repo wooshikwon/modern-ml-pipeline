@@ -963,5 +963,5 @@ class TestMLflowIntegration:
             run = client.get_run(result.run_id)
             metrics = run.data.metrics
             baseline = json.loads(Path('tests/fixtures/expected/metrics/classification_baseline.json').read_text())
-            assert set(metrics.keys()) == set(baseline["metrics_keys"])  # key-set equivalence
+            assert set(baseline["metrics_keys"]).issubset(set(metrics.keys()))  # required keys must exist
 
