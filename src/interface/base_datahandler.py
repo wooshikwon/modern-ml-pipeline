@@ -48,6 +48,23 @@ class BaseDataHandler(ABC):
             Tuple[train_df, test_df]
         """
         pass
+
+    def split_and_prepare(
+        self, df: pd.DataFrame
+    ) -> Tuple[
+        pd.DataFrame, Any, Dict[str, Any],
+        pd.DataFrame, Any, Dict[str, Any]
+    ]:
+        """
+        편의 메서드: 데이터 분할 + 각 분할에 대해 prepare_data 수행.
+
+        Returns:
+            (X_train, y_train, add_train, X_test, y_test, add_test)
+        """
+        train_df, test_df = self.split_data(df)
+        X_train, y_train, add_train = self.prepare_data(train_df)
+        X_test, y_test, add_test = self.prepare_data(test_df)
+        return X_train, y_train, add_train, X_test, y_test, add_test
         
     def validate_data(self, df: pd.DataFrame) -> bool:
         """

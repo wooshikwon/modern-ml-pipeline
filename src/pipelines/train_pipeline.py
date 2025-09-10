@@ -1,5 +1,4 @@
 import json
-from pathlib import Path
 from typing import Optional, Dict, Any
 from types import SimpleNamespace
 
@@ -13,7 +12,8 @@ from src.utils.system.console_manager import RichConsoleManager
 from src.utils.integrations import mlflow_integration as mlflow_utils
 from src.utils.system.environment_check import get_pip_requirements
 from src.utils.system.reproducibility import set_global_seeds
-
+from src.utils.integrations.mlflow_integration import log_training_results
+from src.utils.integrations.mlflow_integration import log_enhanced_model_with_schema
 
 def run_train_pipeline(
     settings: Settings,
@@ -58,7 +58,7 @@ def run_train_pipeline(
             mlflow.log_metric("row_count", len(df))
             mlflow.log_metric("column_count", len(df.columns))
 
-            # 2. 학습에 사용할 컴포넌트 생성
+            # 2. 컴포넌트 생성
             console.log_phase("Component Initialization", "🔧")
             fetcher = factory.create_fetcher()
             datahandler = factory.create_datahandler()  # 일관된 Factory 패턴
@@ -67,65 +67,55 @@ def run_train_pipeline(
             evaluator = factory.create_evaluator()
             trainer = factory.create_trainer()  # 일관된 Factory 패턴
 
-            # 3. 모델 학습
-            console.log_phase("Model Training", "🤖")
-            trained_model, trained_preprocessor, metrics, training_results = trainer.train(
-                df=df,
-                model=model,
-                fetcher=fetcher,
-                datahandler=datahandler,  # 일관된 Factory 패턴
-                preprocessor=preprocessor,
-                evaluator=evaluator,
-                context_params=context_params,
-            )
-            
-            # 4. 결과 로깅 및 평가
-            console.log_phase("Evaluation & Logging", "📊")
-            
-            if metrics:
-                mlflow.log_metrics(metrics)
-                console.display_metrics_table(metrics, "Model Performance Metrics")
-            
-            # 하이퍼파라미터 최적화 결과 로깅
-            if 'hyperparameter_optimization' in training_results:
-                hpo_result = training_results['hyperparameter_optimization']
-                if hpo_result['enabled']:
-                    mlflow.log_params(hpo_result['best_params'])
-                    mlflow.log_metric('best_score', hpo_result['best_score'])
-                    mlflow.log_metric('total_trials', hpo_result['total_trials'])
-                else:
-                    # HPO 비활성화 시에도 고정 하이퍼파라미터 기록
-                    if hasattr(settings.recipe.model, 'hyperparameters'):
-                        if hasattr(settings.recipe.model.hyperparameters, 'values') and settings.recipe.model.hyperparameters.values:
-                            mlflow.log_params(settings.recipe.model.hyperparameters.values)
-            else:
-                # hyperparameter_optimization 키가 없는 경우에도 하이퍼파라미터 로깅
-                if hasattr(settings.recipe.model, 'hyperparameters'):
-                    if hasattr(settings.recipe.model.hyperparameters, 'values') and settings.recipe.model.hyperparameters.values:
-                        mlflow.log_params(settings.recipe.model.hyperparameters.values)
+            # 3. 피처 증강
+            console.log_phase("Feature Augmentation", "✨")
+            augmented_df = fetcher.fetch(df, run_mode="train") if fetcher else df
 
-            # 5. PyfuncWrapper 생성
+            # 4. 데이터 준비
+            console.log_phase("Model Training", "🤖")
+            X_train, y_train, add_train, X_test, y_test, add_test = datahandler.split_and_prepare(augmented_df)
+            
+            # 5. 전처리
+            if preprocessor:
+                preprocessor.fit(X_train)
+                X_train = preprocessor.transform(X_train)
+                X_test = preprocessor.transform(X_test)
+            
+            # 6. 학습
+            trained_model, trainer_info = trainer.train(
+                X_train=X_train,
+                y_train=y_train,
+                X_val=X_test,
+                y_val=y_test,
+                model=model,
+                additional_data={'train': add_train, 'val': add_test},
+            )
+
+            # 7. 평가 및 평가결과 저장
+            metrics = evaluator.evaluate(trained_model, X_test, y_test, add_test)
+            training_results = {
+                'evaluation_metrics': metrics,
+                'trainer': trainer_info,
+            }
+            console.log_phase("Evaluation & Logging", "📊")
+            log_training_results(settings, metrics, training_results)
+
+            # 8. PyfuncWrapper 생성 및 저장
             console.log_phase("Model Packaging", "📦")
             pyfunc_wrapper = factory.create_pyfunc_wrapper(
                 trained_model=trained_model,
                 trained_datahandler=datahandler,  # 추론 시 재현성을 위한 DataHandler
-                trained_preprocessor=trained_preprocessor,
+                trained_preprocessor=preprocessor,
                 trained_fetcher=fetcher, # 학습에 사용된 fetcher를 직접 전달
-                training_df=df,
+                training_df=augmented_df,
                 training_results=training_results,
             )
             
-            # 6. Model + 메타데이터 저장
-            # 기본은 요구사항 캡처 비활성화. --record-reqs 옵션/환경변수로만 활성화
             pip_reqs = get_pip_requirements() if record_requirements else []
             
-            # Signature와 data_schema 검증
             if not (pyfunc_wrapper.signature and pyfunc_wrapper.data_schema):
                 raise ValueError("Failed to generate signature and data_schema. This should not happen.")
-            
-            # 저장 로직 사용
-            from src.utils.integrations.mlflow_integration import log_enhanced_model_with_schema
-            
+        
             log_enhanced_model_with_schema(
                 python_model=pyfunc_wrapper,
                 signature=pyfunc_wrapper.signature,
@@ -134,15 +124,4 @@ def run_train_pipeline(
                 pip_requirements=pip_reqs
             )
             
-            # 7. 메타데이터 저장
-            model_name = getattr(settings.recipe.model, 'name', None) or settings.recipe.model.computed['run_name']
-            metadata = {"run_id": run_id, "model_name": model_name}
-            local_dir = Path("./local/artifacts")
-            local_dir.mkdir(parents=True, exist_ok=True)
-            metadata_path = local_dir / f"metadata-{run_id}.json"
-            with metadata_path.open('w', encoding='utf-8') as f:
-                json.dump(metadata, f, indent=4, default=str)
-            mlflow.log_artifact(str(metadata_path), "metadata")
-
-            # 8. 결과 객체 반환
             return SimpleNamespace(run_id=run_id, model_uri=f"runs:/{run_id}/model")

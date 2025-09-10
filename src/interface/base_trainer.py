@@ -1,7 +1,6 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
-import pandas as pd
-from typing import Tuple, Dict, Any, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 
 if TYPE_CHECKING:
@@ -15,9 +14,14 @@ class BaseTrainer(ABC):
     """
 
     @abstractmethod
-    def train(self, df: pd.DataFrame) -> Tuple[Preprocessor, Any, Dict[str, Any]]:
-        """
-        데이터 분할, 피처 증강, 피처 전처리, 모델 학습 및 평가, MLflow 로깅의
-        전체 파이프라인을 실행하고 결과를 반환하는 추상 메서드입니다.
-        """
+    def train(
+        self,
+        X_train: Any,
+        y_train: Any,
+        X_val: Any,
+        y_val: Any,
+        model: Any,
+        additional_data: dict | None = None,
+    ) -> tuple[Any, dict]:
+        """순수 학습만 수행하여 (학습된 모델, 학습 메타데이터) 튜플을 반환합니다."""
         raise NotImplementedError
