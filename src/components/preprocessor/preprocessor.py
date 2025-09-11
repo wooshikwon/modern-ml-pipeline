@@ -68,13 +68,22 @@ class Preprocessor(BasePreprocessor):
                                     rich_message=f"   🎯 Targeted mapping: [yellow]{step.columns}[/yellow] → [green]{target_columns}[/green]")
                 
                 
-                if not target_columns:
-                    self.console.warning(f"Step {i+1} ({step.type}): 적용할 컬럼이 없습니다.",
-                                       rich_message=f"   ⚠️  No applicable columns for [red]{step.type}[/red]")
+                # 실제로 존재하는 컬럼만 필터링 (graceful error handling)
+                existing_columns = [col for col in target_columns if col in current_data.columns]
+                
+                if not existing_columns:
+                    self.console.warning(f"Step {i+1} ({step.type}): 적용할 컬럼이 없습니다. 지정된 컬럼: {target_columns}",
+                                       rich_message=f"   ⚠️  No applicable columns for [red]{step.type}[/red] - specified: [yellow]{target_columns}[/yellow]")
                     continue
                 
-                # 대상 컬럼 데이터 추출
-                target_data = current_data[target_columns]
+                # 존재하지 않는 컬럼들 경고 로그
+                missing_columns = [col for col in target_columns if col not in current_data.columns]
+                if missing_columns:
+                    self.console.warning(f"Step {i+1} ({step.type}): 존재하지 않는 컬럼들이 스킵됩니다: {missing_columns}",
+                                       rich_message=f"   🚫 Missing columns skipped: [red]{missing_columns}[/red]")
+                
+                # 존재하는 컬럼만으로 데이터 추출
+                target_data = current_data[existing_columns]
                 
                 # transformer 학습 및 변환
                 transformed_data = transformer.fit_transform(target_data, y)
@@ -87,10 +96,10 @@ class Preprocessor(BasePreprocessor):
                 else:
                     # 컬럼명이 변경되는 경우: 지연 삭제를 위해 원본 컬럼 추적
                     if transformer.get_application_type() == 'targeted':
-                        # Targeted 전처리기의 원본 컬럼은 지연 삭제 목록에 추가
-                        self._columns_to_delete.update(target_columns)
-                        self.console.info(f"지연 삭제 목록에 추가: {target_columns}",
-                                        rich_message=f"   🗑️  Marked for delayed deletion: [dim]{target_columns}[/dim]")
+                        # Targeted 전처리기의 실제 처리된 컬럼은 지연 삭제 목록에 추가
+                        self._columns_to_delete.update(existing_columns)
+                        self.console.info(f"지연 삭제 목록에 추가: {existing_columns}",
+                                        rich_message=f"   🗑️  Marked for delayed deletion: [dim]{existing_columns}[/dim]")
                     
                     # 새로운 컬럼들을 현재 데이터에 추가 (원본 컬럼은 유지)
                     for col in transformed_data.columns:
@@ -98,7 +107,7 @@ class Preprocessor(BasePreprocessor):
                 
                 self._fitted_transformers.append({
                     'transformer': transformer,
-                    'target_columns': target_columns,
+                    'target_columns': existing_columns,  # 실제 존재하는 컬럼만 저장
                     'step_type': step.type
                 })
                 
