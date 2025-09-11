@@ -1,0 +1,88 @@
+class_path: lightgbm.LGBMRegressor
+description: LightGBM Regressor.
+library: lightgbm
+hyperparameters:
+  fixed:
+    random_state: 42
+    boosting_type: gbdt
+    objective: regression
+    metric: rmse
+    verbose: -1
+  tunable:
+    num_leaves:
+      type: int
+      range:
+      - 10
+      - 300
+      default: 31
+    max_depth:
+      type: int
+      range:
+      - 3
+      - 15
+      default: -1
+    learning_rate:
+      type: float
+      range:
+      - 0.01
+      - 0.3
+      default: 0.1
+    n_estimators:
+      type: int
+      range:
+      - 50
+      - 1000
+      default: 100
+    subsample:
+      type: float
+      range:
+      - 0.5
+      - 1.0
+      default: 1.0
+    subsample_freq:
+      type: int
+      range:
+      - 0
+      - 10
+      default: 0
+    colsample_bytree:
+      type: float
+      range:
+      - 0.5
+      - 1.0
+      default: 1.0
+    reg_alpha:
+      type: float
+      range:
+      - 0.0
+      - 10.0
+      default: 0.0
+    reg_lambda:
+      type: float
+      range:
+      - 0.0
+      - 10.0
+      default: 0.0
+    min_child_samples:
+      type: int
+      range:
+      - 5
+      - 100
+      default: 20
+    min_child_weight:
+      type: float
+      range:
+      - 0.001
+      - 10.0
+      default: 0.001
+    min_split_gain:
+      type: float
+      range:
+      - 0.0
+      - 1.0
+      default: 0.0
+feature_requirements:
+  numerical: true
+  categorical: true
+  text: false
+data_handler: tabular

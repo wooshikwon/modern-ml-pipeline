@@ -1,0 +1,66 @@
+class_path: src.models.FTTransformerRegressor
+description: FT-Transformer for regression tasks, with built-in preprocessing.
+library: rtdl_revisiting_models
+hyperparameters:
+  fixed:
+    seed: 42
+  tunable:
+    n_blocks:
+      type: int
+      range:
+      - 1
+      - 8
+      default: 3
+    d_token:
+      type: int
+      range:
+      - 64
+      - 512
+      default: 192
+    attention_dropout:
+      type: float
+      range:
+      - 0.0
+      - 0.5
+      default: 0.2
+    ffn_d_hidden:
+      type: int
+      range:
+      - 64
+      - 1024
+      default: 512
+    ffn_dropout:
+      type: float
+      range:
+      - 0.0
+      - 0.5
+      default: 0.1
+    residual_dropout:
+      type: float
+      range:
+      - 0.0
+      - 0.2
+      default: 0.0
+    n_heads:
+      type: int
+      range:
+      - 4
+      - 16
+      default: 8
+    prenormalization:
+      type: categorical
+      range:
+      - true
+      - false
+      default: true
+    activation:
+      type: categorical
+      range:
+      - ReGLU
+      - GELU
+      default: ReGLU
+feature_requirements:
+  numerical: true
+  categorical: true
+  text: false
+data_handler: tabular

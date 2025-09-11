@@ -1,0 +1,48 @@
+class_path: sklearn.cluster.KMeans
+description: K-Means Clustering from scikit-learn.
+library: scikit-learn
+hyperparameters:
+  fixed:
+    random_state: 42
+  tunable:
+    n_clusters:
+      type: int
+      range:
+      - 2
+      - 20
+      default: 8
+    init:
+      type: categorical
+      range:
+      - k-means++
+      - random
+      default: k-means++
+    n_init:
+      type: int
+      range:
+      - 10
+      - 50
+      default: 10
+    max_iter:
+      type: int
+      range:
+      - 100
+      - 1000
+      default: 300
+    tol:
+      type: float
+      range:
+      - 1e-6
+      - 1e-2
+      default: 1e-4
+    algorithm:
+      type: categorical
+      range:
+      - lloyd
+      - elkan
+      default: lloyd
+feature_requirements:
+  numerical: true
+  categorical: false
+  text: false
+data_handler: tabular

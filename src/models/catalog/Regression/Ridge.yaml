@@ -1,0 +1,54 @@
+class_path: sklearn.linear_model.Ridge
+description: Ridge Regression with L2 regularization.
+library: scikit-learn
+hyperparameters:
+  fixed:
+    random_state: 42
+    copy_X: true
+  tunable:
+    alpha:
+      type: float
+      range:
+      - 0.001
+      - 100.0
+      default: 1.0
+    fit_intercept:
+      type: categorical
+      range:
+      - true
+      - false
+      default: true
+    solver:
+      type: categorical
+      range:
+      - auto
+      - svd
+      - cholesky
+      - lsqr
+      - sparse_cg
+      - sag
+      - saga
+      default: auto
+    positive:
+      type: categorical
+      range:
+      - true
+      - false
+      default: false
+    max_iter:
+      type: int
+      range:
+      - 100
+      - 5000
+      default: 1000
+    tol:
+      type: float
+      range:
+      - 1e-6
+      - 1e-2
+      default: 1e-3
+feature_requirements:
+  numerical: true
+  categorical: false
+  text: false
+data_handler: tabular

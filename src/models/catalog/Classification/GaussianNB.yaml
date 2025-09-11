@@ -1,0 +1,17 @@
+class_path: sklearn.naive_bayes.GaussianNB
+description: Gaussian Naive Bayes Classifier from scikit-learn.
+library: scikit-learn
+hyperparameters:
+  fixed: {}
+  tunable:
+    var_smoothing:
+      type: float
+      range:
+      - 1e-12
+      - 1e-6
+      default: 1e-9
+feature_requirements:
+  numerical: true
+  categorical: false
+  text: false
+data_handler: tabular

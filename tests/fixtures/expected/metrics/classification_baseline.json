@@ -1,0 +1,14 @@
+{
+  "metrics_keys": [
+    "accuracy",
+    "roc_auc",
+    "class_0_precision",
+    "class_0_recall",
+    "class_0_f1",
+    "class_0_support",
+    "class_1_precision",
+    "class_1_recall",
+    "class_1_f1",
+    "class_1_support"
+  ]
+}

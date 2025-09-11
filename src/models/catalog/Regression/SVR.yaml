@@ -1,0 +1,67 @@
+class_path: sklearn.svm.SVR
+description: Support Vector Regressor from scikit-learn.
+library: scikit-learn
+hyperparameters:
+  fixed: {}
+  tunable:
+    C:
+      type: float
+      range:
+      - 0.001
+      - 100.0
+      default: 1.0
+    kernel:
+      type: categorical
+      range:
+      - linear
+      - rbf
+      - poly
+      - sigmoid
+      default: rbf
+    gamma:
+      type: categorical
+      range:
+      - scale
+      - auto
+      default: scale
+    degree:
+      type: int
+      range:
+      - 2
+      - 5
+      default: 3
+    coef0:
+      type: float
+      range:
+      - 0.0
+      - 10.0
+      default: 0.0
+    epsilon:
+      type: float
+      range:
+      - 0.01
+      - 1.0
+      default: 0.1
+    tol:
+      type: float
+      range:
+      - 1e-5
+      - 1e-2
+      default: 1e-3
+    shrinking:
+      type: categorical
+      range:
+      - true
+      - false
+      default: true
+    max_iter:
+      type: int
+      range:
+      - 100
+      - 5000
+      default: -1
+feature_requirements:
+  numerical: true
+  categorical: true
+  text: false
+data_handler: tabular

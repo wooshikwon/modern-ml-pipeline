@@ -1,0 +1,59 @@
+# GitHub Packages 배포 워크플로우
+# 
+# 배포 방법:
+# 1. Git Tag 배포 (추천):
+#    git add .
+#    git commit -m "Release v0.n.0"
+#    git tag v0.n.0
+#    git push origin main --tags
+#
+# 2. GitHub Release 배포:
+#    GitHub Repository → Releases → Create a new release
+#    Tag: v0.n.0, Release notes 작성 후 Publish
+#
+# 3. 수동 배포:
+#    GitHub Repository → Actions → Publish to GitHub Packages → Run workflow
+
+name: Publish to GitHub Packages
+
+on:
+  release:
+    types: [published]
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  publish:
+    name: Build and Publish Package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install build tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install build hatchling
+        
+    - name: Build package
+      run: python -m build
+      
+    - name: Publish to GitHub Packages
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        TWINE_REPOSITORY_URL: https://upload.pypi.org/legacy/
+      run: |
+        pip install twine
+        python -m twine upload --repository-url https://pypi.pkg.github.com/wooshikwon/ dist/*

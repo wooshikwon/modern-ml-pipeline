@@ -1,0 +1,464 @@
+# 🚀 {{ project_name }} - Modern ML Pipeline
+
+**{{ project_name }}** 프로젝트에 오신 것을 환영합니다! 이 가이드는 ML 파이프라인을 5분 만에 시작할 수 있도록 안내합니다.
+
+*{{ timestamp }}에 Modern ML Pipeline으로 생성됨*
+
+---
+
+## ⚡ 빠른 시작 (5분)
+
+### 0. 프로젝트 설정 (처음 한 번만)
+
+```bash
+# UV 패키지 매니저 설치 (권장)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 가상환경 생성 및 활성화
+uv venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+
+# 필요한 패키지 설치 (선택)
+uv pip install -e .              # 기본 프레임워크만
+uv pip install -e ".[standard]"  # 권장: ML 기본 패키지 포함
+
+# 📖 자세한 패키지 선택 가이드는 SETUP.md 참조
+```
+
+### 1. ML 파이프라인 시작
+
+```bash
+# 1. 환경 설정 생성
+mmp get-config --env-name local
+
+# 2. 환경변수 파일 준비 
+cp .env.local.template .env.local
+# .env.local 파일을 열어 필요한 값들을 입력하세요
+
+# 3. 연결 확인
+mmp system-check --config-path configs/local.yaml
+
+# 4. 모델 레시피 생성
+mmp get-recipe
+
+# 5. 데이터 준비 (예시)
+# CSV 파일을 data/ 폴더에 배치하거나 sql/ 폴더에 SQL 쿼리 작성
+
+# 6. 모델 학습
+mmp train --recipe-path recipes/my_model.yaml --config-path configs/local.yaml --data-path data/train.csv
+
+# 7. 예측 실행
+mmp batch-inference --run-id <학습에서_출력된_run_id> --config-path configs/local.yaml --data-path data/test.csv
+```
+
+**완료!** 🎉 첫 번째 ML 모델이 준비되었습니다.
+
+---
+
+## 🎯 프로젝트 구조
+
+```
+{{ project_name }}/
+├── configs/           # 환경별 설정 파일 (mmp get-config로 생성)
+├── data/             # 학습/추론 데이터 파일
+├── recipes/          # 모델 설정 파일 (mmp get-recipe로 생성)
+├── sql/              # SQL 쿼리 파일 (데이터베이스 사용시)
+├── docker-compose.yml
+├── Dockerfile
+├── pyproject.toml    # 패키지 의존성 정의
+├── SETUP.md          # 📖 패키지 설치 가이드
+└── README.md         # 이 파일
+```
+
+---
+
+## ⚙️ 환경 설정
+
+### 1단계: 환경 설정 생성
+
+```bash
+mmp get-config --env-name local
+```
+
+대화형으로 다음을 선택합니다:
+- **MLflow 사용**: 실험 추적 (권장: 예)
+- **데이터 소스**: PostgreSQL, BigQuery, Local Files, S3, GCS 중 선택
+- **Feature Store**: Feast 사용 여부 (초보자: 없음)
+- **Output 설정**: 결과 저장 위치
+
+**생성 파일**:
+- `configs/local.yaml`: 환경 설정
+- `.env.local.template`: 환경변수 템플릿
+
+### 2단계: 환경변수 설정
+
+```bash
+# 템플릿 복사
+cp .env.local.template .env.local
+
+# 파일 편집 (예시)
+nano .env.local
+```
+
+**주요 환경변수**:
+```bash
+# MLflow
+MLFLOW_TRACKING_URI=./mlruns
+
+# 로컬 파일 사용시
+DATA_PATH=./data
+
+# PostgreSQL 사용시
+DB_HOST=localhost
+DB_USER=your_username
+DB_PASSWORD=your_password
+DB_NAME=your_database
+```
+
+### 3단계: 연결 확인
+
+```bash
+mmp system-check --config-path configs/local.yaml
+```
+
+**성공 시 출력**:
+```
+✅ Config 로드: configs/local.yaml
+✅ 환경 변수 로드: .env.local
+✅ MLflow 연결 확인
+✅ 데이터 소스 연결 확인
+🎉 시스템 검사 완료!
+```
+
+---
+
+## 📊 데이터 준비
+
+### 로컬 파일 사용 (가장 간단)
+
+```bash
+# CSV 파일을 data/ 폴더에 배치
+data/
+├── train.csv     # 학습용 데이터 (필수)
+└── test.csv      # 추론용 데이터
+```
+
+**CSV 파일 요구사항**:
+- 헤더 행 포함
+- Target 컬럼 명확히 구분
+- 결측값은 빈 칸 또는 NaN
+
+### SQL 쿼리 사용
+
+```bash
+# SQL 파일을 sql/ 폴더에 작성
+sql/
+├── train_data.sql      # 학습 데이터 쿼리
+└── inference_data.sql  # 추론 데이터 쿼리
+```
+
+**예시 SQL**:
+```sql
+-- sql/train_data.sql
+SELECT 
+    user_id,
+    feature1,
+    feature2,
+    target_column
+FROM my_table 
+WHERE created_date >= '2024-01-01'
+```
+
+### 동적 쿼리 (고급)
+
+```sql
+-- sql/train_data.sql.j2 (Jinja 템플릿)
+SELECT * FROM users 
+WHERE created_date >= '{{ start_date }}'
+  AND created_date < '{{ end_date }}'
+```
+
+```bash
+# 파라미터와 함께 학습
+mmp train \
+  --recipe-path recipes/my_model.yaml \
+  --config-path configs/local.yaml \
+  --data-path sql/train_data.sql.j2 \
+  --params '{"start_date": "2024-01-01", "end_date": "2024-06-01"}'
+```
+
+---
+
+## 📝 모델 레시피 생성
+
+### 1단계: 레시피 생성
+
+```bash
+mmp get-recipe
+```
+
+대화형으로 선택:
+
+**📊 Task 유형**:
+- **Classification**: 스팸 분류, 이미지 인식 등
+- **Regression**: 가격 예측, 온도 예측 등  
+- **Timeseries**: 시계열 예측
+- **Clustering**: 고객 세분화
+- **Causal**: 인과관계 분석
+
+**🤖 모델 선택** (Classification 예시):
+- RandomForestClassifier (안정적)
+- XGBClassifier (고성능)
+- LightGBMClassifier (빠름)
+- CatBoostClassifier (범주형 데이터에 우수)
+
+**🔧 전처리 단계**:
+1. **결측값 처리**: SimpleImputer
+2. **인코딩**: OneHotEncoder, OrdinalEncoder
+3. **스케일링**: StandardScaler, MinMaxScaler
+4. **피처 생성**: PolynomialFeatures (선택)
+
+### 2단계: 생성된 레시피 확인
+
+```bash
+# 생성된 레시피 파일 확인
+cat recipes/my_model.yaml
+```
+
+**핵심 설정 수정**:
+```yaml
+data:
+  loader:
+    source_uri: data/train.csv  # 또는 sql/query.sql
+  data_interface:
+    target_column: "target"     # 실제 타겟 컬럼명으로 변경
+    entity_columns:
+      - "user_id"               # ID 컬럼들
+
+# 전처리 단계에서 컬럼명 수정
+preprocessor:
+  steps:
+    - type: one_hot_encoder
+      columns: ["category_col1", "category_col2"]  # 실제 컬럼명
+    - type: standard_scaler  # 모든 숫자 컬럼에 자동 적용
+```
+
+---
+
+## 🚀 모델 학습
+
+### 기본 학습
+
+```bash
+mmp train \
+  --recipe-path recipes/my_model.yaml \
+  --config-path configs/local.yaml \
+  --data-path data/train.csv
+```
+
+**학습 중 출력 예시**:
+```
+🚀 학습 시작: my_model
+📊 데이터 로딩: 1,000 행, 10 컬럼
+🔧 전처리 완료
+🎯 RandomForestClassifier 학습 중...
+✅ 학습 완료 (15.2초)
+
+📈 성능:
+  - Accuracy: 0.856
+  - Precision: 0.842
+  - Recall: 0.871
+  - F1-score: 0.856
+
+🎉 모델 저장됨: run_id = abc123def456
+```
+
+### 하이퍼파라미터 튜닝 (선택)
+
+레시피 생성 시 "하이퍼파라미터 튜닝 활성화"를 선택했다면:
+
+```bash
+# Optuna 자동 튜닝으로 학습
+mmp train \
+  --recipe-path recipes/my_tuned_model.yaml \
+  --config-path configs/local.yaml \
+  --data-path data/train.csv
+```
+
+---
+
+## 🔮 예측 및 추론
+
+### 배치 예측
+
+```bash
+mmp batch-inference \
+  --run-id abc123def456 \
+  --config-path configs/local.yaml \
+  --data-path data/test.csv
+```
+
+**출력**:
+```
+🔮 배치 추론 시작
+📊 데이터 로딩: data/test.csv
+🎯 모델 로딩: run_id abc123def456
+✅ 예측 완료: 500 건
+
+결과 저장: ./artifacts/predictions/predictions_20240907_143025.csv
+```
+
+### API 서빙
+
+```bash
+# API 서버 시작
+mmp serve-api \
+  --run-id abc123def456 \
+  --config-path configs/local.yaml \
+  --host localhost \
+  --port 8080
+```
+
+**API 테스트**:
+```bash
+# 예측 요청
+curl -X POST http://localhost:8080/predict \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": 12345,
+    "feature1": 1.5,
+    "feature2": "category_A"
+  }'
+
+# 응답
+{
+  "prediction": 1,
+  "probability": [0.234, 0.766],
+  "model_run_id": "abc123def456",
+  "inference_timestamp": "2024-09-07T14:30:25"
+}
+```
+
+---
+
+## 📈 결과 확인
+
+### MLflow UI
+
+```bash
+# MLflow UI 실행 (별도 터미널)
+mlflow ui --host 0.0.0.0 --port 5000
+
+# 브라우저에서 확인
+open http://localhost:5000
+```
+
+**확인 가능한 내용**:
+- 모든 학습 실험 기록
+- 성능 지표 비교
+- 하이퍼파라미터 비교
+- 모델 아티팩트 다운로드
+
+### 예측 결과 파일
+
+```bash
+# 예측 결과 확인
+head -10 ./artifacts/predictions/predictions_*.csv
+```
+
+**Classification 결과 예시**:
+```csv
+user_id,prediction,probability_0,probability_1,model_run_id
+12345,1,0.234,0.766,abc123def456
+12346,0,0.671,0.329,abc123def456
+```
+
+**Regression 결과 예시**:
+```csv
+user_id,prediction,model_run_id
+12345,45.67,abc123def456
+12346,67.89,abc123def456
+```
+
+---
+
+## 🔄 고급 기능
+
+### 추가 패키지 설치
+
+프로젝트에서 더 많은 기능이 필요한 경우:
+
+```bash
+# S3 지원 추가
+uv pip install -e ".[storage]"
+
+# BigQuery 지원 추가  
+uv pip install -e ".[bigquery]"
+
+# Feature Store 추가
+uv pip install -e ".[feature-store]"
+
+# 딥러닝 모델 추가
+uv pip install -e ".[deep-learning]"
+
+# 📖 자세한 내용은 SETUP.md 참조
+```
+
+### 여러 환경 설정
+
+```bash
+# 개발 환경
+mmp get-config --env-name dev
+
+# 프로덕션 환경  
+mmp get-config --env-name prod
+
+# 환경별 학습
+mmp train --recipe-path recipes/my_model.yaml --config-path configs/prod.yaml --data-path data/train.csv
+```
+
+### Feature Store 연동 (고급)
+
+```bash
+# Feature Store 패키지 설치 필요
+uv pip install -e ".[feature-store]"
+```
+
+레시피 생성 시 Feature Store 활성화 후:
+
+```bash
+# 학습 시에는 PassThrough 모드
+mmp train --recipe-path recipes/with_feast.yaml --config-path configs/local.yaml --data-path data/train.csv
+
+# 서빙 시에는 Feature Store에서 실시간 피처 조회
+mmp serve-api --run-id abc123 --config-path configs/prod.yaml
+```
+
+### Docker 배포
+
+```bash
+# Docker 이미지 빌드
+docker build -t {{ project_name }}:latest .
+
+# 컨테이너 실행
+docker run -d \
+  --name {{ project_name }}-api \
+  -p 8080:8080 \
+  -v $(pwd)/configs:/app/configs \
+  -v $(pwd)/mlruns:/app/mlruns \
+  {{ project_name }}:latest
+
+# 또는 Docker Compose 사용
+docker-compose up -d
+```
+
+---
+
+**🎊 축하합니다!** {{ project_name }} 프로젝트가 준비되었습니다.
+
+**기억하세요**: 
+- 첫 실행은 `mmp get-config` → `mmp get-recipe` → `mmp train` 순서
+- 문제 발생시 `mmp system-check --config-path configs/<환경명>.yaml --actionable` 실행
+- MLflow UI에서 모든 실험을 추적할 수 있습니다
+
+즐거운 머신러닝 여정되세요! 🤖✨
