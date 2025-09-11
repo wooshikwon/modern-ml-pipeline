@@ -328,6 +328,46 @@ evaluation:
             assert any(keyword in error_message for keyword in [
                 'settings', 'config', 'recipe', 'loading', 'yaml'
             ]), f"Unexpected settings loading error: {e}"
+
+    def test_pipeline_delegates_hpo_to_trainer_v2(self, mlflow_test_context, settings_builder):
+        """HPO는 파이프라인이 아니라 Trainer에서 수행되고 결과가 MLflow에 기록되는지 검증."""
+        # Skip if optuna is not installed
+        try:
+            import optuna  # noqa: F401
+        except Exception:
+            import pytest
+            pytest.skip("optuna not installed; skipping pipeline delegation test")
+
+        with mlflow_test_context.for_classification(experiment="pipeline_hpo_delegate_v2") as ctx:
+            import mlflow
+            from mlflow.tracking import MlflowClient
+
+            # Enable HPO in settings
+            settings = settings_builder \
+                .with_task("classification") \
+                .with_model("sklearn.ensemble.RandomForestClassifier") \
+                .with_data_path(str(ctx.data_path)) \
+                .with_mlflow(ctx.mlflow_uri, ctx.experiment_name) \
+                .with_hyperparameter_tuning(enabled=True, metric="accuracy", n_trials=5) \
+                .build()
+
+            mlflow.set_tracking_uri(ctx.mlflow_uri)
+            result = run_train_pipeline(settings)
+            assert result is not None
+
+            client = MlflowClient(tracking_uri=ctx.mlflow_uri)
+            run = client.get_run(result.run_id)
+            metrics = run.data.metrics
+            params = run.data.params
+
+            # Evidence of HPO (performed by Trainer): trials/score and best params recorded
+            assert ("total_trials" in metrics) and (metrics["total_trials"] >= 1)
+            assert "best_score" in metrics
+            assert any(k in params for k in ["n_estimators", "max_depth"])  # best_params
+
+            # No pipeline-specific HPO markers expected (we do not set any such tags)
+            tags = run.data.tags
+            assert "pipeline_hpo" not in tags
     
     def test_factory_cross_component_dependencies(self, settings_builder, test_data_generator):
         """Test Factory handling of cross-component dependencies."""

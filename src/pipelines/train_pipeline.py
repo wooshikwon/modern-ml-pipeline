@@ -46,10 +46,19 @@ def run_train_pipeline(
             # Factory 생성
             factory = Factory(settings)
 
-            # 1. 데이터 어댑터를 사용하여 데이터 로딩
-            console.log_phase("Data Loading", "📊")
+            # 1. 컴포넌트 생성
+            console.log_phase("Component Initialization", "🔧")
+            data_adapter = factory.create_data_adapter()
+            fetcher = factory.create_fetcher()
+            datahandler = factory.create_datahandler()
+            preprocessor = factory.create_preprocessor()
+            trainer = factory.create_trainer()
+            model = factory.create_model()
+            evaluator = factory.create_evaluator()
+
+            # 2. 데이터 어댑터를 사용하여 데이터 로딩
+            console.log_phase("Data Loading", "📥")
             with console.progress_tracker("data_loading", 100, "Loading and preparing data") as update:
-                data_adapter = factory.create_data_adapter()
                 df = data_adapter.read(settings.recipe.data.loader.source_uri)
                 update(100)
             
@@ -58,49 +67,42 @@ def run_train_pipeline(
             mlflow.log_metric("row_count", len(df))
             mlflow.log_metric("column_count", len(df.columns))
 
-            # 2. 컴포넌트 생성
-            console.log_phase("Component Initialization", "🔧")
-            fetcher = factory.create_fetcher()
-            datahandler = factory.create_datahandler()  # 일관된 Factory 패턴
-            preprocessor = factory.create_preprocessor()
-            model = factory.create_model()
-            evaluator = factory.create_evaluator()
-            trainer = factory.create_trainer()  # 일관된 Factory 패턴
-
             # 3. 피처 증강
             console.log_phase("Feature Augmentation", "✨")
             augmented_df = fetcher.fetch(df, run_mode="train") if fetcher else df
 
             # 4. 데이터 준비
-            console.log_phase("Model Training", "🤖")
+            console.log_phase("Data Preparation", "✂️")
             X_train, y_train, add_train, X_test, y_test, add_test = datahandler.split_and_prepare(augmented_df)
             
             # 5. 전처리
+            console.log_phase("Preprocessing", "🔍")
             if preprocessor:
                 preprocessor.fit(X_train)
                 X_train = preprocessor.transform(X_train)
                 X_test = preprocessor.transform(X_test)
             
             # 6. 학습
+            console.log_phase("Training", "🧠")
             trained_model, trainer_info = trainer.train(
                 X_train=X_train,
                 y_train=y_train,
                 X_val=X_test,
                 y_val=y_test,
-                model=model,
+                model=model, # factory로 생성된 모델 인스턴스
                 additional_data={'train': add_train, 'val': add_test},
             )
 
-            # 7. 평가 및 평가결과 저장
+            # 7. 평가 및 평가결과 MLflow에 저장
+            console.log_phase("Evaluation & Logging", "🎯")
             metrics = evaluator.evaluate(trained_model, X_test, y_test, add_test)
             training_results = {
                 'evaluation_metrics': metrics,
                 'trainer': trainer_info,
             }
-            console.log_phase("Evaluation & Logging", "📊")
             log_training_results(settings, metrics, training_results)
 
-            # 8. PyfuncWrapper 생성 및 저장
+            # 8. PyfuncWrapper 생성 및 MLflow에 저장
             console.log_phase("Model Packaging", "📦")
             pyfunc_wrapper = factory.create_pyfunc_wrapper(
                 trained_model=trained_model,

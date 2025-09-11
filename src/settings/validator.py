@@ -341,6 +341,12 @@ class Validator:
         if recipe.data.fetcher.type == "feature_store":
             if not recipe.data.fetcher.feature_views:
                 logger.warning("feature_store fetcher에 feature_views가 정의되지 않았습니다")
+
+        # 5.5 Timeseries 필수 필드 검증
+        if task_type == "timeseries":
+            di = recipe.data.data_interface
+            if not getattr(di, 'timestamp_column', None):
+                errors.append("Timeseries task에는 data_interface.timestamp_column이 필수입니다")
         
         # 6. 모델 클래스 임포트 검증
         self._validate_model_import(recipe.model.class_path, errors)

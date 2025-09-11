@@ -112,6 +112,20 @@ class TestRecipeValidation:
         assert len(errors) > 0
         assert any("'type'이 없습니다" in error for error in errors)
 
+    def test_recipe_validation_timeseries_requires_timestamp(self, settings_builder, test_data_files):
+        """Timeseries task는 timestamp_column이 필수임을 검증"""
+        settings = settings_builder \
+            .with_task("timeseries") \
+            .with_model("any.module.ExponentialSmoothing") \
+            .with_data_path(str(test_data_files["regression"])) \
+            .build()
+        # intentionally remove timestamp_column
+        settings.recipe.data.data_interface.timestamp_column = None
+
+        errors = self.validator.validate_recipe(settings.recipe)
+        assert len(errors) > 0
+        assert any("timestamp_column" in e for e in errors)
+
 
 class TestModelCatalogValidation:
     """Model catalog integration with validation"""

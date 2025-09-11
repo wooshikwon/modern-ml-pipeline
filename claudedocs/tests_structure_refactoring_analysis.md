@@ -50,6 +50,22 @@ def test_quickstart_mlflow(mlflow_test_context):
 - **요구사항 캡처(선택)**: 기본적으로 MLflow 아티팩트에 패키지 요구사항을 기록하지 않음. 필요 시 `mmp train --record-reqs`로 활성화. (이전 환경변수 가드 `MLPIPE_SKIP_PIP_REQ`는 제거)
  - **데이터 경로 주입 정책**: 데이터 경로는 CLI `--data-path`(또는 테스트 컨텍스트 빌더의 `with_data_path`)로만 주입한다. 레시피에는 `loader.source_uri`를 저장하지 않는다.
 
+### ⏱️ Timeseries 규약 및 모델/카탈로그 매칭
+
+- **Timeseries 규약(필수)**
+  - `recipe.data.data_interface.timestamp_column`은 Timeseries 작업에서 반드시 지정해야 한다. 누락 시 Validator가 실패하도록 강제한다.
+  - Feature Store 사용 시 `data.fetcher.timestamp_column`을 함께 지정하는 것을 권장한다(Point-in-Time join 기준 컬럼).
+- **카탈로그-클래스 매칭 규칙**
+  - 모델 카탈로그의 `class_path`는 런타임에 그대로 임포트 가능한 경로여야 한다.
+  - DataHandler 선택은 카탈로그의 `data_handler`가 우선한다. Timeseries 작업이라도 LSTM처럼 시퀀스 전처리가 필요한 경우 `data_handler: deeplearning`이 올바른 설정이다.
+  - 예: `src/models/catalog/Timeseries/LSTMTimeSeries.yaml`은 `task_type: timeseries`이면서 `data_handler: deeplearning`을 사용한다(정상).
+
+### 🧭 Feature Store 가이드
+
+- Feature Store(fetcher `type: feature_store`)를 사용할 때는 다음을 권장/요구한다:
+  - `data.fetcher.timestamp_column`을 반드시 지정한다(권장 수준, 운영에서는 사실상 필수).
+  - 각 `feature_views.*.join_key`와 `features`를 명시하고, 테스트에서는 간단한 뷰 1-2개만 사용하여 빠르게 검증한다.
+
 ---
 
 ## 🎯 Core Problems: 현재 구조의 진짜 문제점

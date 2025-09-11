@@ -250,6 +250,20 @@ class SettingsBuilder:
             )
         
         return self
+
+    def with_timestamp_column(self, name: str) -> "SettingsBuilder":
+        """Set timestamp column for timeseries tasks."""
+        if not name:
+            raise ValueError("timestamp_column must be non-empty")
+        self._data.data_interface.timestamp_column = name
+        return self
+
+    def with_treatment_column(self, name: str) -> "SettingsBuilder":
+        """Set treatment column for causal tasks."""
+        if not name:
+            raise ValueError("treatment_column must be non-empty")
+        self._data.data_interface.treatment_column = name
+        return self
     
     # Model configuration
     def with_model(self, class_path: str, library: str = None, hyperparameters: Dict[str, Any] = None) -> "SettingsBuilder":

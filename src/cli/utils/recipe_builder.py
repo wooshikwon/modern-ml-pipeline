@@ -177,9 +177,12 @@ class RecipeBuilder:
             selections["fetcher_type"] = "feature_store"
             
             # Timestamp column (PIT join 기준)
+            def _non_empty(value: str) -> bool:
+                return isinstance(value, str) and len(value.strip()) > 0
             timestamp_column = self.ui.text_input(
-                "Timestamp column 이름 (Point-in-Time join 기준)",
-                default="event_timestamp"
+                "Timestamp column 이름 (Point-in-Time join 기준) — 공백 불가", 
+                default="event_timestamp",
+                validator=_non_empty
             )
             selections["timestamp_column"] = timestamp_column
             
@@ -251,9 +254,12 @@ class RecipeBuilder:
         # Timestamp column (timeseries task에서만)
         if task.lower() == "timeseries":
             self.ui.show_info("📈 Timeseries 설정")
+            def _non_empty(value: str) -> bool:
+                return isinstance(value, str) and len(value.strip()) > 0
             timestamp_column = self.ui.text_input(
-                "Timestamp column 이름 (시계열 시간 컬럼, 예: timestamp, date)",
-                default="timestamp"
+                "Timestamp column 이름 (시계열 시간 컬럼, 예: timestamp, date) — 공백 불가",
+                default="timestamp",
+                validator=_non_empty
             )
             selections["timeseries_timestamp_column"] = timestamp_column
         else:

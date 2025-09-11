@@ -17,6 +17,8 @@ from src.factory.factory import Factory
 from src.components.adapter.modules.storage_adapter import StorageAdapter
 from src.components.evaluator.modules.classification_evaluator import ClassificationEvaluator
 from src.components.evaluator.modules.regression_evaluator import RegressionEvaluator
+from src.components.datahandler.modules.tabular_handler import TabularDataHandler
+from src.components.datahandler.modules.timeseries_handler import TimeseriesDataHandler
 
 
 class TestComponentDataFlowValidation:
@@ -193,6 +195,59 @@ class TestComponentDataFlowValidation:
             assert any(keyword in error_message for keyword in [
                 'pipeline', 'fetcher', 'preprocessor', 'feature', 'flow'
             ]), f"Unexpected feature pipeline error: {e}"
+
+    def test_pass_through_fetcher_skips_augmentation_v2(self, isolated_temp_directory, settings_builder, test_data_generator):
+        """pass_through 구성 시 fetch가 입력과 동일한 DataFrame을 반환하는지 확인."""
+        X, y = test_data_generator.classification_data(n_samples=30, n_features=3)
+        df = pd.DataFrame(X, columns=[f'feature_{i}' for i in range(3)])
+        df['target'] = y
+        data_path = isolated_temp_directory / 'pt_fetch.csv'
+        df.to_csv(data_path, index=False)
+
+        settings = settings_builder \
+            .with_task('classification') \
+            .with_model('sklearn.ensemble.RandomForestClassifier') \
+            .with_data_path(str(data_path)) \
+            .with_feature_store(enabled=False) \
+            .build()
+
+        factory = Factory(settings)
+        fetcher = factory.create_fetcher()
+        adapter = factory.create_data_adapter()
+        raw = adapter.read(str(data_path))
+        out = fetcher.fetch(raw, run_mode='train')
+        # pass_through는 동일 데이터 반환(열/행 동일)
+        assert out.shape == raw.shape
+        assert set(out.columns) == set(raw.columns)
+
+    def test_feature_store_fetcher_augmentation_happens_v2(self, isolated_temp_directory, settings_builder, test_data_generator):
+        """feature_store 구성 시 FeatureStoreFetcher가 생성되는지 확인(실제 Feast 미설치 시 skip)."""
+        # Skip if feast not installed
+        try:
+            import feast  # noqa: F401
+        except Exception:
+            import pytest
+            pytest.skip('feast not installed; skipping feature_store fetcher test')
+
+        X, y = test_data_generator.classification_data(n_samples=20, n_features=3)
+        df = pd.DataFrame(X, columns=[f'feature_{i}' for i in range(3)])
+        df['target'] = y
+        df['entity_id'] = range(len(df))
+        data_path = isolated_temp_directory / 'fs_fetch.csv'
+        df.to_csv(data_path, index=False)
+
+        settings = settings_builder \
+            .with_task('classification') \
+            .with_model('sklearn.ensemble.RandomForestClassifier') \
+            .with_data_path(str(data_path)) \
+            .with_feature_store(enabled=True) \
+            .build()
+
+        factory = Factory(settings)
+        fetcher = factory.create_fetcher()
+        # 단순 타입 확인으로 증강 경로 선택 검증
+        from src.components.fetcher.modules.feature_store_fetcher import FeatureStoreFetcher
+        assert isinstance(fetcher, FeatureStoreFetcher)
     
     def test_data_format_validation_between_components(self, test_data_generator, settings_builder):
         """Test data format validation and compatibility between components."""
@@ -829,3 +884,126 @@ class TestComponentDataFlowValidation:
             if ctx.evaluator is not None:
                 eval_result = ctx.evaluator.evaluate(ctx.model, X, y)
                 assert isinstance(eval_result, dict) and len(eval_result) > 0
+
+    def test_trainer_uses_evaluator_via_di_in_hpo_objective_v2(self, mlflow_test_context, settings_builder):
+        """Trainer의 HPO objective가 DI된 evaluator를 사용해 metric을 산출하는 경로를 간접 검증."""
+        # Skip if optuna is not installed
+        try:
+            import optuna  # noqa: F401
+        except Exception:
+            import pytest
+            pytest.skip("optuna not installed; skipping DI-in-objective test")
+
+        with mlflow_test_context.for_classification(experiment="trainer_di_objective_v2") as ctx:
+            import mlflow
+            from mlflow.tracking import MlflowClient
+
+            settings = settings_builder \
+                .with_task("classification") \
+                .with_model("sklearn.ensemble.RandomForestClassifier") \
+                .with_data_path(str(ctx.data_path)) \
+                .with_mlflow(ctx.mlflow_uri, ctx.experiment_name) \
+                .with_hyperparameter_tuning(enabled=True, metric="accuracy", n_trials=3) \
+                .build()
+
+            mlflow.set_tracking_uri(ctx.mlflow_uri)
+            result = run_train_pipeline(settings)
+            assert result is not None
+
+            client = MlflowClient(tracking_uri=ctx.mlflow_uri)
+            run = client.get_run(result.run_id)
+            metrics = run.data.metrics
+            # If evaluator was used, optimization metric should be present and > 0 (typical on train/val split)
+            assert "best_score" in metrics
+            assert isinstance(metrics["best_score"], float)
+
+    def test_causal_training_consumes_treatment_from_additional_data_v2(self, settings_builder, test_data_generator):
+        """causal task에서 DataHandler가 treatment를 add_data에 채우고 Trainer가 이를 사용해 학습하는지 확인."""
+        # Create causal data: features + treatment + target
+        X, y = test_data_generator.regression_data(n_samples=40, n_features=3)
+        df = pd.DataFrame(X, columns=[f'feature_{i}' for i in range(3)])
+        df['treatment'] = np.random.randint(0, 2, size=len(df))
+        df['target'] = y
+
+        # SettingsBuilder는 causal 전용 헬퍼가 없으므로 data_interface에 treatment_column을 직접 지정
+        # SettingsBuilder는 빌드 시점에 validation이 동작하므로, 먼저 causal로 전환하고 data_interface 구성까지 채운 뒤 build
+        sb = settings_builder \
+            .with_task('causal') \
+            .with_model('sklearn.ensemble.RandomForestRegressor') \
+            .with_target_column('target')
+        # 직접 data_interface의 treatment_column 지정 (builder 내부 구조 이용)
+        sb._data.data_interface.treatment_column = 'treatment'  # type: ignore[attr-defined]
+        settings = sb.build()
+
+        factory = Factory(settings)
+        datahandler = factory.create_datahandler()
+        assert isinstance(datahandler, TabularDataHandler)
+
+        X_train, y_train, add_train, X_test, y_test, add_test = datahandler.split_and_prepare(df)
+        # add_* must contain treatment
+        assert 'treatment' in add_train and 'treatment' in add_test
+        assert len(add_train['treatment']) == len(X_train)
+
+        # Trainer path: just ensure _fit_model won't raise by consuming treatment
+        trainer = factory.create_trainer()
+        model = factory.create_model()
+        trained, info = trainer.train(
+            X_train=X_train, y_train=y_train,
+            X_val=X_test, y_val=y_test,
+            model=model,
+            additional_data={'train': add_train, 'val': add_test}
+        )
+        assert trained is not None
+
+    def test_timeseries_handler_time_based_split_and_features_v2(self, settings_builder, test_data_generator):
+        """timeseries 핸들러가 시간 기준 분할과 기본 시간 특성 생성을 수행하는지 확인."""
+        # Build a simple timeseries DataFrame with timestamp + target + features
+        import pandas as pd
+        from datetime import datetime, timedelta
+        n = 50
+        ts = pd.date_range(start=datetime(2024,1,1), periods=n, freq='D')
+        vals = np.linspace(0, 1, n)
+        df = pd.DataFrame({
+            'timestamp': ts,
+            'feature_0': vals,
+            'target': (vals * 10).astype(float)
+        })
+
+        # Timeseries handler 선택을 위해 catalog 기반 모델명을 사용하거나 data_interface에 timestamp 지정 필요
+        # Timeseries handler를 확실히 선택하기 위해 catalog에 data_handler: timeseries가 정의된 모델 사용
+        # Catalog 파일명이 곧 class_name이므로, DataHandlerRegistry가 올바르게 timeseries를 선택하도록 class_path에 'LinearTrend' 사용
+        # Catalog 파일명(ExponentialSmoothing.yaml)에 맞춰 class_path의 마지막 세그먼트를 맞춘다
+        settings = settings_builder \
+            .with_task('timeseries') \
+            .with_model('any.module.ExponentialSmoothing') \
+            .build()
+        # timestamp 컬럼도 명시
+        settings.recipe.data.data_interface.timestamp_column = 'timestamp'
+
+        factory = Factory(settings)
+        datahandler = factory.create_datahandler()
+        assert isinstance(datahandler, TimeseriesDataHandler)
+
+        X_train, y_train, add_train, X_test, y_test, add_test = datahandler.split_and_prepare(df)
+        # Ensure time-based split produced non-empty sets
+        assert len(X_train) > 0 and len(X_test) > 0
+        # Additional info includes timestamp
+        assert 'timestamp' in add_train or 'timestamp' in add_test
+
+    def test_lstm_timeseries_sequence_training_integration_v2(self, settings_builder):
+        """LSTM(timeseries+deeplearning) 경로가 end-to-end로 동작하는지 검증."""
+        sample_path = 'tests/fixtures/data/timeseries_sample.csv'
+
+        settings = settings_builder \
+            .with_task("timeseries") \
+            .with_model("src.models.custom.lstm_timeseries.LSTMTimeSeries", library="pytorch", 
+                        hyperparameters={"epochs": 1, "batch_size": 8}) \
+            .with_data_path(sample_path) \
+            .with_target_column("value") \
+            .with_entity_columns(["entity_id"]) \
+            .with_timestamp_column("timestamp") \
+            .build()
+
+        from src.pipelines.train_pipeline import run_train_pipeline
+        result = run_train_pipeline(settings)
+        assert result is not None and hasattr(result, 'run_id')

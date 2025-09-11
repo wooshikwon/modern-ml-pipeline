@@ -60,7 +60,8 @@ data:
     treatment_column: {{ treatment_column }}  # 처치 변수 (causal task 전용)
     {% endif %}
     {% if task|lower == "timeseries" %}
-    timestamp_column: {{ timeseries_timestamp_column }}  # 시계열 타임스탬프 컬럼 (timeseries task 전용)
+    # 시계열 작업은 timestamp_column이 필수입니다.
+    timestamp_column: {{ timeseries_timestamp_column }}
     {% endif %}
     entity_columns:
       {% for col in entity_columns %}

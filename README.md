@@ -347,6 +347,12 @@ model:
     param1: 2.5
 ```
 
+### Timeseries 규약 및 Feature Store 가이드
+
+- **Timeseries 필수 항목**: `task_choice: timeseries`인 레시피는 `data.data_interface.timestamp_column`을 반드시 지정해야 합니다. 누락 시 Validator가 PR에서 실패합니다.
+- **카탈로그-데이터핸들러 매칭**: 모델 카탈로그의 `data_handler` 선언을 우선합니다. 예: LSTM 시계열은 `data_handler: deeplearning`이 정상입니다.
+- **Feature Store 사용 시**: `data.fetcher.type: feature_store`일 때 `data.fetcher.timestamp_column` 지정을 권장합니다(PIT join 기준). 레시피 빌더와 템플릿에서 해당 항목을 안내합니다.
+
 ### 피처 스토어 통합
 
 ```python

@@ -278,6 +278,28 @@ mlflow:
             assert any(keyword in error_message for keyword in [
                 'config', 'file', 'loading', 'yaml'
             ]), f"Unexpected config loading error: {e}"
+
+    def test_optimizer_registry_self_registration_v2(self, settings_builder):
+        """Factory 초기화 시 TrainerRegistry에 optuna 옵티마이저가 등록되는지 확인."""
+        # Import triggers self-registration via src.components.trainer package
+        from src.factory.factory import Factory
+        from src.components.trainer import TrainerRegistry
+
+        settings = settings_builder \
+            .with_task("classification") \
+            .with_model("sklearn.ensemble.RandomForestClassifier") \
+            .build()
+
+        factory = Factory(settings)
+        # After factory initialization, trainer package is imported → self-registration should have happened
+        available_opts = []
+        try:
+            available_opts = TrainerRegistry.get_available_optimizer_types()
+        except Exception:
+            # Fallback if method missing in older registry (should not happen post-refactor)
+            available_opts = list(getattr(TrainerRegistry, 'optimizers', {}).keys())
+
+        assert 'optuna' in available_opts
     
     def test_recipe_and_config_integration_validation(self, isolated_temp_directory):
         """Test Recipe and Config integration and cross-validation."""

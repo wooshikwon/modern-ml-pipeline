@@ -61,6 +61,9 @@ tests/
 - 결정론성: 컨텍스트 데이터 생성은 고정 시드(`seed=42` 기본) 사용.
 - Pydantic v2: `@field_validator`, `model_config=ConfigDict(...)`, `.model_dump()` 사용.
 - 병렬 실행: 워커 간 MLflow 파일 스토어 충돌 방지를 위해 temp 디렉토리별 고유 경로 사용.
+ - Timeseries 규약: `data_interface.timestamp_column`은 필수입니다(누락 시 Validator/CI 실패).
+ - Feature Store 권장: `data.fetcher.timestamp_column`을 지정하세요(POINT-IN-TIME join 기준 컬럼).
+ - 카탈로그-핸들러 매칭: DataHandler 선택은 카탈로그의 `data_handler` 선언이 우선입니다(LSTM=deeplearning).
 
 ---
 
@@ -130,6 +133,16 @@ with component_test_context.classification_stack() as ctx:
 7. 성능/격리 점검: 한 테스트-한 run, 상태 공유 금지, 필요 시 `performance_benchmark` 사용.
 8. 실행/병렬: `pytest -n auto` 권장. MLflow 파일 스토어 경로 충돌 방지 확인.
 
+### SettingsBuilder 헬퍼(권장)
+- 가독성/일관성 향상을 위해 컬럼 지정은 빌더 헬퍼를 사용합니다.
+```python
+settings = settings_builder \
+  .with_task("timeseries") \
+  .with_timestamp_column("timestamp") \
+  .with_treatment_column("treatment") \
+  .build()
+```
+
 ---
 
 ## 7) 안티 패턴(Anti-Patterns)
@@ -146,6 +159,9 @@ with component_test_context.classification_stack() as ctx:
 - A/B 공존: 기존(v1)과 새로운(context v2) 테스트를 같은 파일에서 공존 가능.
 - 동등성 검증: 결과/아티팩트(메트릭/파라미터/시그니처/스키마) 비교로 동등성 보장.
 - 성공 후 정리: v2가 안정화되면 v1 중복 세팅/헬퍼 제거.
+
+### E2E 참고(선택)
+- 현재 통합 테스트에서 전체 흐름을 대부분 커버합니다. 필요 시 신뢰성 강화를 위해 E2E 1건(예: `mmp train` happy path, 30초 이내)을 추가할 수 있습니다.
 
 ---
 

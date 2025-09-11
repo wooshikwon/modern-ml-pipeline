@@ -966,3 +966,75 @@ class TestMLflowIntegration:
             baseline = json.loads(Path('tests/fixtures/expected/metrics/classification_baseline.json').read_text())
             assert set(baseline["metrics_keys"]).issubset(set(metrics.keys()))  # required keys must exist
 
+    def test_training_with_hpo_logs_hyperopt_results_v2(self, mlflow_test_context, settings_builder):
+        """HPO 활성화 시, MLflow에 best_params/total_trials/best_score가 기록되는지 확인."""
+        # Skip if optuna is not installed
+        try:
+            import optuna  # noqa: F401
+        except Exception:
+            import pytest
+            pytest.skip("optuna not installed; skipping HPO logging test")
+
+        with mlflow_test_context.for_classification(experiment="hpo_enabled_v2") as ctx:
+            import mlflow
+            from mlflow.tracking import MlflowClient
+
+            # Build settings with HPO enabled using the same context resources
+            settings = settings_builder \
+                .with_task("classification") \
+                .with_model("sklearn.ensemble.RandomForestClassifier") \
+                .with_data_path(str(ctx.data_path)) \
+                .with_mlflow(ctx.mlflow_uri, ctx.experiment_name) \
+                .with_hyperparameter_tuning(enabled=True, metric="accuracy", n_trials=5) \
+                .build()
+
+            mlflow.set_tracking_uri(ctx.mlflow_uri)
+            result = run_train_pipeline(settings)
+            assert result is not None
+
+            client = MlflowClient(tracking_uri=ctx.mlflow_uri)
+            run = client.get_run(result.run_id)
+
+            # Expect hyperopt metrics and params
+            metrics = run.data.metrics
+            params = run.data.params
+
+            # total_trials and best_score should exist if HPO ran
+            assert ("total_trials" in metrics) and (metrics["total_trials"] >= 1)
+            assert "best_score" in metrics
+            # best_params logged as params (at least one expected key)
+            assert any(k in params for k in ["n_estimators", "max_depth"])  # typical RF tunables
+
+    def test_training_without_hpo_records_fixed_params_v2(self, mlflow_test_context, settings_builder):
+        """HPO 비활성화 시, MLflow에 고정 파라미터(values)가 기록되는지 확인."""
+        with mlflow_test_context.for_classification(experiment="hpo_disabled_v2") as ctx:
+            import mlflow
+            from mlflow.tracking import MlflowClient
+
+            # Build settings with HPO disabled and explicit fixed values
+            settings = settings_builder \
+                .with_task("classification") \
+                .with_model("sklearn.ensemble.RandomForestClassifier") \
+                .with_data_path(str(ctx.data_path)) \
+                .with_mlflow(ctx.mlflow_uri, ctx.experiment_name) \
+                .with_hyperparameter_tuning(enabled=False) \
+                .build()
+
+            # Expect builder defaults to include at least random_state and possibly n_estimators
+            fixed_keys_expect = {"random_state", "n_estimators"}
+
+            mlflow.set_tracking_uri(ctx.mlflow_uri)
+            result = run_train_pipeline(settings)
+            assert result is not None
+
+            client = MlflowClient(tracking_uri=ctx.mlflow_uri)
+            run = client.get_run(result.run_id)
+
+            metrics = run.data.metrics
+            params = run.data.params
+
+            # No HPO metrics expected
+            assert "total_trials" not in metrics
+            # Fixed params should be logged (subset check)
+            assert any(k in params for k in fixed_keys_expect)
+

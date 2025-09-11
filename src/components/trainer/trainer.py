@@ -4,7 +4,7 @@ from typing import Dict, Any, Optional, TYPE_CHECKING, Callable
 from src.settings import Settings
 from src.utils.system.console_manager import get_console
 from src.interface import BaseTrainer, BaseModel
-from .modules.optimizer import OptunaOptimizer
+from .registry import TrainerRegistry
 
 if TYPE_CHECKING:
     pass
@@ -33,7 +33,7 @@ class Trainer(BaseTrainer):
         y_val: Any,
         model: Any,
         additional_data: Optional[Dict[str, Any]] = None,
-    ) -> Any:
+    ) -> tuple[Any, dict]:
         """준비된 데이터로 순수 학습만 수행합니다. (HPO 포함)"""
         additional_data = additional_data or {}
 
@@ -42,14 +42,18 @@ class Trainer(BaseTrainer):
 
         if use_tuning:
             self.console.info("하이퍼파라미터 최적화를 시작합니다. (Recipe에서 활성화됨)", rich_message="🎯 Hyperparameter optimization started")
-            optimizer = OptunaOptimizer(settings=self.settings, factory_provider=self._get_factory)
+            optimizer = TrainerRegistry.create_optimizer(
+                "optuna",
+                settings=self.settings,
+                factory_provider=self._get_factory
+            )
 
             def _objective_callback(_ignored_train_df, params, seed):
                 # 새 모델 인스턴스 생성 후 파라미터 적용
                 factory = self._get_factory()
                 model_instance = factory.create_model()
                 try:
-                    model_instance.set_params(**params)
+                    model_instance.set_params(**(params or {}))
                 except Exception:
                     pass
                 # 학습
@@ -64,8 +68,14 @@ class Trainer(BaseTrainer):
                 }
 
             best = optimizer.optimize(train_df=None, training_callback=_objective_callback)  # train_df 미사용
+            # 최적 파라미터로 최종 모델에 적용 후 재학습
+            try:
+                model.set_params(**(best.get('best_params') or {}))
+            except Exception:
+                pass
+            self._fit_model(model, X_train, y_train, additional_data.get('train'))
+            trained_model = model
             self.training_results['hyperparameter_optimization'] = best
-            trained_model = best['model'] if 'model' in best else model
         else:
             self.console.info("하이퍼파라미터 튜닝을 건너뜁니다. 이유: Recipe에서 비활성화되었거나 설정이 없습니다.", rich_message="⚙️ Using fixed hyperparameters (optimization disabled)")
             self.console.info("고정된 하이퍼파라미터로 모델을 학습합니다.", rich_message="🎯 Training with fixed hyperparameters")
@@ -73,7 +83,7 @@ class Trainer(BaseTrainer):
             trained_model = model
             self.training_results['hyperparameter_optimization'] = {'enabled': False}
 
-        return trained_model
+        return trained_model, dict(self.training_results)
 
     # 기존 단일 학습/검증 분할 로직은 파이프라인으로 이동하여 제거됨
 

@@ -138,9 +138,10 @@ class TimeseriesDataHandler(BaseDataHandler):
         if self.data_interface.entity_columns:
             exclude_columns.extend(self.data_interface.entity_columns)
         
-        # Feature Store timestamp columns 제외 (offline 모드에서)
-        if fetcher_conf.feature_store.enabled and fetcher_conf.feature_store.timestamp_columns:
-            exclude_columns.extend(fetcher_conf.feature_store.timestamp_columns)
+        # Feature Store timestamp column 제외 (offline 모드에서)
+        # Tabular 핸들러와 동일한 체크 로직 사용
+        if fetcher_conf and getattr(fetcher_conf, 'type', None) == 'feature_store' and getattr(fetcher_conf, 'timestamp_column', None):
+            exclude_columns.append(fetcher_conf.timestamp_column)
         
         # 실제로 존재하는 컬럼만 반환
         return [col for col in exclude_columns if col in df.columns]
