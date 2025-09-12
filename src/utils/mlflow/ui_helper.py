@@ -6,7 +6,6 @@ Provides easy access to MLflow web UI after training
 import os
 import socket
 import subprocess
-import webbrowser
 import platform
 import time
 from typing import Optional, Dict, Any, Tuple
@@ -158,60 +157,7 @@ class MLflowUIHelper:
             self.mlflow_process.wait()
             self.console.log_processing_step("MLflow server stopped", "🛑")
             
-    def open_in_browser(self, url: str, delay: float = 1.0) -> bool:
-        """
-        Open MLflow UI in default browser
-        
-        Args:
-            url: URL to open
-            delay: Delay before opening (seconds)
             
-        Returns:
-            True if browser opened successfully
-        """
-        try:
-            time.sleep(delay)
-            webbrowser.open(url)
-            return True
-        except Exception as e:
-            logger.error(f"Failed to open browser: {e}")
-            return False
-            
-    def generate_qr_code(self, url: str) -> Optional[str]:
-        """
-        Generate QR code for mobile access
-        
-        Args:
-            url: URL to encode in QR code
-            
-        Returns:
-            QR code as string (ASCII art) or None if failed
-        """
-        try:
-            import qrcode
-            from io import StringIO
-            
-            qr = qrcode.QRCode(
-                version=1,
-                error_correction=qrcode.constants.ERROR_CORRECT_L,
-                box_size=1,
-                border=1,
-            )
-            qr.add_data(url)
-            qr.make(fit=True)
-            
-            # Create ASCII art QR code
-            f = StringIO()
-            qr.print_ascii(out=f)
-            f.seek(0)
-            return f.read()
-            
-        except ImportError:
-            logger.debug("qrcode library not installed, skipping QR generation")
-            return None
-        except Exception as e:
-            logger.error(f"Failed to generate QR code: {e}")
-            return None
             
     def get_network_addresses(self) -> Dict[str, str]:
         """
@@ -257,19 +203,15 @@ class MLflowUIHelper:
         self, 
         run_id: str,
         experiment_id: str,
-        experiment_name: str,
-        auto_open: bool = False,
-        show_qr: bool = False
+        experiment_name: str
     ):
         """
-        Display comprehensive MLflow UI access information
+        Display MLflow UI access information
         
         Args:
             run_id: The MLflow run ID
             experiment_id: The experiment ID
             experiment_name: The experiment name
-            auto_open: Whether to auto-open browser
-            show_qr: Whether to show QR code for mobile access
         """
         from rich.panel import Panel
         from rich.table import Table
@@ -306,23 +248,7 @@ class MLflowUIHelper:
                 
         console.print(table)
         
-        # Show QR code if requested
-        if show_qr and self._is_local_uri():
-            addresses = self.get_network_addresses()
-            if "local_ip" in addresses:
-                qr_url = addresses["local_ip"].replace("5000", str(port))
-                qr_code = self.generate_qr_code(f"{qr_url}/#/experiments/{experiment_id}/runs/{run_id}")
-                if qr_code:
-                    console.print(Panel(
-                        qr_code,
-                        title="📱 Scan for Mobile Access",
-                        border_style="green"
-                    ))
                     
-        # Auto-open browser if requested
-        if auto_open:
-            console.print("🌐 Opening MLflow UI in browser...", style="yellow")
-            self.open_in_browser(run_url)
             
         # Show instructions
         instructions = []

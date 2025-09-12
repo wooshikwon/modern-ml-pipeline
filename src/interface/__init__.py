@@ -7,6 +7,7 @@ from .base_preprocessor import BasePreprocessor
 from .base_trainer import BaseTrainer
 from .base_model import BaseModel
 from .base_datahandler import BaseDataHandler
+from .base_calibrator import BaseCalibrator
 
 __all__ = [
     "BaseAdapter",
@@ -17,4 +18,5 @@ __all__ = [
     "BaseTrainer",
     "BaseModel",
     "BaseDataHandler",
+    "BaseCalibrator",
 ]
