@@ -18,7 +18,7 @@ from sklearn.datasets import make_classification, make_regression
 from src.settings import (
     Settings, Config, Recipe, Environment, MLflow, DataSource,
     FeatureStore, Model, HyperparametersTuning, Data, Loader, 
-    DataInterface, Fetcher, FeatureView, Evaluation
+    DataInterface, DataSplit, Fetcher, FeatureView, Evaluation
 )
 
 
@@ -150,7 +150,7 @@ class SettingsBuilder:
         # Default minimal config
         self._environment = Environment(name="test")
         self._mlflow = MLflow(
-            tracking_uri="sqlite:///test_mlflow.db",
+            tracking_uri="sqlite:///tests/fixtures/databases/test_mlflow.db",
             experiment_name="test_experiment"
         )
         self._data_source = DataSource(
@@ -171,6 +171,7 @@ class SettingsBuilder:
                 tuning_enabled=False,
                 values={"n_estimators": 10, "random_state": 42}
             ),
+            calibration=None,
             computed={"run_name": f"test_run_{uuid.uuid4().hex[:8]}"}
         )
         self._data = Data(
@@ -182,6 +183,12 @@ class SettingsBuilder:
             fetcher=Fetcher(
                 type="pass_through",
                 feature_views=None
+            ),
+            split=DataSplit(
+                train=0.6,
+                validation=0.2,
+                test=0.2,
+                calibration=0.0
             )
         )
         self._evaluation = Evaluation(
@@ -218,7 +225,8 @@ class SettingsBuilder:
         self._data = Data(
             loader=Loader(source_uri=path),
             data_interface=self._data.data_interface,
-            fetcher=self._data.fetcher
+            fetcher=self._data.fetcher,
+            split=self._data.split  # DataSplit 필드 보존
         )
         return self
     
@@ -235,7 +243,8 @@ class SettingsBuilder:
                     target_column=None,  # Clustering has no target
                     entity_columns=self._data.data_interface.entity_columns
                 ),
-                fetcher=self._data.fetcher
+                fetcher=self._data.fetcher,
+                split=self._data.split  # Preserve existing split configuration
             )
         # For timeseries, timestamp_column is required
         elif task_type == "timeseries":
@@ -246,7 +255,8 @@ class SettingsBuilder:
                     entity_columns=self._data.data_interface.entity_columns,
                     timestamp_column="timestamp"  # Default timestamp column for testing
                 ),
-                fetcher=self._data.fetcher
+                fetcher=self._data.fetcher,
+                split=self._data.split  # Preserve existing split configuration
             )
         
         return self
@@ -295,6 +305,7 @@ class SettingsBuilder:
                 tuning_enabled=False,
                 values=hyperparams
             ),
+            calibration=self._model.calibration,  # 기존 calibration 설정 유지
             computed=self._model.computed
         )
         return self
@@ -316,6 +327,15 @@ class SettingsBuilder:
             )
         else:
             self._model.hyperparameters.tuning_enabled = False
+        return self
+    
+    def with_calibration(self, enabled: bool = True, method: str = "beta") -> "SettingsBuilder":
+        """Set calibration configuration."""
+        if enabled:
+            from src.settings import Calibration
+            self._model.calibration = Calibration(enabled=True, method=method)
+        else:
+            self._model.calibration = None
         return self
     
     # Data interface configuration
@@ -355,6 +375,16 @@ class SettingsBuilder:
                 type="pass_through",
                 feature_views=None
             )
+        return self
+    
+    def with_data_split(self, train: float = 0.6, validation: float = 0.2, test: float = 0.2, calibration: float = 0.0) -> "SettingsBuilder":
+        """Set data split ratios. Default: 60/20/20/0"""
+        self._data.split = DataSplit(
+            train=train,
+            validation=validation,
+            test=test,
+            calibration=calibration
+        )
         return self
     
     def build(self) -> Settings:
@@ -811,7 +841,7 @@ environment:
   description: "Test environment"
 
 mlflow:
-  tracking_uri: "sqlite:///test_mlflow.db"
+  tracking_uri: "sqlite:///tests/fixtures/databases/test_mlflow.db"
   experiment_name: "test_experiment"
 
 data_source:

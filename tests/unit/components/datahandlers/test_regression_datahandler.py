@@ -95,12 +95,14 @@ class TestRegressionDataHandler:
         handler = TabularDataHandler(settings)
         
         # When: Splitting data
-        train_df, test_df = handler.split_data(df)
+        split_result = handler.split_data(df)
         
-        # Then: Data is split correctly
-        assert len(train_df) == 80  # 80% train
-        assert len(test_df) == 20   # 20% test
-        assert set(train_df.columns) == set(test_df.columns)
+        # Then: Data is split correctly (4-way split)
+        assert len(split_result['train']) == 60      # 60% train (default from SettingsBuilder)
+        assert len(split_result['validation']) == 20  # 20% validation  
+        assert len(split_result['test']) == 20       # 20% test
+        assert split_result['calibration'] is None or len(split_result['calibration']) == 0  # 0% calibration
+        assert set(split_result['train'].columns) == set(split_result['test'].columns)
     
     def test_prepare_data_zero_variance(self, settings_builder):
         """Test preparing data with zero variance features."""

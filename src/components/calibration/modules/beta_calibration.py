@@ -29,6 +29,7 @@ class BetaCalibration(BaseCalibrator):
         super().__init__()
         self.parameters = None  # Beta 분포의 파라미터들
         self._n_classes = None
+        self._is_fitted = False
         
     @property
     def supports_multiclass(self) -> bool:

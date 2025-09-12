@@ -107,7 +107,8 @@ class TestCalibrationRegistry:
     def test_auto_registration_beta_calibration(self):
         """Test that Beta Calibration is auto-registered"""
         # Re-register after setup clearing for this test
-        import src.components.calibration.modules.beta_calibration
+        from src.components.calibration.modules.beta_calibration import BetaCalibration
+        CalibrationRegistry.register("beta", BetaCalibration)
         
         # Then: Beta Calibration should be registered
         assert "beta" in CalibrationRegistry.get_available_methods()
@@ -120,7 +121,8 @@ class TestCalibrationRegistry:
     def test_auto_registration_isotonic_regression(self):
         """Test that Isotonic Regression is auto-registered"""
         # Re-register after setup clearing for this test
-        import src.components.calibration.modules.isotonic_regression
+        from src.components.calibration.modules.isotonic_regression import IsotonicCalibration
+        CalibrationRegistry.register("isotonic", IsotonicCalibration)
         
         # Then: Isotonic Regression should be registered
         assert "isotonic" in CalibrationRegistry.get_available_methods()

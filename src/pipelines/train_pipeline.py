@@ -115,16 +115,7 @@ def run_train_pipeline(
 
             # 4. 데이터 준비
             console.log_phase("Data Preparation", "✂️")
-            
-            # Check if this is tabular handler with 4-way split
-            if hasattr(datahandler, 'split_and_prepare') and datahandler.__class__.__name__ == 'TabularDataHandler':
-                # 4-way split: train, validation, test, calibration
-                X_train, y_train, add_train, X_val, y_val, add_val, X_test, y_test, add_test, calibration_data = datahandler.split_and_prepare(augmented_df)
-            else:
-                # 2-way split for backward compatibility
-                X_train, y_train, add_train, X_test, y_test, add_test = datahandler.split_and_prepare(augmented_df)
-                X_val, y_val, add_val = X_test, y_test, add_test  # Use test as validation for compatibility
-                calibration_data = None
+            X_train, y_train, add_train, X_val, y_val, add_val, X_test, y_test, add_test, calibration_data = datahandler.split_and_prepare(augmented_df)
             
             # 5. 전처리
             console.log_phase("Preprocessing", "🔍")
@@ -154,7 +145,7 @@ def run_train_pipeline(
                 additional_data={'train': add_train, 'val': add_val},
             )
 
-            # 6.5. Calibration (Factory 패턴으로 단순화)
+            # 7. Calibration
             console.log_phase("Probability Calibration", "🎯")
             trained_calibrator = None
             
@@ -166,7 +157,7 @@ def run_train_pipeline(
             elif calibrator:
                 console.log_milestone("Warning: Calibrator created but no calibration data available", "warning")
 
-            # 7. 평가 및 평가 결과 MLflow에 저장 (Calibration 평가 Factory로 단순화)
+            # 8. 평가 및 평가 결과 MLflow에 저장 (Calibration 평가 Factory로 단순화)
             console.log_phase("Evaluation & Logging", "🎯")
             metrics = evaluator.evaluate(trained_model, X_test, y_test, add_test)
             
@@ -182,7 +173,7 @@ def run_train_pipeline(
             }
             log_training_results(settings, metrics, training_results)
 
-            # 8. PyfuncWrapper 생성 및 MLflow에 저장
+            # 9. PyfuncWrapper 생성 및 MLflow에 저장
             console.log_phase("Model Packaging", "📦")
             pyfunc_wrapper = factory.create_pyfunc_wrapper(
                 trained_model=trained_model,
@@ -207,7 +198,6 @@ def run_train_pipeline(
                 pip_requirements=pip_reqs
             )
             
-            # MLflow UI 정보 표시
             _display_mlflow_ui_info(
                 run_id=run_id,
                 run=run,

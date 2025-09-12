@@ -31,26 +31,38 @@ class TimeseriesDataHandler(BaseDataHandler):
                 raise ValueError(f"Timestamp 컬럼 '{timestamp_col}'을 datetime으로 변환할 수 없습니다")
         
         return True
-    
-    def split_data(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        """시간 기준 분할 (시간 순서 유지)"""
+        
+    # [TODO] recipe에서 split 받아서 고정값이 아니라 동적으로 분리
+    def split_data(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+        """
+        시계열 시간 기준 3-way 분할 (시간 순서 유지 + Data Leakage 방지)
+        
+        Returns:
+            Tuple[train_df, validation_df, test_df]
+        """
         timestamp_col = self.data_interface.timestamp_column
-        test_size = 0.2
         
         # 시간 순서로 정렬 (필수)
         df_sorted = df.sort_values(timestamp_col).reset_index(drop=True)
         
-        # 시간 기준 분할점 계산
-        split_idx = int(len(df_sorted) * (1 - test_size))
+        # 3-way 시간 기준 분할: train (60%) / validation (20%) / test (20%)
+        train_end = int(len(df_sorted) * 0.6)
+        val_end = int(len(df_sorted) * 0.8)
         
-        train_df = df_sorted.iloc[:split_idx].copy()
-        test_df = df_sorted.iloc[split_idx:].copy()
+        train_df = df_sorted.iloc[:train_end].copy()
+        validation_df = df_sorted.iloc[train_end:val_end].copy()
+        test_df = df_sorted.iloc[val_end:].copy()
         
-        logger.info(f"시계열 시간 기준 분할: Train({len(train_df)}) / Test({len(test_df)})")
-        logger.info(f"Train 기간: {train_df[timestamp_col].min()} ~ {train_df[timestamp_col].max()}")
-        logger.info(f"Test 기간: {test_df[timestamp_col].min()} ~ {test_df[timestamp_col].max()}")
+        train_period = f"{train_df[timestamp_col].min()} ~ {train_df[timestamp_col].max()}" if not train_df.empty else "Empty"
+        val_period = f"{validation_df[timestamp_col].min()} ~ {validation_df[timestamp_col].max()}" if not validation_df.empty else "Empty"  
+        test_period = f"{test_df[timestamp_col].min()} ~ {test_df[timestamp_col].max()}" if not test_df.empty else "Empty"
         
-        return train_df, test_df
+        logger.info(f"시계열 시간 기준 3-way 분할: Train({len(train_df)}) / Val({len(validation_df)}) / Test({len(test_df)})")
+        logger.info(f"Train 기간: {train_period}")
+        logger.info(f"Val 기간: {val_period}")
+        logger.info(f"Test 기간: {test_period}")
+        
+        return train_df, validation_df, test_df
     
     def prepare_data(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series, Dict[str, Any]]:
         """시계열 데이터 준비"""

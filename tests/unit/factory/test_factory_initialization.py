@@ -262,6 +262,197 @@ class TestComponentRegistrySetup:
         
         assert hasattr(storage_instance, 'read')
         assert hasattr(sql_instance, 'read')
+
+
+class TestFactoryCalibrationMethods:
+    """Test Factory calibration method creation following No Mock Hell approach."""
+    
+    def test_create_calibrator_when_disabled(self, settings_builder):
+        """Test create_calibrator returns None when calibration is disabled."""
+        # Given: Settings with calibration disabled (default)
+        settings = settings_builder.with_task("classification").build()
+        factory = Factory(settings)
+        
+        # When: Creating calibrator
+        calibrator = factory.create_calibrator()
+        
+        # Then: Should return None
+        assert calibrator is None
+    
+    def test_create_calibrator_when_enabled_with_beta(self, settings_builder):
+        """Test create_calibrator creates BetaCalibration when enabled."""
+        # Given: Settings with beta calibration enabled
+        settings = settings_builder \
+            .with_task("classification") \
+            .with_calibration(enabled=True, method="beta") \
+            .build()
+        factory = Factory(settings)
+        
+        # When: Creating calibrator
+        calibrator = factory.create_calibrator()
+        
+        # Then: Should return BetaCalibration instance
+        assert calibrator is not None
+        from src.components.calibration.modules.beta_calibration import BetaCalibration
+        assert isinstance(calibrator, BetaCalibration)
+        assert hasattr(calibrator, 'fit')
+        assert hasattr(calibrator, 'transform')
+        assert calibrator.supports_multiclass is True
+    
+    def test_create_calibrator_when_enabled_with_isotonic(self, settings_builder):
+        """Test create_calibrator creates IsotonicCalibration when enabled."""
+        # Given: Settings with isotonic calibration enabled
+        settings = settings_builder \
+            .with_task("classification") \
+            .with_calibration(enabled=True, method="isotonic") \
+            .build()
+        factory = Factory(settings)
+        
+        # When: Creating calibrator
+        calibrator = factory.create_calibrator()
+        
+        # Then: Should return IsotonicCalibration instance
+        assert calibrator is not None
+        from src.components.calibration.modules.isotonic_regression import IsotonicCalibration
+        assert isinstance(calibrator, IsotonicCalibration)
+        assert hasattr(calibrator, 'fit')
+        assert hasattr(calibrator, 'transform')
+        assert calibrator.supports_multiclass is True
+    
+    def test_create_calibrator_caching(self, settings_builder):
+        """Test create_calibrator uses caching for repeated calls."""
+        # Given: Settings with calibration enabled
+        settings = settings_builder \
+            .with_task("classification") \
+            .with_calibration(enabled=True, method="beta") \
+            .build()
+        factory = Factory(settings)
+        
+        # When: Creating calibrator multiple times
+        calibrator1 = factory.create_calibrator()
+        calibrator2 = factory.create_calibrator()
+        
+        # Then: Should return the same cached instance
+        assert calibrator1 is calibrator2
+        assert id(calibrator1) == id(calibrator2)
+    
+    def test_create_calibrator_unsupported_task(self, settings_builder):
+        """Test create_calibrator returns None for non-classification tasks."""
+        # Given: Settings with non-classification task
+        settings = settings_builder \
+            .with_task("regression") \
+            .with_calibration(enabled=True, method="beta") \
+            .build()
+        factory = Factory(settings)
+        
+        # When: Creating calibrator
+        calibrator = factory.create_calibrator()
+        
+        # Then: Should return None
+        assert calibrator is None
+    
+    def test_create_calibrator_invalid_method_raises_error(self, settings_builder):
+        """Test create_calibrator raises error for invalid calibration method."""
+        # Given: Settings with invalid calibration method
+        settings = settings_builder \
+            .with_task("classification") \
+            .with_calibration(enabled=True, method="invalid_method") \
+            .build()
+        factory = Factory(settings)
+        
+        # When/Then: Creating calibrator should raise ValueError
+        with pytest.raises(ValueError, match="Unknown calibration method"):
+            factory.create_calibrator()
+    
+    def test_create_calibration_evaluator_with_valid_inputs(self, settings_builder):
+        """Test create_calibration_evaluator with valid trained model and calibrator."""
+        # Given: Settings with classification task
+        settings = settings_builder.with_task("classification").build()
+        factory = Factory(settings)
+        
+        # Mock trained model with predict_proba support
+        class MockTrainedModel:
+            def predict_proba(self, X):
+                import numpy as np
+                return np.array([[0.3, 0.7], [0.8, 0.2]])
+        
+        # Mock trained calibrator
+        class MockTrainedCalibrator:
+            def transform(self, y_prob):
+                return y_prob  # Identity transformation for test
+        
+        trained_model = MockTrainedModel()
+        trained_calibrator = MockTrainedCalibrator()
+        
+        # When: Creating calibration evaluator
+        evaluator = factory.create_calibration_evaluator(trained_model, trained_calibrator)
+        
+        # Then: Should return CalibrationEvaluatorWrapper
+        assert evaluator is not None
+        from src.factory.factory import CalibrationEvaluatorWrapper
+        assert isinstance(evaluator, CalibrationEvaluatorWrapper)
+        assert hasattr(evaluator, 'evaluate')
+    
+    def test_create_calibration_evaluator_without_predict_proba(self, settings_builder):
+        """Test create_calibration_evaluator returns None for models without predict_proba."""
+        # Given: Settings with classification task
+        settings = settings_builder.with_task("classification").build()
+        factory = Factory(settings)
+        
+        # Mock trained model without predict_proba
+        class MockTrainedModelNoProba:
+            def predict(self, X):
+                return [1, 0]
+        
+        class MockTrainedCalibrator:
+            def transform(self, y_prob):
+                return y_prob
+        
+        trained_model = MockTrainedModelNoProba()
+        trained_calibrator = MockTrainedCalibrator()
+        
+        # When: Creating calibration evaluator
+        evaluator = factory.create_calibration_evaluator(trained_model, trained_calibrator)
+        
+        # Then: Should return None
+        assert evaluator is None
+    
+    def test_create_calibration_evaluator_non_classification_task(self, settings_builder):
+        """Test create_calibration_evaluator returns None for non-classification tasks."""
+        # Given: Settings with regression task
+        settings = settings_builder.with_task("regression").build()
+        factory = Factory(settings)
+        
+        # Mock components (should not be used)
+        class MockModel:
+            def predict_proba(self, X):
+                return [[0.5, 0.5]]
+        
+        class MockCalibrator:
+            def transform(self, y_prob):
+                return y_prob
+        
+        # When: Creating calibration evaluator
+        evaluator = factory.create_calibration_evaluator(MockModel(), MockCalibrator())
+        
+        # Then: Should return None
+        assert evaluator is None
+    
+    def test_create_calibration_evaluator_no_calibrator(self, settings_builder):
+        """Test create_calibration_evaluator returns None when no calibrator provided."""
+        # Given: Settings with classification task
+        settings = settings_builder.with_task("classification").build()
+        factory = Factory(settings)
+        
+        class MockModel:
+            def predict_proba(self, X):
+                return [[0.5, 0.5]]
+        
+        # When: Creating calibration evaluator with None calibrator
+        evaluator = factory.create_calibration_evaluator(MockModel(), None)
+        
+        # Then: Should return None
+        assert evaluator is None
     
     def test_registry_error_handling_for_missing_types(self, settings_builder):
         """Test registries properly handle requests for non-existent component types."""

@@ -15,7 +15,7 @@ model:
   calibration:
     enabled: {{ calibration_enabled | default(false) | lower }}
     {% if calibration_enabled %}
-    method: {{ calibration_method }}  # Required when enabled: 'beta', 'isotonic', 'temperature'
+    method: {{ calibration_method }}  # Required when enabled: 'beta', 'isotonic'
     {% endif %}
   {% endif %}
   

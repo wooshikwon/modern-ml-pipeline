@@ -70,6 +70,10 @@ backup.sql
 test_results/
 *.test
 
+# Test databases (auto-generated during testing)
+*.db
+test*.db
+
 # Coverage reports
 .coverage
 .coverage.*

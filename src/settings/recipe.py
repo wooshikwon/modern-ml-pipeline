@@ -56,6 +56,19 @@ class HyperparametersTuning(BaseModel):
         return v
 
 
+class Calibration(BaseModel):
+    """캘리브레이션 설정 (Classification 태스크에서만 사용)"""
+    enabled: bool = Field(False, description="캘리브레이션 활성화 여부")
+    method: Optional[str] = Field(None, description="캘리브레이션 방법 ('beta', 'isotonic', 'temperature')")
+    
+    @model_validator(mode='after')
+    def validate_calibration_settings(self):
+        """캘리브레이션 설정 검증"""
+        if self.enabled and not self.method:
+            raise ValueError("캘리브레이션이 활성화된 경우 method를 지정해야 합니다. 사용 가능: 'beta', 'isotonic', 'temperature'")
+        return self
+
+
 class Model(BaseModel):
     """모델 설정"""
     class_path: str = Field(..., description="모델 클래스 전체 경로 (예: sklearn.ensemble.RandomForestClassifier)")
@@ -64,6 +77,7 @@ class Model(BaseModel):
         default_factory=lambda: HyperparametersTuning(tuning_enabled=False, values={}),
         description="하이퍼파라미터 설정"
     )
+    calibration: Optional[Calibration] = Field(None, description="캘리브레이션 설정 (Classification 태스크에서만 사용)")
     
     # 런타임에 추가되는 필드
     computed: Optional[Dict[str, Any]] = Field(
@@ -149,11 +163,32 @@ class DataInterface(BaseModel):
     # validation 로직은 Recipe 레벨로 이동
 
 
+class DataSplit(BaseModel):
+    """데이터 분할 비율 설정"""
+    train: float = Field(..., description="학습용 데이터 비율", ge=0, le=1)
+    validation: float = Field(..., description="검증용 데이터 비율", ge=0, le=1)
+    test: float = Field(..., description="테스트용 데이터 비율", ge=0, le=1)
+    calibration: float = Field(0.0, description="보정용 데이터 비율", ge=0, le=1)
+    
+    @model_validator(mode='after')
+    def validate_split_ratios(self):
+        """분할 비율의 합이 1.0인지 검증"""
+        total = self.train + self.validation + self.test + self.calibration
+        if abs(total - 1.0) > 0.001:
+            raise ValueError(
+                f"데이터 분할 비율의 합이 1.0이어야 합니다. 현재 합: {total:.3f} "
+                f"(train: {self.train}, validation: {self.validation}, "
+                f"test: {self.test}, calibration: {self.calibration})"
+            )
+        return self
+
+
 class Data(BaseModel):
     """데이터 설정"""
     loader: Loader = Field(..., description="데이터 로더 설정")
     fetcher: Fetcher = Field(..., description="피처 페처 설정")
     data_interface: DataInterface = Field(..., description="데이터 인터페이스 설정")
+    split: DataSplit = Field(..., description="데이터 분할 설정")
 
 
 class PreprocessorStep(BaseModel):

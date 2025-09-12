@@ -42,18 +42,11 @@ class TabularDataHandler(BaseDataHandler):
                 "Recipe Builder를 통해 split 비율을 설정하거나, recipe.yaml에서 data.split 섹션을 정의하세요."
             )
         
-        # Split 설정에서 비율 추출 (기본값 없음 - 필수값)
-        train_ratio = split_config.get('train')
-        validation_ratio = split_config.get('validation') 
-        test_ratio = split_config.get('test')
-        calibration_ratio = split_config.get('calibration', 0.0)  # calibration만 기본값 0.0 허용
-        
-        # 필수 비율 검증
-        if train_ratio is None or validation_ratio is None or test_ratio is None:
-            raise ValueError(
-                "필수 데이터 분할 비율이 누락되었습니다. "
-                "data.split 섹션에 train, validation, test 비율을 모두 설정하세요."
-            )
+        # Split 설정에서 비율 추출 (Pydantic 모델 속성 접근)
+        train_ratio = split_config.train
+        validation_ratio = split_config.validation
+        test_ratio = split_config.test
+        calibration_ratio = split_config.calibration  # DataSplit 모델에서 기본값 0.0 설정됨
         
         # 비율 합 검증
         total_ratio = train_ratio + validation_ratio + test_ratio + calibration_ratio

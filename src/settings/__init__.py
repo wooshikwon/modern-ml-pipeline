@@ -32,8 +32,10 @@ from .config import (
 from .recipe import (
     Recipe,
     Model,
+    Calibration,
     HyperparametersTuning,
     Data,
+    DataSplit,
     Loader,
     FeatureView,  # ✅ EntitySchema → FeatureView 변경
     Fetcher,
@@ -87,8 +89,10 @@ __all__ = [
     
     # ========== Recipe Schemas ==========
     "Model",
+    "Calibration",
     "HyperparametersTuning",
     "Data",
+    "DataSplit",
     "Loader",
     "FeatureView",  # ✅ EntitySchema → FeatureView 변경
     "Fetcher",

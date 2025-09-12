@@ -136,22 +136,14 @@ class TestIsotonicCalibration:
     
     def test_fit_with_wrong_number_of_probability_columns_raises_error(self):
         """Test that fitting with wrong number of probability columns raises ValueError"""
-        # Given: 2D probabilities with wrong number of columns
-        y_prob_wrong_cols = np.array([[0.3, 0.7], [0.8, 0.2]])  # 2 columns
-        y_true_3class = np.array([0, 2])  # But 3 classes (0, 1, 2 expected)
+        # Given: 2D probabilities with 2 columns but y_true has 3 classes
+        y_prob_2_cols = np.array([[0.3, 0.7], [0.8, 0.2], [0.5, 0.5]])  # 2 columns, 3 samples
+        y_true_3_class = np.array([0, 1, 2])  # 3 classes (0, 1, 2), 3 samples
         calibrator = IsotonicCalibration()
         
-        # When/Then: Should raise error
-        with pytest.raises(ValueError, match="확률 행렬의 클래스 수\\(2\\)와 실제 클래스 수\\(2\\)가 다릅니다"):
-            # This should actually pass since we have 2 classes [0, 2], let me fix the test
-            pass
-        
-        # Better test: 2 probability columns but 3 actual classes
-        y_prob_2cols = np.array([[0.3, 0.7], [0.8, 0.2], [0.5, 0.5]])
-        y_true_3class = np.array([0, 1, 2])  # 3 unique classes
-        
+        # When/Then: Should raise error (2 probability columns but 3 actual classes)
         with pytest.raises(ValueError, match="확률 행렬의 클래스 수\\(2\\)와 실제 클래스 수\\(3\\)가 다릅니다"):
-            calibrator.fit(y_prob_2cols, y_true_3class)
+            calibrator.fit(y_prob_2_cols, y_true_3_class)
     
     def test_transform_binary_after_fitting(self):
         """Test transforming binary probabilities after fitting"""
@@ -203,7 +195,7 @@ class TestIsotonicCalibration:
         calibrator.fit(self.y_prob_bin, self.y_true_bin)
         
         # When/Then: Transform with 2D probabilities should raise error
-        with pytest.raises(ValueError, match="이진 확률값이지만 다중 클래스 calibrator로 학습되었습니다"):
+        with pytest.raises(ValueError, match="다중 클래스 확률값이지만 이진 분류 calibrator로 학습되었습니다"):
             calibrator.transform(self.y_prob_multi)
         
         # And: Given multiclass-fitted calibrator
@@ -211,7 +203,7 @@ class TestIsotonicCalibration:
         calibrator_multi.fit(self.y_prob_multi, self.y_true_multi)
         
         # When/Then: Transform with 1D probabilities should raise error
-        with pytest.raises(ValueError, match="다중 클래스 확률값이지만 이진 분류 calibrator로 학습되었습니다"):
+        with pytest.raises(ValueError, match="이진 확률값이지만 다중 클래스 calibrator로 학습되었습니다"):
             calibrator_multi.transform(self.y_prob_bin)
     
     def test_transform_wrong_number_of_classes_raises_error(self):
