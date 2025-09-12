@@ -181,10 +181,11 @@ class TestDataInterfaceV2SchemaGeneration:
             data_interface_schema=schema
         )
         
-        # Check descriptions
-        assert 'Entity column' in RequestModel.__fields__['user_id'].field_info.description
-        assert 'Feature' in RequestModel.__fields__['age'].field_info.description
-        assert 'Timestamp' in RequestModel.__fields__['ts'].field_info.description
+        # Check descriptions (Pydantic v2 uses model_fields)
+        fields = RequestModel.model_fields if hasattr(RequestModel, 'model_fields') else RequestModel.__fields__
+        assert 'Entity column' in fields['user_id'].description
+        assert 'Feature' in fields['age'].description
+        assert 'Timestamp' in fields['ts'].description
         
     def test_duplicate_column_handling(self):
         """Test that duplicate columns are not added multiple times"""

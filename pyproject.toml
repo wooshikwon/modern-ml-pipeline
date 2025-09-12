@@ -114,9 +114,14 @@ feature-store = [
     "redis>=5.0.0",
 ]
 
+# UI and visualization extras
+ui-extras = [
+    "qrcode>=7.4.0",  # For generating QR codes for mobile MLflow access
+]
+
 # Complete installation with all extras
 all = [
-    "modern-ml-pipeline[ml-extras,cloud-extras,feature-store]",
+    "modern-ml-pipeline[ml-extras,cloud-extras,feature-store,ui-extras]",
 ]
 
 [project.urls]

@@ -204,7 +204,7 @@ def create_datainterface_based_prediction_request_v2(
     target_column = data_interface_schema.get('target_column')
     
     # 1. Entity columns (항상 필요, target 제외)
-    entity_columns = data_interface_schema.get('entity_columns', [])
+    entity_columns = data_interface_schema.get('entity_columns', []) or []
     for col in entity_columns:
         if exclude_target and col == target_column:
             continue  # target column 자동 제외
@@ -212,7 +212,7 @@ def create_datainterface_based_prediction_request_v2(
         field_defaults[col] = Field(..., description=f"Entity column: {col}")
     
     # 2. Feature columns (명시된 경우)
-    feature_columns = data_interface_schema.get('feature_columns', [])
+    feature_columns = data_interface_schema.get('feature_columns', []) or []
     if feature_columns:
         for col in feature_columns:
             if exclude_target and col == target_column:
@@ -239,7 +239,7 @@ def create_datainterface_based_prediction_request_v2(
             field_defaults[treatment_col] = Field(..., description=f"Treatment column: {treatment_col}")
     
     # 4. Required columns from training (학습 시 사용된 컬럼들)
-    required_columns = data_interface_schema.get('required_columns', [])
+    required_columns = data_interface_schema.get('required_columns', []) or []
     for col in required_columns:
         if exclude_target and col == target_column:
             continue  # target column 자동 제외
@@ -248,7 +248,7 @@ def create_datainterface_based_prediction_request_v2(
             field_defaults[col] = Field(..., description=f"Required column: {col}")
     
     # 5. 모든 사용 가능한 컬럼 (feature_columns가 None인 경우)
-    all_columns = data_interface_schema.get('all_columns', [])
+    all_columns = data_interface_schema.get('all_columns', []) or []
     if not feature_columns and all_columns:  # feature_columns가 명시되지 않은 경우
         exclude_cols = set([target_column] if exclude_target else [])
         exclude_cols.update(entity_columns)  # entity는 이미 추가됨

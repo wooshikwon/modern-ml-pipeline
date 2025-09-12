@@ -84,13 +84,15 @@ class SystemChecker:
             artifact_store = self.config["artifact_store"]
             self.results.append(self.check_artifact_store(artifact_store))
         
-        # 5. Serving 체크
+        # 5. Output targets 체크 (inference output만 체크)
+        if "output" in self.config:
+            output_config = self.config["output"]
+            if "inference" in output_config:
+                self.results.append(self.check_output_target("inference", output_config["inference"]))
+        
+        # 6. Serving 체크
         if self.config.get("serving", {}).get("enabled", False):
             self.results.append(self.check_serving())
-        
-        # 6. Monitoring 체크 (선택적)
-        if "monitoring" in self.config and self.config.get("monitoring", {}).get("enabled", False):
-            self.results.append(self.check_monitoring())
         
         return self.results
     
@@ -162,13 +164,16 @@ class SystemChecker:
         adapter_type = data_source.get("adapter_type", "")
         config = data_source.get("config", {})
         
-        # SQL/PostgreSQL Adapter
-        if adapter_type == "sql" or "postgresql://" in str(config.get("connection_uri", "")):
-            return self._check_postgresql(source_name, config)
-        
-        # BigQuery Adapter
-        elif adapter_type == "bigquery":
-            return self._check_bigquery(source_name, config)
+        # SQL Adapter - check connection URI to determine specific database type
+        if adapter_type == "sql":
+            connection_uri = str(config.get("connection_uri", ""))
+            if "bigquery://" in connection_uri:
+                return self._check_bigquery(source_name, config)
+            elif "postgresql://" in connection_uri:
+                return self._check_postgresql(source_name, config)
+            else:
+                # Default to PostgreSQL for other SQL databases
+                return self._check_postgresql(source_name, config)
         
         # Storage Adapter (Local Files, S3, GCS)
         elif adapter_type == "storage":
@@ -400,6 +405,59 @@ class SystemChecker:
                 solution="Check GCP credentials and permissions"
             )
     
+    def check_output_target(self, output_type: str, output_config: Dict[str, Any]) -> CheckResult:
+        """
+        Output target 연결 체크 (inference output).
+        
+        Args:
+            output_type: 출력 타입 (예: "inference")
+            output_config: 출력 설정
+            
+        Returns:
+            체크 결과
+        """
+        if not output_config.get("enabled", True):
+            return CheckResult(
+                service=f"Output:{output_type}",
+                status=CheckStatus.SKIPPED,
+                message=f"{output_type} output is disabled"
+            )
+        
+        adapter_type = output_config.get("adapter_type", "")
+        config = output_config.get("config", {})
+        
+        # Storage adapter (Local Files, S3, GCS)
+        if adapter_type == "storage":
+            base_path = config.get("base_path", "")
+            if base_path.startswith("s3://"):
+                return self._check_s3(f"{output_type}_output", config)
+            elif base_path.startswith("gs://"):
+                return self._check_gcs(f"{output_type}_output", config)
+            else:
+                # Local storage
+                return self._check_storage(f"{output_type}_output", config)
+        
+        # SQL adapter (PostgreSQL, BigQuery)
+        elif adapter_type == "sql":
+            connection_uri = config.get("connection_uri", "")
+            if "postgresql://" in connection_uri:
+                return self._check_postgresql(f"{output_type}_output", config)
+            elif "bigquery://" in connection_uri:
+                return self._check_bigquery(f"{output_type}_output", config)
+            else:
+                return CheckResult(
+                    service=f"Output:{output_type}",
+                    status=CheckStatus.WARNING,
+                    message=f"Unknown SQL type in connection URI: {connection_uri}"
+                )
+        
+        else:
+            return CheckResult(
+                service=f"Output:{output_type}",
+                status=CheckStatus.SKIPPED,
+                message=f"Unknown output adapter type: {adapter_type}"
+            )
+    
     def check_feature_store(self) -> CheckResult:
         """Feature Store 체크."""
         fs_config = self.config["feature_store"]
@@ -608,59 +666,6 @@ class SystemChecker:
                 message=f"Invalid port number: {port}",
                 solution="Port must be between 1 and 65535"
             )
-    
-    def check_monitoring(self) -> CheckResult:
-        """Monitoring 체크 (선택적 구성요소)."""
-        monitoring_config = self.config.get("monitoring", {})
-        
-        # Monitoring 섹션이 없으면 스킵
-        if not monitoring_config:
-            return CheckResult(
-                service="Monitoring",
-                status=CheckStatus.SKIPPED,
-                message="Monitoring not configured"
-            )
-        
-        prometheus_port = int(os.path.expandvars(str(monitoring_config.get("prometheus_port", 9090))))
-        
-        # Check Grafana if enabled
-        grafana_config = monitoring_config.get("grafana", {})
-        if grafana_config.get("enabled", False):
-            grafana_host = os.path.expandvars(grafana_config.get("host", "localhost"))
-            grafana_port = int(os.path.expandvars(str(grafana_config.get("port", 3000))))
-            
-            try:
-                try:
-                    import requests
-                except ImportError:
-                    return CheckResult(
-                        service="Monitoring (Grafana)",
-                        status=CheckStatus.WARNING,
-                        message="requests library not installed",
-                        solution="pip install requests"
-                    )
-                response = requests.get(f"http://{grafana_host}:{grafana_port}/api/health", timeout=5)
-                if response.status_code == 200:
-                    return CheckResult(
-                        service="Monitoring",
-                        status=CheckStatus.SUCCESS,
-                        message="Grafana is healthy",
-                        details={"grafana": f"{grafana_host}:{grafana_port}", "prometheus_port": prometheus_port}
-                    )
-            except:
-                return CheckResult(
-                    service="Monitoring",
-                    status=CheckStatus.WARNING,
-                    message="Grafana not accessible",
-                    solution=f"Check if Grafana is running at {grafana_host}:{grafana_port}"
-                )
-        
-        return CheckResult(
-            service="Monitoring",
-            status=CheckStatus.SUCCESS,
-            message="Monitoring configuration valid",
-            details={"prometheus_port": prometheus_port}
-        )
     
     def display_results(self, show_actionable: bool = False) -> None:
         """

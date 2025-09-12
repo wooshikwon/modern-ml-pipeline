@@ -15,6 +15,59 @@ from src.utils.system.reproducibility import set_global_seeds
 from src.utils.integrations.mlflow_integration import log_training_results
 from src.utils.integrations.mlflow_integration import log_enhanced_model_with_schema
 
+def _display_mlflow_ui_info(
+    settings: Settings,
+    run_id: str,
+    run: Any,
+    metrics: Dict[str, Any],
+    console: RichConsoleManager
+):
+    """Display MLflow UI access information after training"""
+    try:
+        from src.utils.mlflow.ui_helper import MLflowUIHelper, MLflowRunSummary
+        
+        # Get MLflow tracking URI
+        tracking_uri = mlflow.get_tracking_uri()
+        
+        # Get experiment info
+        experiment_id = run.info.experiment_id
+        experiment = mlflow.get_experiment(experiment_id)
+        experiment_name = experiment.name if experiment else "Default"
+        
+        # Display run summary
+        summary = MLflowRunSummary(console)
+        summary.display_run_summary(
+            run_id=run_id,
+            metrics=metrics,
+            params=run.data.params if hasattr(run, 'data') else {}
+        )
+        
+        # Display UI access info
+        ui_helper = MLflowUIHelper(tracking_uri, console)
+        
+        # Check if auto-open is enabled in settings
+        auto_open = False
+        show_qr = False
+        if hasattr(settings, 'config') and hasattr(settings.config, 'mlflow_ui'):
+            auto_open = getattr(settings.config.mlflow_ui, 'auto_open_browser', False)
+            show_qr = getattr(settings.config.mlflow_ui, 'show_qr_code', False)
+            
+        ui_helper.display_access_info(
+            run_id=run_id,
+            experiment_id=experiment_id,
+            experiment_name=experiment_name,
+            auto_open=auto_open,
+            show_qr=show_qr
+        )
+        
+    except Exception as e:
+        logger.debug(f"Could not display MLflow UI info: {e}")
+        # Just log the basic info
+        console.log_milestone(
+            f"MLflow Run ID: {run_id}",
+            "success"
+        )
+
 def run_train_pipeline(
     settings: Settings,
     context_params: Optional[Dict[str, Any]] = None,
@@ -128,6 +181,15 @@ def run_train_pipeline(
                 data_schema=pyfunc_wrapper.data_schema,
                 input_example=df.head(5),  # 입력 예제
                 pip_requirements=pip_reqs
+            )
+            
+            # MLflow UI 정보 표시
+            _display_mlflow_ui_info(
+                settings=settings,
+                run_id=run_id,
+                run=run,
+                metrics=metrics,
+                console=console
             )
             
             return SimpleNamespace(run_id=run_id, model_uri=f"runs:/{run_id}/model")

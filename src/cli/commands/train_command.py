@@ -37,6 +37,14 @@ def train_command(
         bool,
         typer.Option("--record-reqs", help="현재 환경의 패키지 요구사항을 MLflow 아티팩트에 기록합니다(기본 비활성화).")
     ] = False,
+    open_browser: Annotated[
+        bool,
+        typer.Option("--open-browser", help="학습 완료 후 MLflow UI를 브라우저에서 자동으로 엽니다.")
+    ] = False,
+    show_qr: Annotated[
+        bool,
+        typer.Option("--show-qr", help="모바일 접속을 위한 QR 코드를 표시합니다.")
+    ] = False,
 ) -> None:
     """
     학습 파이프라인 실행.
@@ -97,7 +105,14 @@ def train_command(
         # 3. 데이터 소스 호환성 검증 (source_uri 주입 후)
         settings.validate_data_source_compatibility()
         
-        # 4. 학습 정보 로깅
+        # 4. MLflow UI 설정 추가
+        if not hasattr(settings.config, 'mlflow_ui'):
+            from types import SimpleNamespace
+            settings.config.mlflow_ui = SimpleNamespace()
+        settings.config.mlflow_ui.auto_open_browser = open_browser
+        settings.config.mlflow_ui.show_qr_code = show_qr
+        
+        # 5. 학습 정보 로깅
         logger.info(f"Recipe: {recipe_path}")
         logger.info(f"Config: {config_path}")
         logger.info(f"Data: {data_path}")
@@ -105,7 +120,7 @@ def train_command(
         run_name = computed.get("run_name", "unknown") if computed else "unknown"
         logger.info(f"Run Name: {run_name}")
         
-        # 5. 학습 파이프라인 실행 (기본값 False일 때는 인자를 생략하여 하위호환 유지)
+        # 6. 학습 파이프라인 실행 (기본값 False일 때는 인자를 생략하여 하위호환 유지)
         if record_reqs:
             run_train_pipeline(settings=settings, context_params=params, record_requirements=True)
         else:
