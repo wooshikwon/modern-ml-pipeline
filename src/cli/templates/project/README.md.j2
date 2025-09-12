@@ -434,22 +434,143 @@ mmp train --recipe-path recipes/with_feast.yaml --config-path configs/local.yaml
 mmp serve-api --run-id abc123 --config-path configs/prod.yaml
 ```
 
-### Docker 배포
+### 🐳 Docker 배포 가이드
+
+#### 빠른 시작 (Docker)
 
 ```bash
-# Docker 이미지 빌드
+# 1. 환경변수 설정
+cp .env.example .env
+# .env 파일을 편집하여 MODEL_RUN_ID 등 필요한 값 설정
+
+# 2. Docker 이미지 빌드 (최적화된 멀티스테이지 빌드)
 docker build -t {{ project_name }}:latest .
 
-# 컨테이너 실행
+# 3. API 서버 실행
 docker run -d \
   --name {{ project_name }}-api \
-  -p 8080:8080 \
-  -v $(pwd)/configs:/app/configs \
-  -v $(pwd)/mlruns:/app/mlruns \
+  -p 8000:8000 \
+  --env-file .env \
+  -v $(pwd)/configs:/app/configs:ro \
+  -v $(pwd)/mlruns:/app/mlruns:ro \
   {{ project_name }}:latest
 
-# 또는 Docker Compose 사용
-docker-compose up -d
+# 4. 헬스체크 확인
+curl http://localhost:8000/health
+```
+
+#### Docker Compose 사용 (권장)
+
+```bash
+# 1. API 서비스만 실행 (가장 일반적)
+docker-compose up -d api
+
+# 2. 모델 학습 실행
+docker-compose --profile training up training
+
+# 3. 배치 추론 실행
+MODEL_RUN_ID=abc123 docker-compose --profile inference up inference
+
+# 4. MLflow UI 포함 실행
+docker-compose --profile mlflow up -d
+
+# 5. 전체 스택 실행 (개발용)
+docker-compose --profile mlflow --profile postgres up -d
+```
+
+#### 프로덕션 배포 최적화
+
+**1. 이미지 크기 최적화**
+```bash
+# 멀티스테이지 빌드로 최종 이미지 크기 최소화 (<500MB)
+# venv 격리로 의존성 관리 개선
+docker build -f Dockerfile.optimized -t {{ project_name }}:prod .
+```
+
+**2. 보안 강화**
+```bash
+# 비root 사용자로 실행 (mluser)
+# 읽기 전용 마운트 사용 (:ro)
+# 민감 정보는 환경변수로 관리
+docker run --user mluser --read-only ...
+```
+
+**3. 성능 최적화**
+```bash
+# Gunicorn 워커 수 조정
+docker run -e WORKERS=4 ...
+
+# 리소스 제한 설정
+docker run --cpus="2" --memory="2g" ...
+```
+
+**4. 로드 밸런싱 (선택사항)**
+```bash
+# 여러 API 인스턴스 실행
+docker-compose up -d --scale api=3
+
+# Nginx 로드 밸런서 추가
+docker-compose --profile production up -d nginx
+```
+
+#### 환경변수 설정
+
+필수 환경변수 (.env 파일):
+```bash
+# Model Configuration
+MODEL_RUN_ID=your_model_run_id  # MLflow run ID
+CONFIG_PATH=configs/production.yaml
+
+# MLflow (선택사항)
+MLFLOW_TRACKING_URI=./mlruns  # 또는 http://mlflow-server:5000
+
+# Database (필요시)
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=ml_user
+DB_PASSWORD=secure_password
+DB_NAME={{ project_name }}_db
+
+# API Configuration
+API_PORT=8000
+API_WORKERS=4  # CPU 코어 수에 맞게 조정
+LOG_LEVEL=info
+```
+
+#### 모니터링 및 로깅
+
+```bash
+# 로그 확인
+docker logs {{ project_name }}-api
+
+# 실시간 로그 모니터링
+docker logs -f {{ project_name }}-api
+
+# 컨테이너 리소스 사용량 확인
+docker stats {{ project_name }}-api
+
+# 헬스체크 상태 확인
+docker inspect {{ project_name }}-api --format='{{json .State.Health}}'
+```
+
+#### 트러블슈팅
+
+**포트 충돌 문제**
+```bash
+# 다른 포트 사용
+docker run -p 8080:8000 ...  # 호스트 8080 → 컨테이너 8000
+```
+
+**메모리 부족 문제**
+```bash
+# 메모리 제한 증가
+docker run --memory="4g" ...
+```
+
+**모델 로딩 실패**
+```bash
+# MLflow 아티팩트 경로 확인
+docker run -v $(pwd)/mlruns:/app/mlruns:ro ...
 ```
 
 ---

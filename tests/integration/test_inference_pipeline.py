@@ -30,8 +30,12 @@ class TestInferencePipeline:
             mlflow.end_run()
 
             # 동일 데이터로 배치 추론 (스모크)
-            run_inference_pipeline(ctx.settings, train_result.run_id, str(ctx.data_path))
+            inference_result = run_inference_pipeline(ctx.settings, train_result.run_id, str(ctx.data_path))
             # 예외 없이 완료되면 성공
+            assert inference_result is not None
+            assert hasattr(inference_result, 'run_id')
+            assert hasattr(inference_result, 'model_uri')
+            assert hasattr(inference_result, 'prediction_count')
             
             # MLflow에 추론 run이 기록되었는지 확인
             client = MlflowClient(tracking_uri=ctx.mlflow_uri)
@@ -51,7 +55,7 @@ class TestInferencePipeline:
             
             # 존재하지 않는 run id로 추론 시도 → 의미있는 실패
             with pytest.raises(Exception) as exc_info:
-                run_inference_pipeline(ctx.settings, "nonexistent_run_id_12345", str(ctx.data_path))
+                result = run_inference_pipeline(ctx.settings, "nonexistent_run_id_12345", str(ctx.data_path))
             
             # 에러 메시지에 Run not found 관련 내용 포함
             error_msg = str(exc_info.value)
@@ -81,7 +85,7 @@ class TestInferencePipeline:
             
             # 스키마 불일치 데이터로 추론 시도
             with pytest.raises(Exception) as exc_info:
-                run_inference_pipeline(ctx.settings, train_result.run_id, str(mismatched_path))
+                result = run_inference_pipeline(ctx.settings, train_result.run_id, str(mismatched_path))
             
             # 에러가 스키마/컬럼/시그니처 관련인지 확인
             error_msg = str(exc_info.value)
@@ -103,7 +107,7 @@ class TestInferencePipeline:
             
             # CSV로 학습한 모델에서 data_path 없이 추론 시도 → 의미있는 실패
             with pytest.raises(ValueError) as exc_info:
-                run_inference_pipeline(ctx.settings, train_result.run_id, data_path=None)
+                result = run_inference_pipeline(ctx.settings, train_result.run_id, data_path=None)
             
             # 에러 메시지에 data_path 필요성 관련 내용 포함
             error_msg = str(exc_info.value)
@@ -125,7 +129,7 @@ class TestInferencePipeline:
             # 정적 SQL 모델에 context_params 전달 시 보안 에러
             context_params = {"date": "2023-01-01"}
             with pytest.raises(ValueError) as exc_info:
-                run_inference_pipeline(
+                result = run_inference_pipeline(
                     ctx.settings, 
                     train_result.run_id, 
                     data_path=None, 

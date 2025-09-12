@@ -164,16 +164,6 @@ class InteractiveConfigBuilder:
             )
             selections["inference_output_source"] = infer_source
         
-        # Preprocessed output
-        preproc_enabled = self.ui.confirm("전처리 완료 결과를 저장하시겠습니까?", default=True)
-        selections["preproc_output_enabled"] = preproc_enabled
-        if preproc_enabled:
-            preproc_source = self.ui.select_from_list(
-                "전처리 결과 저장 데이터 소스를 선택하세요",
-                ["PostgreSQL", "BigQuery", "Local Files", "S3", "GCS"]
-            )
-            selections["preproc_output_source"] = preproc_source
-        
         self.ui.print_divider()
         
         # 선택 사항 확인
@@ -200,7 +190,6 @@ Feature Store: {selections.get('feature_store', '없음')}
 Artifact Storage: {selections.get('artifact_storage', 'Local')}
 API Serving: {'활성화' if selections.get('enable_serving') else '비활성화'}
 Inference Output: {selections.get('inference_output_source', 'Disabled' if not selections.get('inference_output_enabled', True) else 'Local Files')}
-Preprocessed Output: {selections.get('preproc_output_source', 'Disabled' if not selections.get('preproc_output_enabled', True) else 'Local Files')}
 """
         self.ui.show_panel(summary, title="📋 설정 요약", style="cyan")
     
@@ -280,8 +269,6 @@ Preprocessed Output: {selections.get('preproc_output_source', 'Disabled' if not 
         # Output sources (템플릿 분기용)
         if selections.get("inference_output_enabled", True):
             context["inference_output_source"] = selections.get("inference_output_source", "Local Files")
-        if selections.get("preproc_output_enabled", True):
-            context["preproc_output_source"] = selections.get("preproc_output_source", "Local Files")
         
         return context
     
@@ -505,53 +492,6 @@ Preprocessed Output: {selections.get('preproc_output_source', 'Disabled' if not 
                 lines.extend([
                     "INFER_OUTPUT_BQ_DATASET=analytics",
                     f"INFER_OUTPUT_BQ_TABLE=predictions_{selections['env_name']}",
-                    "# Reuse GCP credentials above",
-                    "BQ_LOCATION=US",
-                    "",
-                ])
-        
-        # Output: Preprocessed
-        preproc_enabled = selections.get("preproc_output_enabled", True)
-        lines.extend([
-            "# Preprocessed Output",
-            f"PREPROC_OUTPUT_ENABLED={'true' if preproc_enabled else 'false'}",
-        ])
-        if preproc_enabled:
-            pre_src = selections.get("preproc_output_source", "Local Files")
-            if pre_src == "Local Files":
-                lines.extend([
-                    "PREPROC_OUTPUT_BASE_PATH=./artifacts/preprocessed",
-                    "",
-                ])
-            elif pre_src == "S3":
-                lines.extend([
-                    "PREPROC_OUTPUT_S3_BUCKET=mmp-out",
-                    f"PREPROC_OUTPUT_S3_PREFIX={selections['env_name']}/preproc",
-                    "# AWS credentials (if not already set above)",
-                    "AWS_ACCESS_KEY_ID=",
-                    "AWS_SECRET_ACCESS_KEY=",
-                    "AWS_REGION=us-east-1",
-                    "",
-                ])
-            elif pre_src == "GCS":
-                lines.extend([
-                    "PREPROC_OUTPUT_GCS_BUCKET=mmp-out",
-                    f"PREPROC_OUTPUT_GCS_PREFIX={selections['env_name']}/preproc",
-                    "# GCP credentials (if not already set above)",
-                    "GCP_PROJECT_ID=",
-                    "GOOGLE_APPLICATION_CREDENTIALS=",
-                    "",
-                ])
-            elif pre_src == "PostgreSQL":
-                lines.extend([
-                    f"PREPROC_OUTPUT_PG_TABLE=preprocessed_{selections['env_name']}",
-                    "# Reuse DB_* settings above",
-                    "",
-                ])
-            else:  # BigQuery
-                lines.extend([
-                    "PREPROC_OUTPUT_BQ_DATASET=feature_store",
-                    f"PREPROC_OUTPUT_BQ_TABLE=preprocessed_{selections['env_name']}",
                     "# Reuse GCP credentials above",
                     "BQ_LOCATION=US",
                     "",

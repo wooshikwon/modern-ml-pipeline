@@ -7,7 +7,6 @@ from src.utils.system.logger import logger
 from src.serving._context import app_context
 from src.serving._lifespan import lifespan, setup_api_context
 from src.serving import _endpoints as handlers
-from src.components.fetcher import PassThroughFetcher
 from src.serving.schemas import (
     HealthCheckResponse,
     ModelMetadataResponse,
@@ -128,13 +127,7 @@ def run_api_server(settings: Settings, run_id: str, host: str = "0.0.0.0", port:
     # 서버 시작 시 컨텍스트 설정
     setup_api_context(run_id=run_id, settings=settings)
 
-    # [신규] fetcher 타입 명시적 검증
-    wrapped_model = app_context.model.unwrap_python_model()
-    if isinstance(wrapped_model.trained_fetcher, PassThroughFetcher):
-        raise TypeError(
-            "API serving is not supported when the fetcher is 'pass_through'. "
-            "A feature store connection is required."
-        )
-    # 정적 predict 엔드포인트 사용
-
+    # DataInterface 기반 API는 모든 fetcher 타입 지원
+    # PassThrough fetcher도 문제없이 작동 (target_column 자동 제외됨)
+    
     uvicorn.run(app, host=host, port=port)

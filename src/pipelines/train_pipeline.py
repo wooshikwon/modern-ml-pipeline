@@ -81,6 +81,10 @@ def run_train_pipeline(
                 preprocessor.fit(X_train)
                 X_train = preprocessor.transform(X_train)
                 X_test = preprocessor.transform(X_test)
+            else:
+                # preprocessor가 없는 경우 원본 데이터를 그대로 사용
+                X_train = X_train
+                X_test = X_test
             
             # 6. 학습
             console.log_phase("Training", "🧠")
@@ -93,7 +97,7 @@ def run_train_pipeline(
                 additional_data={'train': add_train, 'val': add_test},
             )
 
-            # 7. 평가 및 평가결과 MLflow에 저장
+            # 7. 평가 및 평가 결과 MLflow에 저장
             console.log_phase("Evaluation & Logging", "🎯")
             metrics = evaluator.evaluate(trained_model, X_test, y_test, add_test)
             training_results = {

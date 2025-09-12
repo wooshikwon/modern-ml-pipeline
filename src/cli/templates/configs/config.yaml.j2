@@ -179,32 +179,3 @@ output:
       use_pandas_gbq: true
     {%- endif %}
 
-  preprocessed:
-    name: PreprocessedOutput
-    enabled: ${PREPROC_OUTPUT_ENABLED:true}
-    {%- if preproc_output_source in ["Local Files", "S3", "GCS"] %}
-    adapter_type: storage
-    config:
-      {%- if preproc_output_source == "Local Files" %}
-      base_path: "${PREPROC_OUTPUT_BASE_PATH:./artifacts/preprocessed}"
-      {%- elif preproc_output_source == "S3" %}
-      base_path: "s3://${PREPROC_OUTPUT_S3_BUCKET:mmp-out}/${PREPROC_OUTPUT_S3_PREFIX:{{ env_name }}/preproc}"
-      {%- elif preproc_output_source == "GCS" %}
-      base_path: "gs://${PREPROC_OUTPUT_GCS_BUCKET:mmp-out}/${PREPROC_OUTPUT_GCS_PREFIX:{{ env_name }}/preproc}"
-      {%- endif %}
-    {%- elif preproc_output_source == "PostgreSQL" %}
-    adapter_type: sql
-    config:
-      connection_uri: "postgresql://${DB_USER:postgres}:${DB_PASSWORD:postgres}@${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:mmp_db}"
-      table: "${PREPROC_OUTPUT_PG_TABLE:preprocessed_{{ env_name }}}"
-    {%- elif preproc_output_source == "BigQuery" %}
-    adapter_type: sql  # bigquery → sql 변경
-    config:
-      connection_uri: "bigquery://${GCP_PROJECT_ID:{{ gcp_project|default('') }}}/${PREPROC_OUTPUT_BQ_DATASET:feature_store}"
-      project_id: "${GCP_PROJECT_ID:{{ gcp_project|default('') }}}"
-      dataset_id: "${PREPROC_OUTPUT_BQ_DATASET:feature_store}"
-      table: "${PREPROC_OUTPUT_BQ_TABLE:preprocessed_{{ env_name }}}"
-      location: "${BQ_LOCATION:US}"
-      use_pandas_gbq: true
-    {%- endif %}
-

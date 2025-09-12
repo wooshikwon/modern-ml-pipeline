@@ -144,9 +144,24 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
             self.console.warning("Input validation skipped", rich_message="⚠️ Input validation skipped")
 
         try:
-            target_col = self.data_interface_schema.get('data_interface_config', {}).get('target_column') if self.data_interface_schema else None
-            feature_columns = [col for col in model_input.columns if col != target_col]
-            X = model_input[feature_columns] if feature_columns else model_input
+            # data_interface에서 feature_columns 가져오기
+            data_interface_config = self.data_interface_schema.get('data_interface_config', {}) if self.data_interface_schema else {}
+            feature_columns = data_interface_config.get('feature_columns')
+            
+            # feature_columns가 명시되어 있으면 해당 컬럼만 사용
+            if feature_columns:
+                # 존재하는 feature 컬럼만 선택
+                available_features = [col for col in feature_columns if col in model_input.columns]
+                X = model_input[available_features]
+                self.console.info(f"Using {len(available_features)} feature columns for prediction", 
+                                rich_message=f"📊 Features: [cyan]{len(available_features)}[/cyan] columns")
+            else:
+                # feature_columns가 없으면 기존 로직 (target 제외)
+                target_col = data_interface_config.get('target_column')
+                feature_columns = [col for col in model_input.columns if col != target_col]
+                X = model_input[feature_columns] if feature_columns else model_input
+                self.console.warning("feature_columns not defined, using all columns except target", 
+                                   rich_message="⚠️ Using auto-detected features")
 
             predictions = self.trained_model.predict(X)
 

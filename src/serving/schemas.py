@@ -48,56 +48,8 @@ def create_dynamic_prediction_request(
     return DynamicModel
 
 
-def create_datainterface_based_prediction_request(
-    model_name: str, data_interface_schema: Dict[str, Any]
-) -> Type[BaseModel]:
-    """
-    🆕 Phase 5.5: DataInterface 스키마를 기반으로 API 요청 모델을 생성합니다.
-    
-    Args:
-        model_name: 생성할 모델의 이름
-        data_interface_schema: 저장된 DataInterface 스키마 정보
-        
-    Returns:
-        동적으로 생성된 Pydantic 모델 클래스
-    """
-    field_annotations = {}
-    field_defaults = {}
-    
-    # 1. Entity columns (항상 필요)
-    entity_columns = data_interface_schema.get('entity_columns', [])
-    for col in entity_columns:
-        field_annotations[col] = Any
-        field_defaults[col] = Field(..., description=f"Entity column: {col}")
-    
-    # 2. Task-specific columns
-    task_type = data_interface_schema.get('task_type', '')
-    if task_type == 'timeseries':
-        timestamp_col = data_interface_schema.get('timestamp_column')
-        if timestamp_col:
-            field_annotations[timestamp_col] = Any
-            field_defaults[timestamp_col] = Field(..., description=f"Timestamp column: {timestamp_col}")
-    
-    # 3. Required columns from stored schema (feature columns)
-    required_columns = data_interface_schema.get('required_columns', [])
-    for col in required_columns:
-        if col not in field_annotations:  # 중복 방지
-            field_annotations[col] = Any
-            field_defaults[col] = Field(..., description=f"Required feature column: {col}")
-    
-    # 클래스 이름 생성
-    class_name = f"{model_name}PredictionRequest"
-    
-    # 클래스 속성 딕셔너리
-    class_dict = {
-        '__annotations__': field_annotations,
-        **field_defaults
-    }
-    
-    # BaseModel을 상속받는 동적 클래스 생성
-    DynamicModel = type(class_name, (BaseModel,), class_dict)
-    
-    return DynamicModel
+# create_datainterface_based_prediction_request v1 삭제됨
+# v2 버전 사용 (target_column 자동 제외 기능 포함)
 
 
 class MinimalPredictionResponse(BaseModel):
@@ -226,3 +178,99 @@ class OptimizationHistoryResponse(BaseModel):
     search_space: Dict[str, Any] = Field(default={}, description="탐색한 하이퍼파라미터 공간")
     convergence_info: Dict[str, Any] = Field(default={}, description="수렴 정보")
     timeout_occurred: bool = Field(default=False, description="타임아웃 발생 여부")
+
+
+def create_datainterface_based_prediction_request_v2(
+    model_name: str, 
+    data_interface_schema: Dict[str, Any],
+    exclude_target: bool = True
+) -> Type[BaseModel]:
+    """
+    🚀 Improved: DataInterface 스키마를 기반으로 API 요청 모델을 자동 생성합니다.
+    Target 컬럼은 자동으로 제외됩니다.
+    
+    Args:
+        model_name: 생성할 모델의 이름
+        data_interface_schema: PyfuncWrapper에 저장된 DataInterface 스키마
+        exclude_target: target_column 자동 제외 여부 (기본: True)
+        
+    Returns:
+        동적으로 생성된 Pydantic 모델 클래스
+    """
+    field_annotations = {}
+    field_defaults = {}
+    
+    # Target column 추출 (제외용)
+    target_column = data_interface_schema.get('target_column')
+    
+    # 1. Entity columns (항상 필요, target 제외)
+    entity_columns = data_interface_schema.get('entity_columns', [])
+    for col in entity_columns:
+        if exclude_target and col == target_column:
+            continue  # target column 자동 제외
+        field_annotations[col] = Any
+        field_defaults[col] = Field(..., description=f"Entity column: {col}")
+    
+    # 2. Feature columns (명시된 경우)
+    feature_columns = data_interface_schema.get('feature_columns', [])
+    if feature_columns:
+        for col in feature_columns:
+            if exclude_target and col == target_column:
+                continue  # target column 자동 제외
+            if col not in field_annotations:  # 중복 방지
+                field_annotations[col] = Any
+                field_defaults[col] = Field(..., description=f"Feature column: {col}")
+    
+    # 3. Task-specific columns
+    task_type = data_interface_schema.get('task_type', '')
+    
+    # Timeseries: timestamp column
+    if task_type == 'timeseries':
+        timestamp_col = data_interface_schema.get('timestamp_column')
+        if timestamp_col and timestamp_col != target_column:
+            field_annotations[timestamp_col] = Any
+            field_defaults[timestamp_col] = Field(..., description=f"Timestamp column: {timestamp_col}")
+    
+    # Causal: treatment column  
+    elif task_type == 'causal':
+        treatment_col = data_interface_schema.get('treatment_column')
+        if treatment_col and treatment_col != target_column:
+            field_annotations[treatment_col] = Any
+            field_defaults[treatment_col] = Field(..., description=f"Treatment column: {treatment_col}")
+    
+    # 4. Required columns from training (학습 시 사용된 컬럼들)
+    required_columns = data_interface_schema.get('required_columns', [])
+    for col in required_columns:
+        if exclude_target and col == target_column:
+            continue  # target column 자동 제외
+        if col not in field_annotations:  # 중복 방지
+            field_annotations[col] = Any
+            field_defaults[col] = Field(..., description=f"Required column: {col}")
+    
+    # 5. 모든 사용 가능한 컬럼 (feature_columns가 None인 경우)
+    all_columns = data_interface_schema.get('all_columns', [])
+    if not feature_columns and all_columns:  # feature_columns가 명시되지 않은 경우
+        exclude_cols = set([target_column] if exclude_target else [])
+        exclude_cols.update(entity_columns)  # entity는 이미 추가됨
+        if task_type == 'causal':
+            exclude_cols.add(data_interface_schema.get('treatment_column'))
+        
+        for col in all_columns:
+            if col not in exclude_cols and col not in field_annotations:
+                field_annotations[col] = Any
+                field_defaults[col] = Field(..., description=f"Feature: {col}")
+    
+    # 클래스 이름 생성
+    class_name = f"{model_name}PredictionRequest"
+    
+    # 클래스 속성 딕셔너리
+    class_dict = {
+        '__annotations__': field_annotations,
+        **field_defaults,
+        '__doc__': f"Auto-generated prediction request schema for {model_name} (target_column '{target_column}' excluded)"
+    }
+    
+    # BaseModel을 상속받는 동적 클래스 생성
+    DynamicModel = type(class_name, (BaseModel,), class_dict)
+    
+    return DynamicModel

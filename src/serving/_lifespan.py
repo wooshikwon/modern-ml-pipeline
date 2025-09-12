@@ -7,7 +7,11 @@ import mlflow
 from src.settings import Settings
 from src.utils.system.logger import logger
 from src.serving._context import app_context
-from src.serving.schemas import create_dynamic_prediction_request, create_batch_prediction_request, create_datainterface_based_prediction_request
+from src.serving.schemas import (
+    create_dynamic_prediction_request, 
+    create_batch_prediction_request, 
+    create_datainterface_based_prediction_request_v2
+)
 from src.utils.system.sql_utils import parse_select_columns
 from src.factory import bootstrap
 
@@ -28,10 +32,12 @@ def setup_api_context(run_id: str, settings: Settings):
         data_interface_schema = getattr(wrapped_model, 'data_interface_schema', None)
         if data_interface_schema:
             # DataInterface 스키마를 사용하여 API 스키마 생성 (가장 정확함)
-            logger.info("✅ DataInterface 스키마 기반 API 스키마 생성")
-            app_context.PredictionRequest = create_datainterface_based_prediction_request(
+            # V2 버전 사용: target_column 자동 제외
+            logger.info("✅ DataInterface 스키마 기반 API 스키마 생성 (target_column 자동 제외)")
+            app_context.PredictionRequest = create_datainterface_based_prediction_request_v2(
                 model_name="DataInterfacePredictionRequest",
-                data_interface_schema=data_interface_schema
+                data_interface_schema=data_interface_schema,
+                exclude_target=True  # target_column 자동 제외
             )
         else:
             # 폴백: 기존 방식 (data_schema 또는 SQL 파싱)

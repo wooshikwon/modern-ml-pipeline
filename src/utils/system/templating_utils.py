@@ -132,4 +132,21 @@ def _validate_sql_safety(sql: str) -> None:
                 f"허용되지 않는 SQL 명령어가 포함되어 있습니다."
             )
     
-    logger.info("✅ SQL 보안 검증 통과") 
+    logger.info("✅ SQL 보안 검증 통과")
+
+
+def is_jinja_template(text: str) -> bool:
+    """
+    텍스트가 Jinja2 템플릿인지 감지합니다.
+    
+    Args:
+        text: 검사할 텍스트 문자열
+        
+    Returns:
+        Jinja2 템플릿 패턴이 포함되어 있으면 True, 아니면 False
+    """
+    if not text:
+        return False
+    
+    jinja_patterns = ['{{', '}}', '{%', '%}']
+    return any(pattern in text for pattern in jinja_patterns) 
