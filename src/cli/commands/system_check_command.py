@@ -3,7 +3,6 @@ System Check Command Implementation
 """
 
 from pathlib import Path
-from typing import Optional
 import typer
 from typing_extensions import Annotated
 import yaml

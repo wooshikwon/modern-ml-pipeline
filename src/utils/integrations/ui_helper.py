@@ -3,17 +3,14 @@ MLflow UI Helper Utilities
 Provides easy access to MLflow web UI after training
 """
 
-import os
 import socket
 import subprocess
-import platform
 import time
-from typing import Optional, Dict, Any, Tuple
+from typing import Optional, Dict, Any
 from urllib.parse import urlparse
-from pathlib import Path
 
-from src.utils.system.logger import logger
-from src.utils.system.console_manager import RichConsoleManager
+from src.utils.core.logger import logger
+from src.utils.core.console_manager import RichConsoleManager
 
 
 class MLflowUIHelper:

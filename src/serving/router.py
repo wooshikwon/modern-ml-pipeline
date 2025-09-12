@@ -3,7 +3,7 @@ from fastapi import FastAPI, HTTPException
 from typing import Dict, Any
 
 from src.settings import Settings
-from src.utils.system.logger import logger
+from src.utils.core.logger import logger
 from src.serving._context import app_context
 from src.serving._lifespan import lifespan, setup_api_context
 from src.serving import _endpoints as handlers

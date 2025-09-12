@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, create_model
-from typing import Any, List, Type, Dict, Optional
+from typing import Any, List, Type, Dict
 import re
 
 # Jinja2 템플릿에서 변수를 추출하기 위한 정규식

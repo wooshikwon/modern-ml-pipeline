@@ -10,12 +10,75 @@ from src.components.adapter import AdapterRegistry
 from src.components.evaluator import EvaluatorRegistry
 from src.interface import BaseAdapter
 from src.settings import Settings
-from src.utils.system.logger import logger
-from src.utils.system.console_manager import UnifiedConsole, get_console
+from src.utils.core.console_manager import UnifiedConsole, get_console
 
 if TYPE_CHECKING:
     from src.utils.integrations.pyfunc_wrapper import PyfuncWrapper
     from src.interface import BaseFetcher
+
+
+class CalibrationEvaluatorWrapper:
+    """
+    Calibration 평가 로직을 캡슐화한 Wrapper 클래스
+    모든 복잡한 분기 처리와 평가 로직을 담당
+    """
+    
+    def __init__(self, trained_model, trained_calibrator, console):
+        self.trained_model = trained_model
+        self.trained_calibrator = trained_calibrator
+        self.console = console
+    
+    def evaluate(self, X_test, y_test) -> dict:
+        """
+        Calibration 평가 수행 (모든 복잡한 로직 처리)
+        
+        Args:
+            X_test: 테스트 특성
+            y_test: 테스트 라벨
+            
+        Returns:
+            Calibration metrics 딕셔너리
+        """
+        from src.components.calibration.evaluator import evaluate_calibration_metrics, evaluate_multiclass_calibration
+        
+        # Uncalibrated 확률 얻기
+        y_prob_uncalibrated = self.trained_model.predict_proba(X_test)
+        y_prob_calibrated = self.trained_calibrator.transform(y_prob_uncalibrated)
+        
+        # Binary vs Multiclass 자동 구분 및 평가
+        if y_prob_uncalibrated.ndim == 2 and y_prob_uncalibrated.shape[1] == 2:
+            # Binary classification - positive class 확률만 사용
+            calibration_metrics = evaluate_calibration_metrics(
+                y_test, 
+                y_prob_uncalibrated[:, 1],
+                y_prob_calibrated[:, 1] if y_prob_calibrated.ndim == 2 else y_prob_calibrated
+            )
+            self.console.info("Binary calibration evaluation completed", 
+                            rich_message="📊 Binary calibration evaluation completed")
+            
+        elif y_prob_uncalibrated.ndim == 2 and y_prob_uncalibrated.shape[1] > 2:
+            # Multiclass classification
+            calibration_metrics = evaluate_multiclass_calibration(
+                y_test, y_prob_uncalibrated, y_prob_calibrated
+            )
+            self.console.info(f"Multiclass calibration evaluation completed ({y_prob_uncalibrated.shape[1]} classes)", 
+                            rich_message=f"📊 Multiclass calibration evaluation completed: [cyan]{y_prob_uncalibrated.shape[1]}[/cyan] classes")
+            
+        else:
+            # 1D case (이미 binary positive class만 있는 경우)
+            calibration_metrics = evaluate_calibration_metrics(
+                y_test, y_prob_uncalibrated, y_prob_calibrated
+            )
+            self.console.info("1D calibration evaluation completed", 
+                            rich_message="📊 1D calibration evaluation completed")
+        
+        # Nested dict 제거 (MLflow 로깅을 위해)
+        flat_metrics = {}
+        for key, value in calibration_metrics.items():
+            if not isinstance(value, dict):  # class_metrics 같은 nested dict 제외
+                flat_metrics[f"calibration_{key}"] = value
+        
+        return flat_metrics
 
 
 class Factory:
@@ -291,7 +354,7 @@ class Factory:
         cache_key = "preprocessor"
         if cache_key in self._component_cache:
             self.console.info("캐시된 preprocessor 반환",
-                            rich_message=f"🔄 Using cached preprocessor")
+                            rich_message="🔄 Using cached preprocessor")
             return self._component_cache[cache_key]
         
         # 일관된 접근 패턴
@@ -331,7 +394,7 @@ class Factory:
         cache_key = "model"
         if cache_key in self._component_cache:
             self.console.info("캐시된 model 반환",
-                            rich_message=f"🔄 Using cached model")
+                            rich_message="🔄 Using cached model")
             return self._component_cache[cache_key]
         
         # 일관된 접근 패턴
@@ -385,7 +448,7 @@ class Factory:
         cache_key = "evaluator"
         if cache_key in self._component_cache:
             self.console.info("캐시된 evaluator 반환",
-                            rich_message=f"🔄 Using cached evaluator")
+                            rich_message="🔄 Using cached evaluator")
             return self._component_cache[cache_key]
         
         # task_choice 활용
@@ -403,7 +466,7 @@ class Factory:
                             rich_message=f"✅ Evaluator created: [green]{task_choice}[/green]")
             return evaluator
             
-        except Exception as e:
+        except Exception:
             available = EvaluatorRegistry.get_available_tasks()
             self.console.error(f"Failed to create evaluator for '{task_choice}'", 
                              rich_message=f"❌ Evaluator creation failed: [red]{task_choice}[/red]",
@@ -449,7 +512,7 @@ class Factory:
                             rich_message=f"✅ Trainer created: [green]{trainer_type}[/green]")
             return trainer
             
-        except Exception as e:
+        except Exception:
             available = list(TrainerRegistry.trainers.keys())
             self.console.error(f"Failed to create trainer for '{trainer_type}'",
                              rich_message=f"❌ Trainer creation failed: [red]{trainer_type}[/red]",
@@ -469,7 +532,7 @@ class Factory:
         cache_key = "datahandler"
         if cache_key in self._component_cache:
             self.console.info("캐시된 datahandler 반환",
-                            rich_message=f"🔄 Using cached datahandler")
+                            rich_message="🔄 Using cached datahandler")
             return self._component_cache[cache_key]
         
         # DataHandlerRegistry import
@@ -497,7 +560,7 @@ class Factory:
                             rich_message=f"✅ DataHandler created: [green]{task_choice}[/green] + [dim]{model_name}[/dim]")
             return datahandler
             
-        except Exception as e:
+        except Exception:
             available = list(DataHandlerRegistry.get_available_handlers().keys())
             self.console.error(f"Failed to create datahandler for '{task_choice}'",
                              rich_message=f"❌ DataHandler creation failed: [red]{task_choice}[/red]",
@@ -516,7 +579,7 @@ class Factory:
         cache_key = "feature_store_adapter"
         if cache_key in self._component_cache:
             self.console.info("캐시된 feature store adapter 반환",
-                            rich_message=f"🔄 Using cached feature store adapter")
+                            rich_message="🔄 Using cached feature store adapter")
             return self._component_cache[cache_key]
         
         # 검증
@@ -531,7 +594,7 @@ class Factory:
             # 캐싱 저장
             self._component_cache[cache_key] = adapter
             self.console.info("Created Feature Store adapter",
-                            rich_message=f"✅ Feature Store adapter created: [green]ready[/green]")
+                            rich_message="✅ Feature Store adapter created: [green]ready[/green]")
             return adapter
             
         except Exception as e:
@@ -552,7 +615,7 @@ class Factory:
         cache_key = "optuna_integration"
         if cache_key in self._component_cache:
             self.console.info("캐시된 Optuna integration 반환",
-                            rich_message=f"🔄 Using cached Optuna integration")
+                            rich_message="🔄 Using cached Optuna integration")
             return self._component_cache[cache_key]
         
         # 일관된 접근 패턴 (Recipe hyperparameters 구조 사용)
@@ -571,10 +634,10 @@ class Factory:
             # 캐싱 저장
             self._component_cache[cache_key] = integration
             self.console.info("Created Optuna integration",
-                            rich_message=f"✅ Optuna integration created: [green]ready[/green]")
+                            rich_message="✅ Optuna integration created: [green]ready[/green]")
             return integration
             
-        except ImportError as e:
+        except ImportError:
             self.console.error("Optuna is not installed. Please install with 'pip install optuna'",
                              rich_message="❌ Optuna not installed",
                              suggestion="Install with: pip install optuna")
@@ -586,12 +649,99 @@ class Factory:
                              suggestion="Check hyperparameter tuning configuration")
             raise
 
+    def create_calibrator(self, method: Optional[str] = None) -> Optional[Any]:
+        """
+        Calibrator 생성 (조건에 따른 생성 분기 처리)
+        
+        Args:
+            method: 캘리브레이션 방법 ('platt', 'isotonic' 등)
+            
+        Returns:
+            BaseCalibrator 인스턴스 또는 None
+        """
+        # 캐싱 확인
+        cache_key = f"calibrator_{method or 'default'}"
+        if cache_key in self._component_cache:
+            self.console.info("캐시된 calibrator 반환",
+                            rich_message=f"🔄 Using cached calibrator: [cyan]{method}[/cyan]")
+            return self._component_cache[cache_key]
+        
+        # Task와 calibration 설정 확인
+        task_type = self._recipe.task_choice
+        calibration_config = getattr(self._recipe.model, 'calibration', None)
+        
+        if not calibration_config or not getattr(calibration_config, 'enabled', False):
+            self.console.info("Calibration disabled, returning None",
+                            rich_message="🎯 Calibration: [dim]disabled[/dim]")
+            return None
+            
+        if task_type != 'classification':
+            self.console.info(f"Calibration not supported for task: {task_type}",
+                            rich_message=f"🎯 Calibration: [yellow]not supported for {task_type}[/yellow]")
+            return None
+        
+        # Method 결정 (기본값 없음 - Recipe에서 필수로 설정)
+        calibration_method = method or getattr(calibration_config, 'method', None)
+        if not calibration_method:
+            raise ValueError(
+                "Calibration method가 설정되지 않았습니다. "
+                "Recipe에서 model.calibration.method를 설정하세요. "
+                "사용 가능: 'beta', 'isotonic', 'temperature'"
+            )
+        
+        try:
+            from src.components.calibration.registry import CalibrationRegistry
+            
+            # Calibrator 생성
+            calibrator = CalibrationRegistry.create(calibration_method)
+            
+            # 캐싱 저장
+            self._component_cache[cache_key] = calibrator
+            self.console.component_init(f"Calibrator ({calibration_method})", "success")
+            self.console.info(f"Created calibrator: {calibration_method}",
+                            rich_message=f"✅ Calibrator created: [green]{calibration_method}[/green]")
+            return calibrator
+            
+        except Exception:
+            from src.components.calibration.registry import CalibrationRegistry
+            available = CalibrationRegistry.get_available_methods()
+            self.console.error(f"Failed to create calibrator for '{calibration_method}'",
+                             rich_message=f"❌ Calibrator creation failed: [red]{calibration_method}[/red]",
+                             context={"method": calibration_method, "available_methods": available},
+                             suggestion="Check calibration method and available calibrators")
+            raise
+
+    def create_calibration_evaluator(self, trained_model, trained_calibrator) -> Optional[Any]:
+        """
+        Calibration Evaluator 생성 및 실행 (모든 복잡한 로직 처리)
+        
+        Args:
+            trained_model: 학습된 모델
+            trained_calibrator: 학습된 calibrator
+            
+        Returns:
+            Calibration metrics 또는 None
+        """
+        # Task와 calibrator 확인
+        task_type = self._recipe.task_choice
+        if task_type != 'classification' or not trained_calibrator:
+            return None
+        
+        # 모델이 predict_proba를 지원하는지 확인
+        if not hasattr(trained_model, 'predict_proba'):
+            self.console.warning("Model does not support predict_proba, skipping calibration evaluation",
+                               rich_message="⚠️ No predict_proba support")
+            return None
+        
+        return CalibrationEvaluatorWrapper(trained_model, trained_calibrator, self.console)
+
     def create_pyfunc_wrapper(
         self, 
         trained_model: Any, 
         trained_datahandler: Any,
         trained_preprocessor: Optional[BasePreprocessor],
         trained_fetcher: Optional['BaseFetcher'],
+        trained_calibrator: Optional[Any] = None,
         training_df: Optional[pd.DataFrame] = None,
         training_results: Optional[Dict[str, Any]] = None
     ) -> PyfuncWrapper:
@@ -641,7 +791,7 @@ class Factory:
         # DataInterface 기반 검증용 스키마 생성
         data_interface_schema = None
         if training_df is not None:
-            from src.utils.system.data_validation import create_data_interface_schema_for_storage
+            from src.utils.data.validation import create_data_interface_schema_for_storage
             data_interface_schema = create_data_interface_schema_for_storage(
                 data_interface=self._recipe.data.data_interface,
                 df=training_df,
@@ -657,6 +807,7 @@ class Factory:
             trained_datahandler=trained_datahandler,
             trained_preprocessor=trained_preprocessor,
             trained_fetcher=trained_fetcher,
+            trained_calibrator=trained_calibrator,
             training_results=training_results,
             signature=signature,
             data_schema=data_schema,

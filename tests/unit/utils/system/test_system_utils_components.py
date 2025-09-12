@@ -17,9 +17,9 @@ import tempfile
 import json
 from typing import Dict, Any
 
-from src.utils.system.environment_check import EnvironmentChecker, check_environment, get_pip_requirements
-from src.utils.system.schema_utils import validate_schema, convert_schema, SchemaConsistencyValidator, generate_training_schema_metadata
-from src.utils.system.templating_utils import render_template_from_file, render_template_from_string
+from src.utils.core.environment_check import EnvironmentChecker, check_environment, get_pip_requirements
+from src.utils.schema.schema_utils import validate_schema, convert_schema, SchemaConsistencyValidator, generate_training_schema_metadata
+from src.utils.template.templating_utils import render_template_from_file, render_template_from_string
 
 
 class TestEnvironmentChecker:

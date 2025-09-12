@@ -10,6 +10,15 @@ model:
   class_path: {{ model_class }}
   library: {{ model_library }}
   
+  {% if task|lower == 'classification' %}
+  # Calibration 설정 (Classification only)
+  calibration:
+    enabled: {{ calibration_enabled | default(false) | lower }}
+    {% if calibration_enabled %}
+    method: {{ calibration_method }}  # Required when enabled: 'beta', 'isotonic', 'temperature'
+    {% endif %}
+  {% endif %}
+  
   hyperparameters:
     tuning_enabled: {{ enable_tuning | lower }}
     {% if enable_tuning %}
@@ -68,6 +77,15 @@ data:
       - {{ col }}
       {% endfor %}
     feature_columns: null # null 입력 시, target, treatment, entity columns 제외 모든 컬럼 사용
+  
+  # Data split configuration (Data Leakage 방지)
+  split:
+    train: {{ train_ratio | default(0.8) }}
+    test: {{ test_ratio | default(0.1) }}
+    validation: {{ validation_ratio | default(0.1) }}
+    {% if task|lower == 'classification' and calibration_enabled %}
+    calibration: {{ calibration_ratio | default(0.1) }}
+    {% endif %}
 
 # 전처리 파이프라인
 {% if preprocessor_steps %}
@@ -98,15 +116,8 @@ preprocessor: null
 
 evaluation:
   metrics: {{ metrics }}
-  validation:
-    # 데이터 분할 전략:
-    # - 기본 학습: Train({{ (1 - test_size) * 100 }}%) / Test({{ test_size * 100 }}%)
-    {% if enable_tuning %}
-    # - Optuna 튜닝: Train을 다시 Train({{ (1 - test_size) * 0.8 * 100 }}%) / Val({{ (1 - test_size) * 0.2 * 100 }}%)로 분할
-    {% endif %}
-    method: train_test_split
-    test_size: {{ test_size }}
-    random_state: 42
+  # 데이터 분할은 data.split 섹션에서 관리됩니다
+  random_state: 42
 
 metadata:
   author: {{ author | default('CLI Recipe Builder') }}

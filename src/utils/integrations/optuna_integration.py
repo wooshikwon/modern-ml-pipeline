@@ -2,7 +2,7 @@
 Optuna 통합 관련 유틸리티 모음
 """
 from typing import Dict, Any, Optional
-from src.utils.system.logger import logger
+from src.utils.core.logger import logger
 
 
 def _require_optuna():

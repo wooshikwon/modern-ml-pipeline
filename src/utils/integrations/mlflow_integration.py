@@ -19,9 +19,9 @@ if TYPE_CHECKING:
     from mlflow.entities import Run
     from mlflow.pyfunc import PyFuncModel
 
-from src.utils.system.logger import logger
-from src.utils.system.console_manager import RichConsoleManager
-from src.utils.system.console_manager import UnifiedConsole
+from src.utils.core.logger import logger
+from src.utils.core.console_manager import RichConsoleManager
+from src.utils.core.console_manager import UnifiedConsole
 
 def generate_unique_run_name(base_run_name: str) -> str:
     """
@@ -337,7 +337,7 @@ def create_enhanced_model_signature_with_schema(
     
     # 1. 입력 스키마는 실제 학습 피처 기준으로 생성 (entity/timestamp 제외)
     logger.info("🔄 실제 학습 피처 기준으로 MLflow Signature 생성...")
-    from src.utils.system.schema_utils import generate_training_schema_metadata
+    from src.utils.schema.schema_utils import generate_training_schema_metadata
     provisional_schema = generate_training_schema_metadata(training_df, data_interface_config)
     
     # 실제 학습에 사용되는 피처 컬럼 추출 (entity, timestamp, target 제외)

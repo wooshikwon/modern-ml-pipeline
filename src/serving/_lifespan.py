@@ -5,14 +5,14 @@ from fastapi import FastAPI
 import mlflow
 
 from src.settings import Settings
-from src.utils.system.logger import logger
+from src.utils.core.logger import logger
 from src.serving._context import app_context
 from src.serving.schemas import (
     create_dynamic_prediction_request, 
     create_batch_prediction_request, 
     create_datainterface_based_prediction_request_v2
 )
-from src.utils.system.sql_utils import parse_select_columns
+from src.utils.database.sql_utils import parse_select_columns
 from src.factory import bootstrap
 
 

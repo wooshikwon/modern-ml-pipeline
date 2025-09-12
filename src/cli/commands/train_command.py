@@ -8,12 +8,10 @@ import json
 from typing import Optional, Dict, Any
 import typer
 from typing_extensions import Annotated
-from pathlib import Path
 
 from src.settings import load_settings
 from src.pipelines.train_pipeline import run_train_pipeline
-from src.utils.system.logger import setup_logging, logger
-from src.cli.utils.config_loader import load_environment
+from src.utils.core.logger import setup_logging, logger
 
 
 def train_command(
@@ -71,7 +69,7 @@ def train_command(
 
         if data_path.endswith('.sql.j2') or (data_path.endswith('.sql') and params):
             # Jinja 템플릿 렌더링
-            from src.utils.system.templating_utils import render_template_from_string
+            from src.utils.template.templating_utils import render_template_from_string
             from pathlib import Path
             
             template_path = Path(data_path)

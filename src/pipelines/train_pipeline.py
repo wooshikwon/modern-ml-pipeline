@@ -1,17 +1,15 @@
-import json
 from typing import Optional, Dict, Any
 from types import SimpleNamespace
 
 import mlflow
-import pandas as pd
 
 from src.settings import Settings
 from src.factory import Factory
-from src.utils.system.logger import logger
-from src.utils.system.console_manager import RichConsoleManager
+from src.utils.core.logger import logger
+from src.utils.core.console_manager import RichConsoleManager
 from src.utils.integrations import mlflow_integration as mlflow_utils
-from src.utils.system.environment_check import get_pip_requirements
-from src.utils.system.reproducibility import set_global_seeds
+from src.utils.core.environment_check import get_pip_requirements
+from src.utils.core.reproducibility import set_global_seeds
 from src.utils.integrations.mlflow_integration import log_training_results
 from src.utils.integrations.mlflow_integration import log_enhanced_model_with_schema
 
@@ -23,7 +21,7 @@ def _display_mlflow_ui_info(
 ):
     """Display MLflow UI access information after training"""
     try:
-        from src.utils.mlflow.ui_helper import MLflowUIHelper, MLflowRunSummary
+        from src.utils.integrations.ui_helper import MLflowUIHelper, MLflowRunSummary
         
         # Get MLflow tracking URI
         tracking_uri = mlflow.get_tracking_uri()
@@ -97,6 +95,7 @@ def run_train_pipeline(
             preprocessor = factory.create_preprocessor()
             trainer = factory.create_trainer()
             model = factory.create_model()
+            calibrator = factory.create_calibrator()
             evaluator = factory.create_evaluator()
 
             # 2. 데이터 어댑터를 사용하여 데이터 로딩
@@ -116,33 +115,67 @@ def run_train_pipeline(
 
             # 4. 데이터 준비
             console.log_phase("Data Preparation", "✂️")
-            X_train, y_train, add_train, X_test, y_test, add_test = datahandler.split_and_prepare(augmented_df)
+            
+            # Check if this is tabular handler with 4-way split
+            if hasattr(datahandler, 'split_and_prepare') and datahandler.__class__.__name__ == 'TabularDataHandler':
+                # 4-way split: train, validation, test, calibration
+                X_train, y_train, add_train, X_val, y_val, add_val, X_test, y_test, add_test, calibration_data = datahandler.split_and_prepare(augmented_df)
+            else:
+                # 2-way split for backward compatibility
+                X_train, y_train, add_train, X_test, y_test, add_test = datahandler.split_and_prepare(augmented_df)
+                X_val, y_val, add_val = X_test, y_test, add_test  # Use test as validation for compatibility
+                calibration_data = None
             
             # 5. 전처리
             console.log_phase("Preprocessing", "🔍")
             if preprocessor:
                 preprocessor.fit(X_train)
                 X_train = preprocessor.transform(X_train)
-                X_test = preprocessor.transform(X_test)
+                X_val = preprocessor.transform(X_val) if not X_val.empty else X_val
+                X_test = preprocessor.transform(X_test) if not X_test.empty else X_test
+                
+                # Calibration data 전처리 (있는 경우)
+                if calibration_data is not None:
+                    X_calib, y_calib, add_calib = calibration_data
+                    X_calib = preprocessor.transform(X_calib)
+                    calibration_data = (X_calib, y_calib, add_calib)
             else:
                 # preprocessor가 없는 경우 원본 데이터를 그대로 사용
-                X_train = X_train
-                X_test = X_test
+                pass  # 모든 데이터 변수는 이미 설정됨
             
             # 6. 학습
             console.log_phase("Training", "🧠")
             trained_model, trainer_info = trainer.train(
                 X_train=X_train,
                 y_train=y_train,
-                X_val=X_test,
-                y_val=y_test,
+                X_val=X_val,
+                y_val=y_val,
                 model=model, # factory로 생성된 모델 인스턴스
-                additional_data={'train': add_train, 'val': add_test},
+                additional_data={'train': add_train, 'val': add_val},
             )
 
-            # 7. 평가 및 평가 결과 MLflow에 저장
+            # 6.5. Calibration (Factory 패턴으로 단순화)
+            console.log_phase("Probability Calibration", "🎯")
+            trained_calibrator = None
+            
+            if calibrator and calibration_data is not None:
+                X_calib, y_calib, add_calib = calibration_data
+                y_prob_calib = trained_model.predict_proba(X_calib)
+                trained_calibrator = calibrator.fit(y_prob_calib, y_calib)
+                console.log_milestone("Calibration training completed", "success")
+            elif calibrator:
+                console.log_milestone("Warning: Calibrator created but no calibration data available", "warning")
+
+            # 7. 평가 및 평가 결과 MLflow에 저장 (Calibration 평가 Factory로 단순화)
             console.log_phase("Evaluation & Logging", "🎯")
             metrics = evaluator.evaluate(trained_model, X_test, y_test, add_test)
+            
+            # Calibration 평가 (Factory로 모든 복잡한 로직 위임)
+            calibration_evaluator = factory.create_calibration_evaluator(trained_model, trained_calibrator)
+            if calibration_evaluator:
+                calibration_metrics = calibration_evaluator.evaluate(X_test, y_test)
+                metrics.update(calibration_metrics)
+            
             training_results = {
                 'evaluation_metrics': metrics,
                 'trainer': trainer_info,
@@ -156,6 +189,7 @@ def run_train_pipeline(
                 trained_datahandler=datahandler,  # 추론 시 재현성을 위한 DataHandler
                 trained_preprocessor=preprocessor,
                 trained_fetcher=fetcher, # 학습에 사용된 fetcher를 직접 전달
+                trained_calibrator=trained_calibrator,  # 학습된 calibrator 추가
                 training_df=augmented_df,
                 training_results=training_results,
             )

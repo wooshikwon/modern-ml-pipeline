@@ -6,14 +6,13 @@ YAML 구조를 정확히 파싱하고 검증
 import os
 import re
 from pathlib import Path
-from typing import Dict, Any, Optional, Union
+from typing import Dict, Any
 import yaml
 from datetime import datetime
-from dotenv import load_dotenv
 
-from .config import Config, FeatureStore
-from .recipe import Recipe, HyperparametersTuning
-from src.utils.system.logger import logger
+from .config import Config
+from .recipe import Recipe
+from src.utils.core.logger import logger
 
 
 class Settings:
@@ -109,7 +108,7 @@ class Settings:
                     f"현재: {config_adapter}"
                 )
         
-        from src.utils.system.logger import logger
+        from src.utils.core.logger import logger
         logger.info(f"✅ 데이터 소스 호환성 검증 완료: {detected_type} ↔ {config_adapter}")
     
     def to_dict(self) -> Dict[str, Any]:
@@ -283,8 +282,8 @@ def _load_config(config_path: str) -> Config:
         base_path = Path("configs") / "base.yaml"
         if base_path.exists():
             logger.warning(
-                f"Config file not found, using base.yaml instead. "
-                f"Create proper config with 'mmp get-config --env-name <env_name>'."
+                "Config file not found, using base.yaml instead. "
+                "Create proper config with 'mmp get-config --env-name <env_name>'."
             )
             config_path = base_path
         else:

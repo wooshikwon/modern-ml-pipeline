@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Optional
-import pandas as pd
+from typing import Dict
 
 from src.settings import Settings
 

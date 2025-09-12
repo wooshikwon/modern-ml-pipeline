@@ -1,13 +1,12 @@
 # src/components/datahandler/modules/tabular_handler.py
 import pandas as pd
 import numpy as np
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Optional
 from sklearn.model_selection import train_test_split
 
 from src.interface import BaseDataHandler
 from ..registry import DataHandlerRegistry
-from src.utils.system.logger import logger
-from src.utils.system.console_manager import UnifiedConsole
+from src.utils.core.console_manager import UnifiedConsole
 
 
 class TabularDataHandler(BaseDataHandler):
@@ -18,29 +17,128 @@ class TabularDataHandler(BaseDataHandler):
         super().__init__(settings)
         self.console = UnifiedConsole(settings)
     
-    def split_data(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        """Train/Test 분할 (조건부 stratify) - 기존 split_data() 로직"""
-        test_size = 0.2
-        stratify_series = None
+    def split_data(self, df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
+        """
+        4-way 데이터 분할: train/validation/test/calibration (Data Leakage 방지)
         
-        if self.settings.recipe.task_choice == "classification":
+        Args:
+            df: 전체 데이터프레임
+            
+        Returns:
+            Dict[str, pd.DataFrame]: 분할된 데이터
+            - 'train': 모델 학습용
+            - 'validation': 하이퍼파라미터 튜닝용  
+            - 'test': 최종 평가용
+            - 'calibration': 확률 보정용 (classification + calibration 활성화 시에만)
+        """
+        # 분할 비율 가져오기
+        split_config = getattr(self.settings.recipe.data, 'split', None)
+        task_choice = self.settings.recipe.task_choice
+        
+        # Split 설정이 없으면 오류 발생 (Recipe Builder에서 설정되어야 함)
+        if not split_config:
+            raise ValueError(
+                "데이터 분할 설정(data.split)이 없습니다. "
+                "Recipe Builder를 통해 split 비율을 설정하거나, recipe.yaml에서 data.split 섹션을 정의하세요."
+            )
+        
+        # Split 설정에서 비율 추출 (기본값 없음 - 필수값)
+        train_ratio = split_config.get('train')
+        validation_ratio = split_config.get('validation') 
+        test_ratio = split_config.get('test')
+        calibration_ratio = split_config.get('calibration', 0.0)  # calibration만 기본값 0.0 허용
+        
+        # 필수 비율 검증
+        if train_ratio is None or validation_ratio is None or test_ratio is None:
+            raise ValueError(
+                "필수 데이터 분할 비율이 누락되었습니다. "
+                "data.split 섹션에 train, validation, test 비율을 모두 설정하세요."
+            )
+        
+        # 비율 합 검증
+        total_ratio = train_ratio + validation_ratio + test_ratio + calibration_ratio
+        if abs(total_ratio - 1.0) > 0.001:
+            raise ValueError(f"분할 비율의 합이 1.0이 아닙니다: {total_ratio}")
+        
+        # Stratification 설정
+        stratify_series = self._get_stratify_series(df)
+        
+        # 순차적 분할 (Data Leakage 방지를 위한 올바른 순서)
+        # 1. 전체 데이터에서 test 분리
+        if test_ratio > 0:
+            remaining_df, test_df = train_test_split(
+                df, test_size=test_ratio, random_state=42, 
+                stratify=stratify_series if stratify_series is not None else None
+            )
+        else:
+            remaining_df = df
+            test_df = pd.DataFrame()
+        
+        # 2. 남은 데이터에서 calibration 분리 (classification + calibration 활성화 시)
+        if calibration_ratio > 0:
+            calib_size_from_remaining = calibration_ratio / (1 - test_ratio)
+            # Update stratify for remaining data
+            stratify_remaining = self._get_stratify_series(remaining_df) if stratify_series is not None else None
+            
+            remaining_df2, calibration_df = train_test_split(
+                remaining_df, test_size=calib_size_from_remaining, random_state=42,
+                stratify=stratify_remaining
+            )
+        else:
+            remaining_df2 = remaining_df
+            calibration_df = pd.DataFrame()
+        
+        # 3. 남은 데이터를 train/validation으로 분할
+        if validation_ratio > 0:
+            val_size_from_remaining = validation_ratio / (train_ratio + validation_ratio)
+            # Update stratify for remaining data
+            stratify_remaining2 = self._get_stratify_series(remaining_df2) if stratify_series is not None else None
+            
+            train_df, validation_df = train_test_split(
+                remaining_df2, test_size=val_size_from_remaining, random_state=42,
+                stratify=stratify_remaining2
+            )
+        else:
+            train_df = remaining_df2
+            validation_df = pd.DataFrame()
+        
+        # 결과 로깅
+        self.console.info(
+            f"Data split completed - Train: {len(train_df)}, Val: {len(validation_df)}, "
+            f"Test: {len(test_df)}, Calib: {len(calibration_df)}",
+            rich_message=f"📊 Data split: Train([green]{len(train_df)}[/green]) "
+                        f"Val([blue]{len(validation_df)}[/blue]) "
+                        f"Test([yellow]{len(test_df)}[/yellow]) "
+                        f"Calib([purple]{len(calibration_df)}[/purple])"
+        )
+        
+        return {
+            'train': train_df,
+            'validation': validation_df, 
+            'test': test_df,
+            'calibration': calibration_df if calibration_ratio > 0 else None
+        }
+    
+    def _get_stratify_series(self, df: pd.DataFrame) -> pd.Series:
+        """Stratification을 위한 Series 반환"""
+        task_choice = self.settings.recipe.task_choice
+        
+        if task_choice == "classification":
             target_col = self.data_interface.target_column
             if target_col in df.columns:
                 counts = df[target_col].value_counts()
-                # 각 클래스 최소 2개, 테스트 셋에 최소 1개 이상 들어갈 수 있는지 확인
-                if len(counts) >= 2 and counts.min() >= 2 and int(len(df) * test_size) >= 1:
-                    stratify_series = df[target_col]
-        elif self.settings.recipe.task_choice == "causal":
+                # 각 클래스 최소 2개, 분할 후에도 최소 1개씩 보장되는지 확인
+                if len(counts) >= 2 and counts.min() >= 4:  # Increased minimum for 4-way split
+                    return df[target_col]
+                    
+        elif task_choice == "causal":
             treatment_col = self.data_interface.treatment_column
             if treatment_col in df.columns:
                 counts = df[treatment_col].value_counts()
-                if len(counts) >= 2 and counts.min() >= 2 and int(len(df) * test_size) >= 1:
-                    stratify_series = df[treatment_col]
-
-        train_df, test_df = train_test_split(
-            df, test_size=test_size, random_state=42, stratify=stratify_series
-        )
-        return train_df, test_df
+                if len(counts) >= 2 and counts.min() >= 4:  # Increased minimum for 4-way split
+                    return df[treatment_col]
+        
+        return None
     
     def prepare_data(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series, Dict[str, Any]]:
         """테이블 형태 데이터 준비 (기존 prepare_training_data 로직)"""
@@ -158,6 +256,48 @@ class TabularDataHandler(BaseDataHandler):
         }
         
         return X, y, additional_data
+    
+    def split_and_prepare(self, df: pd.DataFrame) -> Tuple[
+        pd.DataFrame, Any, Dict[str, Any],  # train
+        pd.DataFrame, Any, Dict[str, Any],  # validation
+        pd.DataFrame, Any, Dict[str, Any],  # test
+        Optional[Tuple[pd.DataFrame, Any, Dict[str, Any]]]  # calibration (optional)
+    ]:
+        """
+        4-way 데이터 분할 + 각 분할에 대해 prepare_data 수행
+        
+        Returns:
+            (X_train, y_train, add_train, X_val, y_val, add_val, X_test, y_test, add_test, calibration_data)
+            calibration_data는 (X_calib, y_calib, add_calib) 또는 None
+        """
+        split_results = self.split_data(df)
+        
+        # Train data 준비
+        X_train, y_train, add_train = self.prepare_data(split_results['train'])
+        
+        # Validation data 준비
+        if not split_results['validation'].empty:
+            X_val, y_val, add_val = self.prepare_data(split_results['validation'])
+        else:
+            X_val = pd.DataFrame()
+            y_val = None
+            add_val = {}
+        
+        # Test data 준비
+        if not split_results['test'].empty:
+            X_test, y_test, add_test = self.prepare_data(split_results['test'])
+        else:
+            X_test = pd.DataFrame()
+            y_test = None
+            add_test = {}
+        
+        # Calibration data 준비 (있는 경우에만)
+        calibration_data = None
+        if split_results['calibration'] is not None and not split_results['calibration'].empty:
+            X_calib, y_calib, add_calib = self.prepare_data(split_results['calibration'])
+            calibration_data = (X_calib, y_calib, add_calib)
+        
+        return X_train, y_train, add_train, X_val, y_val, add_val, X_test, y_test, add_test, calibration_data
 
     def _get_exclude_columns(self, df: pd.DataFrame) -> list:
         """

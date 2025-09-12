@@ -11,8 +11,8 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 import numpy as np
 import pandas as pd
-from typing import Optional, Tuple, Union
-from src.utils.system.logger import logger
+from typing import Optional, Union
+from src.utils.core.logger import logger
 
 
 def get_device() -> torch.device:

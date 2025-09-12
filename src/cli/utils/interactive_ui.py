@@ -8,15 +8,12 @@ CLAUDE.md 원칙 준수:
 - 사용자 친화적 인터페이스
 """
 
-from typing import List, Optional, Dict, Any, Union
+from typing import List, Optional
 from rich.console import Console
 from rich.prompt import Prompt, Confirm, IntPrompt
 from rich.table import Table
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.columns import Columns
-from rich import print as rprint
-import sys
 
 
 class InteractiveUI:

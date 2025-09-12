@@ -1,14 +1,12 @@
 from __future__ import annotations
 import pandas as pd
-from typing import Optional, TYPE_CHECKING, List, Dict, Any
+from typing import Optional, TYPE_CHECKING
 
 from sklearn.pipeline import Pipeline
-from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import FunctionTransformer
 
 from src.interface import BasePreprocessor
-from src.utils.system.logger import logger
-from src.utils.system.console_manager import UnifiedConsole
+from src.utils.core.console_manager import UnifiedConsole
 from .registry import PreprocessorStepRegistry
 
 if TYPE_CHECKING:

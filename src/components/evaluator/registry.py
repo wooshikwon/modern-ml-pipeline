@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Dict, Type
 from src.interface import BaseEvaluator
-from src.utils.system.logger import logger
+from src.utils.core.logger import logger
 
 class EvaluatorRegistry:
     """컴포넌트 레벨 평가자 레지스트리 (엔진 의존성 제거)."""

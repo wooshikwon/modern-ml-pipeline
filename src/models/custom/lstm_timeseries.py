@@ -6,13 +6,12 @@ PyTorch 기반 LSTM을 사용한 시계열 예측 모델입니다.
 DeepLearning DataHandler와 완전 통합되어 3D 시퀀스 데이터를 처리합니다.
 """
 
-import torch
 import torch.nn as nn
 import numpy as np
 import pandas as pd
-from typing import Any, Optional, Dict
+from typing import Any, Dict
 from src.interface import BaseModel
-from src.utils.system.logger import logger
+from src.utils.core.logger import logger
 from .pytorch_utils import get_device, create_dataloader, train_pytorch_model, predict_with_pytorch_model, set_seed
 
 
@@ -60,7 +59,7 @@ class LSTMTimeSeries(BaseModel):
         self.is_fitted = False
         self.sequence_info = None  # 시퀀스 메타데이터 저장
         
-        logger.info(f"🧠 LSTM TimeSeries 초기화 완료")
+        logger.info("🧠 LSTM TimeSeries 초기화 완료")
         logger.info(f"   Hidden Dim: {hidden_dim}, Layers: {num_layers}, Dropout: {dropout}")
         logger.info(f"   Epochs: {epochs}, Batch Size: {batch_size}, LR: {learning_rate}")
         logger.info(f"   Bidirectional: {bidirectional}, Device: {self.device}")
@@ -77,7 +76,7 @@ class LSTMTimeSeries(BaseModel):
         Returns:
             학습된 모델 인스턴스
         """
-        logger.info(f"🔥 LSTM TimeSeries 학습 시작")
+        logger.info("🔥 LSTM TimeSeries 학습 시작")
         
         # 시드 설정 (재현성)
         set_seed(42)

@@ -4,13 +4,10 @@ Simple, clean output without unnecessary boxes or complex hierarchies.
 """
 
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn, TimeRemainingColumn
-from rich.panel import Panel
+from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn
 from rich.table import Table
-from rich.text import Text
 from contextlib import contextmanager
-from typing import Dict, Any, Optional, List
-import threading
+from typing import Dict, Any, List
 import time
 
 
@@ -334,7 +331,7 @@ class UnifiedConsole:
     
     def __init__(self, settings=None):
         self.rich_console = RichConsoleManager()
-        from src.utils.system.logger import logger
+        from src.utils.core.logger import logger
         self.logger = logger
         self.mode = self._detect_output_mode(settings)
     

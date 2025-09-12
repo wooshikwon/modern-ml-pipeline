@@ -21,7 +21,7 @@ import platform
 from pathlib import Path
 from typing import Tuple
 
-from src.utils.system.logger import logger
+from src.utils.core.logger import logger
 
 
 class EnvironmentChecker:

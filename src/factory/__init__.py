@@ -1,6 +1,6 @@
 """Engine Module Public API"""
 from .factory import Factory
-from src.utils.system.dependencies import validate_dependencies
+from src.utils.deps.dependencies import validate_dependencies
 
 def bootstrap(settings) -> None:
     """

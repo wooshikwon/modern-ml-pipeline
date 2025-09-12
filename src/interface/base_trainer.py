@@ -4,7 +4,7 @@ from typing import Any, TYPE_CHECKING
 
 
 if TYPE_CHECKING:
-    from src.components.preprocessor import Preprocessor
+    pass
 # BaseModel import 제거: 외부 라이브러리 직접 사용으로 전환
 
 

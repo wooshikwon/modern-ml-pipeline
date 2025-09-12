@@ -6,12 +6,10 @@ Serve Command Implementation
 
 import typer
 from typing_extensions import Annotated
-from pathlib import Path
 
 from src.settings import create_settings_for_inference, load_config_files
 from src.serving import run_api_server
-from src.utils.system.logger import setup_logging, logger
-from src.cli.utils.config_loader import load_environment
+from src.utils.core.logger import setup_logging, logger
 
 
 def serve_api_command(

@@ -3,9 +3,9 @@ Adapter Registry - Self-registration pattern for data adapters.
 각 어댑터 모듈에서 자동으로 자신을 등록하여 의존성을 줄입니다.
 """
 
-from typing import Dict, Type, Any
+from typing import Dict, Type
 from src.interface.base_adapter import BaseAdapter
-from src.utils.system.console_manager import get_console
+from src.utils.core.console_manager import get_console
 
 
 class AdapterRegistry:

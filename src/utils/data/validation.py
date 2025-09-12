@@ -10,11 +10,11 @@ CLAUDE.md 원칙 준수:
 - 단일 책임 원칙
 """
 
-from typing import List, Set, Dict, Any
+from typing import List, Dict, Any
 import pandas as pd
 
 from src.settings.recipe import DataInterface
-from src.utils.system.logger import logger
+from src.utils.core.logger import logger
 
 
 def get_required_columns_from_data_interface(

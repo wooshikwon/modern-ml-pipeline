@@ -10,7 +10,7 @@ from pathlib import Path
 import yaml
 import importlib
 
-from src.utils.system.logger import logger
+from src.utils.core.logger import logger
 
 
 class TunableParameter(BaseModel):
@@ -348,8 +348,151 @@ class Validator:
             if not getattr(di, 'timestamp_column', None):
                 errors.append("Timeseries task에는 data_interface.timestamp_column이 필수입니다")
         
-        # 6. 모델 클래스 임포트 검증
+        # 6. 데이터 분할 설정 검증
+        split_errors = self.validate_split_configuration(recipe)
+        errors.extend(split_errors)
+        
+        # 7. Calibration 설정 검증  
+        calibration_errors = self.validate_calibration_configuration(recipe)
+        errors.extend(calibration_errors)
+        
+        # 8. 모델 클래스 임포트 검증
         self._validate_model_import(recipe.model.class_path, errors)
+        
+        return errors
+    
+    def validate_split_configuration(self, recipe) -> List[str]:
+        """
+        데이터 분할 설정 검증 (필수값으로 변경)
+        
+        Args:
+            recipe: Recipe 객체
+            
+        Returns:
+            오류 메시지 목록
+        """
+        errors = []
+        
+        # Split 설정이 있는지 확인 (필수)
+        split_config = getattr(recipe.data, 'split', None)
+        if not split_config:
+            errors.append(
+                "데이터 분할 설정(data.split)이 필수입니다. "
+                "Recipe에 train, validation, test 비율을 설정하세요."
+            )
+            return errors
+        
+        # 분할 비율 추출 (필수값 검증)
+        train_ratio = getattr(split_config, 'train', None)
+        validation_ratio = getattr(split_config, 'validation', None) 
+        test_ratio = getattr(split_config, 'test', None)
+        calibration_ratio = getattr(split_config, 'calibration', 0.0)  # calibration만 기본값 허용
+        
+        # 필수 비율 검증
+        if train_ratio is None:
+            errors.append("data.split.train 비율이 필수입니다.")
+        if validation_ratio is None:
+            errors.append("data.split.validation 비율이 필수입니다.")
+        if test_ratio is None:
+            errors.append("data.split.test 비율이 필수입니다.")
+            
+        # 필수값 누락 시 추가 검증 생략
+        if None in [train_ratio, validation_ratio, test_ratio]:
+            return errors
+        
+        # 1. 비율 범위 검증 (0 < ratio <= 1.0)
+        ratios = {
+            'train': train_ratio,
+            'validation': validation_ratio, 
+            'test': test_ratio,
+            'calibration': calibration_ratio
+        }
+        
+        for name, ratio in ratios.items():
+            if ratio < 0 or ratio > 1.0:
+                errors.append(f"Split ratio '{name}': {ratio}는 [0, 1.0] 범위에 있어야 합니다")
+            elif name != 'calibration' and ratio == 0:
+                # calibration은 0이 허용됨 (비활성화)
+                errors.append(f"Split ratio '{name}': {ratio}는 0보다 커야 합니다")
+        
+        # 2. 비율 합 검증
+        total_ratio = train_ratio + validation_ratio + test_ratio + calibration_ratio
+        if abs(total_ratio - 1.0) > 0.001:  # 부동소수점 오차 허용
+            errors.append(f"Split 비율의 합이 1.0이 아닙니다: {total_ratio:.3f}")
+        
+        # 3. Minimum ratio 검증 (너무 작은 분할 방지)
+        min_ratio = 0.05  # 5% 최소
+        for name, ratio in ratios.items():
+            if name != 'calibration' and 0 < ratio < min_ratio:
+                errors.append(f"Split ratio '{name}': {ratio}는 너무 작습니다 (최소 {min_ratio})")
+        
+        return errors
+    
+    def validate_calibration_configuration(self, recipe) -> List[str]:
+        """
+        Calibration 설정 검증
+        
+        Args:
+            recipe: Recipe 객체
+            
+        Returns:
+            오류 메시지 목록
+        """
+        errors = []
+        
+        # Task가 classification인지 확인
+        task_type = recipe.get_task_type()
+        calibration_config = getattr(recipe.model, 'calibration', None)
+        
+        if not calibration_config:
+            return errors  # Calibration 설정이 없으면 검증 불필요
+        
+        calibration_enabled = getattr(calibration_config, 'enabled', False)
+        
+        # 1. Classification task에서만 calibration 허용
+        if calibration_enabled and task_type != 'classification':
+            errors.append(f"Calibration은 classification task에서만 지원됩니다 (현재: {task_type})")
+            return errors  # 다른 검증 불필요
+        
+        if not calibration_enabled:
+            return errors  # Calibration이 비활성화되면 추가 검증 불필요
+        
+        # 2. Calibration method 필수 검증 및 유효성 검증
+        calibration_method = getattr(calibration_config, 'method', None)
+        if not calibration_method:
+            errors.append("Calibration이 활성화되었지만 method가 설정되지 않았습니다. 'beta', 'isotonic', 'temperature' 중 선택하세요.")
+            return errors
+            
+        valid_methods = ['beta', 'isotonic', 'temperature']
+        
+        if calibration_method not in valid_methods:
+            errors.append(
+                f"지원하지 않는 calibration method: '{calibration_method}'. "
+                f"사용 가능: {valid_methods}"
+            )
+        
+        # 3. Split 설정과의 호환성 검증
+        split_config = getattr(recipe.data, 'split', None)
+        if split_config:
+            calibration_ratio = getattr(split_config, 'calibration', 0.0)
+            
+            if calibration_enabled and calibration_ratio <= 0:
+                errors.append(
+                    "Calibration이 활성화되었지만 calibration split ratio가 0입니다. "
+                    "data.split.calibration > 0으로 설정해야 합니다"
+                )
+            elif not calibration_enabled and calibration_ratio > 0:
+                errors.append(
+                    "Calibration이 비활성화되었지만 calibration split ratio가 0보다 큽니다. "
+                    "model.calibration.enabled: true로 설정하거나 calibration ratio를 0으로 설정해야 합니다"
+                )
+        else:
+            # Split 설정이 없을 때 calibration이 활성화된 경우 경고
+            if calibration_enabled:
+                logger.warning(
+                    "Calibration이 활성화되었지만 data.split 설정이 없습니다. "
+                    "기본 calibration ratio(0.1)가 사용됩니다"
+                )
         
         return errors
     
@@ -404,7 +547,7 @@ class Validator:
             if config.serving.port < 1024 or config.serving.port > 65535:
                 errors.append(f"포트 {config.serving.port}는 유효하지 않습니다 (1024-65535)")
             if config.serving.workers < 1:
-                errors.append(f"워커 수는 1 이상이어야 합니다")
+                errors.append("워커 수는 1 이상이어야 합니다")
         
         # 6. Artifact Store 검증
         if config.artifact_store:

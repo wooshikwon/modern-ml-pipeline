@@ -12,10 +12,10 @@ from typing import Dict, Any
 from src.components.adapter import AdapterRegistry
 from src.components.evaluator import EvaluatorRegistry
 from src.components.preprocessor.registry import PreprocessorStepRegistry
-from src.utils.system.catalog_parser import load_model_catalog
-from src.utils.system.logger import logger
-from src.utils.system.console_manager import (
-    cli_success, cli_error, cli_warning, cli_print, cli_info
+from src.utils.schema.catalog_parser import load_model_catalog
+from src.utils.core.logger import logger
+from src.utils.core.console_manager import (
+    cli_success, cli_error, cli_print
 )
 
 

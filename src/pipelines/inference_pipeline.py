@@ -6,10 +6,9 @@ import mlflow
 
 from src.settings import Settings
 from src.factory import Factory
-from src.utils.system.logger import logger
-from src.utils.system.console_manager import RichConsoleManager
+from src.utils.core.console_manager import RichConsoleManager
 from src.utils.integrations import mlflow_integration as mlflow_utils
-from src.utils.system.reproducibility import set_global_seeds
+from src.utils.core.reproducibility import set_global_seeds
 from src.utils.data.data_io import save_output, load_inference_data, format_predictions
 
 

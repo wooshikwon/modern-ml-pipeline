@@ -137,7 +137,7 @@ class TestTrainCommandArgumentParsing:
     
     @patch('src.cli.commands.train_command.load_settings')
     @patch('src.cli.commands.train_command.setup_logging')
-    @patch('src.utils.system.templating_utils.render_template_from_string')
+    @patch('src.utils.template.templating_utils.render_template_from_string')
     def test_train_command_jinja_template_processing(self, mock_render, mock_setup_logging, mock_load_settings):
         """Test train command with Jinja template data path"""
         # Setup mocks

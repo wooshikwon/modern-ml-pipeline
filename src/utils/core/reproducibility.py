@@ -35,7 +35,7 @@ def set_global_seeds(seed: int = 42) -> None:
 
     # sklearn 전역 난수 시드에 직접 접근은 없음. 개별 모델에 전달되므로 여기서는 로깅만.
     try:
-        from src.utils.system.logger import logger
+        from src.utils.core.logger import logger
         logger.info(f"Global seeds set to {seed}")
     except Exception:
         pass 

@@ -8,7 +8,6 @@ or when installed as a package:
     ml-pipeline [command] [options]
 """
 
-import sys
 from src.cli.main_commands import app
 
 

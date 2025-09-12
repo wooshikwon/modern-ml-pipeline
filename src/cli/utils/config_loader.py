@@ -11,11 +11,11 @@ CLAUDE.md 원칙 준수:
 import os
 import re
 from pathlib import Path
-from typing import Optional, Dict, Any, Union
+from typing import Optional, Dict, Any
 from dotenv import load_dotenv
 import yaml
 
-from src.utils.system.logger import logger
+from src.utils.core.logger import logger
 
 
 def load_environment(env_name: str, base_path: Optional[Path] = None) -> None:

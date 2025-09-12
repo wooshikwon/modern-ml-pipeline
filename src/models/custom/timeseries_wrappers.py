@@ -7,10 +7,10 @@ sklearn의 BaseEstimator와 RegressorMixin 인터페이스로 래핑하여
 """
 import pandas as pd
 import numpy as np
-from typing import Optional, Union
+from typing import Optional
 from sklearn.base import BaseEstimator, RegressorMixin
 
-from src.utils.system.logger import logger
+from src.utils.core.logger import logger
 
 
 class ARIMAWrapper(BaseEstimator, RegressorMixin):

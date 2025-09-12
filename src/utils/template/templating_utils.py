@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Dict, Any, TYPE_CHECKING
 import jinja2
 import pandas as pd
-from src.utils.system.logger import logger
+from src.utils.core.logger import logger
 
 if TYPE_CHECKING:
     pass

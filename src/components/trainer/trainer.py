@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Dict, Any, Optional, TYPE_CHECKING, Callable
 
 from src.settings import Settings
-from src.utils.system.console_manager import get_console
+from src.utils.core.console_manager import get_console
 from src.interface import BaseTrainer, BaseModel
 from .registry import TrainerRegistry
 
@@ -145,5 +145,4 @@ class Trainer(BaseTrainer):
         return di.target_column if task_choice == "classification" else di.treatment_column if task_choice == "causal" else None
 
 # Self-registration
-from .registry import TrainerRegistry
 TrainerRegistry.register("default", Trainer)

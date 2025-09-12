@@ -5,7 +5,7 @@ dependencies.py 테스트 - 실제 존재하는 함수만 테스트
 import pytest
 from unittest.mock import patch, MagicMock
 
-from src.utils.system.dependencies import validate_dependencies
+from src.utils.deps.dependencies import validate_dependencies
 
 
 class TestDependenciesValidation:

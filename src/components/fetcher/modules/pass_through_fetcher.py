@@ -2,7 +2,7 @@
 import pandas as pd
 
 from src.interface import BaseFetcher
-from src.utils.system.console_manager import get_console
+from src.utils.core.console_manager import get_console
 
 
 class PassThroughFetcher(BaseFetcher):

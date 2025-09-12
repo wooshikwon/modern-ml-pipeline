@@ -4,9 +4,9 @@ DataHandler Registry - 데이터 핸들러 중앙 관리
 Registry 패턴을 통해 task_type별로 적절한 DataHandler를 자동으로 매핑하고 생성합니다.
 """
 
-from typing import Dict, Type, Optional
+from typing import Dict, Type
 from src.interface import BaseDataHandler
-from src.utils.system.logger import logger
+from src.utils.core.logger import logger
 
 
 class DataHandlerRegistry:
@@ -93,7 +93,7 @@ class DataHandlerRegistry:
             return handler
         
         # Fallback: 기본값
-        logger.debug(f"📋 Catalog에 data_handler가 없어 기본값 사용: tabular")
+        logger.debug("📋 Catalog에 data_handler가 없어 기본값 사용: tabular")
         return "tabular"
     
     @classmethod

@@ -10,7 +10,7 @@ CLAUDE.md 원칙 준수:
 
 from pathlib import Path
 from typing import Dict, Any, Optional
-from jinja2 import Environment, FileSystemLoader, Template, TemplateNotFound
+from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 import logging
 
 logger = logging.getLogger(__name__)
@@ -59,7 +59,7 @@ class TemplateEngine:
         try:
             template = self.env.get_template(template_name)
             return template.render(**context)
-        except TemplateNotFound as e:
+        except TemplateNotFound:
             logger.error(f"Template not found: {template_name}")
             raise
     
@@ -142,7 +142,6 @@ class TemplateEngine:
         templates = []
         
         if pattern:
-            import glob
             template_paths = self.template_dir.glob(pattern)
         else:
             template_paths = self.template_dir.rglob("*")

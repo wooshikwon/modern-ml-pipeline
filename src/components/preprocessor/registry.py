@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Dict, Type
 from src.interface import BasePreprocessor
-from src.utils.system.logger import logger
+from src.utils.core.logger import logger
 
 class PreprocessorStepRegistry:
     """컴포넌트 레벨 전처리 스텝 레지스트리 (엔진 의존성 제거)."""

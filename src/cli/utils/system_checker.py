@@ -9,9 +9,8 @@ CLAUDE.md 원칙 준수:
 """
 
 import os
-import yaml
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
 from enum import Enum
 
@@ -135,7 +134,7 @@ class SystemChecker:
                     return CheckResult(
                         service="MLflow",
                         status=CheckStatus.SUCCESS,
-                        message=f"MLflow local tracking directory is accessible",
+                        message="MLflow local tracking directory is accessible",
                         details={"tracking_uri": tracking_uri}
                     )
                 else:
@@ -266,7 +265,7 @@ class SystemChecker:
             return CheckResult(
                 service=f"PostgreSQL:{source_name}",
                 status=CheckStatus.SUCCESS,
-                message=f"PostgreSQL connection successful",
+                message="PostgreSQL connection successful",
                 details={"host": parsed.hostname, "database": parsed.path[1:]}
             )
             
@@ -300,7 +299,7 @@ class SystemChecker:
             return CheckResult(
                 service=f"BigQuery:{source_name}",
                 status=CheckStatus.SUCCESS,
-                message=f"BigQuery dataset accessible",
+                message="BigQuery dataset accessible",
                 details={"project": project_id, "dataset": dataset_id}
             )
             
@@ -328,7 +327,7 @@ class SystemChecker:
             return CheckResult(
                 service=f"Storage:{source_name}",
                 status=CheckStatus.SUCCESS,
-                message=f"Storage path exists",
+                message="Storage path exists",
                 details={"path": str(storage_path.absolute())}
             )
         else:
@@ -596,7 +595,7 @@ class SystemChecker:
         
         else:
             return CheckResult(
-                service=f"ArtifactStore",
+                service="ArtifactStore",
                 status=CheckStatus.SKIPPED,
                 message=f"Unknown artifact store type: {store_type}"
             )
@@ -656,7 +655,7 @@ class SystemChecker:
             return CheckResult(
                 service="Serving",
                 status=CheckStatus.SUCCESS,
-                message=f"Serving configuration valid",
+                message="Serving configuration valid",
                 details={"host": host, "port": port}
             )
         else:

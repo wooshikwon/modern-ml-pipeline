@@ -2,7 +2,7 @@ from __future__ import annotations
 import pandas as pd
 from typing import TYPE_CHECKING, List, Dict, Any
 from src.interface import BaseFetcher
-from src.utils.system.console_manager import get_console
+from src.utils.core.console_manager import get_console
 
 if TYPE_CHECKING:
     from src.settings import Settings

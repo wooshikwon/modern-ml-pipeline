@@ -4,10 +4,10 @@ import sqlalchemy
 from typing import TYPE_CHECKING, Dict, Any, Tuple, Optional
 from urllib.parse import urlparse
 from src.interface.base_adapter import BaseAdapter
-from src.utils.system.console_manager import get_console
+from src.utils.core.console_manager import get_console
 from pathlib import Path
 from src.settings import Settings
-from src.utils.system.sql_utils import prevent_select_star
+from src.utils.database.sql_utils import prevent_select_star
 
 if TYPE_CHECKING:
     from src.settings import Settings

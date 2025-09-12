@@ -18,6 +18,7 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
         trained_datahandler: Optional[Any] = None,
         trained_preprocessor: Optional[Any] = None,
         trained_fetcher: Optional[Any] = None,
+        trained_calibrator: Optional[Any] = None,
         training_results: Optional[Dict[str, Any]] = None,
         signature: Optional[Any] = None,  # mlflow.models.ModelSignature
         data_schema: Optional[Any] = None,  # mlflow.types.Schema
@@ -33,6 +34,7 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
         self.trained_datahandler = None
         self.trained_preprocessor = None
         self.trained_fetcher = None
+        self.trained_calibrator = trained_calibrator
         self.training_results = training_results or {}
         self.signature = signature
         self.data_schema = data_schema
@@ -74,7 +76,7 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
     def console(self):
         if self._console is None:
             try:
-                from src.utils.system.console_manager import get_console
+                from src.utils.core.console_manager import get_console
                 self._console = get_console()
             except Exception:
                 import logging
@@ -95,7 +97,7 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
                 ts_col = self.data_schema.get('timestamp_column') if isinstance(self.data_schema, dict) else None
                 if ts_col and ts_col in df.columns and not pd.api.types.is_datetime64_any_dtype(df[ts_col]):
                     df[ts_col] = pd.to_datetime(df[ts_col], errors='coerce')
-                from src.utils.system.schema_utils import SchemaConsistencyValidator
+                from src.utils.schema.schema_utils import SchemaConsistencyValidator
                 validator = SchemaConsistencyValidator(self.data_schema)
                 validator.validate_inference_consistency(df)
                 self.console.info("입력 스키마 검증 완료", rich_message="✅ Input schema validation passed")
@@ -163,12 +165,47 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
                 self.console.warning("feature_columns not defined, using all columns except target", 
                                    rich_message="⚠️ Using auto-detected features")
 
-            predictions = self.trained_model.predict(X)
+            # Check if we should return probabilities or classes
+            return_probabilities = params and params.get('return_probabilities', False)
+            
+            if return_probabilities and hasattr(self.trained_model, 'predict_proba'):
+                # Get probability predictions
+                predictions = self.trained_model.predict_proba(X)
+                
+                # Apply calibration if available
+                if self.trained_calibrator is not None and self._task_type == 'classification':
+                    self.console.info("Applying probability calibration", rich_message="🎯 Applying calibration")
+                    predictions = self.trained_calibrator.transform(predictions)
+                    
+            elif self._task_type == 'classification' and hasattr(self.trained_model, 'predict_proba') and self.trained_calibrator is not None:
+                # For classification with calibrator, always use calibrated probabilities for consistency
+                predictions = self.trained_model.predict_proba(X)
+                predictions = self.trained_calibrator.transform(predictions)
+                
+                # Convert probabilities to class predictions if not explicitly requesting probabilities
+                if not return_probabilities:
+                    if predictions.ndim == 2:
+                        predictions = predictions.argmax(axis=1)
+                    else:
+                        # Binary classification case with calibrated probabilities
+                        predictions = (predictions > 0.5).astype(int)
+            else:
+                # Standard prediction without calibration
+                predictions = self.trained_model.predict(X)
 
             should_return_dataframe = params and params.get('return_dataframe', False)
             if should_return_dataframe:
                 if not isinstance(predictions, pd.DataFrame):
-                    predictions_df = pd.DataFrame({'prediction': predictions}, index=model_input.index)
+                    if return_probabilities and predictions.ndim == 2:
+                        # Multi-class probabilities
+                        prob_cols = [f'prob_class_{i}' for i in range(predictions.shape[1])]
+                        predictions_df = pd.DataFrame(predictions, columns=prob_cols, index=model_input.index)
+                    elif return_probabilities and predictions.ndim == 1:
+                        # Binary classification probabilities
+                        predictions_df = pd.DataFrame({'prob_positive': predictions}, index=model_input.index)
+                    else:
+                        # Class predictions
+                        predictions_df = pd.DataFrame({'prediction': predictions}, index=model_input.index)
                     self.console.info(f"Prediction completed: {len(predictions_df)} samples (DataFrame)", rich_message=f"✅ Prediction: [green]{len(predictions_df)}[/green] samples (DataFrame)")
                     return predictions_df
                 else:

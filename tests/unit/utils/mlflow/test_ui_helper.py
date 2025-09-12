@@ -7,7 +7,7 @@ from unittest.mock import Mock, MagicMock, patch, call
 from pathlib import Path
 import socket
 
-from src.utils.mlflow.ui_helper import (
+from src.utils.integrations.ui_helper import (
     MLflowUIHelper,
     MLflowRunSummary,
     setup_mlflow_ui_config
@@ -170,48 +170,6 @@ class TestMLflowUIHelper:
             "MLflow server stopped", "🛑"
         )
         
-    @patch('webbrowser.open')
-    @patch('time.sleep')
-    def test_open_in_browser(self, mock_sleep, mock_open):
-        """Test opening URL in browser"""
-        console = Mock()
-        helper = MLflowUIHelper("./mlruns", console)
-        
-        # Success case
-        result = helper.open_in_browser("http://localhost:5000", delay=0.5)
-        
-        assert result is True
-        mock_sleep.assert_called_with(0.5)
-        mock_open.assert_called_with("http://localhost:5000")
-        
-        # Failure case
-        mock_open.side_effect = Exception("Browser error")
-        result = helper.open_in_browser("http://localhost:5000")
-        assert result is False
-        
-    def test_generate_qr_code(self):
-        """Test QR code generation"""
-        # Skip test if qrcode not installed
-        pytest.importorskip("qrcode")
-        
-        console = Mock()
-        helper = MLflowUIHelper("./mlruns", console)
-        
-        # Test with actual qrcode module (if installed)
-        url = "http://192.168.1.100:5000"
-        result = helper.generate_qr_code(url)
-        
-        # Should return ASCII art string or None
-        assert result is None or isinstance(result, str)
-        
-    def test_generate_qr_code_import_error(self):
-        """Test QR code generation when qrcode not installed"""
-        console = Mock()
-        helper = MLflowUIHelper("./mlruns", console)
-        
-        with patch('builtins.__import__', side_effect=ImportError()):
-            result = helper.generate_qr_code("http://example.com")
-            assert result is None
             
     def test_get_network_addresses(self):
         """Test getting network addresses"""
@@ -245,9 +203,7 @@ class TestMLflowUIHelper:
                     helper.display_access_info(
                         run_id="run123",
                         experiment_id="exp1",
-                        experiment_name="test_exp",
-                        auto_open=False,
-                        show_qr=False
+                        experiment_name="test_exp"
                     )
                     
                     # Check that the method completed without error

@@ -17,9 +17,50 @@ import mlflow
 
 from src.settings import Settings
 from src.factory import Factory
-from src.utils.system.logger import logger
-from src.utils.system.console_manager import RichConsoleManager
-from src.utils.system.templating_utils import render_template_from_string, is_jinja_template
+from src.utils.core.logger import logger
+from src.utils.core.console_manager import RichConsoleManager
+from src.utils.template.templating_utils import render_template_from_string, is_jinja_template
+
+
+def _format_multiclass_probabilities(predictions_array: np.ndarray, original_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    다중 클래스 확률 예측을 DataFrame으로 포맷팅하는 헬퍼 함수
+    
+    Args:
+        predictions_array: 2D numpy array with class probabilities 
+        original_df: 원본 DataFrame (인덱스 참조용)
+        
+    Returns:
+        확률 컬럼이 포함된 DataFrame
+    """
+    n_classes = predictions_array.shape[1]
+    
+    if n_classes == 2:
+        # Binary classification - return positive class probability
+        prob_df = pd.DataFrame({
+            'prob_positive': predictions_array[:, 1],
+            'prob_negative': predictions_array[:, 0]
+        }, index=original_df.index)
+    else:
+        # Multiclass - return all class probabilities
+        prob_columns = {f'prob_class_{i}': predictions_array[:, i] for i in range(n_classes)}
+        prob_df = pd.DataFrame(prob_columns, index=original_df.index)
+    
+    return prob_df
+
+
+def _detect_probability_predictions(pred_df: pd.DataFrame) -> bool:
+    """
+    DataFrame이 확률 예측을 포함하는지 감지하는 헬퍼 함수
+    
+    Args:
+        pred_df: 예측 결과 DataFrame
+        
+    Returns:
+        확률 예측 여부
+    """
+    prob_indicators = ['prob_', 'probability_', 'prob_class_', 'prob_positive', 'prob_negative']
+    return any(col.startswith(indicator) for col in pred_df.columns for indicator in prob_indicators)
 
 
 def save_output(
@@ -269,7 +310,8 @@ def process_template_file(
 def format_predictions(
     predictions_result: Union[pd.DataFrame, List, np.ndarray],
     original_df: pd.DataFrame,
-    data_interface: Optional[Dict[str, Any]] = None
+    data_interface: Optional[Dict[str, Any]] = None,
+    task_type: Optional[str] = None
 ) -> pd.DataFrame:
     """
     예측 결과를 DataFrame으로 포맷팅합니다.
@@ -278,24 +320,47 @@ def format_predictions(
     기반으로 예측 결과와 메타데이터를 결합합니다.
     feature_columns는 제외됩니다.
     
+    Calibrated probability predictions를 포함하여 다양한 예측 형태를 지원합니다.
+    
     Args:
         predictions_result: 모델 예측 결과 (DataFrame, list, array 등)
         original_df: 원본 입력 DataFrame (메타데이터 참조용)
         data_interface: 데이터 인터페이스 정의 (entity, timestamp, treatment, feature 정보)
+        task_type: 태스크 타입 (classification, regression 등)
         
     Returns:
-        포맷팅된 예측 결과 DataFrame (prediction + entity/timestamp/treatment)
+        포맷팅된 예측 결과 DataFrame (prediction/probabilities + entity/timestamp/treatment)
     """
     # 예측 결과를 DataFrame으로 변환
     if isinstance(predictions_result, pd.DataFrame):
-        pred_df = predictions_result
+        pred_df = predictions_result.copy()
     elif isinstance(predictions_result, (list, tuple)) or hasattr(predictions_result, 'tolist'):
-        pred_df = pd.DataFrame({'prediction': predictions_result}, index=original_df.index)
-    elif hasattr(predictions_result, 'flatten'):
-        pred_df = pd.DataFrame({'prediction': predictions_result.flatten()}, index=original_df.index)
+        # 1D array/list - could be class predictions or binary probabilities
+        predictions_array = np.array(predictions_result)
+        if predictions_array.ndim == 1:
+            pred_df = pd.DataFrame({'prediction': predictions_array}, index=original_df.index)
+        else:
+            # 2D array - multiclass probabilities 
+            pred_df = _format_multiclass_probabilities(predictions_array, original_df)
+    elif hasattr(predictions_result, 'shape'):
+        # NumPy array handling
+        if predictions_result.ndim == 1:
+            pred_df = pd.DataFrame({'prediction': predictions_result}, index=original_df.index)
+        elif predictions_result.ndim == 2:
+            # 2D array - multiclass probabilities
+            pred_df = _format_multiclass_probabilities(predictions_result, original_df)
+        else:
+            # Higher dimensional - flatten to 1D
+            pred_df = pd.DataFrame({'prediction': predictions_result.flatten()[:len(original_df)]}, index=original_df.index)
     else:
         # 기타 경우 (스칼라 값 등)
         pred_df = pd.DataFrame({'prediction': [predictions_result] * len(original_df)}, index=original_df.index)
+    
+    # 확률 예측 감지 및 로깅
+    is_probability_prediction = _detect_probability_predictions(pred_df)
+    if is_probability_prediction:
+        prob_columns = [col for col in pred_df.columns if 'prob_' in col]
+        logger.info(f"Probability predictions detected with {len(prob_columns)} probability columns: {prob_columns}")
     
     # data_interface가 제공된 경우 정의된 컬럼만 사용
     if data_interface:

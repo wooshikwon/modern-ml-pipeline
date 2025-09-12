@@ -5,7 +5,7 @@ Optuna 튜닝, Feature Store 통합 등 신규 기능 포함
 """
 
 from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
-from typing import Dict, List, Any, Optional, Union, Literal
+from typing import Dict, List, Any, Optional, Literal
 
 
 class HyperparametersTuning(BaseModel):

@@ -9,7 +9,7 @@ CLAUDE.md 원칙 준수:
 """
 
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from datetime import datetime
 import yaml
 

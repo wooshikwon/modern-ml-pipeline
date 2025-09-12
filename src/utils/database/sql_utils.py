@@ -9,7 +9,7 @@ import sqlparse
 from sqlparse.sql import Identifier, IdentifierList
 from sqlparse.tokens import DML
 
-from src.utils.system.logger import logger
+from src.utils.core.logger import logger
 
 
 def prevent_select_star(sql: str):
