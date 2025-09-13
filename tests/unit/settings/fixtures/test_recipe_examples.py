@@ -8,7 +8,7 @@ Phase 1에서 구현된 recipe_examples.py의 예제 데이터가
 import pytest
 from typing import Dict, Any
 
-from src.settings.fixtures.recipe_examples import (
+from tests.fixtures.recipe_examples import (
     RECIPE_CLASSIFICATION_EXAMPLE,
     RECIPE_REGRESSION_EXAMPLE,
     RECIPE_CLUSTERING_EXAMPLE,

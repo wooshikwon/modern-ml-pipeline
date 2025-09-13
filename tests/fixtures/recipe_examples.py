@@ -42,12 +42,13 @@ RECIPE_CLASSIFICATION_EXAMPLE: Dict[str, Any] = {
         },
         "fetcher": {
             "type": "feature_store",
-            "features": [
-                {
-                    "feature_namespace": "user_features",
+            "feature_views": {
+                "user_features": {
+                    "join_key": "user_id",
                     "features": ["age", "gender", "location"]
                 }
-            ]
+            },
+            "timestamp_column": "event_timestamp"
         },
         "data_interface": {
             "target_column": "label",

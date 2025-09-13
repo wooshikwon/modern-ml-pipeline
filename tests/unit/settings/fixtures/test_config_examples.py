@@ -8,7 +8,7 @@ Phase 1에서 구현된 config_examples.py의 예제 데이터가
 import pytest
 from typing import Dict, Any
 
-from src.settings.fixtures.config_examples import (
+from tests.fixtures.config_examples import (
     CONFIG_LOCAL_EXAMPLE,
     CONFIG_DEVELOPMENT_EXAMPLE,
     CONFIG_PRODUCTION_EXAMPLE,

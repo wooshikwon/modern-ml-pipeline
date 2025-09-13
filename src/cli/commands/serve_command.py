@@ -7,7 +7,7 @@ Serve Command Implementation
 import typer
 from typing_extensions import Annotated
 
-from src.settings import create_settings_for_inference, load_config_files
+from src.settings import SettingsFactory
 from src.serving import run_api_server
 from src.utils.core.logger import setup_logging, logger
 
@@ -55,9 +55,11 @@ def serve_api_command(
         typer.Exit: 파일을 찾을 수 없거나 실행 중 오류 발생 시
     """
     try:        
-        # 1. Config 로드 및 Settings 생성
-        config_data = load_config_files(config_path=config_path)
-        settings = create_settings_for_inference(config_data)
+        # 1. Settings 생성 (for serving)
+        settings = SettingsFactory.for_serving(
+            run_id=run_id,
+            config_path=config_path
+        )
         setup_logging(settings)
 
         # 2. 서버 정보 로깅

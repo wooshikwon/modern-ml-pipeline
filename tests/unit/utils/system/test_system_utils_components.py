@@ -18,7 +18,6 @@ import json
 from typing import Dict, Any
 
 from src.utils.core.environment_check import EnvironmentChecker, check_environment, get_pip_requirements
-from src.utils.schema.schema_utils import validate_schema, convert_schema, SchemaConsistencyValidator, generate_training_schema_metadata
 from src.utils.template.templating_utils import render_template_from_file, render_template_from_string
 
 
@@ -115,129 +114,6 @@ class TestEnvironmentChecker:
                     assert len(package_name) > 0
                     assert len(version) > 0
 
-
-class TestSchemaUtils:
-    """SchemaUtils 테스트 - 스키마 변환 및 검증"""
-    
-    def test_dataframe_schema_minimal_conversion_paths(self, settings_builder):
-        """케이스 C: DataFrame → 스키마 유틸 최소 변환 경로(숫자/문자열/날짜)"""
-        # Given: 다양한 타입의 DataFrame
-        test_data = pd.DataFrame({
-            'numeric_col': ['1.5', '2.7', '3.9'],  # 문자열로 된 숫자
-            'string_col': ['apple', 'banana', 'cherry'],  # 문자열
-            'date_col': ['2023-01-01', '2023-02-01', '2023-03-01'],  # 문자열로 된 날짜
-            'int_col': [1, 2, 3]  # 이미 정수
-        })
-        
-        # 변환 스키마 정의
-        expected_schema = {
-            'numeric_col': 'numeric',
-            'string_col': 'category', 
-            'date_col': 'numeric',  # 날짜는 숫자로 변환 시도
-            'int_col': 'numeric'
-        }
-        
-        # When: 스키마 변환 수행
-        converted_df = convert_schema(test_data, expected_schema)
-        
-        # Then: 변환 결과 검증
-        assert converted_df is not None
-        assert len(converted_df) == len(test_data)
-        
-        # 숫자 변환 경로 검증
-        assert pd.api.types.is_numeric_dtype(converted_df['numeric_col'])
-        assert pd.api.types.is_numeric_dtype(converted_df['int_col'])
-        
-        # 카테고리 변환 경로 검증  
-        assert pd.api.types.is_categorical_dtype(converted_df['string_col'])
-        
-        # 원본 데이터는 변경되지 않았는지 확인
-        assert test_data['numeric_col'].dtype == 'object'
-        assert test_data['string_col'].dtype == 'object'
-    
-    def test_schema_consistency_validator_basic_validation(self):
-        """스키마 일관성 검증기 기본 동작 테스트"""
-        # Given: 훈련 스키마 메타데이터
-        training_schema = {
-            'inference_columns': ['feature1', 'feature2', 'feature3'],
-            'column_types': {
-                'feature1': 'float64',
-                'feature2': 'int64', 
-                'feature3': 'object'
-            },
-            'entity_columns': ['entity_id'],
-            'timestamp_column': 'timestamp'
-        }
-        
-        validator = SchemaConsistencyValidator(training_schema)
-        
-        # 일치하는 inference 데이터
-        good_inference_df = pd.DataFrame({
-            'feature1': [1.0, 2.0, 3.0],
-            'feature2': [10, 20, 30],
-            'feature3': ['a', 'b', 'c']
-        })
-        
-        # When & Then: 기본 스키마 검증 (private method 호출 대신 간접 확인)
-        try:
-            validator._validate_basic_schema(good_inference_df)
-            # 기본 검증 통과
-        except Exception as e:
-            assert False, f"Basic schema validation should pass: {e}"
-        
-        # 컬럼이 누락된 데이터
-        bad_inference_df = pd.DataFrame({
-            'feature1': [1.0, 2.0, 3.0],
-            'feature2': [10, 20, 30]
-            # feature3 누락
-        })
-        
-        # When & Then: 컬럼 일관성 검증 실패
-        with pytest.raises(ValueError) as exc_info:
-            validator._validate_column_consistency(bad_inference_df)
-        
-        error_msg = str(exc_info.value)
-        assert 'feature3' in error_msg
-        assert 'Training 시 필수 컬럼이 없습니다' in error_msg
-    
-    def test_training_schema_metadata_generation(self):
-        """훈련 스키마 메타데이터 생성 테스트"""
-        # Given: 훈련 데이터와 설정
-        training_df = pd.DataFrame({
-            'feature1': [1.0, 2.0, 3.0, 4.0],
-            'feature2': [10, 20, 30, 40],
-            'target': [0, 1, 0, 1]
-        })
-        
-        data_interface_config = {
-            'entity_columns': ['entity_id'],
-            'timestamp_column': 'timestamp',
-            'target_column': 'target',
-            'task_choice': 'classification'
-        }
-        
-        # When: 스키마 메타데이터 생성
-        schema_metadata = generate_training_schema_metadata(training_df, data_interface_config)
-        
-        # Then: 메타데이터 구조 검증
-        assert schema_metadata is not None
-        assert isinstance(schema_metadata, dict)
-        
-        # 필수 키 존재 확인
-        required_keys = [
-            'entity_columns', 'timestamp_column', 'target_column', 'task_choice',
-            'training_columns', 'inference_columns', 'column_types',
-            'schema_version', 'created_at'
-        ]
-        
-        for key in required_keys:
-            assert key in schema_metadata
-        
-        # 값 검증
-        assert schema_metadata['target_column'] == 'target'
-        assert schema_metadata['task_choice'] == 'classification'
-        assert len(schema_metadata['training_columns']) == 3
-        assert len(schema_metadata['column_types']) == 3
 
 
 class TestTemplatingUtils:

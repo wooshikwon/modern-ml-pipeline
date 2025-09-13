@@ -12,7 +12,7 @@ from typing import Dict, Any
 from src.components.adapter import AdapterRegistry
 from src.components.evaluator import EvaluatorRegistry
 from src.components.preprocessor.registry import PreprocessorStepRegistry
-from src.utils.schema.catalog_parser import load_model_catalog
+# Phase 1에서 schema.catalog_parser 모듈이 제거됨
 from src.utils.core.logger import logger
 from src.utils.core.console_manager import (
     cli_success, cli_error, cli_print
@@ -113,8 +113,8 @@ def list_models() -> None:
     if catalog_dir.exists():
         model_catalog = _load_catalog_from_directory()
     else:
-        # Fallback: 기존 catalog.yaml 파일에서 로드
-        model_catalog = load_model_catalog()
+        # Fallback: 빈 카탈로그 (Phase 1에서 catalog_parser 제거됨)
+        model_catalog = {}
     
     if not model_catalog:
         cli_error("src/models/catalog/ 디렉토리나 catalog.yaml 파일을 찾을 수 없거나 내용이 비어있습니다.")

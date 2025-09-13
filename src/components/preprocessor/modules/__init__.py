@@ -4,13 +4,15 @@ from . import imputer
 from . import scaler
 from . import discretizer
 from . import feature_generator
+from . import missing
 
 # Skip encoder for now due to category_encoders dependency
-# from . import encoder  
+# from . import encoder
 
 __all__ = [
     'imputer',
-    'scaler', 
+    'scaler',
     'discretizer',
-    'feature_generator'
+    'feature_generator',
+    'missing'
 ]

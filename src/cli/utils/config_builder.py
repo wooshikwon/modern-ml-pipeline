@@ -183,14 +183,14 @@ class InteractiveConfigBuilder:
             selections: 사용자 선택 사항
         """
         summary = f"""
-환경 이름: {selections['env_name']}
-MLflow 사용: {'예' if selections.get('use_mlflow') else '아니오'}
-데이터 소스: {selections.get('data_source', 'N/A')}
-Feature Store: {selections.get('feature_store', '없음')}
-Artifact Storage: {selections.get('artifact_storage', 'Local')}
-API Serving: {'활성화' if selections.get('enable_serving') else '비활성화'}
-Inference Output: {selections.get('inference_output_source', 'Disabled' if not selections.get('inference_output_enabled', True) else 'Local Files')}
-"""
+        환경 이름: {selections['env_name']}
+        MLflow 사용: {'예' if selections.get('use_mlflow') else '아니오'}
+        데이터 소스: {selections.get('data_source', 'N/A')}
+        Feature Store: {selections.get('feature_store', '없음')}
+        Artifact Storage: {selections.get('artifact_storage', 'Local')}
+        API Serving: {'활성화' if selections.get('enable_serving') else '비활성화'}
+        Inference Output: {selections.get('inference_output_source', 'Disabled' if not selections.get('inference_output_enabled', True) else 'Local Files')}
+        """
         self.ui.show_panel(summary, title="📋 설정 요약", style="cyan")
     
     def generate_config_file(self, env_name: str, selections: Dict[str, Any]) -> Path:

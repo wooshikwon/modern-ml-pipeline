@@ -154,6 +154,12 @@ class TestRecipeLoading:
                 'data_interface': {
                     'target_column': 'target',
                     'entity_columns': ['id']
+                },
+                'split': {
+                    'train': 0.6,
+                    'validation': 0.2,
+                    'test': 0.2,
+                    'calibration': 0.0
                 }
             },
             'evaluation': {
@@ -202,6 +208,12 @@ class TestRecipeLoading:
                 'data_interface': {
                     'target_column': 'price',
                     'entity_columns': ['property_id']
+                },
+                'split': {
+                    'train': 0.7,
+                    'validation': 0.15,
+                    'test': 0.15,
+                    'calibration': 0.0
                 }
             },
             'evaluation': {
@@ -271,6 +283,12 @@ class TestSettingsIntegration:
                 'data_interface': {
                     'target_column': 'label',
                     'entity_columns': ['id']
+                },
+                'split': {
+                    'train': 0.6,
+                    'validation': 0.2,
+                    'test': 0.2,
+                    'calibration': 0.0
                 }
             },
             'evaluation': {
@@ -323,6 +341,12 @@ class TestSettingsIntegration:
                 'data_interface': {
                     'target_column': 'label',
                     'entity_columns': ['id']
+                },
+                'split': {
+                    'train': 0.6,
+                    'validation': 0.2,
+                    'test': 0.2,
+                    'calibration': 0.0
                 }
             },
             'evaluation': {
@@ -358,7 +382,13 @@ class TestSettingsIntegration:
             'data': {
                 'loader': {'source_uri': 'test.csv'},
                 'fetcher': {'type': 'pass_through'},
-                'data_interface': {'target_column': 'y', 'entity_columns': ['id']}
+                'data_interface': {'target_column': 'y', 'entity_columns': ['id']},
+                'split': {
+                    'train': 0.6,
+                    'validation': 0.2,
+                    'test': 0.2,
+                    'calibration': 0.0
+                }
             },
             'evaluation': {
                 'metrics': ['accuracy'],

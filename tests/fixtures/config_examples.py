@@ -41,6 +41,7 @@ CONFIG_LOCAL_EXAMPLE: Dict[str, Any] = {
     },
     "serving": {
         "enabled": True,
+        "host": "0.0.0.0",
         "port": 8000,
         "workers": 1
     }

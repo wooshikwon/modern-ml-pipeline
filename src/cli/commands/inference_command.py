@@ -9,7 +9,7 @@ from typing import Optional, Dict, Any
 import typer
 from typing_extensions import Annotated
 
-from src.settings import create_settings_for_inference, load_config_files
+from src.settings import SettingsFactory
 from src.pipelines.inference_pipeline import run_inference_pipeline
 from src.utils.core.logger import setup_logging, logger
 
@@ -57,9 +57,13 @@ def batch_inference_command(
             json.loads(context_params) if context_params else None
         )
         
-        # 2. Config 로드 및 Settings 생성
-        config_data = load_config_files(config_path=config_path)
-        settings = create_settings_for_inference(config_data)
+        # 2. Settings 생성 (for inference)
+        settings = SettingsFactory.for_inference(
+            run_id=run_id,
+            config_path=config_path,
+            data_path=data_path,
+            context_params=params
+        )
         setup_logging(settings)
 
         # 3. 추론 정보 로깅

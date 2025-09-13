@@ -788,18 +788,18 @@ class Factory:
             self.console.info("Signature and data schema created successfully.",
                             rich_message="✅ Signature and schema created successfully")
         
-        # DataInterface 기반 검증용 스키마 생성
+        # DataInterface 기반 검증용 스키마 생성 (Phase 1에서 validation 로직 제거됨)
         data_interface_schema = None
         if training_df is not None:
-            from src.utils.data.validation import create_data_interface_schema_for_storage
-            data_interface_schema = create_data_interface_schema_for_storage(
-                data_interface=self._recipe.data.data_interface,
-                df=training_df,
-                task_choice=self._recipe.task_choice
-            )
+            # 기본 스키마 정보만 유지 (validation 로직 제거)
+            data_interface_schema = {
+                'required_columns': list(training_df.columns),
+                'task_choice': self._recipe.task_choice,
+                'created_at': pd.Timestamp.now().isoformat()
+            }
             required_cols = len(data_interface_schema.get('required_columns', []))
-            self.console.info(f"DataInterface 스키마 생성 완료: {required_cols}개 필수 컬럼",
-                            rich_message=f"✅ DataInterface schema created: [cyan]{required_cols}[/cyan] required columns")
+            self.console.info(f"기본 스키마 정보 생성: {required_cols}개 컬럼",
+                            rich_message=f"✅ Basic schema info created: [cyan]{required_cols}[/cyan] columns")
         
         return PyfuncWrapper(
             settings=self.settings,

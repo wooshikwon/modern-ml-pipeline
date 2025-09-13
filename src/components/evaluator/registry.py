@@ -28,7 +28,7 @@ class EvaluatorRegistry:
         """등록된 모든 task type 목록 반환."""
         return list(cls.evaluators.keys())
 
-    @classmethod 
+    @classmethod
     def get_evaluator_class(cls, task_type: str) -> Type[BaseEvaluator]:
         """Task type에 해당하는 Evaluator 클래스 반환."""
         evaluator_class = cls.evaluators.get(task_type)
@@ -36,3 +36,11 @@ class EvaluatorRegistry:
             available = list(cls.evaluators.keys())
             raise ValueError(f"Unknown task type: '{task_type}'. Available types: {available}")
         return evaluator_class
+
+    @classmethod
+    def get_available_metrics_for_task(cls, task_type: str) -> list[str]:
+        """Task별 사용 가능한 메트릭 목록 반환"""
+        evaluator_class = cls.evaluators.get(task_type)
+        if not evaluator_class:
+            return []
+        return getattr(evaluator_class, 'METRIC_KEYS', [])

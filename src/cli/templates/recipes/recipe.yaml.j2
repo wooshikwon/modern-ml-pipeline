@@ -45,7 +45,8 @@ model:
     {% endif %}
 
 data:
-  loader: {}
+  loader:
+    source_uri: {{ data_source_uri | default('null') }}
   
   # Fetcher 설정 (Feature Store 연동)
   fetcher:

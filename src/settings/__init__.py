@@ -1,24 +1,26 @@
 """
-Settings Module Public API (v3.0)
-CLI 템플릿과 완벽 호환되는 새로운 API
-완전히 재작성됨 - 모든 새로운 클래스 export
+Settings Module Public API (v4.0)
+완전한 아키텍처 재설계 후 새로운 API
 """
 
-# Loader 모듈 - Settings 컨테이너와 로딩 함수
-from .loader import (
+# Factory 모듈 - 통합 Settings 생성
+from .factory import (
     Settings,
-    load_settings,
-    create_settings_for_inference,
-    load_config_files,
-    resolve_env_variables,
+    SettingsFactory,
+    load_settings,  # 하위 호환성
 )
 
-# Config 모듈 - 인프라 설정 스키마
+# Config 모듈 - 인프라 설정 스키마 (순수 Pydantic)
 from .config import (
     Config,
     Environment,
     MLflow,
     DataSource,
+    PostgreSQLConfig,
+    BigQueryConfig,
+    LocalFilesConfig,
+    S3Config,
+    GCSConfig,
     FeatureStore,
     FeastConfig,
     FeastOnlineStore,
@@ -26,9 +28,11 @@ from .config import (
     Serving,
     AuthConfig,
     ArtifactStore,
+    OutputTarget,
+    Output,
 )
 
-# Recipe 모듈 - 워크플로우 정의 스키마
+# Recipe 모듈 - 워크플로우 정의 스키마 (순수 Pydantic)
 from .recipe import (
     Recipe,
     Model,
@@ -37,48 +41,57 @@ from .recipe import (
     Data,
     DataSplit,
     Loader,
-    FeatureView,  # ✅ EntitySchema → FeatureView 변경
+    FeatureView,
     Fetcher,
     DataInterface,
     Preprocessor,
     PreprocessorStep,
     Evaluation,
-    ValidationConfig,
     Metadata,
 )
 
-# Validator 모듈 - 검증 및 모델 카탈로그
-from .validator import (
-    Validator,
-    ModelCatalog,
-    ModelSpec,
-    HyperparameterSpec,
-    TunableParameter,
-    validate,  # 호환성 별칭
+# Validation 모듈 - 동적 검증 시스템
+from .validation import (
+    ValidationOrchestrator,
+    ValidationResult,
 )
 
+# MLflow 복원 시스템
+from .mlflow_restore import (
+    MLflowRecipeRestorer,
+    MLflowRecipeSaver,
+    save_recipe_to_mlflow,
+    restore_recipe_from_mlflow,
+)
 
-# create_settings_for_inference는 loader에서 직접 import됨
-
+# Recipe Builder - Registry 기반 동적 생성 (moved to src/cli/utils/)
+# from .recipe_builder import (
+#     RecipeBuilder,
+#     build_recipe_interactive,
+#     create_recipe_file,
+# )
 
 # 주요 클래스/함수 export
 __all__ = [
     # ========== Core Classes ==========
     "Settings",
+    "SettingsFactory",
     "Config",
     "Recipe",
-    "Validator",
-    
+    "ValidationOrchestrator",
+
     # ========== Loading Functions ==========
-    "load_settings",
-    "create_settings_for_inference",
-    "load_config_files",
-    "resolve_env_variables",
-    
+    "load_settings",  # 하위 호환성
+
     # ========== Config Schemas ==========
     "Environment",
     "MLflow",
     "DataSource",
+    "PostgreSQLConfig",
+    "BigQueryConfig",
+    "LocalFilesConfig",
+    "S3Config",
+    "GCSConfig",
     "FeatureStore",
     "FeastConfig",
     "FeastOnlineStore",
@@ -86,7 +99,9 @@ __all__ = [
     "Serving",
     "AuthConfig",
     "ArtifactStore",
-    
+    "OutputTarget",
+    "Output",
+
     # ========== Recipe Schemas ==========
     "Model",
     "Calibration",
@@ -94,26 +109,31 @@ __all__ = [
     "Data",
     "DataSplit",
     "Loader",
-    "FeatureView",  # ✅ EntitySchema → FeatureView 변경
+    "FeatureView",
     "Fetcher",
     "DataInterface",
     "Preprocessor",
     "PreprocessorStep",
     "Evaluation",
-    "ValidationConfig",
     "Metadata",
-    
-    # ========== Validator Classes ==========
-    "ModelCatalog",
-    "ModelSpec",
-    "HyperparameterSpec",
-    "TunableParameter",
-    "validate",  # 호환성 별칭
+
+    # ========== Validation ==========
+    "ValidationResult",
+
+    # ========== MLflow Integration ==========
+    "MLflowRecipeRestorer",
+    "MLflowRecipeSaver",
+    "save_recipe_to_mlflow",
+    "restore_recipe_from_mlflow",
+
+    # ========== Recipe Building (moved to src/cli/utils/) ==========
+    # "build_recipe_interactive",
+    # "create_recipe_file",
 ]
 
 # 버전 정보
-__version__ = "3.0.0"
+__version__ = "4.0.0"
 
 # 패키지 메타데이터
 __author__ = "Modern ML Pipeline Team"
-__description__ = "Settings management for ML pipeline with CLI template compatibility"
+__description__ = "Unified Settings Factory with dynamic validation and MLflow integration"

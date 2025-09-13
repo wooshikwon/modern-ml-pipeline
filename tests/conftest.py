@@ -17,9 +17,10 @@ from sklearn.datasets import make_classification, make_regression
 # Import Settings system
 from src.settings import (
     Settings, Config, Recipe, Environment, MLflow, DataSource,
-    FeatureStore, Model, HyperparametersTuning, Data, Loader, 
+    FeatureStore, Model, HyperparametersTuning, Data, Loader,
     DataInterface, DataSplit, Fetcher, FeatureView, Evaluation
 )
+# from src.settings.factory import RecipeFactory, ConfigFactory  # deprecated
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -191,7 +192,7 @@ class SettingsBuilder:
                 calibration=0.0
             )
         )
-        self._evaluation = Evaluation(
+        self._evaluation = RecipeFactory.create_default_evaluation(
             metrics=["accuracy", "roc_auc"]
         )
     

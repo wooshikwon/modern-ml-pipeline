@@ -1,271 +1,125 @@
-"""
-Catalog Validator - Component Catalog 검증
+"""src/models/catalog 기반 동적 모델/하이퍼파라미터 검증"""
 
-컴포넌트가 실제로 등록되어 있고 사용 가능한지 검증합니다.
-Registry 시스템과 연동하여 실시간으로 사용 가능한 컴포넌트를 확인합니다.
-"""
+from pathlib import Path
+from typing import Dict, List, Set
+import yaml
+from ..recipe import Model
+from .common import ValidationResult
 
-from __future__ import annotations
-from typing import List, Dict, Any, Optional, Set
-from .registry_connector import RegistryConnector
-from src.utils.core.logger import logger
-
-class ValidationError(Exception):
-    """Validation 에러"""
-    pass
 
 class CatalogValidator:
-    """
-    Component Catalog 기반 검증기
+    """Models Catalog 기반 동적 검증 시스템"""
 
-    Recipe와 Config에서 참조하는 모든 컴포넌트가
-    실제로 시스템에 등록되어 있고 사용 가능한지 검증합니다.
-    """
+    def __init__(self, catalog_path: str = "src/models/catalog"):
+        self.catalog_path = Path(catalog_path)
+        self._task_models_cache = {}  # 성능 최적화용 캐시
 
-    def __init__(self):
-        self.registry = RegistryConnector()
-        self.errors: List[str] = []
-        self.warnings: List[str] = []
+    def get_available_tasks(self) -> Set[str]:
+        """사용 가능한 Task 목록 동적 추출"""
+        # src/models/catalog/ 하위 디렉토리명 기반
+        tasks = set()
+        for task_dir in self.catalog_path.iterdir():
+            if task_dir.is_dir() and not task_dir.name.startswith('.'):
+                tasks.add(task_dir.name.lower())
+        return tasks
 
-    def clear_messages(self):
-        """에러와 경고 메시지 초기화"""
-        self.errors.clear()
-        self.warnings.clear()
+    def get_available_models_for_task(self, task_type: str) -> Dict[str, Dict]:
+        """특정 Task의 사용 가능한 모델들 동적 추출"""
+        task_dir = self.catalog_path / task_type.title()
+        if not task_dir.exists():
+            return {}
 
-    def add_error(self, message: str):
-        """에러 메시지 추가"""
-        self.errors.append(message)
-        logger.error(f"[catalog_validator] {message}")
+        models = {}
+        for model_file in task_dir.glob("*.yaml"):
+            with open(model_file, 'r') as f:
+                model_spec = yaml.safe_load(f)
+                models[model_file.stem] = model_spec
 
-    def add_warning(self, message: str):
-        """경고 메시지 추가"""
-        self.warnings.append(message)
-        logger.warning(f"[catalog_validator] {message}")
+        return models
 
-    def validate_preprocessor_steps(self, preprocessor_config: Optional[Dict[str, Any]]) -> bool:
-        """전처리 스텝들이 등록되어 있는지 검증"""
-        if not preprocessor_config or not preprocessor_config.get('steps'):
-            return True  # 전처리 스텝이 없는 것은 유효함
+    def validate_model_specification(self, recipe_model: Model) -> ValidationResult:
+        """Recipe의 모델 스펙을 Catalog와 대조 검증"""
+        class_path = recipe_model.class_path
+        # task_choice는 Recipe 레벨에 있으므로 여기서는 기본 검증만
+        
+        # 1. 기본적인 model 구조 검증
+        if not class_path:
+            return ValidationResult(
+                is_valid=False,
+                error_message="Model class_path가 지정되지 않았습니다."
+            )
 
-        steps = preprocessor_config['steps']
-        if not isinstance(steps, list):
-            self.add_error("Preprocessor steps must be a list")
-            return False
-
-        available_steps = self.registry.get_available_preprocessor_steps()
-        if not available_steps:
-            self.add_warning("No preprocessor steps are registered in the system")
-
-        valid = True
-        for i, step in enumerate(steps):
-            if not isinstance(step, dict):
-                self.add_error(f"Preprocessor step {i} must be a dictionary")
-                valid = False
-                continue
-
-            step_type = step.get('type')
-            if not step_type:
-                self.add_error(f"Preprocessor step {i} is missing 'type' field")
-                valid = False
-                continue
-
-            if not self.registry.is_preprocessor_step_available(step_type):
-                self.add_error(
-                    f"Preprocessor step type '{step_type}' is not registered. "
-                    f"Available types: {available_steps}"
+        # 2. 하이퍼파라미터 기본 구조 검증
+        hyperparams = recipe_model.hyperparameters
+        if hyperparams.tuning_enabled:
+            if not hyperparams.tunable:
+                return ValidationResult(
+                    is_valid=False,
+                    error_message="튜닝이 활성화되어 있지만 tunable 파라미터가 없습니다."
                 )
-                valid = False
+        else:
+            if not hyperparams.values:
+                return ValidationResult(
+                    is_valid=False,
+                    error_message="튜닝이 비활성화되어 있지만 values 파라미터가 없습니다."
+                )
 
-        return valid
+        return ValidationResult(is_valid=True)
 
-    def validate_task_type(self, task_choice: str) -> bool:
-        """태스크 타입이 지원되는지 검증"""
-        available_tasks = self.registry.get_available_task_types()
-
-        if not available_tasks:
-            self.add_warning("No task types are registered in the evaluator system")
-            return True  # Registry가 아직 로드되지 않았을 수 있음
-
-        if not self.registry.is_task_type_available(task_choice):
-            self.add_error(
-                f"Task type '{task_choice}' is not supported. "
-                f"Available task types: {available_tasks}"
+    def validate_task_model_compatibility(self, task_type: str, model: Model) -> ValidationResult:
+        """Task 타입과 모델 호환성 검증 (Recipe에서 호출)"""
+        # 1. Task 타입 검증
+        available_tasks = self.get_available_tasks()
+        if task_type.lower() not in available_tasks:
+            return ValidationResult(
+                is_valid=False,
+                error_message=f"알 수 없는 태스크 타입: {task_type}. 사용 가능한 타입: {sorted(available_tasks)}"
             )
-            return False
 
-        return True
+        # 2. 모델 존재 검증
+        available_models = self.get_available_models_for_task(task_type)
+        model_found = None
+        for model_name, model_spec in available_models.items():
+            if model_spec.get('class_path') == model.class_path:
+                model_found = model_spec
+                break
 
-    def validate_fetcher_type(self, fetcher_config: Dict[str, Any]) -> bool:
-        """피처 페처 타입이 지원되는지 검증"""
-        fetcher_type = fetcher_config.get('type')
-        if not fetcher_type:
-            self.add_error("Fetcher configuration is missing 'type' field")
-            return False
-
-        available_fetchers = self.registry.get_available_fetchers()
-
-        if not available_fetchers:
-            self.add_warning("No fetcher types are registered in the system")
-            return True  # Registry가 아직 로드되지 않았을 수 있음
-
-        if not self.registry.is_fetcher_available(fetcher_type):
-            self.add_error(
-                f"Fetcher type '{fetcher_type}' is not registered. "
-                f"Available fetcher types: {available_fetchers}"
+        if not model_found:
+            return ValidationResult(
+                is_valid=False,
+                error_message=f"모델 {model.class_path}이 {task_type} catalog에서 찾을 수 없습니다."
             )
-            return False
 
-        return True
+        # 3. 하이퍼파라미터 검증
+        return self._validate_hyperparameters(model, model_found)
 
-    def validate_adapter_type(self, adapter_type: str) -> bool:
-        """어댑터 타입이 지원되는지 검증"""
-        available_adapters = self.registry.get_available_adapters()
+    def _validate_hyperparameters(self, recipe_model: Model, catalog_spec: Dict) -> ValidationResult:
+        """하이퍼파라미터 범위 및 타입 검증"""
+        recipe_hyperparams = recipe_model.hyperparameters
+        catalog_hyperparams = catalog_spec.get('hyperparameters', {})
 
-        if not available_adapters:
-            self.add_warning("No adapter types are registered in the system")
-            return True  # Registry가 아직 로드되지 않았을 수 있음
+        if recipe_hyperparams.tuning_enabled:
+            # 튜닝 모드: tunable 파라미터 검증
+            recipe_tunable = recipe_hyperparams.tunable or {}
+            catalog_tunable = catalog_hyperparams.get('tunable', {})
 
-        if not self.registry.is_adapter_available(adapter_type):
-            self.add_error(
-                f"Adapter type '{adapter_type}' is not registered. "
-                f"Available adapter types: {available_adapters}"
-            )
-            return False
+            for param_name, param_spec in recipe_tunable.items():
+                if param_name not in catalog_tunable:
+                    return ValidationResult(
+                        is_valid=False,
+                        error_message=f"튜닝 파라미터 '{param_name}'이 {catalog_spec['class_path']}에서 지원되지 않습니다."
+                    )
 
-        return True
+                # 범위 검증
+                recipe_range = param_spec.get('range', [])
+                catalog_range = catalog_tunable[param_name].get('range', [])
 
-    def validate_calibration_method(self, calibration_config: Optional[Dict[str, Any]]) -> bool:
-        """캘리브레이션 방법이 지원되는지 검증"""
-        if not calibration_config or not calibration_config.get('enabled'):
-            return True  # 캘리브레이션이 비활성화된 경우
+                if (recipe_range and catalog_range and
+                    len(recipe_range) >= 2 and len(catalog_range) >= 2 and
+                    (recipe_range[0] < catalog_range[0] or recipe_range[1] > catalog_range[1])):
+                    return ValidationResult(
+                        is_valid=False,
+                        error_message=f"파라미터 '{param_name}' 범위 {recipe_range}가 catalog 제한 {catalog_range}을 초과합니다."
+                    )
 
-        method = calibration_config.get('method')
-        if not method:
-            self.add_error("Calibration is enabled but 'method' is not specified")
-            return False
-
-        available_methods = self.registry.get_available_calibration_methods()
-
-        if not available_methods:
-            self.add_warning("No calibration methods are registered in the system")
-            return True  # Registry가 아직 로드되지 않았을 수 있음
-
-        if not self.registry.is_calibration_method_available(method):
-            self.add_error(
-                f"Calibration method '{method}' is not registered. "
-                f"Available methods: {available_methods}"
-            )
-            return False
-
-        return True
-
-    def validate_recipe_components(self, recipe_data: Dict[str, Any]) -> bool:
-        """Recipe의 모든 컴포넌트 카탈로그 검증"""
-        self.clear_messages()
-        valid = True
-
-        # Task type 검증
-        task_choice = recipe_data.get('task_choice')
-        if task_choice:
-            if not self.validate_task_type(task_choice):
-                valid = False
-
-        # Preprocessor 검증
-        preprocessor = recipe_data.get('preprocessor')
-        if preprocessor:
-            if not self.validate_preprocessor_steps(preprocessor):
-                valid = False
-
-        # Fetcher 검증
-        data_config = recipe_data.get('data', {})
-        fetcher_config = data_config.get('fetcher')
-        if fetcher_config:
-            if not self.validate_fetcher_type(fetcher_config):
-                valid = False
-
-        # Calibration 검증
-        model_config = recipe_data.get('model', {})
-        calibration_config = model_config.get('calibration')
-        if calibration_config:
-            if not self.validate_calibration_method(calibration_config):
-                valid = False
-
-        return valid
-
-    def validate_config_components(self, config_data: Dict[str, Any]) -> bool:
-        """Config의 모든 컴포넌트 카탈로그 검증"""
-        self.clear_messages()
-        valid = True
-
-        # Data source adapter 검증
-        data_source = config_data.get('data_source', {})
-        adapter_type = data_source.get('adapter_type')
-        if adapter_type:
-            if not self.validate_adapter_type(adapter_type):
-                valid = False
-
-        # Output adapters 검증
-        output_config = config_data.get('output', {})
-        if output_config:
-            # Inference output adapter
-            inference_config = output_config.get('inference', {})
-            inference_adapter = inference_config.get('adapter_type')
-            if inference_adapter:
-                if not self.validate_adapter_type(inference_adapter):
-                    valid = False
-
-            # Preprocessed output adapter
-            preprocessed_config = output_config.get('preprocessed', {})
-            preprocessed_adapter = preprocessed_config.get('adapter_type')
-            if preprocessed_adapter:
-                if not self.validate_adapter_type(preprocessed_adapter):
-                    valid = False
-
-        return valid
-
-    def get_validation_summary(self) -> Dict[str, Any]:
-        """검증 결과 요약 반환"""
-        return {
-            'is_valid': len(self.errors) == 0,
-            'error_count': len(self.errors),
-            'warning_count': len(self.warnings),
-            'errors': self.errors.copy(),
-            'warnings': self.warnings.copy(),
-        }
-
-    def get_available_components_summary(self) -> Dict[str, List[str]]:
-        """사용 가능한 컴포넌트 목록 반환"""
-        return self.registry.get_component_catalog()
-
-    def validate_component_exists(self, component_type: str, component_name: str) -> bool:
-        """특정 컴포넌트의 존재 여부 검증"""
-        return self.registry.validate_component_availability(component_type, component_name)
-
-    def suggest_alternatives(self, component_type: str, invalid_name: str) -> List[str]:
-        """잘못된 컴포넌트 이름에 대한 대안 제안"""
-        catalog = self.get_available_components_summary()
-
-        type_mapping = {
-            'preprocessor': 'preprocessor_steps',
-            'task': 'task_types',
-            'fetcher': 'fetchers',
-            'adapter': 'adapters',
-            'calibration': 'calibration_methods',
-        }
-
-        catalog_key = type_mapping.get(component_type)
-        if not catalog_key or catalog_key not in catalog:
-            return []
-
-        available = catalog[catalog_key]
-
-        # 간단한 유사도 기반 제안 (이름 포함 여부)
-        suggestions = []
-        invalid_lower = invalid_name.lower()
-
-        for item in available:
-            if invalid_lower in item.lower() or item.lower() in invalid_lower:
-                suggestions.append(item)
-
-        # 최대 3개까지만 제안
-        return suggestions[:3]
+        return ValidationResult(is_valid=True)

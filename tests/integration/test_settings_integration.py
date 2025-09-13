@@ -13,10 +13,8 @@ from pathlib import Path
 from unittest.mock import patch
 import tempfile
 
-from src.settings.loader import load_settings, create_settings_for_inference, load_config_files
-from src.settings.config import Config, Environment, MLflow, DataSource, FeatureStore, Serving
-from src.settings.recipe import Recipe, Model, Data, Loader, DataInterface, Evaluation
-from src.settings.validator import ModelCatalog, validate
+from src.settings import SettingsFactory, Config, Environment, MLflow, DataSource, FeatureStore, Serving
+from src.settings import Recipe, Model, Data, Loader, DataInterface, Evaluation
 
 
 class TestSettingsIntegration:
