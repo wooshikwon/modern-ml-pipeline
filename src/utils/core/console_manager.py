@@ -481,7 +481,7 @@ def cli_info(message: str):
 
 # ===== Test Helper Functions =====
 
-def test_print(message: str, emoji: str = "📝"):
+def testing_print(message: str, emoji: str = "📝"):
     """
     Test-optimized print function for E2E tests.
     Maintains Rich formatting but optimized for test output.
@@ -497,15 +497,15 @@ def test_print(message: str, emoji: str = "📝"):
 
 def phase_print(phase_name: str, emoji: str = "🔍"):
     """Print test phase header with consistent formatting"""
-    test_print(f"\n=== {phase_name} ===", emoji=emoji)
+    testing_print(f"\n=== {phase_name} ===", emoji=emoji)
 
 def success_print(message: str):
     """Print test success with consistent styling"""
-    test_print(message, emoji="✅")
+    testing_print(message, emoji="✅")
 
-def test_info(message: str):
+def testing_info(message: str):
     """Print test info with consistent styling"""  
-    test_print(message, emoji="ℹ️")
+    testing_print(message, emoji="ℹ️")
 
 # ===== Quick Access Aliases =====
 # For backward compatibility and convenience

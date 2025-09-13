@@ -213,7 +213,7 @@ class TestSchemaUtils:
             'entity_columns': ['entity_id'],
             'timestamp_column': 'timestamp',
             'target_column': 'target',
-            'task_type': 'classification'
+            'task_choice': 'classification'
         }
         
         # When: 스키마 메타데이터 생성
@@ -225,7 +225,7 @@ class TestSchemaUtils:
         
         # 필수 키 존재 확인
         required_keys = [
-            'entity_columns', 'timestamp_column', 'target_column', 'task_type',
+            'entity_columns', 'timestamp_column', 'target_column', 'task_choice',
             'training_columns', 'inference_columns', 'column_types',
             'schema_version', 'created_at'
         ]
@@ -235,7 +235,7 @@ class TestSchemaUtils:
         
         # 값 검증
         assert schema_metadata['target_column'] == 'target'
-        assert schema_metadata['task_type'] == 'classification'
+        assert schema_metadata['task_choice'] == 'classification'
         assert len(schema_metadata['training_columns']) == 3
         assert len(schema_metadata['column_types']) == 3
 

@@ -25,6 +25,7 @@ def validate_schema(df: pd.DataFrame, settings: "Settings", for_training: bool =
     # ✅ 새로운 구조에서 설정 수집
     data_interface = settings.recipe.data.data_interface
     fetcher_conf = settings.recipe.data.fetcher
+    task_choice = settings.recipe.task_choice
     
     errors = []
     required_columns = []
@@ -36,7 +37,7 @@ def validate_schema(df: pd.DataFrame, settings: "Settings", for_training: bool =
             required_columns.append(fetcher_conf.timestamp_column)
         
         # Target 컬럼 (clustering 제외)
-        if data_interface.task_type != "clustering" and data_interface.target_column:
+        if task_choice != "clustering" and data_interface.target_column:
             required_columns.append(data_interface.target_column)
     else:
         # 모델 학습용 데이터: entity/timestamp 제외
@@ -46,13 +47,13 @@ def validate_schema(df: pd.DataFrame, settings: "Settings", for_training: bool =
         # Target 컬럼은 이미 분리되었으므로 검증하지 않음
         
     # 3. Treatment 컬럼 검증 (causal 전용) - 학습 시에도 필요
-    if data_interface.task_type == "causal" and data_interface.treatment_column:
+    if task_choice == "causal" and data_interface.treatment_column:
         required_columns.append(data_interface.treatment_column)
     
     # 필수 컬럼 존재 여부 검증
     for col in required_columns:
         if col not in df.columns:
-            errors.append(f"- 필수 컬럼 누락: '{col}' (task_type: {data_interface.task_type})")
+            errors.append(f"- 필수 컬럼 누락: '{col}' (task_choice: {task_choice})")
     
     # Timestamp 타입 검증
     ts_col = fetcher_conf.timestamp_column if fetcher_conf else None
@@ -70,7 +71,7 @@ def validate_schema(df: pd.DataFrame, settings: "Settings", for_training: bool =
         error_message += f"\n실제 컬럼: {list(df.columns)}"
         raise TypeError(error_message)
     
-    logger.info(f"스키마 검증 성공 (task_type: {data_interface.task_type})")
+    logger.info(f"스키마 검증 성공 (task_choice: {task_choice})")
 
 
 def convert_schema(df: pd.DataFrame, expected_schema: dict) -> pd.DataFrame:
@@ -293,7 +294,7 @@ def generate_training_schema_metadata(training_df: pd.DataFrame, data_interface_
         'entity_columns': data_interface_config.get('entity_columns', []),
         'timestamp_column': data_interface_config.get('timestamp_column', ''),
         'target_column': target_column,
-        'task_type': data_interface_config.get('task_type', ''),
+        'task_choice': data_interface_config.get('task_choice', ''),
         
         # 실제 Training 데이터 스키마 정보
         'training_columns': list(training_df.columns),

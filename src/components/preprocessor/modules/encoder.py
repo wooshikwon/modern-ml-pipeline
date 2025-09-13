@@ -82,11 +82,16 @@ class OrdinalEncoderWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
     DataFrame-First: scikit-learn의 OrdinalEncoder를 위한 래퍼
     범주형 변수를 순서형 숫자로 인코딩하며, 컬럼명을 보존합니다.
     """
-    def __init__(self, handle_unknown='use_encoded_value', unknown_value=-1, columns: List[str] = None):
+    def __init__(self, handle_unknown='error', unknown_value=None, columns: List[str] = None):
         self.handle_unknown = handle_unknown
         self.unknown_value = unknown_value
         self.columns = columns
-        self.encoder = OrdinalEncoder(handle_unknown=self.handle_unknown, unknown_value=self.unknown_value)
+        
+        # sklearn 호환성: handle_unknown='error'일 때는 unknown_value 파라미터 제외
+        if self.handle_unknown == 'error':
+            self.encoder = OrdinalEncoder(handle_unknown=self.handle_unknown)
+        else:
+            self.encoder = OrdinalEncoder(handle_unknown=self.handle_unknown, unknown_value=self.unknown_value)
     
     def fit(self, X: pd.DataFrame, y=None):
         try:

@@ -202,10 +202,14 @@ class TestPreprocessorEdgeCases:
         })
         
         # When: 빈 데이터에 전처리 적용
-        # 이 경우 scikit-learn에서 에러가 발생할 수 있음
-        with pytest.raises(ValueError):
-            # StandardScaler는 빈 데이터에서 학습할 수 없음
-            preprocessor.fit(df_empty)
+        # 개선된 StandardScaler는 빈 데이터를 gracefully 처리함
+        preprocessor.fit(df_empty)
+        result = preprocessor.transform(df_empty)
+        
+        # Then: 빈 DataFrame이 그대로 반환되어야 함
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 0
+        assert list(result.columns) == ['feature_0', 'feature_1', 'target']
     
     def test_preprocessor_single_row_data(self, settings_builder):
         """케이스 F: 단일 행 데이터 처리"""

@@ -4,7 +4,7 @@ Optuna 튜닝, Feature Store 통합 등 신규 기능 포함
 완전히 재작성됨 - CLI recipe.yaml.j2와 100% 호환
 """
 
-from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Dict, List, Any, Optional, Literal
 
 
@@ -31,29 +31,6 @@ class HyperparametersTuning(BaseModel):
     # 튜닝 비활성화시 사용
     values: Optional[Dict[str, Any]] = Field(None, description="튜닝 비활성화시 사용할 고정값")
     
-    @field_validator('fixed', 'tunable')
-    def validate_tuning_params(cls, v, info):
-        """튜닝 활성화시 fixed/tunable 검증"""
-        if info.data.get('tuning_enabled'):
-            if info.field_name == 'tunable' and v:
-                # tunable 파라미터 구조 검증
-                for param, spec in v.items():
-                    if 'type' not in spec:
-                        raise ValueError(f"{param}에 'type'이 필요합니다")
-                    if 'range' not in spec:
-                        raise ValueError(f"{param}에 'range'가 필요합니다")
-                    # type 검증
-                    if spec['type'] not in ['int', 'float', 'categorical']:
-                        raise ValueError(f"{param}의 type은 int/float/categorical 중 하나여야 합니다")
-        return v
-    
-    @field_validator('values')
-    def validate_fixed_values(cls, v, info):
-        """튜닝 비활성화시 values 검증"""
-        if not info.data.get('tuning_enabled') and not v:
-            # 튜닝이 비활성화되었는데 values가 없으면 경고
-            pass  # 빈 딕셔너리라도 허용
-        return v
 
 
 class Calibration(BaseModel):
@@ -61,12 +38,6 @@ class Calibration(BaseModel):
     enabled: bool = Field(False, description="캘리브레이션 활성화 여부")
     method: Optional[str] = Field(None, description="캘리브레이션 방법 ('beta', 'isotonic', 'temperature')")
     
-    @model_validator(mode='after')
-    def validate_calibration_settings(self):
-        """캘리브레이션 설정 검증"""
-        if self.enabled and not self.method:
-            raise ValueError("캘리브레이션이 활성화된 경우 method를 지정해야 합니다. 사용 가능: 'beta', 'isotonic', 'temperature'")
-        return self
 
 
 class Model(BaseModel):
@@ -131,13 +102,6 @@ class Fetcher(BaseModel):
         description="Point-in-time join 기준 타임스탬프 컬럼"
     )
     
-    @field_validator('feature_views')
-    def validate_feature_views(cls, v, info):
-        """feature_store 타입일 때 feature_views 검증"""
-        if info.data.get('type') == 'feature_store':
-            if not v:
-                return {}  # 빈 dict 반환
-        return v
 
 
 class DataInterface(BaseModel):
@@ -170,17 +134,6 @@ class DataSplit(BaseModel):
     test: float = Field(..., description="테스트용 데이터 비율", ge=0, le=1)
     calibration: float = Field(0.0, description="보정용 데이터 비율", ge=0, le=1)
     
-    @model_validator(mode='after')
-    def validate_split_ratios(self):
-        """분할 비율의 합이 1.0인지 검증"""
-        total = self.train + self.validation + self.test + self.calibration
-        if abs(total - 1.0) > 0.001:
-            raise ValueError(
-                f"데이터 분할 비율의 합이 1.0이어야 합니다. 현재 합: {total:.3f} "
-                f"(train: {self.train}, validation: {self.validation}, "
-                f"test: {self.test}, calibration: {self.calibration})"
-            )
-        return self
 
 
 class Data(BaseModel):
@@ -233,58 +186,6 @@ class PreprocessorStep(BaseModel):
         description="SimpleImputer에서 imputation 전 결측값 위치를 나타내는 indicator 컬럼 생성 여부"
     )
     
-    @model_validator(mode='after')
-    def validate_step_params(self):
-        """전처리 타입별 필수 파라미터 검증 및 기본값 설정"""
-        # simple_imputer는 strategy가 필수
-        if self.type == 'simple_imputer' and not self.strategy:
-            raise ValueError("simple_imputer는 strategy가 필요합니다")
-        
-        # kbins_discretizer는 strategy 기본값 설정
-        if self.type == 'kbins_discretizer':
-            if self.strategy is None:
-                self.strategy = 'quantile'  # KBinsDiscretizer 기본값
-            # KBinsDiscretizer 전용 전략 검증
-            if self.strategy not in ['uniform', 'quantile', 'kmeans']:
-                raise ValueError(f"kbins_discretizer의 strategy는 'uniform', 'quantile', 'kmeans' 중 하나여야 합니다: {self.strategy}")
-        
-        # SimpleImputer 전용 전략 검증
-        if self.type == 'simple_imputer':
-            if self.strategy not in ['mean', 'median', 'most_frequent', 'constant']:
-                raise ValueError(f"simple_imputer의 strategy는 'mean', 'median', 'most_frequent', 'constant' 중 하나여야 합니다: {self.strategy}")
-        
-        # polynomial_features는 degree 기본값 설정
-        if self.type == 'polynomial_features' and self.degree is None:
-            self.degree = 2
-        
-        # kbins_discretizer는 n_bins 기본값 설정
-        if self.type == 'kbins_discretizer' and self.n_bins is None:
-            self.n_bins = 5
-        
-        # create_missing_indicators 기본값 설정 (simple_imputer일 때만 유효)
-        if self.type == 'simple_imputer' and self.create_missing_indicators is None:
-            self.create_missing_indicators = False  # 기본값은 False
-        
-        # create_missing_indicators는 simple_imputer에서만 유효
-        if self.create_missing_indicators is not None and self.type != 'simple_imputer':
-            raise ValueError("create_missing_indicators는 simple_imputer 타입에서만 사용할 수 있습니다")
-        
-        # Global vs Targeted 전처리기 검증
-        global_preprocessors = {'standard_scaler', 'min_max_scaler', 'robust_scaler'}
-        targeted_preprocessors = {
-            'one_hot_encoder', 'ordinal_encoder', 'catboost_encoder',
-            'simple_imputer', 'polynomial_features', 'tree_based_feature_generator', 'kbins_discretizer'
-        }
-        
-        if self.type in global_preprocessors:
-            # Global 전처리기는 columns가 선택사항 (None 허용)
-            pass
-        elif self.type in targeted_preprocessors:
-            # Targeted 전처리기는 columns가 필수
-            if not self.columns:
-                raise ValueError(f"'{self.type}'는 Targeted 전처리기이므로 columns 필드가 필요합니다")
-        
-        return self
 
 
 class Preprocessor(BaseModel):
@@ -307,12 +208,6 @@ class ValidationConfig(BaseModel):
     # Cross validation용 (선택)
     n_folds: Optional[int] = Field(None, ge=2, le=10, description="Cross validation fold 수")
     
-    @model_validator(mode='after')
-    def validate_cross_validation(self):
-        """cross_validation일 때 n_folds 기본값 설정"""
-        if self.method == 'cross_validation' and self.n_folds is None:
-            self.n_folds = 5  # 기본값
-        return self
 
 
 class Evaluation(BaseModel):
@@ -323,13 +218,6 @@ class Evaluation(BaseModel):
         description="검증 설정"
     )
     
-    @field_validator('metrics')
-    def validate_metrics(cls, v):
-        """메트릭 이름 정규화"""
-        if not v:
-            raise ValueError("최소 하나의 메트릭이 필요합니다")
-        # 소문자로 정규화
-        return [m.lower() for m in v]
 
 
 class Metadata(BaseModel):
@@ -356,37 +244,6 @@ class Recipe(BaseModel):
     evaluation: Evaluation = Field(..., description="평가 설정")
     metadata: Optional[Metadata] = Field(None, description="메타데이터")
     
-    @model_validator(mode='after')
-    def validate_task_choice_compatibility(self):
-        """task_choice와 다른 설정들의 호환성 검증"""
-        task = self.task_choice
-        data_interface = self.data.data_interface
-        
-        # Clustering task 검증 - target_column이 없어야 함
-        if task == "clustering":
-            if data_interface.target_column is not None:
-                raise ValueError("Clustering task에서는 target_column이 None이어야 합니다")
-        
-        # Classification/Regression task 검증 - target_column이 필수
-        elif task in ["classification", "regression"]:
-            if not data_interface.target_column:
-                raise ValueError(f"{task.capitalize()} task에는 target_column이 필수입니다")
-        
-        # Timeseries task 검증
-        elif task == "timeseries":
-            if not data_interface.timestamp_column:
-                raise ValueError("Timeseries task에는 timestamp_column이 필수입니다")
-            if not data_interface.target_column:
-                raise ValueError("Timeseries task에는 target_column이 필수입니다")
-        
-        # Causal task 검증  
-        elif task == "causal":
-            if not data_interface.treatment_column:
-                raise ValueError("Causal task에는 treatment_column이 필수입니다")
-            if not data_interface.target_column:
-                raise ValueError("Causal task에는 target_column이 필수입니다")
-        
-        return self
     
     def get_task_type(self) -> str:
         """ML 태스크 타입 반환 (task_choice 기반)"""
@@ -417,81 +274,3 @@ class Recipe(BaseModel):
             return self.model.hyperparameters.tunable
         return None
     
-    model_config = ConfigDict(
-        json_schema_extra={
-            "example": {
-                "name": "classification_rf",
-                "task_choice": "classification",
-                "model": {
-                    "class_path": "sklearn.ensemble.RandomForestClassifier",
-                    "library": "sklearn",
-                    "hyperparameters": {
-                        "tuning_enabled": True,
-                        "fixed": {
-                            "random_state": 42,
-                            "n_jobs": -1
-                        },
-                        "tunable": {
-                            "n_estimators": {
-                                "type": "int",
-                                "range": [50, 200]
-                            },
-                            "max_depth": {
-                                "type": "int", 
-                                "range": [5, 20]
-                            }
-                        }
-                    }
-                },
-                "data": {
-                    "loader": {
-                        "source_uri": "sql/train_data.sql",
-                        "entity_schema": {
-                            "entity_columns": ["user_id"],
-                            "timestamp_column": "event_timestamp"
-                        }
-                    },
-                    "fetcher": {
-                        "type": "feature_store",
-                        "features": [
-                            {
-                                "feature_namespace": "user_features",
-                                "features": ["age", "gender", "location"]
-                            }
-                        ]
-                    },
-                    "data_interface": {
-                        "target_column": "label",
-                        "entity_columns": ["user_id"],
-                        "feature_columns": None
-                    }
-                },
-                "preprocessor": {
-                    "steps": [
-                        {
-                            "type": "standard_scaler",
-                            "columns": ["age", "income"]
-                        },
-                        {
-                            "type": "one_hot_encoder",
-                            "columns": ["gender", "location"]
-                        }
-                    ]
-                },
-                "evaluation": {
-                    "metrics": ["accuracy", "f1", "roc_auc"],
-                    "validation": {
-                        "method": "train_test_split",
-                        "test_size": 0.2,
-                        "random_state": 42
-                    }
-                },
-                "metadata": {
-                    "author": "Data Scientist",
-                    "created_at": "2024-01-01 12:00:00",
-                    "description": "Random Forest classifier with Optuna tuning",
-                    "tuning_note": "Optuna will optimize n_estimators and max_depth"
-                }
-            }
-        }
-    )
