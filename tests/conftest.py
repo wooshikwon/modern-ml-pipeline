@@ -187,7 +187,6 @@ class SettingsBuilder:
                 values={"n_estimators": 10, "random_state": 42}
             ),
             calibration=None,
-            computed={"run_name": f"test_run_{uuid.uuid4().hex[:8]}"}
         )
         self._data = Data(
             loader=Loader(source_uri="test_data.csv"),
@@ -321,8 +320,7 @@ class SettingsBuilder:
                 tuning_enabled=False,
                 values=hyperparams
             ),
-            calibration=self._model.calibration,  # 기존 calibration 설정 유지
-            computed=self._model.computed
+            calibration=self._model.calibration  # 기존 calibration 설정 유지
         )
         return self
     

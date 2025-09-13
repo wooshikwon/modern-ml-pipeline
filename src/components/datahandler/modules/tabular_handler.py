@@ -16,21 +16,27 @@ class TabularDataHandler(BaseDataHandler):
         # data_interface는 BaseDataHandler에서 자동으로 설정됨
         super().__init__(settings)
         self.console = UnifiedConsole(settings)
+        self.console.info("[TabularDataHandler] 초기화 시작합니다")
+        self.console.info("[TabularDataHandler] 초기화 완료되었습니다",
+                         rich_message="✅ [TabularDataHandler] initialized")
     
     def split_data(self, df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
         """
         4-way 데이터 분할: train/validation/test/calibration (Data Leakage 방지)
-        
+
         Args:
             df: 전체 데이터프레임
-            
+
         Returns:
             Dict[str, pd.DataFrame]: 분할된 데이터
             - 'train': 모델 학습용
-            - 'validation': 하이퍼파라미터 튜닝용  
+            - 'validation': 하이퍼파라미터 튜닝용
             - 'test': 최종 평가용
             - 'calibration': 확률 보정용 (classification + calibration 활성화 시에만)
         """
+        self.console.info("[TabularDataHandler] 4-way 데이터 분할을 시작합니다",
+                         rich_message=f"🔄 [TabularDataHandler] Starting data split ({len(df)} total rows)")
+
         # 분할 비율 가져오기
         split_config = getattr(self.settings.recipe.data, 'split', None)
         task_choice = self.settings.recipe.task_choice

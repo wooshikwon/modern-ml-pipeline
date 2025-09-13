@@ -25,9 +25,15 @@ class SqlAdapter(BaseAdapter):
     - sqlite:// → SQLite 엔진
     """
     def __init__(self, settings: Settings, **kwargs):
+        console = get_console(settings)
+        console.info("[SqlAdapter] 초기화 시작합니다")
+
         self.settings = settings
         self.db_type = None  # Will be set by _create_engine
         self.engine = self._create_engine()
+
+        console.info("[SqlAdapter] 초기화 완료되었습니다",
+                    rich_message=f"✅ [SqlAdapter] initialized ({self.db_type})")
         
         # BigQuery 전용 플래그 및 설정
         self.use_pandas_gbq = False
@@ -224,10 +230,15 @@ class SqlAdapter(BaseAdapter):
         # 보안 가드 적용
         self._enforce_sql_guards(sql_query)
         
-        console.info(f"Executing SQL query:\n{sql_query[:200]}...")
+        console.info("[SqlAdapter] SQL 쿼리 실행을 시작합니다",
+                    rich_message=f"🗄️ [SqlAdapter] Executing SQL query ({len(sql_query)} chars)")
+
         try:
             # Pandas + SQLAlchemy 2.x 호환: 엔진 객체를 직접 전달
-            return pd.read_sql_query(sql_query, self.engine, params=params, **kwargs)
+            result = pd.read_sql_query(sql_query, self.engine, params=params, **kwargs)
+            console.info(f"[SqlAdapter] SQL 쿼리 실행 완료되었습니다 ({len(result)} rows, {len(result.columns)} columns)",
+                        rich_message=f"✅ [SqlAdapter] Query completed: [green]{len(result)} rows[/green], [blue]{len(result.columns)} columns[/blue]")
+            return result
         except Exception as e:
             snippet = sql_query[:200].replace('\n', ' ')
             console.error(f"SQL read 작업 실패: {e} | SQL(head): {snippet}")

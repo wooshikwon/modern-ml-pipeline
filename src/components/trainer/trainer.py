@@ -17,7 +17,10 @@ class Trainer(BaseTrainer):
         self.settings = settings
         self.factory_provider = factory_provider
         self.console = get_console(settings)
+        self.console.info("[Trainer] 초기화 시작합니다")
         self.console.component_init("Trainer", "success")
+        self.console.info("[Trainer] 초기화 완료되었습니다",
+                         rich_message="✅ [Trainer] initialized")
         self.training_results = {}
 
     def _get_factory(self):
@@ -35,13 +38,17 @@ class Trainer(BaseTrainer):
         additional_data: Optional[Dict[str, Any]] = None,
     ) -> tuple[Any, dict]:
         """준비된 데이터로 순수 학습만 수행합니다. (HPO 포함)"""
+        self.console.info("[Trainer] 모델 학습을 시작합니다",
+                         rich_message="🎯 [Trainer] Starting model training...")
+
         additional_data = additional_data or {}
 
         recipe_hyperparams = self.settings.recipe.model.hyperparameters
         use_tuning = recipe_hyperparams and getattr(recipe_hyperparams, 'tuning_enabled', False)
 
         if use_tuning:
-            self.console.info("하이퍼파라미터 최적화를 시작합니다. (Recipe에서 활성화됨)", rich_message="🎯 Hyperparameter optimization started")
+            self.console.info("[Trainer] 하이퍼파라미터 최적화를 시작합니다 (Recipe에서 활성화됨)",
+                            rich_message="🎯 [Trainer] Hyperparameter optimization started")
             optimizer = TrainerRegistry.create_optimizer(
                 "optuna",
                 settings=self.settings,
