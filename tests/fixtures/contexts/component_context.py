@@ -48,6 +48,45 @@ class ComponentTestContext:
             evaluator=evaluator,
             preprocessor=preprocessor,
             data_path=str(data_path),
+            settings_builder=self.settings_builder,
+        )
+        try:
+            yield ctx
+        finally:
+            pass
+
+    @contextmanager
+    def regression_stack(self, model: str = "RandomForestRegressor"):
+        # 1) Deterministic data
+        X, y = self.data_generator.regression_data(n_samples=50, n_features=4, random_state=self.seed)
+        df = pd.DataFrame(X, columns=[f"feature_{i}" for i in range(4)])
+        df["target"] = y
+        data_path = self.temp_dir / "component_reg.csv"
+        df.to_csv(data_path, index=False)
+
+        # 2) Minimal settings
+        settings = self.settings_builder \
+            .with_task("regression") \
+            .with_model(f"sklearn.ensemble.{model}") \
+            .with_data_path(str(data_path)) \
+            .build()
+
+        # 3) Factory + components
+        factory = Factory(settings)
+        adapter = factory.create_data_adapter()
+        model_obj = factory.create_model()
+        evaluator = factory.create_evaluator()
+        preprocessor = factory.create_preprocessor()
+
+        ctx = _ComponentStackContext(
+            settings=settings,
+            factory=factory,
+            adapter=adapter,
+            model=model_obj,
+            evaluator=evaluator,
+            preprocessor=preprocessor,
+            data_path=str(data_path),
+            settings_builder=self.settings_builder,
         )
         try:
             yield ctx
@@ -56,7 +95,7 @@ class ComponentTestContext:
 
 
 class _ComponentStackContext:
-    def __init__(self, settings, factory, adapter, model, evaluator, preprocessor, data_path: str):
+    def __init__(self, settings, factory, adapter, model, evaluator, preprocessor, data_path: str, settings_builder=None):
         self.settings = settings
         self.factory = factory
         self.adapter = adapter
@@ -64,6 +103,7 @@ class _ComponentStackContext:
         self.evaluator = evaluator
         self.preprocessor = preprocessor
         self.data_path = data_path
+        self.settings_builder = settings_builder  # Add settings_builder access
 
     def prepare_model_input(self, raw_df: pd.DataFrame) -> pd.DataFrame:
         # Simple preparation: exclude entity/target if present

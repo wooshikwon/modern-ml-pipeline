@@ -25,15 +25,18 @@ class DeepLearningDataHandler(BaseDataHandler):
         # Recipe 스키마에 따라 task_type은 recipe.task_choice에서 가져옵니다.
         self.task_type = settings.recipe.task_choice
         self.console = get_console(settings)
-        
+        self.console.info("[DeepLearningDataHandler] 초기화 시작합니다")
+
         # 딥러닝 전용 설정들 (Recipe Schema에서 확장 예정)
         self.sequence_length = getattr(self.data_interface, 'sequence_length', 30)
         self.use_gpu = getattr(self.data_interface, 'use_gpu', True)
-        
-        self.console.info("🧠 DeepLearning DataHandler 초기화")
-        self.console.info(f"   Task Type: {self.task_type}")
-        self.console.info(f"   Sequence Length: {self.sequence_length}")
-        self.console.info(f"   Use GPU: {self.use_gpu}")
+
+        self.console.log_processing_step(
+            "DeepLearning 설정 로드",
+            f"Task: {self.task_type}, Sequence: {self.sequence_length}, GPU: {self.use_gpu}"
+        )
+        self.console.info("[DeepLearningDataHandler] 초기화 완료되었습니다",
+                         rich_message="✅ [DeepLearningDataHandler] initialized")
     
     def validate_data(self, df: pd.DataFrame) -> bool:
         """딥러닝 데이터 검증"""
@@ -55,7 +58,10 @@ class DeepLearningDataHandler(BaseDataHandler):
             if not pd.api.types.is_datetime64_any_dtype(df[timestamp_col]):
                 try:
                     df[timestamp_col] = pd.to_datetime(df[timestamp_col])
-                    self.console.info(f"Timestamp 컬럼을 datetime으로 변환했습니다: {timestamp_col}")
+                    self.console.log_processing_step(
+                        "Timestamp 컬럼 변환",
+                        f"{timestamp_col} → datetime 변환 완료"
+                    )
                 except:
                     raise ValueError(f"Timestamp 컬럼 '{timestamp_col}'을 datetime으로 변환할 수 없습니다")
             
@@ -137,7 +143,11 @@ class DeepLearningDataHandler(BaseDataHandler):
             feature_cols = [col for col in df.select_dtypes(include=[np.number]).columns 
                            if col not in exclude_cols]
         
-        self.console.info(f"📈 TimeSeries feature columns ({len(feature_cols)}): {feature_cols[:5]}{'...' if len(feature_cols) > 5 else ''}")
+        self.console.log_data_operation(
+            "TimeSeries Feature 컬럼 선택",
+            (len(df), len(feature_cols)),
+            f"{len(feature_cols)}개 피처: {', '.join(feature_cols[:3])}{'...' if len(feature_cols) > 3 else ''}"
+        )
         
         # 결측치 체크 및 경고
         missing_info = []
@@ -146,12 +156,16 @@ class DeepLearningDataHandler(BaseDataHandler):
                 missing_ratio = df[col].isnull().sum() / len(df)
                 if missing_ratio > 0.05:  # 5% 이상
                     missing_info.append((col, missing_ratio))
-        
+
         if missing_info:
-            self.console.warning("⚠️  결측치가 많은 feature 컬럼이 발견되었습니다:")
+            missing_summary = f"{len(missing_info)}개 컬럼에 결측치 5% 이상"
+            self.console.warning(
+                f"[DeepLearningDataHandler] TimeSeries 결측치 경고: {missing_summary}",
+                rich_message=f"⚠️ TimeSeries missing data warning: {missing_summary}"
+            )
             for col, ratio in missing_info:
-                self.console.warning(f"   - {col}: {ratio:.1%}")
-            self.console.warning("   💡 전처리 단계에서 결측치 처리를 고려해보세요")
+                self.console.warning(f"  • {col}: {ratio:.1%}")
+            self.console.warning("  💡 전처리 단계에서 결측치 처리를 고려해보세요")
         
         # Sliding window로 시퀀스 생성 (고정된 실행 시퀀스 길이 사용)
         X_sequences, y_sequences = [], []
@@ -173,8 +187,11 @@ class DeepLearningDataHandler(BaseDataHandler):
         X_sequences = np.array(X_sequences)  # Shape: [n_samples, seq_len, n_features]
         y_sequences = np.array(y_sequences)  # Shape: [n_samples]
         
-        self.console.info(f"✅ 시퀀스 생성 완료: {X_sequences.shape} sequences → {y_sequences.shape} targets")
-        self.console.info(f"   Sequence length: {seq_len}, Features: {X_sequences.shape[-1]}")
+        self.console.log_data_operation(
+            "TimeSeries 시퀀스 생성 완료",
+            X_sequences.shape,
+            f"Seq Length: {seq_len}, Features: {X_sequences.shape[-1]}, → {y_sequences.shape} targets"
+        )
         
         # ✅ BaseModel 호환을 위해 DataFrame으로 변환 (메타데이터에 original shape 저장)
         original_shape = X_sequences.shape  # (n_samples, seq_len, n_features)
@@ -186,7 +203,10 @@ class DeepLearningDataHandler(BaseDataHandler):
         X_df = pd.DataFrame(X_flattened, columns=column_names)
         y_series = pd.Series(y_sequences, name='target')
         
-        self.console.info(f"🔄 DataFrame 변환 완료: {original_shape} → {X_df.shape} (BaseModel 호환)")
+        self.console.log_processing_step(
+            "DataFrame 변환 완료",
+            f"3D {original_shape} → 2D {X_df.shape} (BaseModel 호환)"
+        )
         
         additional_data = {
             'sequence_length': seq_len,
@@ -223,7 +243,11 @@ class DeepLearningDataHandler(BaseDataHandler):
         
         y = df[target_col]
         
-        self.console.info(f"📊 Tabular data prepared: {X.shape} features → {y.shape} targets")
+        self.console.log_data_operation(
+            "Tabular 데이터 준비 완료",
+            X.shape,
+            f"Features: {X.shape[1]}개, Targets: {len(y)}개"
+        )
         
         # 결측치 체크
         missing_info = []
@@ -231,12 +255,16 @@ class DeepLearningDataHandler(BaseDataHandler):
             missing_ratio = X[col].isnull().sum() / len(X)
             if missing_ratio > 0.05:  # 5% 이상
                 missing_info.append((col, missing_ratio))
-        
+
         if missing_info:
-            self.console.warning("⚠️  결측치가 많은 feature 컬럼이 발견되었습니다:")
+            missing_summary = f"{len(missing_info)}개 컬럼에 결측치 5% 이상"
+            self.console.warning(
+                f"[DeepLearningDataHandler] Tabular 결측치 경고: {missing_summary}",
+                rich_message=f"⚠️ Tabular missing data warning: {missing_summary}"
+            )
             for col, ratio in missing_info:
-                self.console.warning(f"   - {col}: {ratio:.1%}")
-            self.console.warning("   💡 전처리 단계에서 결측치 처리를 고려해보세요")
+                self.console.warning(f"  • {col}: {ratio:.1%}")
+            self.console.warning("  💡 전처리 단계에서 결측치 처리를 고려해보세요")
         
         additional_data = {
             'is_timeseries': False,
@@ -270,7 +298,11 @@ class DeepLearningDataHandler(BaseDataHandler):
             # Second split: validation (20%) vs test (20%) from temp
             validation_df, test_df = train_test_split(temp_df, test_size=0.5, random_state=42)
             
-            self.console.info(f"📊 3-way Random split 완료: Train({len(train_df)}) / Val({len(validation_df)}) / Test({len(test_df)})")
+            self.console.log_data_operation(
+                "3-way Random Split 완료",
+                (len(train_df), len(validation_df), len(test_df)),
+                f"Train: {len(train_df)}, Val: {len(validation_df)}, Test: {len(test_df)}"
+            )
             return train_df, validation_df, test_df
     
     def _time_based_split(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
@@ -293,7 +325,10 @@ class DeepLearningDataHandler(BaseDataHandler):
         # train에서도 시퀀스 생성이 가능하도록 조정
         if split_idx < min_train_size:
             split_idx = min_train_size
-            self.console.warning(f"Train 데이터가 부족하여 분할 지점을 조정했습니다: {split_idx}")
+            self.console.warning(
+                f"[DeepLearningDataHandler] Train 데이터 부족으로 분할 지점 조정: {split_idx}",
+                rich_message=f"⚠️ Train data insufficient, adjusted split point: {split_idx}"
+            )
         
         train_df = df_sorted.iloc[:split_idx].copy()
         test_df = df_sorted.iloc[split_idx:].copy()
@@ -304,9 +339,13 @@ class DeepLearningDataHandler(BaseDataHandler):
         train_period = f"{train_df[timestamp_col].min()} ~ {train_df[timestamp_col].max()}"
         test_period = f"{test_df[timestamp_col].min()} ~ {test_df[timestamp_col].max()}"
         
-        self.console.info("🕐 시계열 시간 기준 분할:")
-        self.console.info(f"   Train ({len(train_df)}행 → ~{max(0, train_sequences)}개 시퀀스): {train_period}")
-        self.console.info(f"   Test ({len(test_df)}행 → ~{max(0, test_sequences)}개 시퀀스): {test_period}")
+        self.console.log_data_operation(
+            "TimeSeries 시간 기준 분할 완료",
+            (len(train_df), len(test_df)),
+            f"Train: {max(0, train_sequences)}개 시퀀스, Test: {max(0, test_sequences)}개 시퀀스"
+        )
+        self.console.info(f"  • Train 기간: {train_period}")
+        self.console.info(f"  • Test 기간: {test_period}")
         
         return train_df, test_df
     
@@ -332,7 +371,10 @@ class DeepLearningDataHandler(BaseDataHandler):
         if train_end < min_train_size:
             train_end = min_train_size
             val_end = min(val_end, len(df_sorted) - 10)  # 최소한의 test 보장
-            self.console.warning(f"Train 데이터가 부족하여 분할 지점을 조정했습니다: train_end={train_end}")
+            self.console.warning(
+                f"[DeepLearningDataHandler] 3-way 분할 지점 조정: train_end={train_end}",
+                rich_message=f"⚠️ 3-way split point adjusted: train_end={train_end}"
+            )
         
         train_df = df_sorted.iloc[:train_end].copy()
         validation_df = df_sorted.iloc[train_end:val_end].copy()
@@ -347,10 +389,14 @@ class DeepLearningDataHandler(BaseDataHandler):
         val_period = f"{validation_df[timestamp_col].min()} ~ {validation_df[timestamp_col].max()}" if not validation_df.empty else "Empty"
         test_period = f"{test_df[timestamp_col].min()} ~ {test_df[timestamp_col].max()}" if not test_df.empty else "Empty"
         
-        self.console.info("🕐 시계열 시간 기준 3-way 분할:")
-        self.console.info(f"   Train ({len(train_df)}행 → ~{train_sequences}개 시퀀스): {train_period}")
-        self.console.info(f"   Val ({len(validation_df)}행 → ~{val_sequences}개 시퀀스): {val_period}")
-        self.console.info(f"   Test ({len(test_df)}행 → ~{test_sequences}개 시퀀스): {test_period}")
+        self.console.log_data_operation(
+            "TimeSeries 3-way 시간 기준 분할 완료",
+            (len(train_df), len(validation_df), len(test_df)),
+            f"Train: {train_sequences}, Val: {val_sequences}, Test: {test_sequences} 시퀀스"
+        )
+        self.console.info(f"  • Train 기간: {train_period}")
+        self.console.info(f"  • Val 기간: {val_period}")
+        self.console.info(f"  • Test 기간: {test_period}")
         
         return train_df, validation_df, test_df
     

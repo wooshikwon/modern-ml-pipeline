@@ -4,6 +4,7 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from typing import List
 import pandas as pd
 from src.interface import BasePreprocessor
+from src.utils.core.console_manager import get_console
 from ..registry import PreprocessorStepRegistry
 
 class KBinsDiscretizerWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
@@ -17,15 +18,20 @@ class KBinsDiscretizerWrapper(BasePreprocessor, BaseEstimator, TransformerMixin)
         self.encode = encode
         self.strategy = strategy
         self.columns = columns
+        self.console = get_console()
         self.discretizer = KBinsDiscretizer(n_bins=self.n_bins, encode=self.encode, strategy=self.strategy, subsample=None)
 
     def fit(self, X: pd.DataFrame, y=None):
         """KBinsDiscretizer를 학습시킵니다."""
+        self.console.info(f"[KBinsDiscretizer] 이산화 학습을 시작합니다 - n_bins: {self.n_bins}, encode: {self.encode}, strategy: {self.strategy}",
+                         rich_message=f"🎯 [KBinsDiscretizer] Training started with {self.n_bins} bins")
         try:
             self.discretizer.fit(X)
         except ValueError as e:
             error_msg = str(e)
             if "strategy" in error_msg.lower():
+                self.console.error(f"[KBinsDiscretizer] strategy 설정 오류: {self.strategy}",
+                                 rich_message="❌ [KBinsDiscretizer] Strategy configuration error")
                 raise ValueError(
                     f"KBinsDiscretizer strategy '{self.strategy}' 설정에 문제가 있습니다.\n"
                     f"사용 가능한 strategy:\n"
@@ -35,6 +41,8 @@ class KBinsDiscretizerWrapper(BasePreprocessor, BaseEstimator, TransformerMixin)
                     f"원본 오류: {error_msg}"
                 ) from e
             elif "encode" in error_msg.lower():
+                self.console.error(f"[KBinsDiscretizer] encode 설정 오류: {self.encode}",
+                                 rich_message="❌ [KBinsDiscretizer] Encode configuration error")
                 raise ValueError(
                     f"KBinsDiscretizer encode '{self.encode}' 설정에 문제가 있습니다.\n"
                     f"사용 가능한 encode:\n"
@@ -45,10 +53,14 @@ class KBinsDiscretizerWrapper(BasePreprocessor, BaseEstimator, TransformerMixin)
                 ) from e
             else:
                 raise
+        self.console.info(f"[KBinsDiscretizer] 학습 완료 - n_bins: {self.n_bins}, 입력 컬럼: {len(X.columns)}개",
+                         rich_message="✅ [KBinsDiscretizer] Training completed")
         return self
 
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
         """학습된 Discretizer를 사용하여 데이터를 변환하고 DataFrame으로 반환합니다."""
+        self.console.info(f"[KBinsDiscretizer] 이산화 변환을 시작합니다 - 입력: {X.shape}, encode: {self.encode}",
+                         rich_message=f"🔄 [KBinsDiscretizer] Transform started: {X.shape}")
         result_array = self.discretizer.transform(X)
         
         # sparse matrix 처리 (onehot encoding 시 sklearn이 sparse matrix 반환)
@@ -66,7 +78,10 @@ class KBinsDiscretizerWrapper(BasePreprocessor, BaseEstimator, TransformerMixin)
                 for bin_idx in range(self.n_bins):
                     new_columns.append(f"discretized_{col}_bin{bin_idx}")
         
-        return pd.DataFrame(result_array, index=X.index, columns=new_columns[:result_array.shape[1]])
+        result_df = pd.DataFrame(result_array, index=X.index, columns=new_columns[:result_array.shape[1]])
+        self.console.info(f"[KBinsDiscretizer] 이산화 완료 - 출력: {result_df.shape}, 생성된 컬럼: {len(new_columns[:result_array.shape[1]])}개",
+                         rich_message=f"✅ [KBinsDiscretizer] Transform completed: {result_df.shape}")
+        return result_df
     
     def get_output_column_names(self, input_columns: List[str]) -> List[str]:
         """변환 후 예상되는 출력 컬럼명을 반환합니다."""

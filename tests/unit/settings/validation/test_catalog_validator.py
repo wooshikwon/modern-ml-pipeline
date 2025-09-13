@@ -9,7 +9,8 @@ import pytest
 from unittest.mock import patch, MagicMock
 from typing import Dict, Any, List
 
-from src.settings.validation.catalog_validator import CatalogValidator, ValidationError
+from src.settings.validation.catalog_validator import CatalogValidator
+from src.settings.validation.common import ValidationResult
 
 
 class TestCatalogValidatorInitialization:

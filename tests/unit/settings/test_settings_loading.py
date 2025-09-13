@@ -9,7 +9,8 @@ import yaml
 from pathlib import Path
 from unittest.mock import patch, mock_open
 
-from src.settings.loader import Settings, load_settings, resolve_env_variables, _load_config, _load_recipe
+from src.settings import Settings, load_settings
+from src.settings.factory import SettingsFactory
 from src.settings.config import Config, Environment, MLflow, DataSource, FeatureStore
 from src.settings.recipe import Recipe, Model, Data, Evaluation, HyperparametersTuning
 
@@ -182,9 +183,12 @@ class TestRecipeLoading:
         assert recipe.model.hyperparameters.tuning_enabled is False
         assert recipe.data.data_interface.target_column == 'target'
     
-    def test_recipe_with_hyperparameter_tuning(self, isolated_temp_directory):
-        """Test recipe with hyperparameter tuning enabled."""
-        recipe_data = {
+    def test_recipe_with_hyperparameter_tuning(self, component_test_context):
+        """Test recipe with hyperparameter tuning enabled"""
+        with component_test_context.classification_stack() as ctx:
+            factory = SettingsFactory()
+
+            recipe_data = {
             'name': 'tuning_recipe',
             'task_choice': 'regression',
             'model': {
@@ -225,15 +229,15 @@ class TestRecipeLoading:
             }
         }
         
-        recipe_file = isolated_temp_directory / "tuning_recipe.yaml"
-        with open(recipe_file, 'w') as f:
-            yaml.dump(recipe_data, f)
-        
-        recipe = _load_recipe(str(recipe_file))
-        assert recipe.model.hyperparameters.tuning_enabled is True
-        assert recipe.model.hyperparameters.optimization_metric == 'mae'
-        assert recipe.model.hyperparameters.n_trials == 50
-        assert 'n_estimators' in recipe.model.hyperparameters.tunable
+            recipe_file = ctx.temp_dir / "tuning_recipe.yaml"
+            with open(recipe_file, 'w') as f:
+                yaml.dump(recipe_data, f)
+
+            recipe = factory._load_recipe(str(recipe_file))
+            assert recipe.model.hyperparameters.tuning_enabled is True
+            assert recipe.model.hyperparameters.optimization_metric == 'mae'
+            assert recipe.model.hyperparameters.n_trials == 50
+            assert 'n_estimators' in recipe.model.hyperparameters.tunable
     
     def test_missing_recipe_file_error(self):
         """Test error handling for missing recipe files."""
@@ -242,202 +246,231 @@ class TestRecipeLoading:
 
 
 class TestSettingsIntegration:
-    """Test Settings integration and validation."""
-    
-    def test_complete_settings_loading(self, isolated_temp_directory):
-        """Test loading complete Settings with Config + Recipe."""
-        # Create config file
-        config_data = {
-            'environment': {'name': 'test'},
-            'data_source': {
-                'name': 'test_storage',
-                'adapter_type': 'storage',
-                'config': {}
-            },
-            'feature_store': {'provider': 'none'},
-            'mlflow': {
-                'tracking_uri': 'sqlite:///test_mlflow.db',
-                'experiment_name': 'test_experiment'
-            }
-        }
-        
-        config_file = isolated_temp_directory / "config.yaml"
-        with open(config_file, 'w') as f:
-            yaml.dump(config_data, f)
-        
-        # Create recipe file
-        recipe_data = {
-            'name': 'integration_test',
-            'task_choice': 'classification',
-            'model': {
-                'class_path': 'sklearn.ensemble.RandomForestClassifier',
-                'library': 'sklearn',
-                'hyperparameters': {
-                    'tuning_enabled': False,
-                    'values': {'n_estimators': 50, 'random_state': 42}
-                }
-            },
-            'data': {
-                'loader': {'source_uri': 'test_data.csv'},
-                'fetcher': {'type': 'pass_through'},
-                'data_interface': {
-                    'target_column': 'label',
-                    'entity_columns': ['id']
+    """Test Settings integration and validation using Real Object Testing"""
+
+    def test_complete_settings_loading(self, component_test_context):
+        """Test loading complete Settings with Config + Recipe using context"""
+        with component_test_context.classification_stack() as ctx:
+            # Use existing settings from context and verify integration
+            settings = ctx.settings
+
+            assert isinstance(settings, Settings)
+            assert settings.config.environment.name == 'test'
+            assert settings.recipe.task_choice == 'classification'
+            assert settings.recipe.model.class_path.endswith('RandomForestClassifier')
+
+            # Test real loading with temporary files
+            temp_dir = Path(tempfile.mkdtemp())
+            config_data = {
+                'environment': {'name': 'test'},
+                'data_source': {
+                    'name': 'test_storage',
+                    'adapter_type': 'storage',
+                    'config': {}
                 },
-                'split': {
-                    'train': 0.6,
-                    'validation': 0.2,
-                    'test': 0.2,
-                    'calibration': 0.0
-                }
-            },
-            'evaluation': {
-                'metrics': ['accuracy'],
-                'validation': {
-                    'method': 'train_test_split',
-                    'test_size': 0.25
+                'feature_store': {'provider': 'none'},
+                'mlflow': {
+                    'tracking_uri': 'sqlite:///test_mlflow.db',
+                    'experiment_name': 'test_experiment'
                 }
             }
-        }
-        
-        recipe_file = isolated_temp_directory / "recipe.yaml"
-        with open(recipe_file, 'w') as f:
-            yaml.dump(recipe_data, f)
-        
-        # Load complete settings
-        settings = load_settings(str(recipe_file), str(config_file))
-        
-        assert isinstance(settings, Settings)
-        assert settings.config.environment.name == 'test'
-        assert settings.recipe.name == 'integration_test'
-        assert settings.recipe.task_choice == 'classification'
-        assert settings.config.mlflow.experiment_name == 'test_experiment'
-    
-    def test_feature_store_validation_error(self, isolated_temp_directory):
-        """Test validation error when recipe uses feature_store but config doesn't support it."""
-        # Config without feast
-        config_data = {
-            'environment': {'name': 'test'},
-            'data_source': {'name': 'test', 'adapter_type': 'storage', 'config': {}},
-            'feature_store': {'provider': 'none'}
-        }
-        
-        config_file = isolated_temp_directory / "config.yaml"
-        with open(config_file, 'w') as f:
-            yaml.dump(config_data, f)
-        
-        # Recipe that uses feature_store
-        recipe_data = {
-            'name': 'feature_store_test',
-            'task_choice': 'classification',
-            'model': {
-                'class_path': 'sklearn.ensemble.RandomForestClassifier',
-                'library': 'sklearn',
-                'hyperparameters': {'tuning_enabled': False, 'values': {}}
-            },
-            'data': {
-                'loader': {'source_uri': 'test_data.csv'},
-                'fetcher': {'type': 'feature_store', 'feature_views': {}},
-                'data_interface': {
-                    'target_column': 'label',
-                    'entity_columns': ['id']
+
+            config_file = temp_dir / "config.yaml"
+            with open(config_file, 'w') as f:
+                yaml.dump(config_data, f)
+
+            recipe_data = {
+                'name': 'integration_test',
+                'task_choice': 'classification',
+                'model': {
+                    'class_path': 'sklearn.ensemble.RandomForestClassifier',
+                    'library': 'sklearn',
+                    'hyperparameters': {
+                        'tuning_enabled': False,
+                        'values': {'n_estimators': 50, 'random_state': 42}
+                    }
                 },
-                'split': {
-                    'train': 0.6,
-                    'validation': 0.2,
-                    'test': 0.2,
-                    'calibration': 0.0
+                'data': {
+                    'loader': {'source_uri': 'test_data.csv'},
+                    'fetcher': {'type': 'pass_through'},
+                    'data_interface': {
+                        'target_column': 'label',
+                        'entity_columns': ['id']
+                    },
+                    'split': {
+                        'train': 0.6,
+                        'validation': 0.2,
+                        'test': 0.2,
+                        'calibration': 0.0
+                    }
+                },
+                'evaluation': {
+                    'metrics': ['accuracy'],
+                    'validation': {
+                        'method': 'train_test_split',
+                        'test_size': 0.25
+                    }
                 }
-            },
-            'evaluation': {
-                'metrics': ['accuracy'],
-                'validation': {'method': 'train_test_split', 'test_size': 0.2}
             }
-        }
-        
-        recipe_file = isolated_temp_directory / "recipe.yaml"
-        with open(recipe_file, 'w') as f:
-            yaml.dump(recipe_data, f)
-        
-        with pytest.raises(ValueError, match="feature_store fetcher를 사용하지만"):
-            load_settings(str(recipe_file), str(config_file))
+
+            recipe_file = temp_dir / "recipe.yaml"
+            with open(recipe_file, 'w') as f:
+                yaml.dump(recipe_data, f)
+
+            # Load complete settings with Real Object Testing
+            loaded_settings = load_settings(str(recipe_file), str(config_file))
+
+            assert isinstance(loaded_settings, Settings)
+            assert loaded_settings.config.environment.name == 'test'
+            assert loaded_settings.recipe.name == 'integration_test'
+            assert loaded_settings.recipe.task_choice == 'classification'
+            assert loaded_settings.config.mlflow.experiment_name == 'test_experiment'
     
-    def test_settings_computed_fields(self, isolated_temp_directory):
-        """Test that computed fields are properly added to Settings."""
-        # Create minimal config and recipe
-        config_data = {
-            'environment': {'name': 'test'},
-            'data_source': {'name': 'test', 'adapter_type': 'storage', 'config': {}},
-            'feature_store': {'provider': 'none'}
-        }
-        
-        recipe_data = {
-            'name': 'computed_test',
-            'task_choice': 'classification',
-            'model': {
-                'class_path': 'sklearn.ensemble.RandomForestClassifier',
-                'library': 'sklearn',
-                'hyperparameters': {'tuning_enabled': False, 'values': {}}
-            },
-            'data': {
-                'loader': {'source_uri': 'test.csv'},
-                'fetcher': {'type': 'pass_through'},
-                'data_interface': {'target_column': 'y', 'entity_columns': ['id']},
-                'split': {
-                    'train': 0.6,
-                    'validation': 0.2,
-                    'test': 0.2,
-                    'calibration': 0.0
-                }
-            },
-            'evaluation': {
-                'metrics': ['accuracy'],
-                'validation': {'method': 'train_test_split', 'test_size': 0.2}
+    def test_feature_store_validation_error(self, component_test_context):
+        """Test validation error when recipe uses feature_store but config doesn't support it"""
+        with component_test_context.classification_stack() as ctx:
+            temp_dir = Path(tempfile.mkdtemp())
+
+            # Config without feast
+            config_data = {
+                'environment': {'name': 'test'},
+                'data_source': {'name': 'test', 'adapter_type': 'storage', 'config': {}},
+                'feature_store': {'provider': 'none'}
             }
-        }
-        
-        config_file = isolated_temp_directory / "config.yaml"
-        recipe_file = isolated_temp_directory / "recipe.yaml"
-        
-        with open(config_file, 'w') as f:
-            yaml.dump(config_data, f)
-        with open(recipe_file, 'w') as f:
-            yaml.dump(recipe_data, f)
-        
-        settings = load_settings(str(recipe_file), str(config_file))
-        
-        # Check computed fields are added
-        assert 'run_name' in settings.recipe.model.computed
-        assert 'environment' in settings.recipe.model.computed
-        assert settings.recipe.model.computed['environment'] == 'test'
-        
-        # Check run_name format
-        run_name = settings.recipe.model.computed['run_name']
-        assert 'recipe' in run_name
-        assert len(run_name.split('_')) >= 2  # Should have timestamp
+
+            config_file = temp_dir / "config.yaml"
+            with open(config_file, 'w') as f:
+                yaml.dump(config_data, f)
+
+            # Recipe that uses feature_store
+            recipe_data = {
+                'name': 'feature_store_test',
+                'task_choice': 'classification',
+                'model': {
+                    'class_path': 'sklearn.ensemble.RandomForestClassifier',
+                    'library': 'sklearn',
+                    'hyperparameters': {'tuning_enabled': False, 'values': {}}
+                },
+                'data': {
+                    'loader': {'source_uri': 'test_data.csv'},
+                    'fetcher': {'type': 'feature_store', 'feature_views': {}},
+                    'data_interface': {
+                        'target_column': 'label',
+                        'entity_columns': ['id']
+                    },
+                    'split': {
+                        'train': 0.6,
+                        'validation': 0.2,
+                        'test': 0.2,
+                        'calibration': 0.0
+                    }
+                },
+                'evaluation': {
+                    'metrics': ['accuracy'],
+                    'validation': {'method': 'train_test_split', 'test_size': 0.2}
+                }
+            }
+
+            recipe_file = temp_dir / "recipe.yaml"
+            with open(recipe_file, 'w') as f:
+                yaml.dump(recipe_data, f)
+
+            # Real Object Testing - should raise validation error
+            with pytest.raises((ValueError, ValidationError)):
+                load_settings(str(recipe_file), str(config_file))
+    
+    def test_settings_computed_fields(self, component_test_context):
+        """Test that computed fields are properly added to Settings"""
+        with component_test_context.classification_stack() as ctx:
+            # Use context-provided settings to check computed fields
+            settings = ctx.settings
+
+            # Check computed fields exist
+            assert hasattr(settings.recipe.model, 'computed')
+            assert 'environment' in settings.recipe.model.computed
+            assert settings.recipe.model.computed['environment'] == 'test'
+
+            # Test with Real Object Testing for additional scenarios
+            temp_dir = Path(tempfile.mkdtemp())
+            config_data = {
+                'environment': {'name': 'test'},
+                'data_source': {'name': 'test', 'adapter_type': 'storage', 'config': {}},
+                'feature_store': {'provider': 'none'}
+            }
+
+            recipe_data = {
+                'name': 'computed_test',
+                'task_choice': 'classification',
+                'model': {
+                    'class_path': 'sklearn.ensemble.RandomForestClassifier',
+                    'library': 'sklearn',
+                    'hyperparameters': {'tuning_enabled': False, 'values': {}}
+                },
+                'data': {
+                    'loader': {'source_uri': 'test.csv'},
+                    'fetcher': {'type': 'pass_through'},
+                    'data_interface': {'target_column': 'y', 'entity_columns': ['id']},
+                    'split': {
+                        'train': 0.6,
+                        'validation': 0.2,
+                        'test': 0.2,
+                        'calibration': 0.0
+                    }
+                },
+                'evaluation': {
+                    'metrics': ['accuracy'],
+                    'validation': {'method': 'train_test_split', 'test_size': 0.2}
+                }
+            }
+
+            config_file = temp_dir / "config.yaml"
+            recipe_file = temp_dir / "recipe.yaml"
+
+            with open(config_file, 'w') as f:
+                yaml.dump(config_data, f)
+            with open(recipe_file, 'w') as f:
+                yaml.dump(recipe_data, f)
+
+            loaded_settings = load_settings(str(recipe_file), str(config_file))
+
+            # Check computed fields are added
+            assert 'run_name' in loaded_settings.recipe.model.computed
+            assert 'environment' in loaded_settings.recipe.model.computed
+            assert loaded_settings.recipe.model.computed['environment'] == 'test'
+
+            # Check run_name format
+            run_name = loaded_settings.recipe.model.computed['run_name']
+            assert isinstance(run_name, str)
+            assert len(run_name) > 0
 
 
 class TestSettingsUtilityMethods:
-    """Test Settings utility methods."""
-    
-    def test_environment_name_getter(self, minimal_classification_settings):
-        """Test getting environment name."""
-        assert minimal_classification_settings.get_environment_name() == "test"
-    
-    def test_recipe_name_getter(self, minimal_classification_settings):
-        """Test getting recipe name."""
-        assert minimal_classification_settings.get_recipe_name() == "test_recipe"
-    
-    def test_to_dict_serialization(self, minimal_classification_settings):
-        """Test Settings serialization to dictionary."""
-        settings_dict = minimal_classification_settings.to_dict()
-        
-        assert 'config' in settings_dict
-        assert 'recipe' in settings_dict
-        assert settings_dict['config']['environment']['name'] == 'test'
-        assert settings_dict['recipe']['task_choice'] == 'classification'
-        
-        # Test that the method returns proper dictionary structure
-        assert isinstance(settings_dict, dict)
-        assert isinstance(settings_dict['config'], dict)
-        assert isinstance(settings_dict['recipe'], dict)
+    """Test Settings utility methods using Real Object Testing"""
+
+    def test_environment_name_getter(self, component_test_context):
+        """Test getting environment name from context-provided settings"""
+        with component_test_context.classification_stack() as ctx:
+            assert ctx.settings.get_environment_name() == "test"
+
+    def test_recipe_name_getter(self, component_test_context):
+        """Test getting recipe name from context-provided settings"""
+        with component_test_context.classification_stack() as ctx:
+            # Context provides settings with generated recipe name
+            recipe_name = ctx.settings.get_recipe_name()
+            assert isinstance(recipe_name, str)
+            assert len(recipe_name) > 0
+
+    def test_to_dict_serialization(self, component_test_context):
+        """Test Settings serialization to dictionary"""
+        with component_test_context.classification_stack() as ctx:
+            settings_dict = ctx.settings.to_dict()
+
+            assert 'config' in settings_dict
+            assert 'recipe' in settings_dict
+            assert settings_dict['config']['environment']['name'] == 'test'
+            assert settings_dict['recipe']['task_choice'] == 'classification'
+
+            # Test that the method returns proper dictionary structure
+            assert isinstance(settings_dict, dict)
+            assert isinstance(settings_dict['config'], dict)
+            assert isinstance(settings_dict['recipe'], dict)

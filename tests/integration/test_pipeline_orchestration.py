@@ -13,7 +13,7 @@ import tempfile
 import os
 
 from src.factory import Factory
-from src.settings.loader import load_settings
+from src.settings import load_settings
 from src.pipelines.train_pipeline import run_train_pipeline
 from src.pipelines.inference_pipeline import run_inference_pipeline
 
@@ -600,7 +600,7 @@ evaluation:
         ]:
             try:
                 # Create settings from config data
-                from src.settings.loader import Settings
+                from src.settings import Settings
                 from src.settings.config import Config
                 from src.settings.recipe import Recipe
                 

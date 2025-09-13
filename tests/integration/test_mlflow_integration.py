@@ -561,7 +561,7 @@ class TestMLflowIntegration:
         test_data.to_csv(data_path, index=False)
         
         # When: Running complete pipeline with MLflow tracking
-        from src.settings.loader import Settings
+        from src.settings import Settings
         from src.settings.config import Config, Environment, MLflow as MLflowConfig, DataSource, FeatureStore
         from src.settings.recipe import Recipe, Model, Data, Loader, DataInterface, Evaluation
         

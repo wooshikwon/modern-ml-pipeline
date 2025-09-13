@@ -129,8 +129,16 @@ class Factory:
         # 생성된 컴포넌트 캐싱
         self._component_cache: Dict[str, Any] = {}
 
-        self.console.info(f"Factory를 Recipe와 함께 초기화했습니다: {self._recipe.name}",
-                         rich_message=f"🏭 Factory를 초기화했습니다: [cyan]{self._recipe.name}[/cyan]")
+        # Factory 초기화 정보 로깅
+        self.console.component_init(f"Factory를 초기화했습니다: {self._recipe.name}", "success")
+        self.console.info(f"Recipe 로드 완료: {self._recipe.name}, Task: {self._recipe.task_choice}")
+
+        # 환경 설정 요약 추가
+        env_name = self._config.environment.name if hasattr(self._config, "environment") else "local"
+        data_source_type = getattr(self._config.data_source, 'adapter_type', 'unknown') if hasattr(self._config, 'data_source') else 'unknown'
+        feature_store_provider = self._config.feature_store.provider if hasattr(self._config, 'feature_store') and self._config.feature_store else 'none'
+
+        self.console.info(f"Factory 환경 설정 - Environment: {env_name}, DataSource: {data_source_type}, FeatureStore: {feature_store_provider}")
 
     @classmethod
     def _ensure_components_registered(cls) -> None:

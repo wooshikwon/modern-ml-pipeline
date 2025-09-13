@@ -7,7 +7,7 @@ import numpy as np
 from typing import Dict, Any, Optional
 from sklearn.metrics import brier_score_loss
 
-from src.utils.core.logger import logger
+from src.utils.core.console_manager import get_console
 
 
 def expected_calibration_error(y_true: np.ndarray, y_prob: np.ndarray, n_bins: int = 10) -> float:
@@ -166,8 +166,11 @@ def evaluate_calibration_metrics(
         metrics['mce_improvement'] = metrics['mce_uncalibrated'] - metrics['mce_calibrated']
         metrics['brier_improvement'] = metrics['brier_score_uncalibrated'] - metrics['brier_score_calibrated']
         
-        logger.info(f"Calibration evaluation completed - ECE improvement: {metrics['ece_improvement']:.4f} "
-                   f"({metrics['ece_improvement_ratio']:.1%})")
+        console = get_console()
+        console.log_model_operation(
+            "Calibration 평가 완료",
+            f"ECE 개선: {metrics['ece_improvement']:.4f} ({metrics['ece_improvement_ratio']:.1%})"
+        )
     
     return metrics
 

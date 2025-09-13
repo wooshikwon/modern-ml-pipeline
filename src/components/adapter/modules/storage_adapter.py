@@ -34,45 +34,144 @@ class StorageAdapter(BaseAdapter):
     def read(self, uri: str, **kwargs) -> pd.DataFrame:
         """URI로부터 데이터를 읽어 DataFrame으로 반환합니다."""
         console = get_console()
-        console.info(f"[StorageAdapter] 파일 읽기를 시작합니다: {Path(uri).name}",
-                    rich_message=f"📁 [StorageAdapter] Reading from: [cyan]{Path(uri).name}[/cyan]")
+        file_name = Path(uri).name
+        file_ext = Path(uri).suffix.lower()
 
-        lower = uri.lower()
-        if lower.endswith('.csv'):
-            console.info("[StorageAdapter] CSV 파일 읽기를 시작합니다")
-            result = pd.read_csv(uri, storage_options=self.storage_options, **kwargs)
-            console.info(f"[StorageAdapter] CSV 파일 읽기 완료되었습니다: {len(result)} rows, {len(result.columns)} columns",
-                        rich_message=f"✅ [StorageAdapter] CSV loaded: [green]{len(result)} rows[/green], [blue]{len(result.columns)} columns[/blue]")
+        # 파일 정보 및 옵션 체크
+        console.log_file_operation(f"Storage 파일 읽기 시작", uri, f"유형: {file_ext}, Storage 옵션: {len(self.storage_options)}개")
+
+        # 지원 형식 및 옵션 검증
+        if self.storage_options:
+            console.log_processing_step(
+                "Storage 옵션 적용",
+                f"설정된 옵션: {', '.join(self.storage_options.keys())}"
+            )
+
+        try:
+            lower = uri.lower()
+            if lower.endswith('.csv'):
+                console.log_processing_step("CSV 파일 파싱 시작", f"속성: {len(kwargs)}개 옵션 적용")
+                result = pd.read_csv(uri, storage_options=self.storage_options, **kwargs)
+
+            elif lower.endswith('.parquet'):
+                console.log_processing_step("Parquet 파일 파싱 시작", f"속성: {len(kwargs)}개 옵션 적용")
+                result = pd.read_parquet(uri, storage_options=self.storage_options, **kwargs)
+
+            else:
+                # 기타 파일 형식도 지원
+                if lower.endswith('.json'):
+                    result = pd.read_json(uri, **kwargs)
+                else:
+                    raise ValueError(f"지원되지 않는 파일 형식: {file_ext}")
+
+            # 데이터 크기 및 품질 정보
+            data_size_mb = result.memory_usage(deep=True).sum() / (1024 * 1024)
+            null_count = result.isnull().sum().sum()
+
+            console.log_data_operation(
+                f"Storage 파일 읽기 완료",
+                shape=(len(result), len(result.columns)),
+                details=f"파일: {file_name}, 메모리: {data_size_mb:.1f} MB"
+            )
+
+            # 데이터 품질 체크
+            if null_count > 0:
+                console.log_processing_step(
+                    "데이터 품질 감지",
+                    f"결측값 {null_count:,}개 발견"
+                )
+
             return result
 
-        console.info("[StorageAdapter] Parquet 파일 읽기를 시작합니다")
-        result = pd.read_parquet(uri, storage_options=self.storage_options, **kwargs)
-        console.info(f"[StorageAdapter] Parquet 파일 읽기 완료되었습니다: {len(result)} rows, {len(result.columns)} columns",
-                    rich_message=f"✅ [StorageAdapter] Parquet loaded: [green]{len(result)} rows[/green], [blue]{len(result.columns)} columns[/blue]")
-        return result
+        except Exception as e:
+            console.log_error_with_context(
+                f"Storage 파일 읽기 실패: {e}",
+                context={
+                    "file_path": uri,
+                    "file_type": file_ext,
+                    "storage_options_count": len(self.storage_options),
+                    "kwargs_count": len(kwargs)
+                },
+                suggestion="파일 경로와 액세스 권한을 확인하세요"
+            )
+            raise
 
     def write(self, df: pd.DataFrame, uri: str, **kwargs):
         """DataFrame을 지정된 URI에 저장합니다."""
         console = get_console()
-        console.info(f"[StorageAdapter] 파일 저장을 시작합니다: {Path(uri).name}",
-                    rich_message=f"💾 [StorageAdapter] Writing to: [cyan]{Path(uri).name}[/cyan]")
+        file_name = Path(uri).name
+        file_ext = Path(uri).suffix.lower()
+        data_size_mb = df.memory_usage(deep=True).sum() / (1024 * 1024)
+
+        console.log_file_operation(
+            f"Storage 파일 저장 시작",
+            uri,
+            f"크기: {data_size_mb:.1f} MB, 형식: {file_ext}"
+        )
 
         # 로컬 파일 시스템의 경우, 쓰기 전에 디렉토리가 존재하는지 확인하고 생성합니다.
         if "://" not in uri or uri.startswith("file://"):
             path = Path(uri.replace("file://", ""))
-            console.info(f"[StorageAdapter] 디렉토리 생성 확인: {path.parent}")
-            path.parent.mkdir(parents=True, exist_ok=True)
+            if not path.parent.exists():
+                console.log_processing_step(
+                    "디렉토리 생성",
+                    f"경로 생성: {path.parent}"
+                )
+                path.parent.mkdir(parents=True, exist_ok=True)
+            else:
+                console.log_processing_step("디렉토리 확인", "기존 경로 사용")
 
-        lower = uri.lower()
-        if lower.endswith('.csv'):
-            console.info(f"[StorageAdapter] CSV 형식으로 저장합니다: {len(df)} rows")
-            df.to_csv(uri, index=False)
-        else:
-            console.info(f"[StorageAdapter] Parquet 형식으로 저장합니다: {len(df)} rows")
-            df.to_parquet(uri, storage_options=self.storage_options, **kwargs)
+        try:
+            lower = uri.lower()
+            if lower.endswith('.csv'):
+                console.log_processing_step("CSV 형식 저장", f"{len(df):,} rows × {len(df.columns)} columns")
+                df.to_csv(uri, index=False, **kwargs)
 
-        console.info(f"[StorageAdapter] 파일 저장이 완료되었습니다: {Path(uri).name}",
-                    rich_message=f"✅ [StorageAdapter] File saved: [cyan]{Path(uri).name}[/cyan] ([green]{len(df)} rows[/green])")
+            elif lower.endswith('.parquet'):
+                console.log_processing_step("Parquet 형식 저장", f"{len(df):,} rows × {len(df.columns)} columns")
+                if self.storage_options:
+                    console.log_processing_step(
+                        "Storage 옵션 적용",
+                        f"{len(self.storage_options)}개 옵션 사용"
+                    )
+                df.to_parquet(uri, storage_options=self.storage_options, **kwargs)
+
+            elif lower.endswith('.json'):
+                console.log_processing_step("JSON 형식 저장", f"{len(df):,} rows × {len(df.columns)} columns")
+                df.to_json(uri, **kwargs)
+
+            else:
+                # 기본적으로 Parquet 사용
+                console.log_processing_step("Parquet 형식으로 자동 저장", f"확장자 미지원: {file_ext}")
+                df.to_parquet(uri, storage_options=self.storage_options, **kwargs)
+
+            # 저장 완료 확인 및 파일 크기 체크
+            if "://" not in uri or uri.startswith("file://"):
+                saved_path = Path(uri.replace("file://", ""))
+                if saved_path.exists():
+                    file_size_mb = saved_path.stat().st_size / (1024 * 1024)
+                    console.log_file_operation(
+                        "Storage 파일 저장 완료",
+                        uri,
+                        f"디스크 크기: {file_size_mb:.1f} MB, 압축비: {data_size_mb/file_size_mb:.1f}x"
+                    )
+                else:
+                    console.log_file_operation("Storage 파일 저장 완료", uri, f"{len(df):,} rows 저장")
+            else:
+                console.log_file_operation("Remote storage 저장 완료", uri, f"{len(df):,} rows 전송")
+
+        except Exception as e:
+            console.log_error_with_context(
+                f"Storage 파일 저장 실패: {e}",
+                context={
+                    "file_path": uri,
+                    "file_type": file_ext,
+                    "data_shape": f"{len(df)} × {len(df.columns)}",
+                    "storage_options_count": len(self.storage_options)
+                },
+                suggestion="디렉토리 권한과 디스크 용량을 확인하세요"
+            )
+            raise
 
 # Self-registration
 from ..registry import AdapterRegistry

@@ -8,6 +8,7 @@ from scipy.optimize import minimize
 from scipy.special import expit
 
 from src.interface.base_calibrator import BaseCalibrator
+from src.utils.core.console_manager import get_console
 from ..registry import CalibrationRegistry
 
 
@@ -26,10 +27,16 @@ class BetaCalibration(BaseCalibrator):
     """
     
     def __init__(self):
+        console = get_console()
+        console.info("[BetaCalibration] 초기화 시작합니다")
+
         super().__init__()
         self.parameters = None  # Beta 분포의 파라미터들
         self._n_classes = None
         self._is_fitted = False
+
+        console.info("[BetaCalibration] 초기화 완료되었습니다",
+                    rich_message="✅ [BetaCalibration] initialized")
         
     @property
     def supports_multiclass(self) -> bool:
@@ -38,23 +45,33 @@ class BetaCalibration(BaseCalibrator):
     def fit(self, y_prob: np.ndarray, y_true: np.ndarray) -> 'BetaCalibration':
         """
         Beta Calibration 파라미터 학습
-        
+
         Args:
             y_prob: 예측 확률 (1D for binary, 2D for multiclass)
             y_true: 실제 라벨
-            
+
         Returns:
             학습된 BetaCalibration 객체
         """
+        console = get_console()
+        console.log_model_operation(
+            "Beta Calibration 학습 시작",
+            f"데이터 샘플: {len(y_prob):,}개"
+        )
+
         # 입력 검증
         y_prob = np.asarray(y_prob)
         y_true = np.asarray(y_true)
         
         if len(y_prob) != len(y_true):
+            console.error("[BetaCalibration] 입력 데이터 길이 불일치",
+                         rich_message="❌ Input data length mismatch")
             raise ValueError("y_prob와 y_true의 길이가 다릅니다")
         
         # 확률값 범위 검증
         if not np.all((y_prob >= 0) & (y_prob <= 1)):
+            console.error("[BetaCalibration] 확률값 범위 오류: [0,1] 범위를 벗어남",
+                         rich_message="❌ Probability values out of [0,1] range")
             raise ValueError("확률값은 [0, 1] 범위에 있어야 합니다")
         
         # 클래스 수 결정
@@ -62,36 +79,64 @@ class BetaCalibration(BaseCalibrator):
         self._n_classes = len(unique_labels)
         
         if self._n_classes < 2:
+            console.error(f"[BetaCalibration] 클래스 수 부족: {self._n_classes}개 (최소 2개 필요)",
+                         rich_message="❌ Insufficient number of classes (minimum 2 required)")
             raise ValueError("최소 2개 클래스가 필요합니다")
         
         # 이진 분류 vs 다중 분류
         if y_prob.ndim == 1 or (y_prob.ndim == 2 and y_prob.shape[1] == 1):
             # 이진 분류
             if self._n_classes > 2:
+                console.error(f"[BetaCalibration] 분류 유형 불일치: 이진 확률(1D)이지만 {self._n_classes}개 클래스 발견",
+                             rich_message=f"❌ Binary probabilities but {self._n_classes} classes found")
                 raise ValueError(f"이진 확률값(1D)이지만 {self._n_classes}개 클래스가 발견되었습니다")
-            
+
+            console.log_processing_step(
+                "Binary Classification Beta 파라미터 추정",
+                f"데이터 형태: {y_prob.shape}"
+            )
             y_prob_flat = y_prob.flatten() if y_prob.ndim == 2 else y_prob
             self.parameters = self._fit_beta_parameters(y_prob_flat, y_true)
             
         elif y_prob.ndim == 2:
             # 다중 분류
             if y_prob.shape[1] != self._n_classes:
+                console.error(
+                    f"[BetaCalibration] 클래스 수 불일치: 확률 행렬({y_prob.shape[1]}) vs 실제({self._n_classes})",
+                    rich_message=f"❌ Probability matrix classes ({y_prob.shape[1]}) != actual classes ({self._n_classes})"
+                )
                 raise ValueError(f"확률 행렬의 클래스 수({y_prob.shape[1]})와 실제 클래스 수({self._n_classes})가 다릅니다")
-            
+
+            console.log_processing_step(
+                "Multiclass One-vs-Rest Beta Calibration",
+                f"{self._n_classes}개 클래스 각각 파라미터 추정"
+            )
+
             # 각 클래스별로 One-vs-Rest Beta calibration
             self.parameters = []
             for class_idx in range(self._n_classes):
                 # 이진 라벨 생성 (현재 클래스 vs 나머지)
                 binary_labels = (y_true == unique_labels[class_idx]).astype(int)
                 class_probs = y_prob[:, class_idx]
-                
+
                 # 클래스별 Beta 파라미터 추정
                 params = self._fit_beta_parameters(class_probs, binary_labels)
                 self.parameters.append(params)
+                console.log_processing_step(
+                    f"Class {class_idx} Beta 파라미터 추정 완료",
+                    f"a={params['a']:.4f}, b={params['b']:.4f}"
+                )
         else:
+            console.error("[BetaCalibration] 데이터 차원 오류: y_prob는 1D 또는 2D 배열이어야 함",
+                         rich_message="❌ y_prob must be 1D or 2D array")
             raise ValueError("y_prob는 1D 또는 2D 배열이어야 합니다")
-        
+
         self._is_fitted = True
+
+        console.log_model_operation(
+            "Beta Calibration 학습 완룼",
+            f"{self._n_classes}개 클래스, 파라미터 추정 성공"
+        )
         return self
     
     def _fit_beta_parameters(self, y_prob: np.ndarray, y_true: np.ndarray) -> dict:
@@ -164,15 +209,25 @@ class BetaCalibration(BaseCalibrator):
     def transform(self, y_prob: np.ndarray) -> np.ndarray:
         """
         확률 보정 변환 수행
-        
+
         Args:
             y_prob: 원본 예측 확률
-            
+
         Returns:
             보정된 확률
         """
+        console = get_console()
+
         if not self._is_fitted:
+            console.error("[BetaCalibration] 모델이 학습되지 않음: fit() 먼저 호출 필요",
+                         rich_message="❌ Model not fitted. Call fit() first")
             raise ValueError("fit()을 먼저 호출해야 합니다")
+
+        console.log_data_operation(
+            "Beta Calibration 변환 시작",
+            y_prob.shape,
+            f"원본 확률: {len(y_prob):,}개 샘플"
+        )
         
         y_prob = np.asarray(y_prob)
         
@@ -180,6 +235,8 @@ class BetaCalibration(BaseCalibrator):
         if y_prob.ndim == 1 or (y_prob.ndim == 2 and y_prob.shape[1] == 1):
             # 이진 분류
             if isinstance(self.parameters, list):
+                console.error("[BetaCalibration] 모델-데이터 불일치: 이진 확률이지만 다중분류 calibrator 사용",
+                             rich_message="❌ Binary probabilities but multiclass calibrator used")
                 raise ValueError("다중 클래스 확률값이지만 이진 분류 calibrator로 학습되었습니다")
             
             y_prob_flat = y_prob.flatten() if y_prob.ndim == 2 else y_prob
@@ -190,9 +247,15 @@ class BetaCalibration(BaseCalibrator):
         elif y_prob.ndim == 2:
             # 다중 분류
             if not isinstance(self.parameters, list):
+                console.error("[BetaCalibration] 모델-데이터 불일치: 다중분류 확률이지만 이진분류 calibrator 사용",
+                             rich_message="❌ Multiclass probabilities but binary calibrator used")
                 raise ValueError("이진 확률값이지만 다중 클래스 calibrator로 학습되었습니다")
             
             if y_prob.shape[1] != len(self.parameters):
+                console.error(
+                    f"[BetaCalibration] 클래스 수 불일치: 입력({y_prob.shape[1]}) vs 학습된 모델({len(self.parameters)})",
+                    rich_message=f"❌ Input classes ({y_prob.shape[1]}) != trained classes ({len(self.parameters)})"
+                )
                 raise ValueError(f"확률 행렬의 클래스 수({y_prob.shape[1]})와 학습된 클래스 수({len(self.parameters)})가 다릅니다")
             
             # 각 클래스별로 보정 적용
@@ -207,8 +270,15 @@ class BetaCalibration(BaseCalibrator):
             row_sums[row_sums == 0] = 1  # 0으로 나누기 방지
             calibrated_probs = calibrated_probs / row_sums
             
+            console.log_data_operation(
+                "Beta Calibration 변환 완료",
+                calibrated_probs.shape,
+                f"Multiclass 보정된 확률: {self._n_classes}개 클래스"
+            )
             return calibrated_probs
         else:
+            console.error("[BetaCalibration] 데이터 차원 오류: y_prob는 1D 또는 2D 배열이어야 함",
+                         rich_message="❌ y_prob must be 1D or 2D array")
             raise ValueError("y_prob는 1D 또는 2D 배열이어야 합니다")
     
     def _apply_beta_calibration(self, y_prob: np.ndarray, params: dict) -> np.ndarray:

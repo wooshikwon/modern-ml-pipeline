@@ -320,6 +320,66 @@ class RichConsoleManager:
         if details:
             self.console.print(f"   [dim]{details}[/dim]")
 
+    def log_pipeline_connection(self, from_component: str, to_component: str, data_info: str = ""):
+        """파이프라인 컴포넌트 간 연결점 로깅"""
+        self.console.print(f"🔗 {from_component} → {to_component}")
+        if data_info:
+            self.console.print(f"   [dim]Data: {data_info}[/dim]")
+
+    def log_performance_guidance(self, metric_name: str, value: float, guidance: str):
+        """성능 기반 가이던스 시스템"""
+        color = "green" if "좋습니다" in guidance or "우수" in guidance else "yellow" if "보통" in guidance else "red"
+        self.console.print(f"📊 {metric_name}: [bold]{value:.4f}[/bold]")
+        self.console.print(f"   💡 [{color}]{guidance}[/{color}]")
+
+    def display_unified_metrics_table(self, metrics: Dict[str, Any], performance_summary: str = None):
+        """통합된 메트릭 표시 시스템"""
+        from rich.table import Table
+
+        table = Table(title="모델 성능 통합 요약", show_header=True, header_style="bold magenta")
+        table.add_column("지표", style="cyan", no_wrap=True)
+        table.add_column("값", style="magenta", justify="right")
+        table.add_column("해석", style="green")
+
+        for metric, value in metrics.items():
+            if isinstance(value, dict):
+                continue  # nested dict는 건너뜀
+
+            interpretation = self._get_metric_interpretation(metric, value)
+            if isinstance(value, float):
+                table.add_row(metric, f"{value:.4f}", interpretation)
+            else:
+                table.add_row(metric, str(value), interpretation)
+
+        self.console.print(table)
+
+        if performance_summary:
+            self.console.print(f"\n📈 [bold blue]전체 성능 요약:[/bold blue]")
+            self.console.print(f"   {performance_summary}")
+
+    def _get_metric_interpretation(self, metric_name: str, value: float) -> str:
+        """메트릭 해석 제공"""
+        if isinstance(value, (int, float)):
+            if "accuracy" in metric_name.lower() or "f1" in metric_name.lower():
+                if value >= 0.9:
+                    return "우수"
+                elif value >= 0.8:
+                    return "좋음"
+                elif value >= 0.7:
+                    return "보통"
+                else:
+                    return "개선 필요"
+            elif "loss" in metric_name.lower() or "error" in metric_name.lower():
+                if value <= 0.1:
+                    return "우수"
+                elif value <= 0.2:
+                    return "좋음"
+                elif value <= 0.5:
+                    return "보통"
+                else:
+                    return "개선 필요"
+        return "분석 불가"
+
 
 # ===== Unified Console Class for Dual Output =====
 
@@ -336,48 +396,45 @@ class UnifiedConsole:
         self.mode = self._detect_output_mode(settings)
     
     def info(self, message: str, rich_message: str = None, **rich_kwargs):
-        """Unified info logging with dual output"""
+        """Unified info logging with Korean-first policy"""
         self.logger.info(message)  # Always log to file/system
-        
-        if self.mode in ["rich", "test"] and rich_message:
-            self.rich_console.console.print(rich_message, **rich_kwargs)
-        elif self.mode in ["rich", "test"] and not rich_message:
+
+        # 항상 한글 메시지를 화면에 출력 (rich_message는 무시하고 한글 우선)
+        if self.mode in ["rich", "test"]:
             self.rich_console.log_milestone(message, "info")
         elif self.mode == "plain":
             print(f"INFO: {message}")
     
     def error(self, message: str, rich_message: str = None, context: Dict[str, Any] = None, suggestion: str = None):
-        """Unified error logging"""
+        """Unified error logging with Korean-first policy"""
         self.logger.error(message)
-        
+
+        # 항상 한글 메시지를 화면에 출력
         if self.mode in ["rich", "test"]:
-            if rich_message:
-                self.rich_console.console.print(rich_message, style="red")
-            else:
-                self.rich_console.log_error_with_context(message, context, suggestion)
+            self.rich_console.log_error_with_context(message, context, suggestion)
         elif self.mode == "plain":
             print(f"ERROR: {message}")
     
     def warning(self, message: str, rich_message: str = None, context: Dict[str, Any] = None):
-        """Unified warning logging"""
+        """Unified warning logging with Korean-first policy"""
         self.logger.warning(message)
-        
+
+        # 항상 한글 메시지를 화면에 출력
         if self.mode in ["rich", "test"]:
-            if rich_message:
-                self.rich_console.console.print(rich_message, style="yellow")
-            else:
+            if context:
                 self.rich_console.log_warning_with_context(message, context)
+            else:
+                self.rich_console.log_milestone(message, "warning")
         elif self.mode == "plain":
             print(f"WARNING: {message}")
     
     def debug(self, message: str, rich_message: str = None, **rich_kwargs):
-        """Unified debug logging"""
+        """Unified debug logging with Korean-first policy"""
         self.logger.debug(message)
-        
-        if self.mode in ["rich", "test"] and rich_message:
-            self.rich_console.console.print(rich_message, style="dim", **rich_kwargs)
-        elif self.mode in ["rich", "test"] and not rich_message:
-            self.rich_console.console.print(f"🔍 {message}", style="dim")
+
+        # 항상 한글 메시지를 화면에 출력
+        if self.mode in ["rich", "test"]:
+            self.rich_console.console.print(f"🔍 {message}", style="dim", **rich_kwargs)
         elif self.mode == "plain":
             print(f"DEBUG: {message}")
     

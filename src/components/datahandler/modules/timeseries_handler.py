@@ -5,11 +5,18 @@ from typing import Dict, Any, Tuple
 
 from src.interface import BaseDataHandler
 from ..registry import DataHandlerRegistry
-from src.utils.core.logger import logger
+from src.utils.core.console_manager import get_console
 
 
 class TimeseriesDataHandler(BaseDataHandler):
     """시계열 데이터 전용 핸들러"""
+
+    def __init__(self, settings, data_interface=None):
+        super().__init__(settings)
+        self.console = get_console(settings)
+        self.console.info("[TimeseriesDataHandler] 초기화 시작합니다")
+        self.console.info("[TimeseriesDataHandler] 초기화 완료되었습니다",
+                         rich_message="✅ [TimeseriesDataHandler] initialized")
     
     def validate_data(self, df: pd.DataFrame) -> bool:
         """시계열 데이터 검증"""
@@ -26,7 +33,10 @@ class TimeseriesDataHandler(BaseDataHandler):
         if not pd.api.types.is_datetime64_any_dtype(df[timestamp_col]):
             try:
                 df[timestamp_col] = pd.to_datetime(df[timestamp_col])
-                logger.info(f"Timestamp 컬럼을 datetime으로 변환했습니다: {timestamp_col}")
+                self.console.log_processing_step(
+                    "Timestamp 컬럼 변환",
+                    f"{timestamp_col} → datetime 변환 완료"
+                )
             except:
                 raise ValueError(f"Timestamp 컬럼 '{timestamp_col}'을 datetime으로 변환할 수 없습니다")
         
@@ -57,10 +67,14 @@ class TimeseriesDataHandler(BaseDataHandler):
         val_period = f"{validation_df[timestamp_col].min()} ~ {validation_df[timestamp_col].max()}" if not validation_df.empty else "Empty"  
         test_period = f"{test_df[timestamp_col].min()} ~ {test_df[timestamp_col].max()}" if not test_df.empty else "Empty"
         
-        logger.info(f"시계열 시간 기준 3-way 분할: Train({len(train_df)}) / Val({len(validation_df)}) / Test({len(test_df)})")
-        logger.info(f"Train 기간: {train_period}")
-        logger.info(f"Val 기간: {val_period}")
-        logger.info(f"Test 기간: {test_period}")
+        self.console.log_data_operation(
+            "TimeSeries 3-way 시간 기준 분할 완료",
+            (len(train_df), len(validation_df), len(test_df)),
+            f"Train: {len(train_df)}, Val: {len(validation_df)}, Test: {len(test_df)}"
+        )
+        self.console.info(f"  • Train 기간: {train_period}")
+        self.console.info(f"  • Val 기간: {val_period}")
+        self.console.info(f"  • Test 기간: {test_period}")
         
         return train_df, validation_df, test_df
     
@@ -85,7 +99,10 @@ class TimeseriesDataHandler(BaseDataHandler):
             # 자동 선택: timestamp, target, entity 제외
             auto_exclude = [timestamp_col, target_col] + exclude_cols
             X = df_with_features.drop(columns=[c for c in auto_exclude if c in df_with_features.columns])
-            logger.info(f"Timeseries feature columns 자동 선택: {list(X.columns)}")
+            self.console.log_processing_step(
+                "Timeseries Feature 컬럼 자동 선택",
+                f"{len(X.columns)}개 피처: {', '.join(list(X.columns)[:3])}{'...' if len(X.columns) > 3 else ''}"
+            )
         else:
             # 명시적 선택 - 금지된 컬럼 validation
             forbidden_cols = [timestamp_col, target_col] + exclude_cols
@@ -134,7 +151,10 @@ class TimeseriesDataHandler(BaseDataHandler):
             df_copy[f'{target_col}_rolling_mean_{window}'] = df_copy[target_col].rolling(window=window).mean()
             df_copy[f'{target_col}_rolling_std_{window}'] = df_copy[target_col].rolling(window=window).std()
         
-        logger.info(f"시계열 특성 생성 완료: {len(df_copy.columns) - len(df)}개 특성 추가")
+        self.console.log_processing_step(
+            "TimeSeries 특성 생성 완료",
+            f"{len(df_copy.columns) - len(df)}개 신규 특성 추가 (lag, rolling, time features)"
+        )
         return df_copy
     
     def _get_exclude_columns(self, df: pd.DataFrame) -> list:
@@ -182,15 +202,21 @@ class TimeseriesDataHandler(BaseDataHandler):
                 })
         
         if missing_info:
-            logger.warning("⚠️  결측치가 많은 컬럼이 발견되었습니다:")
+            missing_summary = f"{len(missing_info)}개 컬럼에 결측치 {threshold:.0%} 이상"
+            self.console.warning(
+                f"[TimeseriesDataHandler] 결측치 경고: {missing_summary}",
+                rich_message=f"⚠️ Timeseries missing data warning: {missing_summary}"
+            )
             for info in missing_info:
-                logger.warning(
-                    f"   - {info['column']}: {info['missing_count']:,}개 ({info['missing_ratio']:.1%}) "
-                    f"/ 전체 {info['total_rows']:,}개 행"
+                self.console.warning(
+                    f"  • {info['column']}: {info['missing_count']:,}개 ({info['missing_ratio']:.1%}) / 전체 {info['total_rows']:,}개 행"
                 )
-            logger.warning("   💡 전처리 단계에서 결측치 처리를 고려해보세요 (Imputation, 컬럼 제거 등)")
+            self.console.warning("  💡 전처리 단계에서 결측치 처리를 고려해보세요 (Imputation, 컬럼 제거 등)")
         else:
-            logger.info(f"✅ 모든 특성 컬럼의 결측치 비율이 {threshold:.0%} 미만입니다.")
+            self.console.log_processing_step(
+                "TimeSeries 결측치 검사 완료",
+                f"모든 특성 컬럼의 결측치 비율이 {threshold:.0%} 미만"
+            )
 
 
 # Self-registration

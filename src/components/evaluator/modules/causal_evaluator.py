@@ -2,50 +2,86 @@
 import numpy as np
 from src.interface import BaseEvaluator
 from src.settings import DataInterface
+from src.utils.core.console_manager import get_console
 
 class CausalEvaluator(BaseEvaluator):
     METRIC_KEYS = ["ate", "ate_std", "treatment_effect_significance"]
     
     def __init__(self, data_interface_settings: DataInterface):
         super().__init__(data_interface_settings)
+        self.console = get_console()
+        self.console.info("[CausalEvaluator] 초기화 완료되었습니다",
+                         rich_message="✅ [CausalEvaluator] initialized")
 
     def evaluate(self, model, X, y, additional_data=None):
         """
         인과추론 모델 평가.
-        
+
         Args:
             model: 인과추론 모델 (uplift prediction 지원)
             X: 피처 데이터 (treatment column 제외됨)
             y: 결과 변수
             additional_data: 추가 데이터 (treatment 정보 포함)
-            
+
         Returns:
             Dict[str, float]: 인과추론 평가 메트릭들
         """
+        self.console.info(f"인과추론 모델 평가를 시작합니다 - 테스트 데이터: {len(X)}개",
+                         rich_message="📊 Starting causal inference model evaluation")
+
         if not self.data_interface.treatment_column:
+            self.console.error("[CausalEvaluator] Treatment 컬럼이 필요합니다",
+                             rich_message="❌ Causal evaluation requires treatment_column")
             raise ValueError("Causal evaluation requires treatment_column in DataInterface")
         
         # Treatment 변수 추출 - additional_data에서 가져옴
         if not additional_data or 'treatment' not in additional_data:
+            self.console.error("[CausalEvaluator] Treatment 데이터가 additional_data에 없습니다",
+                             rich_message="❌ Treatment data not found in additional_data")
             raise ValueError("Causal evaluation requires treatment data in additional_data")
             
         treatment = additional_data['treatment']
         features = X  # X는 이미 treatment가 제외된 상태
-        
+
+        # Treatment 그룹 분석
+        treated_count = np.sum(treatment == 1)
+        control_count = np.sum(treatment == 0)
+        self.console.log_data_operation(
+            "Treatment 그룹 분석",
+            (treated_count, control_count),
+            f"Treatment: {treated_count}개, Control: {control_count}개"
+        )
+
         # ATE (Average Treatment Effect) 계산
+        self.console.log_processing_step(
+            "ATE (Average Treatment Effect) 계산",
+            "Treatment 그룹과 Control 그룹 간 어이질 계산"
+        )
         ate = self._calculate_ate(treatment, y)
         
         # CATE 관련 메트릭 (모델이 uplift prediction을 지원하는 경우)
+        self.console.log_processing_step(
+            "Uplift 메트릭 계산",
+            "CATE (Conditional ATE) 및 Uplift 메트릭 평가"
+        )
         uplift_metrics = self._calculate_uplift_metrics(model, features, treatment, y)
         
         # 기본 메트릭 결합
+        ate_std = self._calculate_ate_std(treatment, y)
+        significance = self._test_significance(treatment, y)
+
         metrics = {
             "ate": ate,
-            "ate_std": self._calculate_ate_std(treatment, y),
-            "treatment_effect_significance": self._test_significance(treatment, y)
+            "ate_std": ate_std,
+            "treatment_effect_significance": significance
         }
-        
+
         metrics.update(uplift_metrics)
+
+        self.console.log_model_operation(
+            "Causal Inference 평가 완료",
+            f"ATE: {ate:.4f} ± {ate_std:.4f}, 유의수준: {significance:.4f}"
+        )
         return metrics
     
     def _calculate_ate(self, treatment, outcome):

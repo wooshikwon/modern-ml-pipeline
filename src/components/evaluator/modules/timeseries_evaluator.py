@@ -2,6 +2,7 @@ import numpy as np
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 from src.interface import BaseEvaluator
 from src.settings import Settings
+from src.utils.core.console_manager import get_console
 
 class TimeSeriesEvaluator(BaseEvaluator):
     """시계열 태스크 전용 Evaluator - MAPE, SMAPE 등 시계열 특화 메트릭 제공"""
@@ -10,37 +11,78 @@ class TimeSeriesEvaluator(BaseEvaluator):
 
     def __init__(self, settings: Settings):
         super().__init__(settings)
+        self.console = get_console(settings)
+        self.console.info("[TimeSeriesEvaluator] 초기화 완료되었습니다",
+                         rich_message="✅ [TimeSeriesEvaluator] initialized")
 
     def evaluate(self, model, X, y, source_df=None):
         """
         시계열 모델 평가 메트릭 계산
-        
+
         Args:
             model: 학습된 시계열 모델
             X: 테스트 피처 데이터
             y: 실제 시계열 값
             source_df: 원본 테스트 데이터프레임 (선택사항)
-            
+
         Returns:
             Dict[str, float]: 시계열 평가 메트릭들
         """
+        self.console.info(f"시계열 모델 평가를 시작합니다 - 테스트 데이터: {len(X)}개",
+                         rich_message="📈 Starting time series model evaluation")
+
+        self.console.log_processing_step(
+            "TimeSeries 모델 예측 수행",
+            f"피처: {X.shape[1]}개, 시점: {len(X)}개"
+        )
         predictions = model.predict(X)
         
         # 1-D로 표준화 (예: (n,1) -> (n,))
         y_arr = np.ravel(np.array(y))
         pred_arr = np.ravel(np.array(predictions))
+
+        # 시계열 예측 결과 기본 통계
+        y_mean, y_std = np.mean(y_arr), np.std(y_arr)
+        pred_mean, pred_std = np.mean(pred_arr), np.std(pred_arr)
+        self.console.log_data_operation(
+            "TimeSeries 예측 결과 분석",
+            (len(y_arr), len(pred_arr)),
+            f"실제값: 평균 {y_mean:.4f} ± {y_std:.4f}, 예측값: 평균 {pred_mean:.4f} ± {pred_std:.4f}"
+        )
         
+        # 기본 회귀 메트릭 계산
+        self.console.log_processing_step(
+            "기본 회귀 메트릭 계산",
+            "MSE, RMSE, MAE 계산 중"
+        )
+        mse = mean_squared_error(y_arr, pred_arr)
+        rmse = np.sqrt(mse)
+        mae = mean_absolute_error(y_arr, pred_arr)
+
+        # 시계열 특화 메트릭 계산
+        self.console.log_processing_step(
+            "TimeSeries 특화 메트릭 계산",
+            "MAPE, SMAPE 계산 중 (백분율 오차)"
+        )
+        mape = self._calculate_mape(y_arr, pred_arr)
+        smape = self._calculate_smape(y_arr, pred_arr)
+
         metrics = {
             # 기본 회귀 메트릭
-            "mse": mean_squared_error(y_arr, pred_arr),
-            "rmse": np.sqrt(mean_squared_error(y_arr, pred_arr)),
-            "mae": mean_absolute_error(y_arr, pred_arr),
-            
+            "mse": mse,
+            "rmse": rmse,
+            "mae": mae,
+
             # 시계열 특화 메트릭
-            "mape": self._calculate_mape(y_arr, pred_arr),
-            "smape": self._calculate_smape(y_arr, pred_arr),
+            "mape": mape,
+            "smape": smape,
         }
         
+        # 최종 결과 요약
+        self.console.log_model_operation(
+            "TimeSeries 평가 완료",
+            f"MSE: {mse:.6f}, RMSE: {rmse:.6f}, MAE: {mae:.6f}, MAPE: {mape:.2f}%, SMAPE: {smape:.2f}%"
+        )
         return metrics
     
     def _calculate_mape(self, y_true, y_pred):

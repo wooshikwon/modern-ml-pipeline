@@ -185,28 +185,31 @@ class SqlAdapter(BaseAdapter):
     def read(self, source: str, params: Optional[Dict] = None, **kwargs) -> pd.DataFrame:
         """SQL 쿼리를 실행하여 결과를 DataFrame으로 반환합니다.
         BigQuery의 경우 pandas_gbq를 사용할 수 있습니다.
-        
+
         Args:
             source: SQL 쿼리 문자열 또는 .sql 파일 경로
             params: 쿼리 파라미터 (Optional)
         """
         console = get_console()
-        
+        console.log_data_operation(f"SQL 데이터 로딩 시작", details=f"데이터소스: {self.db_type}")
+
         # BigQuery + pandas_gbq 사용 시
         if self.db_type == 'bigquery' and self.use_pandas_gbq:
             try:
                 import pandas_gbq
-                console.info("BigQuery read using pandas_gbq")
-                return pandas_gbq.read_gbq(
-                    source, 
+                console.log_processing_step("BigQuery pandas_gbq 엔진 사용", f"프로젝트: {self.project_id}, 위치: {self.location}")
+                result = pandas_gbq.read_gbq(
+                    source,
                     project_id=self.project_id,
                     location=self.location,
                     **kwargs
                 )
+                console.log_data_operation(f"BigQuery 데이터 로딩 완료", shape=(len(result), len(result.columns)))
+                return result
             except ImportError:
-                console.warning("pandas_gbq not installed, falling back to SQLAlchemy")
+                console.log_warning_with_context("pandas_gbq 미설치로 SQLAlchemy 폴백 사용", {"fallback_engine": "SQLAlchemy"})
             except Exception as e:
-                console.warning(f"pandas_gbq read failed: {e}, falling back to SQLAlchemy")
+                console.log_warning_with_context(f"pandas_gbq 실패로 SQLAlchemy 폴백 사용: {e}", {"error": str(e), "fallback_engine": "SQLAlchemy"})
         
         # 기존 SQLAlchemy 방식 (기본값 및 fallback)
         sql_query = source  # Rename for compatibility
@@ -230,38 +233,70 @@ class SqlAdapter(BaseAdapter):
         # 보안 가드 적용
         self._enforce_sql_guards(sql_query)
         
-        console.info("[SqlAdapter] SQL 쿼리 실행을 시작합니다",
-                    rich_message=f"🗄️ [SqlAdapter] Executing SQL query ({len(sql_query)} chars)")
+        console.log_database_operation("SQL 쿼리 실행 시작", f"쿼리 길이: {len(sql_query)} chars, 파라미터: {len(params or {})}개")
+
+        if params:
+            console.log_processing_step("SQL 파라미터 바인딩", f"{len(params)}개 파라미터 적용")
 
         try:
             # Pandas + SQLAlchemy 2.x 호환: 엔진 객체를 직접 전달
             result = pd.read_sql_query(sql_query, self.engine, params=params, **kwargs)
-            console.info(f"[SqlAdapter] SQL 쿼리 실행 완료되었습니다 ({len(result)} rows, {len(result.columns)} columns)",
-                        rich_message=f"✅ [SqlAdapter] Query completed: [green]{len(result)} rows[/green], [blue]{len(result.columns)} columns[/blue]")
+
+            # 데이터 크기 및 구조 정보 표시
+            data_size_mb = result.memory_usage(deep=True).sum() / (1024 * 1024)
+            console.log_database_operation(
+                "SQL 쿼리 실행 완료",
+                f"{len(result):,} rows × {len(result.columns)} columns, 메모리: {data_size_mb:.1f} MB"
+            )
+
+            # 데이터 품질 간단 체크
+            null_counts = result.isnull().sum()
+            if null_counts.sum() > 0:
+                null_cols = null_counts[null_counts > 0]
+                console.log_processing_step(
+                    "데이터 품질 체크",
+                    f"결측값 발견: {len(null_cols)}개 컬럼에서 총 {null_counts.sum():,}개"
+                )
+
             return result
         except Exception as e:
             snippet = sql_query[:200].replace('\n', ' ')
-            console.error(f"SQL read 작업 실패: {e} | SQL(head): {snippet}")
+            console.log_error_with_context(
+                f"SQL 쿼리 실행 실패: {e}",
+                context={
+                    "database_type": self.db_type,
+                    "query_snippet": snippet,
+                    "params_count": len(params or {}),
+                    "query_length": len(sql_query)
+                },
+                suggestion="SQL 구문과 데이터베이스 연결을 확인하세요"
+            )
             raise
 
     def write(self, df: pd.DataFrame, target: str, **kwargs):
         """DataFrame을 지정된 테이블에 씁니다.
         BigQuery의 경우 pandas_gbq를 사용할 수 있습니다.
-        
+
         Args:
             df: 저장할 DataFrame
             target: 대상 테이블 이름
         """
         console = get_console()
-        
+        data_size_mb = df.memory_usage(deep=True).sum() / (1024 * 1024)
+        console.log_data_operation(
+            f"SQL 데이터 저장 시작",
+            shape=(len(df), len(df.columns)),
+            details=f"대상: {target}, 크기: {data_size_mb:.1f} MB"
+        )
+
         # BigQuery 전용 처리
         if self.db_type == 'bigquery' and (self.use_pandas_gbq or kwargs.get('if_exists') == 'replace'):
             try:
                 import pandas_gbq
                 # dataset_id가 있으면 테이블명에 추가
                 destination_table = f"{self.dataset_id}.{target}" if self.dataset_id and '.' not in target else target
-                
-                console.info(f"BigQuery write using pandas_gbq to {destination_table}")
+
+                console.log_processing_step("BigQuery pandas_gbq 엔진으로 저장", f"목적지: {destination_table}")
                 pandas_gbq.to_gbq(
                     df,
                     destination_table=destination_table,
@@ -270,20 +305,37 @@ class SqlAdapter(BaseAdapter):
                     if_exists=kwargs.get('if_exists', 'append'),
                     **{k: v for k, v in kwargs.items() if k not in ['if_exists']}
                 )
-                console.info(f"BigQuery write complete: {len(df)} rows to {destination_table}")
+                console.log_database_operation(
+                    "BigQuery 저장 완료",
+                    f"{len(df):,} rows → {destination_table}"
+                )
                 return
             except ImportError:
-                console.warning("pandas_gbq not installed, falling back to SQLAlchemy")
+                console.log_warning_with_context("pandas_gbq 미설치로 SQLAlchemy 폴백 사용", {"fallback_engine": "SQLAlchemy"})
             except Exception as e:
-                console.warning(f"pandas_gbq write failed: {e}, falling back to SQLAlchemy")
-        
+                console.log_warning_with_context(f"pandas_gbq 저장 실패로 SQLAlchemy 폴백 사용: {e}", {"error": str(e), "fallback_engine": "SQLAlchemy"})
+
         # 기존 SQLAlchemy 방식 (기본값 및 fallback)
-        console.info(f"Writing DataFrame to table: {target}")
+        console.log_processing_step("SQLAlchemy 엔진으로 저장", f"테이블: {target}")
         try:
+            write_mode = kwargs.get('if_exists', 'fail')
+            console.log_processing_step(f"테이블 쓰기 모드: {write_mode}", f"{len(df):,} rows 처리 중")
             df.to_sql(target, self.engine, **kwargs)
-            console.info(f"Successfully wrote {len(df)} rows to {target}.")
+            console.log_database_operation(
+                "SQL 저장 완료",
+                f"{len(df):,} rows → {target} (모드: {write_mode})"
+            )
         except Exception as e:
-            console.error(f"SQL write 작업 실패: {e}", context={"exception": str(e)})
+            console.log_error_with_context(
+                f"SQL 테이블 저장 실패: {e}",
+                context={
+                    "database_type": self.db_type,
+                    "target_table": target,
+                    "data_shape": f"{len(df)} × {len(df.columns)}",
+                    "write_mode": kwargs.get('if_exists', 'fail')
+                },
+                suggestion="테이블 권한과 스키마 호환성을 확인하세요"
+            )
             raise
 
 # Self-registration

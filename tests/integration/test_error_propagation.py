@@ -16,7 +16,7 @@ from unittest.mock import patch
 from src.pipelines.train_pipeline import run_train_pipeline
 from src.pipelines.inference_pipeline import run_inference_pipeline
 from src.factory import Factory
-from src.settings.loader import load_settings
+from src.settings import load_settings
 
 
 class TestErrorPropagationAcrossLayers:

@@ -7,7 +7,7 @@ import pytest
 from unittest.mock import patch
 import os
 
-from src.settings.loader import resolve_env_variables
+from src.settings.factory import SettingsFactory
 
 
 class TestAdvancedEnvironmentResolution:

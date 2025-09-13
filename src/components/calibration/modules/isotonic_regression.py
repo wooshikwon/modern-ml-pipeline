@@ -26,6 +26,9 @@ class IsotonicCalibration(BaseCalibrator):
         self._is_fitted = False
         self._supports_multiclass = True
         self._n_classes = None
+
+        console = get_console()
+        console.log_component_init("IsotonicCalibration 초기화 완료", "success")
     
     def fit(self, y_prob: np.ndarray, y_true: np.ndarray) -> 'IsotonicCalibration':
         """
@@ -43,17 +46,24 @@ class IsotonicCalibration(BaseCalibrator):
         Raises:
             ValueError: 입력 형식이 잘못된 경우
         """
+        console = get_console()
+        console.log_model_operation("Isotonic Calibration 학습 시작", f"데이터 샘플: {len(y_prob):,}개")
+
         # 입력 검증
         y_prob = np.asarray(y_prob)
         y_true = np.asarray(y_true)
-        
+
+        console.log_processing_step("입력 데이터 검증", f"y_prob: {y_prob.shape}, y_true: {y_true.shape}")
+
         if len(y_prob) != len(y_true):
             raise ValueError(f"y_prob와 y_true의 길이가 다릅니다: {len(y_prob)} vs {len(y_true)}")
-        
+
         # 클래스 수 확인
         unique_labels = np.unique(y_true)
         self._n_classes = len(unique_labels)
-        
+
+        console.log_processing_step(f"클래스 구조 분석", f"{self._n_classes}개 클래스 발견: {unique_labels}")
+
         if self._n_classes < 2:
             raise ValueError(f"최소 2개 클래스가 필요합니다. 발견된 클래스: {unique_labels}")
         
@@ -93,6 +103,21 @@ class IsotonicCalibration(BaseCalibrator):
             raise ValueError(f"y_prob는 1D 또는 2D 배열이어야 합니다. 받은 shape: {y_prob.shape}")
         
         self._is_fitted = True
+
+        # 학습 결과 요약
+        if self._n_classes == 2:
+            threshold_count = len(self.calibrator.X_thresholds_) if hasattr(self.calibrator, 'X_thresholds_') else 0
+            console.log_model_operation(
+                "Isotonic Calibration 학습 완료",
+                f"이진 분류, 보정 직선 임계값: {threshold_count}개"
+            )
+        else:
+            total_thresholds = sum(len(cal.X_thresholds_) if hasattr(cal, 'X_thresholds_') else 0 for cal in self.calibrator)
+            console.log_model_operation(
+                "Isotonic Calibration 학습 완료",
+                f"Multi-class, 총 임계값: {total_thresholds}개 ({self._n_classes}개 모델)"
+            )
+
         return self
     
     def transform(self, y_prob: np.ndarray) -> np.ndarray:

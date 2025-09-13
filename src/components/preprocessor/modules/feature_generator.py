@@ -5,6 +5,7 @@ from sklearn.preprocessing import OneHotEncoder, PolynomialFeatures
 import pandas as pd
 from typing import List
 from src.interface import BasePreprocessor
+from src.utils.core.console_manager import get_console
 from ..registry import PreprocessorStepRegistry
 
 class TreeBasedFeatureGenerator(BasePreprocessor, BaseEstimator, TransformerMixin):
@@ -24,6 +25,7 @@ class TreeBasedFeatureGenerator(BasePreprocessor, BaseEstimator, TransformerMixi
             random_state=self.random_state,
         )
         self.one_hot_encoder_ = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
+        self.console = get_console()
 
     def fit(self, X: pd.DataFrame, y: pd.Series = None):
         """

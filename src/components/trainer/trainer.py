@@ -49,6 +49,18 @@ class Trainer(BaseTrainer):
         if use_tuning:
             self.console.info("[Trainer] 하이퍼파라미터 최적화를 시작합니다 (Recipe에서 활성화됨)",
                             rich_message="🎯 [Trainer] Hyperparameter optimization started")
+
+            # 파이프라인 연결 정보 로깅
+            self.console.log_pipeline_connection(
+                "[Trainer] OptunaOptimizer 인스턴스를 생성합니다",
+                {
+                    "optimizer_type": "optuna",
+                    "n_trials": recipe_hyperparams.n_trials,
+                    "optimization_metric": recipe_hyperparams.optimization_metric,
+                    "timeout": getattr(recipe_hyperparams, 'timeout', None)
+                }
+            )
+
             optimizer = TrainerRegistry.create_optimizer(
                 "optuna",
                 settings=self.settings,
@@ -75,17 +87,37 @@ class Trainer(BaseTrainer):
                 }
 
             best = optimizer.optimize(train_df=None, training_callback=_objective_callback)  # train_df 미사용
+
+            # 최적화 완료 로깅
+            self.console.log_model_operation(
+                "[Trainer] 하이퍼파라미터 최적화가 완료되었습니다",
+                {
+                    "best_score": best.get('best_score'),
+                    "best_params": best.get('best_params'),
+                    "total_trials": best.get('total_trials'),
+                    "optimization_metric": best.get('optimization_metric')
+                }
+            )
+
             # 최적 파라미터로 최종 모델에 적용 후 재학습
             try:
                 model.set_params(**(best.get('best_params') or {}))
-            except Exception:
-                pass
+                self.console.info("[Trainer] 최적 파라미터를 모델에 적용했습니다",
+                                rich_message="⚙️ [Trainer] Applied optimal parameters to model")
+            except Exception as e:
+                self.console.warning(f"[Trainer] 최적 파라미터 적용 중 일부 실패했습니다: {str(e)}",
+                                   rich_message="⚠️ [Trainer] Some parameters failed to apply")
+
+            self.console.info("[Trainer] 최적 파라미터로 최종 모델을 학습합니다",
+                            rich_message="🎯 [Trainer] Final training with optimal parameters")
             self._fit_model(model, X_train, y_train, additional_data.get('train'))
             trained_model = model
             self.training_results['hyperparameter_optimization'] = best
         else:
-            self.console.info("하이퍼파라미터 튜닝을 건너뜁니다. 이유: Recipe에서 비활성화되었거나 설정이 없습니다.", rich_message="⚙️ Using fixed hyperparameters (optimization disabled)")
-            self.console.info("고정된 하이퍼파라미터로 모델을 학습합니다.", rich_message="🎯 Training with fixed hyperparameters")
+            self.console.info("[Trainer] 하이퍼파라미터 튜닝을 건너뜁니다 (Recipe에서 비활성화되었거나 설정이 없음)",
+                            rich_message="⚙️ [Trainer] Using fixed hyperparameters (optimization disabled)")
+            self.console.info("[Trainer] 고정된 하이퍼파라미터로 모델을 학습합니다",
+                            rich_message="🎯 [Trainer] Training with fixed hyperparameters")
             self._fit_model(model, X_train, y_train, additional_data.get('train'))
             trained_model = model
             self.training_results['hyperparameter_optimization'] = {'enabled': False}
@@ -99,19 +131,73 @@ class Trainer(BaseTrainer):
         if not isinstance(model, BaseModel):
             from sklearn.base import is_classifier, is_regressor
             if not (is_classifier(model) or is_regressor(model) or hasattr(model, 'fit')):
-                 raise TypeError("전달된 모델 객체는 BaseModel 인터페이스를 따르거나 scikit-learn 호환 모델이어야 합니다.")
-        
+                self.console.error("[Trainer] 전달된 모델 객체는 BaseModel 인터페이스를 따르거나 scikit-learn 호환 모델이어야 합니다",
+                                 rich_message="❌ [Trainer] Invalid model type provided")
+                raise TypeError("전달된 모델 객체는 BaseModel 인터페이스를 따르거나 scikit-learn 호환 모델이어야 합니다.")
+
         task_choice = self.settings.recipe.task_choice
-        if task_choice in ["classification", "regression"]:
-            model.fit(X, y)
-        elif task_choice == "clustering":
-            model.fit(X)
-        elif task_choice == "causal":
-            model.fit(X, additional_data['treatment'], y)
-        elif task_choice == "timeseries":
-            model.fit(X, y)
-        else:
-            raise ValueError(f"지원하지 않는 task_choice: {task_choice}")
+
+        # 데이터 정보 로깅
+        self.console.log_data_operation(
+            f"[Trainer] 모델 학습을 시작합니다 (task: {task_choice})",
+            {
+                "task_choice": task_choice,
+                "training_samples": X.shape[0] if hasattr(X, 'shape') else len(X),
+                "features": X.shape[1] if hasattr(X, 'shape') and len(X.shape) > 1 else "N/A",
+                "model_type": model.__class__.__name__
+            }
+        )
+
+        try:
+            if task_choice in ["classification", "regression"]:
+                self.console.info(f"[Trainer] {task_choice} 모델 학습을 수행합니다",
+                                rich_message=f"🎯 [Trainer] Training {task_choice} model...")
+                model.fit(X, y)
+            elif task_choice == "clustering":
+                self.console.info("[Trainer] clustering 모델 학습을 수행합니다",
+                                rich_message="🎯 [Trainer] Training clustering model...")
+                model.fit(X)
+            elif task_choice == "causal":
+                self.console.info("[Trainer] causal 모델 학습을 수행합니다",
+                                rich_message="🎯 [Trainer] Training causal model...")
+                model.fit(X, additional_data['treatment'], y)
+            elif task_choice == "timeseries":
+                self.console.info("[Trainer] timeseries 모델 학습을 수행합니다",
+                                rich_message="🎯 [Trainer] Training timeseries model...")
+                model.fit(X, y)
+            else:
+                self.console.error(f"[Trainer] 지원하지 않는 task_choice입니다: {task_choice}",
+                                 rich_message=f"❌ [Trainer] Unsupported task_choice: {task_choice}")
+                raise ValueError(f"지원하지 않는 task_choice: {task_choice}")
+
+            # 학습 완료 로깅
+            self.console.log_model_operation(
+                f"[Trainer] {task_choice} 모델 학습이 완료되었습니다",
+                {
+                    "task_choice": task_choice,
+                    "model_type": model.__class__.__name__,
+                    "status": "success"
+                }
+            )
+
+        except TypeError as e:
+            self.console.error(f"[Trainer] 모델 학습 중 타입 에러가 발생했습니다: {str(e)}",
+                             rich_message="❌ [Trainer] TypeError during model training",
+                             context={
+                                 "task_choice": task_choice,
+                                 "model_type": model.__class__.__name__,
+                                 "error": str(e)
+                             })
+            raise
+        except Exception as e:
+            self.console.error(f"[Trainer] 모델 학습 중 예상치 못한 에러가 발생했습니다: {str(e)}",
+                             rich_message="❌ [Trainer] Unexpected error during model training",
+                             context={
+                                 "task_choice": task_choice,
+                                 "model_type": model.__class__.__name__,
+                                 "error": str(e)
+                             })
+            raise
 
     def _get_training_methodology(self):
         """학습 방법론 메타데이터를 반환합니다."""

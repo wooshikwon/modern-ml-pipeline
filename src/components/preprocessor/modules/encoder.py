@@ -5,6 +5,7 @@ from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder
 from typing import List
 import pandas as pd
 from src.interface import BasePreprocessor
+from src.utils.core.console_manager import get_console
 from ..registry import PreprocessorStepRegistry
 
 class OneHotEncoderWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
@@ -18,14 +19,19 @@ class OneHotEncoderWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
         self.columns = columns
         self.encoder = OneHotEncoder(handle_unknown=self.handle_unknown, sparse_output=self.sparse_output)
         self._input_columns = None
+        self.console = get_console()
 
     def fit(self, X: pd.DataFrame, y=None):
         self._input_columns = list(X.columns)
+        self.console.info(f"[OneHotEncoder] 원-핫 인코더 학습을 시작합니다 - 대상 컬럼: {len(X.columns)}개",
+                         rich_message=f"🎯 [OneHotEncoder] Training started on {len(X.columns)} columns")
         try:
             self.encoder.fit(X)
         except ValueError as e:
             error_msg = str(e)
             if "handle_unknown" in error_msg.lower():
+                self.console.error(f"[OneHotEncoder] handle_unknown 설정 오류: {self.handle_unknown}",
+                                 rich_message="❌ [OneHotEncoder] Configuration error")
                 raise ValueError(
                     f"OneHotEncoder handle_unknown '{self.handle_unknown}' 설정에 문제가 있습니다.\n"
                     f"사용 가능한 handle_unknown:\n"
@@ -36,10 +42,14 @@ class OneHotEncoderWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
                 ) from e
             else:
                 raise
+        self.console.info(f"[OneHotEncoder] 학습 완료 - 입력 컬럼: {len(X.columns)}개",
+                         rich_message="✅ [OneHotEncoder] Training completed")
         return self
 
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
         """원-핫 인코딩을 적용하고 DataFrame으로 반환합니다."""
+        self.console.info(f"[OneHotEncoder] 원-핫 인코딩 변환을 시작합니다 - 입력: {X.shape}",
+                         rich_message=f"🔄 [OneHotEncoder] Transform started: {X.shape}")
         result_array = self.encoder.transform(X)
         
         # sparse matrix 처리 (방어적 코딩)
@@ -53,7 +63,10 @@ class OneHotEncoderWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
             # 폴백: 수동으로 생성
             actual_feature_names = [f"onehot_{col}_{i}" for col in X.columns for i in range(result_array.shape[1] // len(X.columns))]
         
-        return pd.DataFrame(result_array, index=X.index, columns=actual_feature_names)
+        result_df = pd.DataFrame(result_array, index=X.index, columns=actual_feature_names)
+        self.console.info(f"[OneHotEncoder] 원-핫 인코딩 완료 - 출력: {result_df.shape}, 생성된 컬럼: {len(actual_feature_names)}개",
+                         rich_message=f"✅ [OneHotEncoder] Transform completed: {result_df.shape}")
+        return result_df
     
     def get_output_column_names(self, input_columns: List[str]) -> List[str]:
         """변환 후 예상되는 출력 컬럼명을 반환합니다."""
@@ -86,7 +99,8 @@ class OrdinalEncoderWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
         self.handle_unknown = handle_unknown
         self.unknown_value = unknown_value
         self.columns = columns
-        
+        self.console = get_console()
+
         # sklearn 호환성: handle_unknown='error'일 때는 unknown_value 파라미터 제외
         if self.handle_unknown == 'error':
             self.encoder = OrdinalEncoder(handle_unknown=self.handle_unknown)
@@ -94,11 +108,15 @@ class OrdinalEncoderWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
             self.encoder = OrdinalEncoder(handle_unknown=self.handle_unknown, unknown_value=self.unknown_value)
     
     def fit(self, X: pd.DataFrame, y=None):
+        self.console.info(f"[OrdinalEncoder] 순서형 인코더 학습을 시작합니다 - 대상 컬럼: {len(X.columns)}개",
+                         rich_message=f"🎯 [OrdinalEncoder] Training started on {len(X.columns)} columns")
         try:
             self.encoder.fit(X)
         except ValueError as e:
             error_msg = str(e)
             if "handle_unknown" in error_msg.lower():
+                self.console.error(f"[OrdinalEncoder] handle_unknown 설정 오류: {self.handle_unknown}",
+                                 rich_message="❌ [OrdinalEncoder] Configuration error")
                 raise ValueError(
                     f"OrdinalEncoder handle_unknown '{self.handle_unknown}' 설정에 문제가 있습니다.\n"
                     f"사용 가능한 handle_unknown:\n"
@@ -108,12 +126,19 @@ class OrdinalEncoderWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
                 ) from e
             else:
                 raise
+        self.console.info(f"[OrdinalEncoder] 학습 완료 - 입력 컬럼: {len(X.columns)}개",
+                         rich_message="✅ [OrdinalEncoder] Training completed")
         return self
 
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
         """순서형 인코딩을 적용하고 DataFrame으로 반환합니다."""
+        self.console.info(f"[OrdinalEncoder] 순서형 인코딩 변환을 시작합니다 - 입력: {X.shape}",
+                         rich_message=f"🔄 [OrdinalEncoder] Transform started: {X.shape}")
         result_array = self.encoder.transform(X)
-        return pd.DataFrame(result_array, index=X.index, columns=X.columns)
+        result_df = pd.DataFrame(result_array, index=X.index, columns=X.columns)
+        self.console.info(f"[OrdinalEncoder] 순서형 인코딩 완료 - 출력: {result_df.shape}",
+                         rich_message=f"✅ [OrdinalEncoder] Transform completed: {result_df.shape}")
+        return result_df
     
     def get_output_column_names(self, input_columns: List[str]) -> List[str]:
         """OrdinalEncoder는 컬럼명을 보존합니다."""
@@ -140,6 +165,7 @@ class CatBoostEncoderWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
     def __init__(self, sigma: float = 0.05, columns: List[str] = None):
         self.sigma = sigma
         self.columns = columns
+        self.console = get_console()
         self.encoder = CatBoostEncoder(sigma=self.sigma, cols=self.columns)
 
     def fit(self, X: pd.DataFrame, y=None):
@@ -148,16 +174,27 @@ class CatBoostEncoderWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
         이 인코더는 지도 학습 방식이므로 반드시 타겟 변수 y가 필요합니다.
         """
         if y is None:
+            self.console.error("[CatBoostEncoder] 타겟 변수 y가 필요합니다",
+                             rich_message="❌ [CatBoostEncoder] Target variable required")
             raise ValueError("CatBoostEncoder requires a target variable 'y' for fitting.")
+
+        self.console.info(f"[CatBoostEncoder] 지도학습 인코더 학습을 시작합니다 - 대상 컬럼: {len(X.columns)}개, sigma: {self.sigma}",
+                         rich_message=f"🎯 [CatBoostEncoder] Training started on {len(X.columns)} columns")
         self.encoder.fit(X, y)
+        self.console.info(f"[CatBoostEncoder] 학습 완료 - 입력 컬럼: {len(X.columns)}개",
+                         rich_message="✅ [CatBoostEncoder] Training completed")
         return self
 
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
         """학습된 인코더를 사용하여 데이터를 변환하고 DataFrame으로 반환합니다."""
+        self.console.info(f"[CatBoostEncoder] 지도학습 인코딩 변환을 시작합니다 - 입력: {X.shape}",
+                         rich_message=f"🔄 [CatBoostEncoder] Transform started: {X.shape}")
         result = self.encoder.transform(X)
         # CatBoostEncoder는 이미 DataFrame을 반환하지만, 확실히 하기 위해 변환
         if not isinstance(result, pd.DataFrame):
             result = pd.DataFrame(result, index=X.index, columns=X.columns)
+        self.console.info(f"[CatBoostEncoder] 지도학습 인코딩 완료 - 출력: {result.shape}",
+                         rich_message=f"✅ [CatBoostEncoder] Transform completed: {result.shape}")
         return result
     
     def get_output_column_names(self, input_columns: List[str]) -> List[str]:

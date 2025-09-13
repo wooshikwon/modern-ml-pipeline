@@ -15,7 +15,7 @@ class SimpleImputerWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
     create_missing_indicators=True로 설정하면 imputation 전 결측값 위치를 
     나타내는 indicator 컬럼들을 추가로 생성합니다.
     """
-    def __init__(self, strategy: str = 'mean', columns: List[str] = None, 
+    def __init__(self, strategy: str = 'mean', columns: List[str] = None,
                  create_missing_indicators: bool = False):
         self.strategy = strategy
         self.columns = columns
@@ -23,16 +23,21 @@ class SimpleImputerWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
         self.imputer = SimpleImputer(strategy=self.strategy)
         self.missing_indicator = None
         self._input_columns = None
+        self.console = get_console()
         if self.create_missing_indicators:
             self.missing_indicator = MissingIndicator(features='missing-only')
 
     def fit(self, X: pd.DataFrame, y=None):
         """Imputer 학습 및 필요시 MissingIndicator도 학습"""
         self._input_columns = list(X.columns)
-        
+        self.console.info(f"[SimpleImputer] 결측값 대체 학습을 시작합니다 - strategy: {self.strategy}, 대상 컬럼: {len(X.columns)}개",
+                         rich_message=f"🔧 [SimpleImputer] Training started with {self.strategy} strategy")
+
         # Fast-fail: 전체가 NaN인 컬럼 감지
         all_null_columns = [col for col in X.columns if X[col].isnull().all()]
         if all_null_columns:
+            self.console.error(f"[SimpleImputer] 전체가 결측값인 컬럼 발견: {all_null_columns}",
+                             rich_message="❌ [SimpleImputer] All-NaN columns detected")
             raise ValueError(
                 f"SimpleImputer는 전체가 결측값인 컬럼을 처리할 수 없습니다: {all_null_columns}\n"
                 f"해당 컬럼들을 데이터에서 제거하거나 다른 전처리 방법을 사용하세요."
@@ -43,6 +48,8 @@ class SimpleImputerWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
         except ValueError as e:
             error_msg = str(e)
             if "strategy" in error_msg.lower():
+                self.console.error(f"[SimpleImputer] strategy 호환성 오류: {self.strategy}",
+                                 rich_message="❌ [SimpleImputer] Strategy compatibility error")
                 raise ValueError(
                     f"SimpleImputer strategy '{self.strategy}'가 데이터 타입과 호환되지 않습니다.\n"
                     f"사용 가능한 strategy:\n"
@@ -56,12 +63,19 @@ class SimpleImputerWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
         
         # Missing indicator도 학습
         if self.create_missing_indicators and self.missing_indicator:
+            self.console.info("[SimpleImputer] 결측값 지시자 학습을 시작합니다",
+                             rich_message="📍 [SimpleImputer] Training missing indicators")
             self.missing_indicator.fit(X)
-        
+
+        self.console.info(f"[SimpleImputer] 학습 완료 - strategy: {self.strategy}, 입력 컬럼: {len(X.columns)}개",
+                         rich_message="✅ [SimpleImputer] Training completed")
         return self
 
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
         """학습된 Imputer를 사용하여 데이터를 변환하고 DataFrame으로 반환합니다."""
+        self.console.info(f"[SimpleImputer] 결측값 대체 변환을 시작합니다 - 입력: {X.shape}, strategy: {self.strategy}",
+                         rich_message=f"🔄 [SimpleImputer] Transform started: {X.shape}")
+
         # 1. Missing indicators 생성 (imputation 이전)
         indicator_data = None
         if self.create_missing_indicators and self.missing_indicator:
@@ -77,19 +91,27 @@ class SimpleImputerWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
             
             if indicator_array.shape[1] > 0:  # indicator 컬럼이 있는 경우만
                 indicator_data = pd.DataFrame(indicator_array, index=X.index, columns=indicator_feature_names)
-        
+                self.console.info(f"[SimpleImputer] 결측값 지시자 생성 완료 - 지시자 컬럼: {len(indicator_feature_names)}개",
+                                 rich_message="📍 [SimpleImputer] Missing indicators created")
+
         # 2. Imputation 수행
         imputed_array = self.imputer.transform(X)
         imputed_data = pd.DataFrame(imputed_array, index=X.index, columns=X.columns)
+        self.console.info(f"[SimpleImputer] 결측값 대체 완료 - 처리된 데이터: {imputed_data.shape}",
+                         rich_message="✅ [SimpleImputer] Imputation completed")
         
         # 3. 결과 결합
         if indicator_data is not None and len(indicator_data.columns) > 0:
             # Imputed data + Missing indicators
             result_data = pd.concat([imputed_data, indicator_data], axis=1)
+            self.console.info(f"[SimpleImputer] 최종 결과 결합 완료 - 출력: {result_data.shape} (결측값 대체 + 지시자)",
+                             rich_message=f"✨ [SimpleImputer] Final result: {result_data.shape}")
         else:
             # Imputed data만
             result_data = imputed_data
-        
+            self.console.info(f"[SimpleImputer] 최종 결과 완료 - 출력: {result_data.shape} (결측값 대체만)",
+                             rich_message=f"✨ [SimpleImputer] Final result: {result_data.shape}")
+
         return result_data
 
     def get_output_column_names(self, input_columns: List[str]) -> List[str]:

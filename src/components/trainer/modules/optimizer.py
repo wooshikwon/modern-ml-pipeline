@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Dict, Any, Callable
 import pandas as pd
 from src.settings import Settings
-from src.utils.core.console_manager import RichConsoleManager
+from src.utils.core.console_manager import get_console
 from src.utils.integrations.optuna_integration import logging_callback
 from ..registry import TrainerRegistry
 
@@ -11,8 +11,11 @@ class OptunaOptimizer:
     def __init__(self, settings: Settings, factory_provider: Callable[[], Any]):
         self.settings = settings
         self.factory_provider = factory_provider
-        self.console = RichConsoleManager()
+        self.console = get_console(settings)
+        self.console.info("[OptunaOptimizer] 초기화를 시작합니다")
         self.pruner = self._create_pruner()
+        self.console.component_init("OptunaOptimizer", "success")
+        self.console.info("[OptunaOptimizer] 초기화가 완료되었습니다")
 
     def _create_pruner(self):
         """기본 Pruner 생성 (필요시 settings로 확장 가능)"""
@@ -25,7 +28,7 @@ class OptunaOptimizer:
     def optimize(self, train_df: pd.DataFrame, training_callback: Callable) -> Dict[str, Any]:
         """Optuna를 사용하여 하이퍼파라미터 최적화를 수행합니다."""
         n_trials = self.settings.recipe.model.hyperparameters.n_trials or 10
-        self.console.log_milestone(f"Starting hyperparameter optimization: {n_trials} trials", "optimization")
+        self.console.info(f"[OptunaOptimizer] 하이퍼파라미터 최적화를 시작합니다 ({n_trials}회 시행)")
         
         factory = self.factory_provider()
         optuna_integration = factory.create_optuna_integration()
@@ -70,18 +73,10 @@ class OptunaOptimizer:
                 score = result.get('score', 0.0)
             
             # Periodic output every 10 trials
-            self.console.log_periodic(
-                "optuna_trials",
-                trial.number,
-                {
-                    "trial": trial.number + 1,  # 1-based indexing for display
-                    "total_trials": n_trials,
-                    "score": score,
-                    "params": params,
-                    "best_score": study.best_value if study.best_value is not None else score
-                },
-                every_n=10
-            )
+            if (trial.number + 1) % 10 == 0 or trial.number + 1 == n_trials:
+                self.console.info(
+                    f"[OptunaOptimizer] 진행 상황: {trial.number + 1}/{n_trials} 시행, 현재 점수: {score:.4f}"
+                )
             
             return score
         
@@ -95,9 +90,15 @@ class OptunaOptimizer:
         end_time = datetime.now()
         optimization_time = (end_time - start_time).total_seconds()
         
-        self.console.log_milestone(
-            f"Hyperparameter optimization completed! Best {optimization_metric}: {study.best_value:.4f} ({optimization_time:.1f}s)", 
-            "success"
+        self.console.log_model_operation(
+            f"[OptunaOptimizer] 하이퍼파라미터 최적화가 완료되었습니다",
+            {
+                "optimization_metric": optimization_metric,
+                "best_value": f"{study.best_value:.4f}",
+                "optimization_time": f"{optimization_time:.1f}s",
+                "total_trials": len(study.trials),
+                "pruned_trials": len([t for t in study.trials if t.state.name == 'PRUNED'])
+            }
         )
 
         return {
