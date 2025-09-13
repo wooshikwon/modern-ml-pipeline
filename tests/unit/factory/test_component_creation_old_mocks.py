@@ -8,7 +8,7 @@ from unittest.mock import patch, MagicMock, PropertyMock
 from typing import Dict, Any
 import pandas as pd
 
-from src.factory.factory import Factory
+from src.factory import Factory
 from src.settings import Settings
 from src.settings.config import Config, Environment, DataSource, FeatureStore
 from src.settings.recipe import Recipe, Model, Data, HyperparametersTuning, Loader, Fetcher, DataInterface, Evaluation

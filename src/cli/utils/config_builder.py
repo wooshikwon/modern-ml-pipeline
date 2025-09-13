@@ -9,22 +9,78 @@ CLAUDE.md 원칙 준수:
 """
 
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from datetime import datetime
 
-from src.cli.utils.interactive_ui import InteractiveUI
 from src.cli.utils.template_engine import TemplateEngine
+from src.utils.core.console_manager import (
+    cli_step_complete, cli_info, cli_success_panel, cli_print
+)
+
+
+class SimpleInteractiveUI:
+    """간단한 CLI 기반 대화형 UI (recipe_builder.py 패턴 차용)"""
+
+    def text_input(self, prompt: str, default: str = "", validator=None) -> str:
+        """텍스트 입력 프롬프트"""
+        while True:
+            result = input(f"{prompt} [{default}]: ").strip()
+            if not result:
+                result = default
+            if validator is None or validator(result):
+                return result
+            cli_print("❌ 유효하지 않은 입력입니다. 다시 시도해주세요.", style="red")
+
+    def confirm(self, prompt: str, default: bool = True) -> bool:
+        """Y/N 확인 프롬프트"""
+        default_str = "Y/n" if default else "y/N"
+        while True:
+            result = input(f"{prompt} [{default_str}]: ").strip().lower()
+            if not result:
+                return default
+            if result in ['y', 'yes', '1', 'true']:
+                return True
+            elif result in ['n', 'no', '0', 'false']:
+                return False
+            cli_print("❌ y/n으로 답해주세요.", style="red")
+
+    def select_from_list(self, prompt: str, options: List[str]) -> str:
+        """리스트에서 선택"""
+        cli_print(f"\n{prompt}")
+        for i, option in enumerate(options, 1):
+            cli_print(f"  {i}. {option}")
+
+        while True:
+            try:
+                choice = int(input("선택 (번호): "))
+                if 1 <= choice <= len(options):
+                    return options[choice - 1]
+                cli_print(f"❌ 1-{len(options)} 범위의 번호를 입력해주세요.", style="red")
+            except ValueError:
+                cli_print("❌ 숫자를 입력해주세요.", style="red")
+
+    def show_info(self, message: str):
+        """정보 메시지 표시"""
+        cli_info(message)
+
+    def show_warning(self, message: str):
+        """경고 메시지 표시"""
+        cli_print(f"⚠️ {message}", style="yellow")
+
+    def print_divider(self):
+        """구분선 출력"""
+        cli_print("\n" + "="*50 + "\n")
 
 
 class InteractiveConfigBuilder:
     """대화형 환경 설정 빌더.
-    
+
     사용자와의 대화형 인터페이스를 통해 환경별 설정 파일을 생성합니다.
     """
-    
+
     def __init__(self):
         """InteractiveConfigBuilder 초기화."""
-        self.ui = InteractiveUI()
+        self.ui = SimpleInteractiveUI()
         templates_dir = Path(__file__).parent.parent / "templates"
         self.template_engine = TemplateEngine(templates_dir)
     
@@ -168,30 +224,30 @@ class InteractiveConfigBuilder:
         
         # 선택 사항 확인
         self._show_selections_summary(selections)
-        
+
         if not self.ui.confirm("\n이 설정으로 진행하시겠습니까?", default=True):
             self.ui.show_warning("설정이 취소되었습니다. 다시 시작해주세요.")
             return self.run_interactive_flow(env_name)
+
+        cli_step_complete("설정 선택", "사용자 설정 확인 완료")
         
         return selections
     
     def _show_selections_summary(self, selections: Dict[str, Any]) -> None:
         """
         선택 사항 요약 표시.
-        
+
         Args:
             selections: 사용자 선택 사항
         """
-        summary = f"""
-        환경 이름: {selections['env_name']}
-        MLflow 사용: {'예' if selections.get('use_mlflow') else '아니오'}
-        데이터 소스: {selections.get('data_source', 'N/A')}
-        Feature Store: {selections.get('feature_store', '없음')}
-        Artifact Storage: {selections.get('artifact_storage', 'Local')}
-        API Serving: {'활성화' if selections.get('enable_serving') else '비활성화'}
-        Inference Output: {selections.get('inference_output_source', 'Disabled' if not selections.get('inference_output_enabled', True) else 'Local Files')}
-        """
-        self.ui.show_panel(summary, title="📋 설정 요약", style="cyan")
+        summary = f"""환경 이름: {selections['env_name']}
+MLflow 사용: {'예' if selections.get('use_mlflow') else '아니오'}
+데이터 소스: {selections.get('data_source', 'N/A')}
+Feature Store: {selections.get('feature_store', '없음')}
+Artifact Storage: {selections.get('artifact_storage', 'Local')}
+Inference Output: {selections.get('inference_output_source', 'Disabled' if not selections.get('inference_output_enabled', True) else 'Local Files')}"""
+
+        cli_success_panel(summary, "📋 설정 요약")
     
     def generate_config_file(self, env_name: str, selections: Dict[str, Any]) -> Path:
         """

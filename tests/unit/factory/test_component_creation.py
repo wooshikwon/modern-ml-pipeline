@@ -10,7 +10,7 @@ import numpy as np
 from typing import Dict, Any
 from pathlib import Path
 
-from src.factory.factory import Factory
+from src.factory import Factory
 from src.settings import Settings
 from src.interface.base_adapter import BaseAdapter
 from src.interface.base_evaluator import BaseEvaluator

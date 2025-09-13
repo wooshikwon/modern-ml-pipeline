@@ -12,7 +12,7 @@ from datetime import datetime
 import tempfile
 import os
 
-from src.factory.factory import Factory
+from src.factory import Factory
 from src.settings.loader import load_settings
 from src.pipelines.train_pipeline import run_train_pipeline
 from src.pipelines.inference_pipeline import run_inference_pipeline
@@ -766,7 +766,7 @@ class TestPipelineCalibrationIntegration:
             .build()
         
         # When: Creating Factory and calibrator
-        from src.factory.factory import Factory
+        from src.factory import Factory
         factory = Factory(settings)
         calibrator = factory.create_calibrator()
         
@@ -818,7 +818,7 @@ class TestPipelineCalibrationIntegration:
                 return y_prob
         
         # When: Creating Factory and calibration evaluator
-        from src.factory.factory import Factory
+        from src.factory import Factory
         factory = Factory(settings)
         
         trained_model = MockTrainedModel()
@@ -828,7 +828,7 @@ class TestPipelineCalibrationIntegration:
         
         # Then: Calibration evaluator is created successfully
         assert evaluator is not None
-        from src.factory.factory import CalibrationEvaluatorWrapper
+        from src.factory import CalibrationEvaluatorWrapper
         assert isinstance(evaluator, CalibrationEvaluatorWrapper)
         assert hasattr(evaluator, 'evaluate')
         
@@ -862,7 +862,7 @@ class TestPipelineCalibrationIntegration:
             .build()
         
         # When: Testing integration with datahandler
-        from src.factory.factory import Factory
+        from src.factory import Factory
         factory = Factory(settings)
         
         try:

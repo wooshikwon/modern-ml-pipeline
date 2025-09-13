@@ -138,7 +138,7 @@ class TestFeatureStoreFetcherWithRealStore:
             .build()
         
         # When: Creating FeatureStoreFetcher with real factory
-        from src.factory.factory import Factory
+        from src.factory import Factory
         factory = Factory(settings)
         
         # Then: Test real initialization behavior
@@ -177,7 +177,7 @@ class TestFeatureStoreFetcherWithRealStore:
         })
         
         # When: Testing interface behavior
-        from src.factory.factory import Factory
+        from src.factory import Factory
         factory = Factory(settings)
         
         try:
@@ -217,7 +217,7 @@ class TestFeatureStoreFetcherWithRealStore:
             'event_timestamp': [datetime.now()] * 3
         })
         
-        from src.factory.factory import Factory
+        from src.factory import Factory
         factory = Factory(settings)
         
         # When: Testing different run modes
@@ -259,7 +259,7 @@ class TestFeatureStoreFetcherWithRealStore:
             .with_feature_store(enabled=False) \
             .build()
         
-        from src.factory.factory import Factory
+        from src.factory import Factory
         
         # When: Testing configuration validation
         for settings, description in [
@@ -303,7 +303,7 @@ class TestFeatureStoreFetcherWithRealStore:
             })
         ]
         
-        from src.factory.factory import Factory
+        from src.factory import Factory
         factory = Factory(settings)
         
         # When: Testing data interface validation
@@ -338,7 +338,7 @@ class TestFeatureStoreFetcherWithRealStore:
             .with_feature_store(enabled=True) \
             .build()
         
-        from src.factory.factory import Factory
+        from src.factory import Factory
         factory = Factory(settings)
         
         # When: Testing error handling in real scenarios

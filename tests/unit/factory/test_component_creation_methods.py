@@ -10,7 +10,7 @@ import pytest
 import pandas as pd
 from typing import Any
 
-from src.factory.factory import Factory
+from src.factory import Factory
 from src.interface.base_adapter import BaseAdapter
 from src.interface.base_evaluator import BaseEvaluator
 from src.interface.base_fetcher import BaseFetcher

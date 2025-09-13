@@ -23,7 +23,7 @@ from datetime import datetime
 
 from src.pipelines.train_pipeline import run_train_pipeline
 from src.pipelines.inference_pipeline import run_inference_pipeline
-from src.factory.factory import Factory
+from src.factory import Factory
 
 
 class TestMLflowIntegration:

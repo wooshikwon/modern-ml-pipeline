@@ -14,7 +14,10 @@ from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
 from enum import Enum
 
-from src.cli.utils.interactive_ui import InteractiveUI
+from src.utils.core.console_manager import (
+    cli_validation_summary, cli_connection_test, cli_success_panel,
+    cli_info, cli_success, cli_error, cli_warning, cli_print
+)
 
 
 class CheckStatus(Enum):
@@ -53,47 +56,57 @@ class SystemChecker:
         self.config = config
         self.env_name = env_name
         self.config_path = config_path or f"configs/{env_name}.yaml"
-        self.ui = InteractiveUI()
+# InteractiveUI 제거 - console_manager 사용
         self.results: List[CheckResult] = []
     
-    def run_all_checks(self) -> List[CheckResult]:
+    def run_all_checks(self) -> Dict[str, Dict[str, Any]]:
         """
-        모든 체크 실행.
-        
+        모든 체크 실행 (system_check_command.py 호환성을 위해 Dict 반환).
+
         Returns:
-            체크 결과 리스트
+            체크 결과 딕셔너리 (service_name -> result)
         """
         self.results = []
-        
+
         # 1. MLflow 체크
         if "mlflow" in self.config:
             self.results.append(self.check_mlflow())
-        
+
         # 2. 데이터 소스 체크 (새로운 단일 data_source 구조)
         if "data_source" in self.config:
             data_source = self.config["data_source"]
             self.results.append(self.check_data_source(data_source))
-        
+
         # 3. Feature Store 체크
         if "feature_store" in self.config:
             self.results.append(self.check_feature_store())
-        
+
         # 4. Artifact Storage 체크 (새로운 단일 artifact_store 구조)
         if "artifact_store" in self.config:
             artifact_store = self.config["artifact_store"]
             self.results.append(self.check_artifact_store(artifact_store))
-        
+
         # 5. Output targets 체크 (inference output만 체크)
         if "output" in self.config:
             output_config = self.config["output"]
             if "inference" in output_config:
                 self.results.append(self.check_output_target("inference", output_config["inference"]))
-        
+
         # 6. Serving 체크
         if self.config.get("serving", {}).get("enabled", False):
             self.results.append(self.check_serving())
-        
-        return self.results
+
+        # system_check_command.py와의 호환성을 위해 Dict 형태로 반환
+        results_dict = {}
+        for result in self.results:
+            results_dict[result.service] = {
+                'status': result.status.value,
+                'message': result.message,
+                'details': result.details,
+                'solution': result.solution
+            }
+
+        return results_dict
     
     def check_mlflow(self) -> CheckResult:
         """
@@ -668,8 +681,8 @@ class SystemChecker:
     
     def display_results(self, show_actionable: bool = False) -> None:
         """
-        체크 결과를 표시.
-        
+        체크 결과를 표시 (console_manager 방식으로 전환).
+
         Args:
             show_actionable: 해결책 표시 여부
         """
@@ -678,61 +691,50 @@ class SystemChecker:
         failed_count = len([r for r in self.results if r.status == CheckStatus.FAILED])
         warning_count = len([r for r in self.results if r.status == CheckStatus.WARNING])
         skipped_count = len([r for r in self.results if r.status == CheckStatus.SKIPPED])
-        
+
         # Title
-        self.ui.show_panel(
-            f"Environment: {self.env_name}\n"
-            f"Config: {self.config_path}",
-            title="🔍 System Check Results",
-            style="cyan"
-        )
-        
-        # Results table
-        headers = ["Service", "Status", "Message"]
-        rows = []
-        
+        header_content = f"Environment: {self.env_name}\nConfig: {self.config_path}"
+        cli_success_panel(header_content, "🔍 System Check Results")
+
+        # 결과를 console_manager 형식으로 변환
+        validation_results = []
         for result in self.results:
-            status_icon = {
-                CheckStatus.SUCCESS: "✅",
-                CheckStatus.FAILED: "❌",
-                CheckStatus.WARNING: "⚠️",
-                CheckStatus.SKIPPED: "⏭️"
-            }.get(result.status, "❓")
-            
-            rows.append([
-                result.service,
-                f"{status_icon} {result.status.value}",
-                result.message[:50] + "..." if len(result.message) > 50 else result.message
-            ])
-        
-        self.ui.show_table("Check Results", headers, rows)
-        
+            status_map = {
+                CheckStatus.SUCCESS: 'pass',
+                CheckStatus.FAILED: 'fail',
+                CheckStatus.WARNING: 'warning',
+                CheckStatus.SKIPPED: 'warning'
+            }
+            status = status_map.get(result.status, 'fail')
+
+            validation_results.append({
+                "item": result.service,
+                "status": status,
+                "details": result.message[:50] + "..." if len(result.message) > 50 else result.message
+            })
+
+        cli_validation_summary(validation_results, "시스템 연결 검사 결과")
+
         # Summary
-        self.ui.print_divider()
-        self.ui.console.print(f"""
-Summary:
-  ✅ Success: {success_count}
-  ❌ Failed: {failed_count}
-  ⚠️ Warning: {warning_count}
-  ⏭️ Skipped: {skipped_count}
-""")
-        
+        cli_print(f"\n📊 검사 요약:")
+        cli_print(f"  ✅ Success: {success_count}")
+        cli_print(f"  ❌ Failed: {failed_count}")
+        cli_print(f"  ⚠️ Warning: {warning_count}")
+        cli_print(f"  ⏭️ Skipped: {skipped_count}")
+
         # Show actionable solutions if requested
         if show_actionable and (failed_count > 0 or warning_count > 0):
-            self.ui.print_divider()
-            self.ui.show_warning("Actionable Solutions:")
-            
+            cli_warning("💡 해결책:")
             for result in self.results:
                 if result.status in [CheckStatus.FAILED, CheckStatus.WARNING] and result.solution:
-                    self.ui.console.print(f"\n[bold]{result.service}:[/bold]")
-                    self.ui.console.print(f"  💡 {result.solution}")
-        
+                    cli_print(f"\n{result.service}:", style="bold")
+                    cli_print(f"  💡 {result.solution}")
+
         # Overall status
-        self.ui.print_divider()
         if failed_count == 0:
             if warning_count == 0:
-                self.ui.show_success("All checks passed! System is ready.")
+                cli_success("모든 검사 통과! 시스템이 준비되었습니다.")
             else:
-                self.ui.show_warning(f"System is operational with {warning_count} warning(s).")
+                cli_warning(f"시스템이 작동 중이나 {warning_count}개의 경고가 있습니다.")
         else:
-            self.ui.show_error(f"System check failed with {failed_count} error(s).")
+            cli_error(f"시스템 검사가 실패했습니다. {failed_count}개의 오류가 있습니다.")

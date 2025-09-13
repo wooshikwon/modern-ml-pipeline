@@ -11,7 +11,10 @@ from typing_extensions import Annotated
 
 from src.settings import SettingsFactory
 from src.pipelines.inference_pipeline import run_inference_pipeline
-from src.utils.core.logger import setup_logging, logger
+from src.utils.core.console_manager import (
+    cli_command_start, cli_command_success, cli_command_error,
+    cli_step_complete, get_rich_console
+)
 
 
 def batch_inference_command(
@@ -51,42 +54,51 @@ def batch_inference_command(
     Raises:
         typer.Exit: 파일을 찾을 수 없거나 실행 중 오류 발생 시
     """
-    try:        
+    try:
+        cli_command_start("Batch Inference", "배치 추론 파이프라인 실행")
+
         # 1. 파라미터 파싱
         params: Optional[Dict[str, Any]] = (
             json.loads(context_params) if context_params else None
         )
-        
-        # 2. Settings 생성 (for inference)
-        settings = SettingsFactory.for_inference(
-            run_id=run_id,
-            config_path=config_path,
-            data_path=data_path,
-            context_params=params
-        )
-        setup_logging(settings)
 
-        # 3. 추론 정보 로깅
-        logger.info(f"Config: {config_path}")
-        logger.info(f"Data: {data_path}")
-        logger.info(f"Run ID: {run_id}")
-        
-        # 4. 배치 추론 실행 (data_path 직접 전달)
-        run_inference_pipeline(
+        # 2. Settings 생성 과정 시각화
+        console = get_rich_console()
+        with console.progress_tracker("setup", 3, "추론 환경 설정") as update:
+            settings = SettingsFactory.for_inference(
+                run_id=run_id,
+                config_path=config_path,
+                data_path=data_path,
+                context_params=params
+            )
+            update(3)  # 설정 완료
+
+        cli_step_complete("설정", f"Config: {config_path}, Data: {data_path}, Run ID: {run_id}")
+
+        # 3. 배치 추론 실행
+        result = run_inference_pipeline(
             settings=settings,
             run_id=run_id,
             data_path=data_path,
             context_params=params or {},
         )
-        
-        logger.info("✅ 배치 추론이 성공적으로 완료되었습니다.")
-        
+
+        # 4. 성공 완료 메시지
+        success_details = []
+        if hasattr(result, 'processed_rows'):
+            success_details.append(f"처리된 데이터: {result.processed_rows}행")
+        if hasattr(result, 'output_path'):
+            success_details.append(f"출력 경로: {result.output_path}")
+
+        cli_command_success("Batch Inference", success_details)
+
     except FileNotFoundError as e:
-        logger.error(f"파일을 찾을 수 없습니다: {e}")
+        cli_command_error("Batch Inference", f"파일을 찾을 수 없습니다: {e}",
+                         "파일 경로를 확인하거나 올바른 Run ID를 사용하세요")
         raise typer.Exit(code=1)
     except ValueError as e:
-        logger.error(f"환경 설정 오류: {e}")
+        cli_command_error("Batch Inference", f"환경 설정 오류: {e}")
         raise typer.Exit(code=1)
     except Exception as e:
-        logger.error(f"배치 추론 파이프라인 실행 중 오류 발생: {e}", exc_info=True)
+        cli_command_error("Batch Inference", f"실행 중 오류 발생: {e}")
         raise typer.Exit(code=1)

@@ -13,10 +13,10 @@ from src.components.adapter import AdapterRegistry
 from src.components.evaluator import EvaluatorRegistry
 from src.components.preprocessor.registry import PreprocessorStepRegistry
 # Phase 1에서 schema.catalog_parser 모듈이 제거됨
-from src.utils.core.logger import logger
 from src.utils.core.console_manager import (
     cli_success, cli_error, cli_print
 )
+from src.utils.core.logger import logger
 
 
 def list_adapters() -> None:

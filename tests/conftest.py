@@ -602,7 +602,7 @@ def small_real_models_cache():
 @pytest.fixture(scope="function")
 def factory_with_real_storage_adapter(settings_builder, real_dataset_files):
     """Create Factory with real StorageAdapter and real CSV data."""
-    from src.factory.factory import Factory
+    from src.factory import Factory
     
     # Use real CSV file
     cls_info = real_dataset_files["classification_csv"]
@@ -622,7 +622,7 @@ def factory_with_real_storage_adapter(settings_builder, real_dataset_files):
 @pytest.fixture(scope="function")
 def factory_with_real_sql_adapter(settings_builder, real_dataset_files):
     """Create Factory with real SQLAdapter and real SQLite database."""
-    from src.factory.factory import Factory
+    from src.factory import Factory
     
     sql_info = real_dataset_files["sql"]
     
@@ -644,7 +644,7 @@ def factory_with_real_sql_adapter(settings_builder, real_dataset_files):
 @pytest.fixture(scope="function")  
 def fast_factory_setup(settings_builder, small_real_models_cache):
     """Factory setup optimized for speed with small real components."""
-    from src.factory.factory import Factory
+    from src.factory import Factory
     
     models, data = small_real_models_cache
     

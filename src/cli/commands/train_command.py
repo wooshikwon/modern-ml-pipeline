@@ -10,7 +10,10 @@ from typing_extensions import Annotated
 
 from src.settings import SettingsFactory
 from src.pipelines.train_pipeline import run_train_pipeline
-from src.utils.core.logger import setup_logging, logger
+from src.utils.core.console_manager import (
+    cli_command_start, cli_command_success, cli_command_error,
+    cli_step_complete, get_rich_console
+)
 
 
 def train_command(
@@ -55,42 +58,49 @@ def train_command(
         typer.Exit: 파일을 찾을 수 없거나 실행 중 오류 발생 시
     """
     try:
+        cli_command_start("Training", "모델 학습 파이프라인 실행")
+
         # 1. 파라미터 파싱
         params: Optional[Dict[str, Any]] = (
             json.loads(context_params) if context_params else None
         )
 
-        # 2. Settings 생성 (모든 복잡성이 Factory에 내장됨)
-        settings = SettingsFactory.for_training(
-            recipe_path=recipe_path,
-            config_path=config_path,
-            data_path=data_path,
-            context_params=params
+        # 2. Settings 생성 과정 시각화
+        console = get_rich_console()
+        with console.progress_tracker("setup", 3, "환경 설정") as update:
+            settings = SettingsFactory.for_training(
+                recipe_path=recipe_path,
+                config_path=config_path,
+                data_path=data_path,
+                context_params=params
+            )
+            update(3)  # 설정 완료
+
+        cli_step_complete("설정", f"Recipe: {recipe_path}, Config: {config_path}, Data: {data_path}")
+
+        # 3. 학습 파이프라인 실행 (train_pipeline.py는 이미 RichConsoleManager 사용)
+        result = run_train_pipeline(
+            settings=settings,
+            context_params=params,
+            record_requirements=record_reqs
         )
-        setup_logging(settings)
 
-        # 3. 학습 정보 로깅
-        logger.info(f"Recipe: {recipe_path}")
-        logger.info(f"Config: {config_path}")
-        logger.info(f"Data: {data_path}")
-        computed = settings.recipe.model.computed
-        run_name = computed.get("run_name", "unknown") if computed else "unknown"
-        logger.info(f"Run Name: {run_name}")
+        # 4. 성공 완료 메시지
+        success_details = []
+        if hasattr(result, 'run_id'):
+            success_details.append(f"Run ID: {result.run_id}")
+        if hasattr(result, 'model_uri'):
+            success_details.append(f"Model URI: {result.model_uri}")
 
-        # 4. 학습 파이프라인 실행
-        if record_reqs:
-            run_train_pipeline(settings=settings, context_params=params, record_requirements=True)
-        else:
-            run_train_pipeline(settings=settings, context_params=params)
-        
-        logger.info("✅ 학습이 성공적으로 완료되었습니다.")
+        cli_command_success("Training", success_details)
 
     except FileNotFoundError as e:
-        logger.error(f"파일을 찾을 수 없습니다: {e}")
+        cli_command_error("Training", f"파일을 찾을 수 없습니다: {e}",
+                         "파일 경로를 확인하거나 'mmp get-config/get-recipe'를 실행하세요")
         raise typer.Exit(code=1)
     except ValueError as e:
-        logger.error(f"환경 설정 오류: {e}")
+        cli_command_error("Training", f"환경 설정 오류: {e}")
         raise typer.Exit(code=1)
     except Exception as e:
-        logger.error(f"학습 파이프라인 실행 중 오류 발생: {e}", exc_info=True)
+        cli_command_error("Training", f"실행 중 오류 발생: {e}")
         raise typer.Exit(code=1)

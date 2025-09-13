@@ -1,5 +1,5 @@
 """Engine Module Public API"""
-from .factory import Factory
+from .factory import Factory, CalibrationEvaluatorWrapper
 from src.utils.deps.dependencies import validate_dependencies
 
 def bootstrap(settings) -> None:
@@ -23,5 +23,6 @@ def _trigger_component_imports():
 
 __all__ = [
     "Factory",
+    "CalibrationEvaluatorWrapper",
     "bootstrap",
 ] 

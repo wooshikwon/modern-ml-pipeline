@@ -479,6 +479,254 @@ def cli_info(message: str):
     """Print info message with consistent styling"""
     cli_print(message, style="bold blue", emoji="ℹ️")
 
+def cli_success_panel(content: str, title: str = "성공", border_style: str = "green"):
+    """Display success content in a Rich panel.
+
+    Args:
+        content: Content to display in the panel
+        title: Panel title
+        border_style: Border style for the panel
+    """
+    from rich.panel import Panel
+
+    panel = Panel(
+        content,
+        title=title,
+        border_style=border_style
+    )
+    console_manager.console.print(panel)
+
+# ===== Extended CLI Command Functions =====
+
+def cli_command_start(command_name: str, description: str = ""):
+    """Print command start message with consistent formatting.
+
+    Args:
+        command_name: Name of the CLI command
+        description: Optional description of what the command does
+    """
+    if description:
+        console_manager.console.print(f"🚀 {command_name}: {description}", style="bold blue")
+    else:
+        console_manager.console.print(f"🚀 {command_name}", style="bold blue")
+
+def cli_command_success(command_name: str, details: List[str] = None):
+    """Print command success message with optional details.
+
+    Args:
+        command_name: Name of the CLI command
+        details: Optional list of success details to display
+    """
+    console_manager.console.print(f"✅ {command_name}이 성공적으로 완료되었습니다.", style="bold green")
+
+    if details:
+        for detail in details:
+            console_manager.console.print(f"  • {detail}", style="cyan")
+
+def cli_command_error(command_name: str, error: str, suggestion: str = ""):
+    """Print command error message with optional suggestion.
+
+    Args:
+        command_name: Name of the CLI command
+        error: Error description
+        suggestion: Optional suggestion for fixing the error
+    """
+    console_manager.console.print(f"❌ {command_name} 실행 중 오류 발생: {error}", style="bold red")
+
+    if suggestion:
+        console_manager.console.print(f"   💡 제안: {suggestion}", style="blue")
+
+def cli_step_start(step_name: str, emoji: str = "🔄"):
+    """Print step start message.
+
+    Args:
+        step_name: Name of the step being started
+        emoji: Emoji to use (default: 🔄)
+    """
+    console_manager.console.print(f"{emoji} {step_name} 시작...", style="cyan")
+
+def cli_step_complete(step_name: str, details: str = "", duration: float = None):
+    """Print step completion message.
+
+    Args:
+        step_name: Name of the completed step
+        details: Optional details about the completion
+        duration: Optional duration in seconds
+    """
+    duration_str = f" ({duration:.1f}s)" if duration else ""
+    detail_str = f" - {details}" if details else ""
+
+    console_manager.console.print(f"✅ {step_name} 완료{duration_str}{detail_str}", style="green")
+
+def cli_file_created(file_type: str, file_path: str, details: str = ""):
+    """Print file creation message.
+
+    Args:
+        file_type: Type of file (e.g., 'Recipe', 'Config')
+        file_path: Path to the created file
+        details: Optional additional details
+    """
+    console_manager.console.print(f"📄 {file_type}: [cyan]{file_path}[/cyan]")
+
+    if details:
+        console_manager.console.print(f"   [dim]{details}[/dim]")
+
+def cli_directory_created(dir_path: str, file_count: int = 0):
+    """Print directory creation message.
+
+    Args:
+        dir_path: Path to the created directory
+        file_count: Number of files created in the directory
+    """
+    file_info = f" ({file_count} files)" if file_count > 0 else ""
+    console_manager.console.print(f"📂 디렉토리 생성: [blue]{dir_path}[/blue]{file_info}")
+
+def cli_next_steps(steps: List[str], title: str = "다음 단계"):
+    """Print next steps guidance.
+
+    Args:
+        steps: List of next steps to display
+        title: Title for the steps section
+    """
+    console_manager.console.print(f"\n💡 {title}:", style="bold blue")
+
+    for i, step in enumerate(steps, 1):
+        console_manager.console.print(f"  {i}. [cyan]{step}[/cyan]")
+
+def cli_validation_result(item: str, status: str, details: str = ""):
+    """Print validation result with status indicator.
+
+    Args:
+        item: Item being validated
+        status: Validation status ('pass', 'fail', 'warning')
+        details: Optional details about the validation
+    """
+    emoji_map = {
+        "pass": "✅",
+        "fail": "❌",
+        "warning": "⚠️",
+        "success": "✅",
+        "error": "❌"
+    }
+
+    color_map = {
+        "pass": "green",
+        "fail": "red",
+        "warning": "yellow",
+        "success": "green",
+        "error": "red"
+    }
+
+    emoji = emoji_map.get(status, "📝")
+    color = color_map.get(status, "white")
+
+    console_manager.console.print(f"{emoji} [{color}]{item}[/{color}]")
+
+    if details:
+        console_manager.console.print(f"   [dim]{details}[/dim]")
+
+def cli_validation_summary(results: List[Dict[str, Any]], title: str = "검증 결과"):
+    """Print validation summary table.
+
+    Args:
+        results: List of validation results with 'item', 'status', 'details' keys
+        title: Title for the summary
+    """
+    console_manager.console.print(f"\n📋 {title}:", style="bold blue")
+
+    for result in results:
+        cli_validation_result(
+            result.get('item', ''),
+            result.get('status', ''),
+            result.get('details', '')
+        )
+
+def cli_connection_test(service: str, status: str, details: str = ""):
+    """Print connection test result.
+
+    Args:
+        service: Name of the service being tested
+        status: Connection status ('connected', 'failed', 'connecting')
+        details: Optional details about the connection
+    """
+    emoji_map = {
+        "connected": "🔗",
+        "failed": "❌",
+        "connecting": "🔄"
+    }
+
+    color_map = {
+        "connected": "green",
+        "failed": "red",
+        "connecting": "yellow"
+    }
+
+    emoji = emoji_map.get(status, "🔗")
+    color = color_map.get(status, "white")
+
+    console_manager.console.print(f"{emoji} [{color}]{service}: {status.title()}[/{color}]")
+
+    if details:
+        console_manager.console.print(f"   [dim]{details}[/dim]")
+
+def cli_system_check_header(config_path: str, env_name: str = None):
+    """Print system check header.
+
+    Args:
+        config_path: Path to the config file being checked
+        env_name: Optional environment name
+    """
+    env_info = f" (env: {env_name})" if env_name else ""
+    console_manager.console.print(f"🔍 시스템 체크: [cyan]{config_path}[/cyan]{env_info}", style="bold blue")
+
+def cli_template_processing(template_name: str, output_path: str, context: Dict = None):
+    """Print template processing message.
+
+    Args:
+        template_name: Name of the template being processed
+        output_path: Output path for the rendered template
+        context: Optional template context information
+    """
+    console_manager.console.print(f"🎨 템플릿 렌더링: [magenta]{template_name}[/magenta] → [cyan]{output_path}[/cyan]")
+
+    if context:
+        context_str = ", ".join([f"{k}={v}" for k, v in context.items()])
+        console_manager.console.print(f"   [dim]Context: {context_str}[/dim]")
+
+def cli_usage_example(command: str, examples: List[str]):
+    """Print usage examples.
+
+    Args:
+        command: Base command name
+        examples: List of example usage patterns
+    """
+    console_manager.console.print(f"\n💡 사용 예시:", style="bold blue")
+
+    for example in examples:
+        console_manager.console.print(f"  [cyan]{command} {example}[/cyan]")
+
+def cli_troubleshooting_tip(issue: str, solution: str):
+    """Print troubleshooting tip.
+
+    Args:
+        issue: Description of the issue
+        solution: Suggested solution
+    """
+    console_manager.console.print(f"🔧 문제: {issue}", style="yellow")
+    console_manager.console.print(f"   해결: [green]{solution}[/green]")
+
+def cli_process_status(process: str, current: int, total: int, details: str = ""):
+    """Print process status with progress indication.
+
+    Args:
+        process: Name of the process
+        current: Current progress count
+        total: Total count
+        details: Optional details
+    """
+    detail_str = f" - {details}" if details else ""
+    console_manager.console.print(f"{process}: [{current}/{total}]{detail_str}")
+
 # ===== Test Helper Functions =====
 
 def testing_print(message: str, emoji: str = "📝"):

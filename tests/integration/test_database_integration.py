@@ -17,7 +17,7 @@ import time
 from datetime import datetime
 
 from src.components.adapter.modules.sql_adapter import SqlAdapter
-from src.factory.factory import Factory
+from src.factory import Factory
 
 
 class TestDatabaseIntegration:
@@ -362,7 +362,7 @@ class TestDatabaseIntegration:
                            hyperparameters={"random_state": 42, "max_iter": 100}) \
                 .build()
 
-            from src.factory.factory import Factory
+            from src.factory import Factory
             factory = Factory(settings)
             sql_adapter = factory.create_data_adapter()
 
@@ -389,7 +389,7 @@ class TestDatabaseIntegration:
                 .with_model("sklearn.linear_model.LinearRegression") \
                 .build()
 
-            from src.factory.factory import Factory
+            from src.factory import Factory
             sql_adapter = Factory(settings).create_data_adapter()
 
             # Explicit columns and GROUP BY

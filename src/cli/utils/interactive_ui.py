@@ -15,6 +15,11 @@ from rich.table import Table
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
+# console_manager와 연동
+from src.utils.core.console_manager import (
+    cli_success, cli_error, cli_warning, cli_info, cli_success_panel
+)
+
 
 class InteractiveUI:
     """Rich 라이브러리 기반 대화형 UI 컴포넌트.
@@ -224,15 +229,14 @@ class InteractiveUI:
         title: Optional[str] = None,
         style: str = "cyan"
     ) -> None:
-        """패널 형식으로 내용 표시.
-        
+        """패널 형식으로 내용 표시 (console_manager로 위임).
+
         Args:
             content: 표시할 내용
             title: 패널 제목
-            style: 패널 테두리 스타일
+            style: 패널 테두리 스타일 (무시됨)
         """
-        panel = Panel(content, title=title, border_style=style)
-        self.console.print(panel)
+        cli_success_panel(content, title or "정보")
     
     def show_progress(
         self,
@@ -263,36 +267,36 @@ class InteractiveUI:
             )
     
     def show_success(self, message: str) -> None:
-        """성공 메시지 표시.
-        
+        """성공 메시지 표시 (console_manager로 위임).
+
         Args:
             message: 성공 메시지
         """
-        self.console.print(f"✅ [bold green]{message}[/bold green]")
+        cli_success(message)
     
     def show_error(self, message: str) -> None:
-        """에러 메시지 표시.
-        
+        """에러 메시지 표시 (console_manager로 위임).
+
         Args:
             message: 에러 메시지
         """
-        self.console.print(f"❌ [bold red]{message}[/bold red]")
+        cli_error(message)
     
     def show_warning(self, message: str) -> None:
-        """경고 메시지 표시.
-        
+        """경고 메시지 표시 (console_manager로 위임).
+
         Args:
             message: 경고 메시지
         """
-        self.console.print(f"⚠️ [bold yellow]{message}[/bold yellow]")
+        cli_warning(message)
     
     def show_info(self, message: str) -> None:
-        """정보 메시지 표시.
-        
+        """정보 메시지 표시 (console_manager로 위임).
+
         Args:
             message: 정보 메시지
         """
-        self.console.print(f"ℹ️ [bold blue]{message}[/bold blue]")
+        cli_info(message)
     
     def clear_screen(self) -> None:
         """화면 지우기."""

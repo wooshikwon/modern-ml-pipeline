@@ -1,6 +1,6 @@
 import pandas as pd
 
-from src.factory.factory import Factory
+from src.factory import Factory
 
 
 class TestTimeseriesExcludeColumns:

@@ -9,7 +9,7 @@ comprehensive testing strategy - No Mock Hell approach with real components.
 import pytest
 from pathlib import Path
 
-from src.factory.factory import Factory
+from src.factory import Factory
 from src.settings import Settings
 from src.components.adapter.registry import AdapterRegistry
 from src.components.evaluator.registry import EvaluatorRegistry 
@@ -389,7 +389,7 @@ class TestFactoryCalibrationMethods:
         
         # Then: Should return CalibrationEvaluatorWrapper
         assert evaluator is not None
-        from src.factory.factory import CalibrationEvaluatorWrapper
+        from src.factory import CalibrationEvaluatorWrapper
         assert isinstance(evaluator, CalibrationEvaluatorWrapper)
         assert hasattr(evaluator, 'evaluate')
     

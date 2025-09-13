@@ -11,7 +11,7 @@ import pandas as pd
 import numpy as np
 from typing import Any, Dict
 
-from src.factory.factory import Factory
+from src.factory import Factory
 from src.interface.base_adapter import BaseAdapter
 from src.interface.base_evaluator import BaseEvaluator
 from src.interface.base_fetcher import BaseFetcher

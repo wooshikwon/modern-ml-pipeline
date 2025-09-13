@@ -13,7 +13,7 @@ import time
 from datetime import datetime
 from sklearn.metrics import accuracy_score, mean_squared_error
 
-from src.factory.factory import Factory
+from src.factory import Factory
 from src.components.adapter.modules.storage_adapter import StorageAdapter
 from src.components.evaluator.modules.classification_evaluator import ClassificationEvaluator
 from src.components.evaluator.modules.regression_evaluator import RegressionEvaluator

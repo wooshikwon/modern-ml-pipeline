@@ -22,62 +22,62 @@ class CalibrationEvaluatorWrapper:
     Calibration 평가 로직을 캡슐화한 Wrapper 클래스
     모든 복잡한 분기 처리와 평가 로직을 담당
     """
-    
+
     def __init__(self, trained_model, trained_calibrator, console):
         self.trained_model = trained_model
         self.trained_calibrator = trained_calibrator
         self.console = console
-    
+
     def evaluate(self, X_test, y_test) -> dict:
         """
         Calibration 평가 수행 (모든 복잡한 로직 처리)
-        
+
         Args:
             X_test: 테스트 특성
             y_test: 테스트 라벨
-            
+
         Returns:
             Calibration metrics 딕셔너리
         """
         from src.components.calibration.evaluator import evaluate_calibration_metrics, evaluate_multiclass_calibration
-        
+
         # Uncalibrated 확률 얻기
         y_prob_uncalibrated = self.trained_model.predict_proba(X_test)
         y_prob_calibrated = self.trained_calibrator.transform(y_prob_uncalibrated)
-        
+
         # Binary vs Multiclass 자동 구분 및 평가
         if y_prob_uncalibrated.ndim == 2 and y_prob_uncalibrated.shape[1] == 2:
             # Binary classification - positive class 확률만 사용
             calibration_metrics = evaluate_calibration_metrics(
-                y_test, 
+                y_test,
                 y_prob_uncalibrated[:, 1],
                 y_prob_calibrated[:, 1] if y_prob_calibrated.ndim == 2 else y_prob_calibrated
             )
-            self.console.info("Binary calibration evaluation completed", 
+            self.console.info("Binary calibration evaluation completed",
                             rich_message="📊 Binary calibration evaluation completed")
-            
+
         elif y_prob_uncalibrated.ndim == 2 and y_prob_uncalibrated.shape[1] > 2:
             # Multiclass classification
             calibration_metrics = evaluate_multiclass_calibration(
                 y_test, y_prob_uncalibrated, y_prob_calibrated
             )
-            self.console.info(f"Multiclass calibration evaluation completed ({y_prob_uncalibrated.shape[1]} classes)", 
+            self.console.info(f"Multiclass calibration evaluation completed ({y_prob_uncalibrated.shape[1]} classes)",
                             rich_message=f"📊 Multiclass calibration evaluation completed: [cyan]{y_prob_uncalibrated.shape[1]}[/cyan] classes")
-            
+
         else:
             # 1D case (이미 binary positive class만 있는 경우)
             calibration_metrics = evaluate_calibration_metrics(
                 y_test, y_prob_uncalibrated, y_prob_calibrated
             )
-            self.console.info("1D calibration evaluation completed", 
+            self.console.info("1D calibration evaluation completed",
                             rich_message="📊 1D calibration evaluation completed")
-        
+
         # Nested dict 제거 (MLflow 로깅을 위해)
         flat_metrics = {}
         for key, value in calibration_metrics.items():
             if not isinstance(value, dict):  # class_metrics 같은 nested dict 제외
                 flat_metrics[f"calibration_{key}"] = value
-        
+
         return flat_metrics
 
 
@@ -88,30 +88,30 @@ class Factory:
     """
     # 클래스 변수: 컴포넌트 등록 상태 추적
     _components_registered: ClassVar[bool] = False
-    
+
     def __init__(self, settings: Settings):
         # 컴포넌트 자동 등록 (최초 1회만)
         self._ensure_components_registered()
-        
+
         self.settings = settings
         self.console = UnifiedConsole(settings)
-        
+
         # Recipe 구조 검증
         if not self.settings.recipe:
             raise ValueError("Recipe 구조가 필요합니다. settings.recipe가 없습니다.")
-        
+
         # 자주 사용하는 경로 캐싱 (일관된 접근 패턴)
         self._recipe = settings.recipe
         self._config = settings.config
         self._data = self._recipe.data
         self._model = self._recipe.model
-        
+
         # 생성된 컴포넌트 캐싱
         self._component_cache: Dict[str, Any] = {}
-        
+
         self.console.info(f"Factory initialized with Recipe: {self._recipe.name}",
                          rich_message=f"🏭 Factory initialized: [cyan]{self._recipe.name}[/cyan]")
-    
+
     @classmethod
     def _ensure_components_registered(cls) -> None:
         """
@@ -122,7 +122,7 @@ class Factory:
             # Use global console for classmethod
             console = get_console()
             console.info("Initializing component registries...", rich_message="🔧 Initializing component registries...")
-            
+
             # 컴포넌트 모듈들을 import하여 self-registration 트리거
             try:
                 import src.components.adapter
@@ -133,18 +133,18 @@ class Factory:
                 import src.components.datahandler
             except ImportError as e:
                 console.warning(f"Some components could not be imported: {e}")
-            
+
             cls._components_registered = True
             console.info("Component registries initialized successfully", rich_message="✅ Component registries initialized")
-    
+
     def _create_from_class_path(self, class_path: str, hyperparameters: Dict[str, Any]) -> Any:
         """
         클래스 경로로부터 동적으로 객체를 생성하는 헬퍼 메서드.
-        
+
         Args:
             class_path: 전체 클래스 경로 (예: 'sklearn.ensemble.RandomForestClassifier')
             hyperparameters: 클래스 초기화 파라미터
-            
+
         Returns:
             생성된 객체 인스턴스
         """
@@ -152,22 +152,22 @@ class Factory:
             module_path, class_name = class_path.rsplit('.', 1)
             module = importlib.import_module(module_path)
             model_class = getattr(module, class_name)
-            
+
             # 하이퍼파라미터 전처리 (callable 파라미터 처리)
             processed_params = self._process_hyperparameters(hyperparameters)
-            
+
             instance = model_class(**processed_params)
             self.console.info(f"Created instance from class path: {class_path}", rich_message=f"✅ Created: [cyan]{class_path.split('.')[-1]}[/cyan]")
             return instance
-            
+
         except Exception as e:
             self.console.error(f"Failed to create instance from {class_path}: {e}")
             raise ValueError(f"Could not load class: {class_path}") from e
-    
+
     def _process_hyperparameters(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """하이퍼파라미터 전처리 (문자열을 객체로 변환 등)."""
         processed = params.copy()
-        
+
         for key, value in processed.items():
             if isinstance(value, str) and "." in value and ("_fn" in key or "_class" in key):
                 try:
@@ -175,71 +175,71 @@ class Factory:
                     module = importlib.import_module(module_path)
                     processed[key] = getattr(module, func_name)
                     self.console.info(
-                        f"Converted hyperparameter '{key}' to callable: {value}", 
+                        f"Converted hyperparameter '{key}' to callable: {value}",
                         rich_message=f"🔧 Converted param: [yellow]{key}[/yellow] → callable",
                         context={"module_path": module_path, "func_name": func_name}
                     )
                 except (ImportError, AttributeError):
                     self.console.info(
-                        f"Keeping hyperparameter '{key}' as string: {value}", 
+                        f"Keeping hyperparameter '{key}' as string: {value}",
                         rich_message=f"📝 Keeping param: [yellow]{key}[/yellow] as string",
                         context={"module_path": module_path, "func_name": func_name}
                     )
-        
+
         return processed
 
     def _detect_adapter_type_from_uri(self, source_uri: str) -> str:
         """
         source_uri 패턴을 분석하여 필요한 어댑터 타입을 자동으로 결정합니다.
-        
+
         패턴:
         - .sql 파일 또는 SQL 쿼리 → 'sql'
         - .csv, .parquet, .json → 'storage'
         - s3://, gs://, az:// → 'storage'
-        - bigquery:// → 'bigquery'
+        - bigquery:// → 'sql'
         """
         uri_lower = source_uri.lower()
-        
+
         # SQL 패턴
         if uri_lower.endswith('.sql') or 'select' in uri_lower or 'from' in uri_lower:
             return 'sql'
-        
+
         # BigQuery 패턴 → SQL adapter로 통합
         if uri_lower.startswith('bigquery://'):
             return 'sql'  # 'bigquery' 대신 'sql' 반환
-        
+
         # Cloud Storage 패턴
         if any(uri_lower.startswith(prefix) for prefix in ['s3://', 'gs://', 'az://']):
             return 'storage'
-        
+
         # File 패턴
         if any(uri_lower.endswith(ext) for ext in ['.csv', '.parquet', '.json', '.tsv']):
             return 'storage'
-        
+
         # 기본값
         self.console.warning(
-            f"source_uri 패턴을 인식할 수 없습니다: {source_uri}. 'storage' 어댑터를 사용합니다.", 
+            f"source_uri 패턴을 인식할 수 없습니다: {source_uri}. 'storage' 어댑터를 사용합니다.",
             rich_message=f"⚠️ Unknown source_uri pattern: [red]{source_uri}[/red] → using 'storage' adapter"
         )
         return 'storage'
-    
+
     def create_data_adapter(self, adapter_type: Optional[str] = None) -> "BaseAdapter":
         """
         데이터 어댑터 생성 (일관된 접근 패턴).
-        
+
         Args:
             adapter_type: 명시적 어댑터 타입 (선택사항)
-            
+
         Returns:
             BaseAdapter 인스턴스
         """
         # 캐싱 확인
         cache_key = f"adapter_{adapter_type}" if adapter_type else "adapter_auto"
         if cache_key in self._component_cache:
-            self.console.info("캐시된 어댑터 반환", 
+            self.console.info("캐시된 어댑터 반환",
                             rich_message=f"🔄 Using cached adapter: [dim]{cache_key}[/dim]")
             return self._component_cache[cache_key]
-        
+
         # 어댑터 타입 결정 (일관된 접근 패턴)
         if adapter_type:
             target_type = adapter_type
@@ -256,7 +256,7 @@ class Factory:
                 target_type = self._detect_adapter_type_from_uri(source_uri)
                 self.console.info(f"Auto-detected adapter type '{target_type}' from URI: {source_uri}",
                                 rich_message=f"🔍 Auto-detected adapter: [cyan]{target_type}[/cyan] from URI")
-        
+
         # Registry를 통한 생성 (일관된 패턴)
         try:
             self.console.component_init(f"Data Adapter ({target_type})", "success")
@@ -267,34 +267,34 @@ class Factory:
             return adapter
         except Exception as e:
             available = list(AdapterRegistry.list_adapters().keys())
-            self.console.error(f"Failed to create adapter '{target_type}'", 
+            self.console.error(f"Failed to create adapter '{target_type}'",
                              rich_message=f"❌ Adapter creation failed: [red]{target_type}[/red]",
                              context={"available_adapters": available, "target_type": target_type},
                              suggestion="Check adapter configuration and available adapters")
             raise ValueError(
                 f"Failed to create adapter '{target_type}'. Available: {available}"
             ) from e
-    
+
     def create_fetcher(self, run_mode: Optional[str] = None) -> "BaseFetcher":
         """
         Fetcher 생성 (일관된 접근 패턴 + 캐싱).
-        
+
         Args:
             run_mode: 실행 모드 (batch/serving)
-            
+
         Returns:
             BaseFetcher 인스턴스
         """
         # 캐싱 키 생성
         mode = (run_mode or "batch").lower()
         cache_key = f"fetcher_{mode}"
-        
+
         # 캐싱 확인
         if cache_key in self._component_cache:
             self.console.info(f"캐시된 fetcher 반환: {mode}",
                             rich_message=f"🔄 Using cached fetcher: [dim]{mode}[/dim]")
             return self._component_cache[cache_key]
-        
+
         # 일관된 접근 패턴으로 설정 접근
         env = self._config.environment.name if hasattr(self._config, "environment") else "local"
         provider = self.settings.config.feature_store.provider if self.settings.config.feature_store else "none"
@@ -314,12 +314,12 @@ class Factory:
             # PassThrough 케이스
             if env == "local" or provider == "none" or fetch_type == "pass_through" or not fetch_conf:
                 fetcher = FetcherRegistry.create("pass_through")
-                
+
             # Feature Store 케이스
             elif fetch_type == "feature_store" and provider in {"feast", "mock", "dynamic"}:
                 fetcher = FetcherRegistry.create(
-                    fetch_type, 
-                    settings=self.settings, 
+                    fetch_type,
+                    settings=self.settings,
                     factory=self
                 )
             else:
@@ -327,7 +327,7 @@ class Factory:
                     f"적절한 fetcher를 선택할 수 없습니다. "
                     f"env={env}, provider={provider}, fetch_type={fetch_type}, mode={mode}"
                 )
-            
+
             # 캐싱 저장
             self._component_cache[cache_key] = fetcher
             fetcher_name = fetch_type or 'pass_through'
@@ -335,7 +335,7 @@ class Factory:
             self.console.info(f"Created fetcher: {fetcher_name} (mode={mode})",
                             rich_message=f"✅ Fetcher created: [green]{fetcher_name}[/green] ([dim]{mode}[/dim])")
             return fetcher
-            
+
         except Exception as e:
             self.console.error(f"Failed to create fetcher: {e}",
                              rich_message=f"❌ Fetcher creation failed: {e}",
@@ -346,7 +346,7 @@ class Factory:
     def create_preprocessor(self) -> Optional[BasePreprocessor]:
         """
         Preprocessor 생성 (일관된 접근 패턴 + 캐싱).
-        
+
         Returns:
             BasePreprocessor 인스턴스 또는 None
         """
@@ -356,26 +356,26 @@ class Factory:
             self.console.info("캐시된 preprocessor 반환",
                             rich_message="🔄 Using cached preprocessor")
             return self._component_cache[cache_key]
-        
+
         # 일관된 접근 패턴
         preprocessor_config = getattr(self._recipe, "preprocessor", None)
-        
+
         if not preprocessor_config:
             self.console.info("No preprocessor configured",
                             rich_message="ℹ️  No preprocessor configured, skipping")
             return None
-        
+
         try:
             # Preprocessor 생성
             self.console.component_init("Preprocessor", "success")
             preprocessor = Preprocessor(settings=self.settings)
-            
+
             # 캐싱 저장
             self._component_cache[cache_key] = preprocessor
             self.console.info("Created preprocessor",
                             rich_message="✅ Preprocessor created: [green]ready[/green]")
             return preprocessor
-            
+
         except Exception as e:
             self.console.error(f"Failed to create preprocessor: {e}",
                              rich_message=f"❌ Preprocessor creation failed: {e}",
@@ -386,7 +386,7 @@ class Factory:
     def create_model(self) -> Any:
         """
         Model 생성 (일관된 접근 패턴 + 헬퍼 메서드 활용).
-        
+
         Returns:
             모델 인스턴스
         """
@@ -396,10 +396,10 @@ class Factory:
             self.console.info("캐시된 model 반환",
                             rich_message="🔄 Using cached model")
             return self._component_cache[cache_key]
-        
+
         # 일관된 접근 패턴
         class_path = self._model.class_path
-        
+
         # 하이퍼파라미터 추출 (tuning 메타데이터 제외)
         hyperparameters = {}
         if hasattr(self._model.hyperparameters, 'tuning_enabled'):
@@ -418,18 +418,18 @@ class Factory:
             tuning_keys = ['tuning_enabled', 'optimization_metric', 'direction', 'n_trials', 'timeout', 'fixed', 'tunable', 'values']
             for key in tuning_keys:
                 hyperparameters.pop(key, None)
-        
+
         try:
             # 헬퍼 메서드 활용
             self.console.component_init(f"Model ({class_path.split('.')[-1]})", "success")
             model = self._create_from_class_path(class_path, hyperparameters)
-            
+
             # 캐싱 저장
             self._component_cache[cache_key] = model
             self.console.info(f"Created model: {class_path}",
                             rich_message=f"✅ Model created: [green]{class_path.split('.')[-1]}[/green]")
             return model
-            
+
         except Exception as e:
             self.console.error(f"Failed to create model from {class_path}: {e}",
                              rich_message=f"❌ Model creation failed: {e}",
@@ -440,7 +440,7 @@ class Factory:
     def create_evaluator(self) -> Any:
         """
         Evaluator 생성 (일관된 접근 패턴 + 캐싱).
-        
+
         Returns:
             Evaluator 인스턴스
         """
@@ -450,25 +450,25 @@ class Factory:
             self.console.info("캐시된 evaluator 반환",
                             rich_message="🔄 Using cached evaluator")
             return self._component_cache[cache_key]
-        
+
         # task_choice 활용
         task_choice = self._recipe.task_choice
         data_interface = self._recipe.data.data_interface
-        
+
         try:
             # Registry 패턴으로 생성
             self.console.component_init(f"Evaluator ({task_choice})", "success")
             evaluator = EvaluatorRegistry.create(task_choice, self.settings)
-            
+
             # 캐싱 저장
             self._component_cache[cache_key] = evaluator
             self.console.info(f"Created evaluator for task: {task_choice}",
                             rich_message=f"✅ Evaluator created: [green]{task_choice}[/green]")
             return evaluator
-            
+
         except Exception:
             available = EvaluatorRegistry.get_available_tasks()
-            self.console.error(f"Failed to create evaluator for '{task_choice}'", 
+            self.console.error(f"Failed to create evaluator for '{task_choice}'",
                              rich_message=f"❌ Evaluator creation failed: [red]{task_choice}[/red]",
                              context={"task_choice": task_choice, "available_evaluators": available},
                              suggestion="Check task choice and available evaluators")
@@ -477,10 +477,10 @@ class Factory:
     def create_trainer(self, trainer_type: Optional[str] = None) -> Any:
         """
         Trainer 생성 (일관된 접근 패턴 + 캐싱).
-        
+
         Args:
             trainer_type: 트레이너 타입 (None이면 'default' 사용)
-            
+
         Returns:
             Trainer 인스턴스
         """
@@ -490,28 +490,28 @@ class Factory:
             self.console.info(f"캐시된 trainer 반환: {trainer_type or 'default'}",
                             rich_message=f"🔄 Using cached trainer: [dim]{trainer_type or 'default'}[/dim]")
             return self._component_cache[cache_key]
-        
+
         # TrainerRegistry import
         from src.components.trainer import TrainerRegistry
-        
+
         # 일관된 접근 패턴
         trainer_type = trainer_type or 'default'
-        
+
         try:
             # settings와 factory_provider를 전달하여 trainer 생성
             self.console.component_init(f"Trainer ({trainer_type})", "success")
             trainer = TrainerRegistry.create(
-                trainer_type, 
+                trainer_type,
                 settings=self.settings,
                 factory_provider=lambda: self
             )
-            
+
             # 캐싱 저장
             self._component_cache[cache_key] = trainer
             self.console.info(f"Created trainer: {trainer_type}",
                             rich_message=f"✅ Trainer created: [green]{trainer_type}[/green]")
             return trainer
-            
+
         except Exception:
             available = list(TrainerRegistry.trainers.keys())
             self.console.error(f"Failed to create trainer for '{trainer_type}'",
@@ -524,7 +524,7 @@ class Factory:
         """
         DataHandler 생성 (일관된 접근 패턴 + 캐싱).
         task_type에 따라 적절한 DataHandler를 자동으로 선택합니다.
-        
+
         Returns:
             BaseDataHandler 인스턴스
         """
@@ -534,32 +534,32 @@ class Factory:
             self.console.info("캐시된 datahandler 반환",
                             rich_message="🔄 Using cached datahandler")
             return self._component_cache[cache_key]
-        
+
         # DataHandlerRegistry import
         from src.components.datahandler import DataHandlerRegistry
-        
+
         # task_choice 활용
         task_choice = self._recipe.task_choice
-        
+
         try:
             # 모델 클래스 경로 추출 (catalog 기반 핸들러 선택을 위해)
             model_class_path = getattr(self._recipe.model, 'class_path', None)
             model_name = model_class_path.split('.')[-1] if model_class_path else 'unknown'
-            
+
             # Registry 패턴으로 catalog 기반 핸들러 선택
             self.console.component_init(f"DataHandler ({task_choice}, {model_name})", "success")
             datahandler = DataHandlerRegistry.get_handler_for_task(
-                task_choice, 
-                self.settings, 
+                task_choice,
+                self.settings,
                 model_class_path=model_class_path
             )
-            
+
             # 캐싱 저장
             self._component_cache[cache_key] = datahandler
             self.console.info(f"Created datahandler for task: {task_choice}, model: {model_class_path}",
                             rich_message=f"✅ DataHandler created: [green]{task_choice}[/green] + [dim]{model_name}[/dim]")
             return datahandler
-            
+
         except Exception:
             available = list(DataHandlerRegistry.get_available_handlers().keys())
             self.console.error(f"Failed to create datahandler for '{task_choice}'",
@@ -571,7 +571,7 @@ class Factory:
     def create_feature_store_adapter(self) -> "BaseAdapter":
         """
         Feature Store 어댑터 생성 (일관된 접근 패턴 + 캐싱).
-        
+
         Returns:
             Feature Store 어댑터 인스턴스
         """
@@ -581,33 +581,33 @@ class Factory:
             self.console.info("캐시된 feature store adapter 반환",
                             rich_message="🔄 Using cached feature store adapter")
             return self._component_cache[cache_key]
-        
+
         # 검증
         if not self.settings.config.feature_store:
             raise ValueError("Feature Store settings are not configured.")
-        
+
         try:
             # Registry 패턴으로 생성
             self.console.component_init("Feature Store Adapter", "success")
             adapter = AdapterRegistry.create('feature_store', self.settings)
-            
+
             # 캐싱 저장
             self._component_cache[cache_key] = adapter
             self.console.info("Created Feature Store adapter",
                             rich_message="✅ Feature Store adapter created: [green]ready[/green]")
             return adapter
-            
+
         except Exception as e:
             self.console.error(f"Failed to create Feature Store adapter: {e}",
                              rich_message=f"❌ Feature Store adapter failed: {e}",
                              context={"feature_store_config": bool(self.settings.config.feature_store)},
                              suggestion="Check feature store configuration")
             raise
-    
+
     def create_optuna_integration(self) -> Any:
         """
         Optuna Integration 생성 (일관된 접근 패턴 + 캐싱).
-        
+
         Returns:
             OptunaIntegration 인스턴스
         """
@@ -617,26 +617,26 @@ class Factory:
             self.console.info("캐시된 Optuna integration 반환",
                             rich_message="🔄 Using cached Optuna integration")
             return self._component_cache[cache_key]
-        
+
         # 일관된 접근 패턴 (Recipe hyperparameters 구조 사용)
         tuning_config = getattr(self._model, "hyperparameters", None)
-        
+
         if not tuning_config:
             raise ValueError("Hyperparameter tuning settings are not configured.")
-        
+
         try:
             from src.utils.integrations.optuna_integration import OptunaIntegration
-            
+
             # Integration 생성
             self.console.component_init("Optuna Integration", "success")
             integration = OptunaIntegration(tuning_config)
-            
+
             # 캐싱 저장
             self._component_cache[cache_key] = integration
             self.console.info("Created Optuna integration",
                             rich_message="✅ Optuna integration created: [green]ready[/green]")
             return integration
-            
+
         except ImportError:
             self.console.error("Optuna is not installed. Please install with 'pip install optuna'",
                              rich_message="❌ Optuna not installed",
@@ -652,10 +652,10 @@ class Factory:
     def create_calibrator(self, method: Optional[str] = None) -> Optional[Any]:
         """
         Calibrator 생성 (조건에 따른 생성 분기 처리)
-        
+
         Args:
             method: 캘리브레이션 방법 ('platt', 'isotonic' 등)
-            
+
         Returns:
             BaseCalibrator 인스턴스 또는 None
         """
@@ -665,21 +665,21 @@ class Factory:
             self.console.info("캐시된 calibrator 반환",
                             rich_message=f"🔄 Using cached calibrator: [cyan]{method}[/cyan]")
             return self._component_cache[cache_key]
-        
+
         # Task와 calibration 설정 확인
         task_type = self._recipe.task_choice
         calibration_config = getattr(self._recipe.model, 'calibration', None)
-        
+
         if not calibration_config or not getattr(calibration_config, 'enabled', False):
             self.console.info("Calibration disabled, returning None",
                             rich_message="🎯 Calibration: [dim]disabled[/dim]")
             return None
-            
+
         if task_type != 'classification':
             self.console.info(f"Calibration not supported for task: {task_type}",
                             rich_message=f"🎯 Calibration: [yellow]not supported for {task_type}[/yellow]")
             return None
-        
+
         # Method 결정 (기본값 없음 - Recipe에서 필수로 설정)
         calibration_method = method or getattr(calibration_config, 'method', None)
         if not calibration_method:
@@ -688,20 +688,20 @@ class Factory:
                 "Recipe에서 model.calibration.method를 설정하세요. "
                 "사용 가능: 'beta', 'isotonic', 'temperature'"
             )
-        
+
         try:
             from src.components.calibration.registry import CalibrationRegistry
-            
+
             # Calibrator 생성
             calibrator = CalibrationRegistry.create(calibration_method)
-            
+
             # 캐싱 저장
             self._component_cache[cache_key] = calibrator
             self.console.component_init(f"Calibrator ({calibration_method})", "success")
             self.console.info(f"Created calibrator: {calibration_method}",
                             rich_message=f"✅ Calibrator created: [green]{calibration_method}[/green]")
             return calibrator
-            
+
         except Exception:
             from src.components.calibration.registry import CalibrationRegistry
             available = CalibrationRegistry.get_available_methods()
@@ -714,11 +714,11 @@ class Factory:
     def create_calibration_evaluator(self, trained_model, trained_calibrator) -> Optional[Any]:
         """
         Calibration Evaluator 생성 및 실행 (모든 복잡한 로직 처리)
-        
+
         Args:
             trained_model: 학습된 모델
             trained_calibrator: 학습된 calibrator
-            
+
         Returns:
             Calibration metrics 또는 None
         """
@@ -726,18 +726,18 @@ class Factory:
         task_type = self._recipe.task_choice
         if task_type != 'classification' or not trained_calibrator:
             return None
-        
+
         # 모델이 predict_proba를 지원하는지 확인
         if not hasattr(trained_model, 'predict_proba'):
             self.console.warning("Model does not support predict_proba, skipping calibration evaluation",
                                rich_message="⚠️ No predict_proba support")
             return None
-        
+
         return CalibrationEvaluatorWrapper(trained_model, trained_calibrator, self.console)
 
     def create_pyfunc_wrapper(
-        self, 
-        trained_model: Any, 
+        self,
+        trained_model: Any,
         trained_datahandler: Any,
         trained_preprocessor: Optional[BasePreprocessor],
         trained_fetcher: Optional['BaseFetcher'],
@@ -749,13 +749,13 @@ class Factory:
         from src.utils.integrations.pyfunc_wrapper import PyfuncWrapper
         self.console.info("Creating PyfuncWrapper artifact...",
                          rich_message="📦 Creating PyfuncWrapper artifact")
-        
+
         signature, data_schema = None, None
         if training_df is not None:
             self.console.info("Generating model signature and data schema from training_df...",
                             rich_message="🔍 Generating model signature and schema")
             from src.utils.integrations.mlflow_integration import create_enhanced_model_signature_with_schema
-            
+
             # 데이터 수집
             fetcher_conf = self._recipe.data.fetcher
             data_interface = self._recipe.data.data_interface
@@ -780,27 +780,27 @@ class Factory:
                 'target_column': data_interface.target_column,
                 'treatment_column': getattr(data_interface, 'treatment_column', None),
             }
-            
+
             signature, data_schema = create_enhanced_model_signature_with_schema(
-                training_df, 
+                training_df,
                 data_interface_config
             )
             self.console.info("Signature and data schema created successfully.",
                             rich_message="✅ Signature and schema created successfully")
-        
-        # DataInterface 기반 검증용 스키마 생성 (Phase 1에서 validation 로직 제거됨)
+
+        # DataInterface 기반 검증용 스키마 생성
         data_interface_schema = None
         if training_df is not None:
-            # 기본 스키마 정보만 유지 (validation 로직 제거)
-            data_interface_schema = {
-                'required_columns': list(training_df.columns),
-                'task_choice': self._recipe.task_choice,
-                'created_at': pd.Timestamp.now().isoformat()
-            }
+            from src.utils.data.validation import create_data_interface_schema_for_storage
+            data_interface_schema = create_data_interface_schema_for_storage(
+                data_interface=self._recipe.data.data_interface,
+                df=training_df,
+                task_choice=self._recipe.task_choice
+            )
             required_cols = len(data_interface_schema.get('required_columns', []))
-            self.console.info(f"기본 스키마 정보 생성: {required_cols}개 컬럼",
-                            rich_message=f"✅ Basic schema info created: [cyan]{required_cols}[/cyan] columns")
-        
+            self.console.info(f"DataInterface 스키마 생성 완료: {required_cols}개 필수 컬럼",
+                            rich_message=f"✅ DataInterface schema created: [cyan]{required_cols}[/cyan] required columns")
+
         return PyfuncWrapper(
             settings=self.settings,
             trained_model=trained_model,

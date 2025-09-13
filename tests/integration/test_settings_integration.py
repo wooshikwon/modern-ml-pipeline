@@ -280,7 +280,7 @@ mlflow:
     def test_optimizer_registry_self_registration_v2(self, settings_builder):
         """Factory 초기화 시 TrainerRegistry에 optuna 옵티마이저가 등록되는지 확인."""
         # Import triggers self-registration via src.components.trainer package
-        from src.factory.factory import Factory
+        from src.factory import Factory
         from src.components.trainer import TrainerRegistry
 
         settings = settings_builder \
@@ -677,7 +677,7 @@ evaluation:
             
             if settings is not None:
                 # Then: Settings should be compatible with Factory
-                from src.factory.factory import Factory
+                from src.factory import Factory
                 
                 try:
                     factory = Factory(settings)
@@ -886,7 +886,7 @@ evaluation:
                 
                 # Test that comprehensive settings work with factory
                 try:
-                    from src.factory.factory import Factory
+                    from src.factory import Factory
                     factory = Factory(settings)
                     assert factory is not None
                     

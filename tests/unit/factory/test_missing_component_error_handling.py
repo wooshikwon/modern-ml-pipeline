@@ -8,7 +8,7 @@ comprehensive testing strategy - No Mock Hell approach with real error scenarios
 
 import pytest
 
-from src.factory.factory import Factory
+from src.factory import Factory
 from src.components.adapter.registry import AdapterRegistry
 from src.components.evaluator.registry import EvaluatorRegistry 
 from src.components.fetcher.registry import FetcherRegistry

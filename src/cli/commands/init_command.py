@@ -6,10 +6,13 @@ from pathlib import Path
 from typing import Optional
 from datetime import datetime
 import typer
-from rich.console import Console
 
 from src.cli.utils.template_engine import TemplateEngine
 from src.cli.utils.interactive_ui import InteractiveUI
+from src.utils.core.console_manager import (
+    cli_command_start, cli_command_error, cli_step_complete,
+    cli_info, cli_success_panel
+)
 
 
 def init_command(project_name: Optional[str] = typer.Argument(None, help="프로젝트 이름")) -> None:
@@ -28,48 +31,49 @@ def init_command(project_name: Optional[str] = typer.Argument(None, help="프로
         - .gitignore
     """
     ui = InteractiveUI()
-    console = Console()
-    
+
     try:
+        cli_command_start("Init Project", "대화형 프로젝트 초기화")
+
         # 프로젝트명 입력
         if not project_name:
             project_name = ui.text_input(
                 "📁 프로젝트 이름을 입력하세요",
                 validator=lambda x: len(x) > 0 and x.replace("-", "").replace("_", "").isalnum()
             )
-        
+
+        cli_step_complete("프로젝트명 입력", f"Project: {project_name}")
+
         # 프로젝트 경로 생성
         project_path = Path.cwd() / project_name
-        
+
         # 이미 존재하는지 확인
         if project_path.exists():
             if not ui.confirm(f"'{project_name}' 디렉토리가 이미 존재합니다. 계속하시겠습니까?"):
-                console.print("❌ 프로젝트 초기화가 취소되었습니다.", style="red")
+                cli_command_error("Init Project", "프로젝트 초기화가 취소되었습니다")
                 raise typer.Exit(0)
-        
+
         # 프로젝트 구조 생성
-        ui.show_info(f"프로젝트 '{project_name}'을 생성하는 중...")
+        cli_info(f"프로젝트 '{project_name}'을 생성하는 중...")
         create_project_structure(project_path)
-        
+
         # 성공 메시지
+        cli_step_complete("프로젝트 구조 생성", f"경로: {project_path.absolute()}")
         ui.show_success(f"프로젝트 '{project_name}'이 생성되었습니다!")
-        console.print(f"📂 경로: [cyan]{project_path.absolute()}[/cyan]")
-        
+
         # 다음 단계 안내
-        ui.show_panel(
-            f"""cd {project_name}
+        next_steps_content = f"""cd {project_name}
             mmp get-config        # 환경 설정 생성
             mmp get-recipe        # 모델 레시피 생성
-            mmp train -r recipes/<recipe>.yaml -e <env>  # 학습 실행""",
-                        title="🚀 다음 단계",
-                        style="green"
-                    )
+            mmp train -r recipes/<recipe>.yaml -e <env>  # 학습 실행"""
+
+        cli_success_panel(next_steps_content, "🚀 다음 단계")
         
     except KeyboardInterrupt:
-        ui.show_error("프로젝트 초기화가 취소되었습니다.")
+        cli_command_error("Init Project", "프로젝트 초기화가 취소되었습니다")
         raise typer.Exit(1)
     except Exception as e:
-        ui.show_error(f"프로젝트 초기화 중 오류 발생: {e}")
+        cli_command_error("Init Project", f"프로젝트 초기화 중 오류 발생: {e}")
         raise typer.Exit(1)
 
 
