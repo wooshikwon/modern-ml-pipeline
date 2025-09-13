@@ -19,18 +19,19 @@ class TestInferenceCommandArgumentParsing:
         self.app = typer.Typer()
         self.app.command()(batch_inference_command)
     
-    @patch('src.cli.commands.inference_command.load_config_files')
-    @patch('src.cli.commands.inference_command.create_settings_for_inference')
+    @patch('src.cli.commands.inference_command.SettingsFactory.for_inference')
     @patch('src.cli.commands.inference_command.run_inference_pipeline')
-    @patch('src.cli.commands.inference_command.setup_logging')
-    def test_inference_command_with_required_arguments(self, mock_setup_logging, mock_run_pipeline, 
-                                                     mock_create_settings, mock_load_config):
+    @patch('src.cli.commands.inference_command.cli_command_start')
+    @patch('src.cli.commands.inference_command.cli_command_success')
+    def test_inference_command_with_required_arguments(self, mock_cli_success, mock_cli_start, mock_run_pipeline, mock_settings_factory):
         """Test inference command with all required arguments"""
         # Setup mocks
-        mock_config_data = {"environment": {"name": "test"}}
         mock_settings = MagicMock()
-        mock_load_config.return_value = mock_config_data
-        mock_create_settings.return_value = mock_settings
+        mock_settings_factory.return_value = mock_settings
+
+        mock_result = MagicMock()
+        mock_result.inference_results = "predictions_saved"
+        mock_run_pipeline.return_value = mock_result
         
         # Execute command
         result = self.runner.invoke(self.app, [
@@ -41,30 +42,43 @@ class TestInferenceCommandArgumentParsing:
         
         # Verify success
         assert result.exit_code == 0
-        
-        # Verify function calls
-        mock_load_config.assert_called_once_with(config_path='configs/prod.yaml')
-        mock_create_settings.assert_called_once_with(mock_config_data)
-        mock_setup_logging.assert_called_once_with(mock_settings)
+
+        # Verify SettingsFactory call
+        mock_settings_factory.assert_called_once_with(
+            run_id='abc123def456',
+            config_path='configs/prod.yaml',
+            data_path='data/inference.csv',
+            context_params=None
+        )
+
+        # Verify pipeline execution
         mock_run_pipeline.assert_called_once_with(
             settings=mock_settings,
             run_id='abc123def456',
             data_path='data/inference.csv',
             context_params={}
         )
+
+        # Verify Rich Console calls
+        mock_cli_start.assert_called_once_with("Batch Inference", "배치 추론 파이프라인 실행")
+        mock_cli_success.assert_called_once_with("Batch Inference", [
+            f"처리된 데이터: {mock_result.processed_rows}행",
+            f"출력 경로: {mock_result.output_path}"
+        ])
     
-    @patch('src.cli.commands.inference_command.load_config_files')
-    @patch('src.cli.commands.inference_command.create_settings_for_inference')
+    @patch('src.cli.commands.inference_command.SettingsFactory.for_inference')
     @patch('src.cli.commands.inference_command.run_inference_pipeline')
-    @patch('src.cli.commands.inference_command.setup_logging')
-    def test_inference_command_with_optional_params(self, mock_setup_logging, mock_run_pipeline,
-                                                   mock_create_settings, mock_load_config):
+    @patch('src.cli.commands.inference_command.cli_command_start')
+    @patch('src.cli.commands.inference_command.cli_command_success')
+    def test_inference_command_with_optional_params(self, mock_cli_success, mock_cli_start, mock_run_pipeline, mock_settings_factory):
         """Test inference command with optional context parameters"""
         # Setup mocks
-        mock_config_data = {"environment": {"name": "prod"}}
         mock_settings = MagicMock()
-        mock_load_config.return_value = mock_config_data
-        mock_create_settings.return_value = mock_settings
+        mock_settings_factory.return_value = mock_settings
+
+        mock_result = MagicMock()
+        mock_result.inference_results = "batch_predictions_complete"
+        mock_run_pipeline.return_value = mock_result
         
         # Execute command with JSON params
         result = self.runner.invoke(self.app, [
@@ -76,14 +90,29 @@ class TestInferenceCommandArgumentParsing:
         
         # Verify success
         assert result.exit_code == 0
-        
-        # Verify function calls with parsed parameters
+
+        # Verify SettingsFactory call with parsed parameters
+        mock_settings_factory.assert_called_once_with(
+            run_id='xyz789abc123',
+            config_path='configs/inference.yaml',
+            data_path='queries/batch_predict.sql',
+            context_params={"batch_date": "2024-01-15", "limit": 1000}
+        )
+
+        # Verify pipeline execution
         mock_run_pipeline.assert_called_once_with(
             settings=mock_settings,
             run_id='xyz789abc123',
             data_path='queries/batch_predict.sql',
             context_params={"batch_date": "2024-01-15", "limit": 1000}
         )
+
+        # Verify Rich Console calls
+        mock_cli_start.assert_called_once_with("Batch Inference", "배치 추론 파이프라인 실행")
+        mock_cli_success.assert_called_once_with("Batch Inference", [
+            f"처리된 데이터: {mock_result.processed_rows}행",
+            f"출력 경로: {mock_result.output_path}"
+        ])
     
     def test_inference_command_missing_required_arguments(self):
         """Test inference command fails with missing required arguments"""
@@ -111,11 +140,13 @@ class TestInferenceCommandArgumentParsing:
         assert result.exit_code != 0
         assert "Missing option '--data-path'" in result.output
     
-    @patch('src.cli.commands.inference_command.load_config_files')
-    def test_inference_command_file_not_found_error(self, mock_load_config):
+    @patch('src.cli.commands.inference_command.SettingsFactory.for_inference')
+    @patch('src.cli.commands.inference_command.cli_command_start')
+    @patch('src.cli.commands.inference_command.cli_command_error')
+    def test_inference_command_file_not_found_error(self, mock_cli_error, mock_cli_start, mock_settings_factory):
         """Test inference command handles FileNotFoundError"""
         # Setup mock to raise FileNotFoundError
-        mock_load_config.side_effect = FileNotFoundError("Config 파일을 찾을 수 없습니다")
+        mock_settings_factory.side_effect = FileNotFoundError("Config 파일을 찾을 수 없습니다")
         
         # Execute command
         result = self.runner.invoke(self.app, [
@@ -126,12 +157,17 @@ class TestInferenceCommandArgumentParsing:
         
         # Verify exit code and error handling
         assert result.exit_code == 1
+
+        # Verify Rich Console calls
+        mock_cli_start.assert_called_once_with("Batch Inference", "배치 추론 파이프라인 실행")
+        mock_cli_error.assert_called_once_with(
+            "Batch Inference",
+            "파일을 찾을 수 없습니다: Config 파일을 찾을 수 없습니다",
+            "파일 경로를 확인하거나 올바른 Run ID를 사용하세요"
+        )
     
-    @patch('src.cli.commands.inference_command.load_config_files')
-    def test_inference_command_invalid_json_params(self, mock_load_config):
+    def test_inference_command_invalid_json_params(self):
         """Test inference command handles invalid JSON in context_params"""
-        mock_config_data = {"environment": {"name": "test"}}
-        mock_load_config.return_value = mock_config_data
         
         # Execute command with invalid JSON
         result = self.runner.invoke(self.app, [
@@ -142,21 +178,43 @@ class TestInferenceCommandArgumentParsing:
         ])
         
         # Should fail due to JSON parsing error
-        assert result.exit_code == 1
+        assert result.exit_code != 0  # Typer will catch JSON parsing error
     
-    def test_inference_command_short_options(self):
+    @patch('src.cli.commands.inference_command.SettingsFactory.for_inference')
+    @patch('src.cli.commands.inference_command.run_inference_pipeline')
+    @patch('src.cli.commands.inference_command.cli_command_start')
+    @patch('src.cli.commands.inference_command.cli_command_success')
+    def test_inference_command_short_options(self, mock_cli_success, mock_cli_start, mock_run_pipeline, mock_settings_factory):
         """Test inference command with short option flags"""
-        with patch('src.cli.commands.inference_command.load_config_files'), \
-             patch('src.cli.commands.inference_command.create_settings_for_inference'), \
-             patch('src.cli.commands.inference_command.run_inference_pipeline'), \
-             patch('src.cli.commands.inference_command.setup_logging'):
-            
-            # Test short flags work
-            result = self.runner.invoke(self.app, [
-                '--run-id', 'short123',
-                '-c', 'configs/test.yaml',
-                '-d', 'data/inference.csv',
-                '-p', '{"test": true}'
-            ])
-            
-            assert result.exit_code == 0
+        # Setup mocks
+        mock_settings = MagicMock()
+        mock_settings_factory.return_value = mock_settings
+
+        mock_result = MagicMock()
+        mock_result.inference_results = "short_test_complete"
+        mock_run_pipeline.return_value = mock_result
+
+        # Test short flags work
+        result = self.runner.invoke(self.app, [
+            '--run-id', 'short123',
+            '-c', 'configs/test.yaml',
+            '-d', 'data/inference.csv',
+            '-p', '{"test": true}'
+        ])
+
+        assert result.exit_code == 0
+
+        # Verify SettingsFactory call with short options
+        mock_settings_factory.assert_called_once_with(
+            run_id='short123',
+            config_path='configs/test.yaml',
+            data_path='data/inference.csv',
+            context_params={"test": True}
+        )
+
+        # Verify Rich Console calls
+        mock_cli_start.assert_called_once_with("Batch Inference", "배치 추론 파이프라인 실행")
+        mock_cli_success.assert_called_once_with("Batch Inference", [
+            f"처리된 데이터: {mock_result.processed_rows}행",
+            f"출력 경로: {mock_result.output_path}"
+        ])

@@ -40,7 +40,7 @@ class TestListCommandsArgumentParsing:
         
         # Verify success and output
         assert result.exit_code == 0
-        assert 'Available Adapters:' in result.output
+        assert '사용 가능한 Adapter들:' in result.output
         assert 'storage' in result.output
         assert 'sql' in result.output
         
@@ -62,7 +62,7 @@ class TestListCommandsArgumentParsing:
         
         # Verify success and output
         assert result.exit_code == 0
-        assert 'Available Evaluators:' in result.output
+        assert '사용 가능한 Evaluator들:' in result.output
         assert 'classification' in result.output
         assert 'regression' in result.output
         
@@ -90,7 +90,7 @@ class TestListCommandsArgumentParsing:
         
         # Verify success and output
         assert result.exit_code == 0
-        assert 'Available Models from Catalog:' in result.output
+        assert 'Catalog에서 사용 가능한 Model들:' in result.output
         assert 'Classification' in result.output
         assert 'RandomForestClassifier' in result.output
         
@@ -112,7 +112,7 @@ class TestListCommandsArgumentParsing:
         
         # Verify success and output
         assert result.exit_code == 0
-        assert 'Available Preprocessor Steps:' in result.output
+        assert '사용 가능한 Preprocessor Step들:' in result.output
         assert 'standard_scaler' in result.output
         assert 'simple_imputer' in result.output
         
@@ -130,8 +130,8 @@ class TestListCommandsArgumentParsing:
         
         # Verify success and shows empty message
         assert result.exit_code == 0
-        assert 'Available Adapters:' in result.output
-        assert '(No adapters available)' in result.output
+        assert '사용 가능한 Adapter들:' in result.output
+        assert '(사용 가능한 adapter가 없습니다)' in result.output
     
     def test_list_commands_help_messages(self):
         """Test help messages for list commands"""
@@ -144,17 +144,15 @@ class TestListCommandsArgumentParsing:
             assert cmd in result.output.lower()
     
     @patch('src.cli.commands.list_commands._load_catalog_from_directory')
-    @patch('src.cli.commands.list_commands.load_model_catalog')
     @patch('pathlib.Path.exists')
-    def test_list_models_handles_catalog_error(self, mock_path_exists, mock_fallback_catalog, mock_load_catalog):
+    def test_list_models_handles_catalog_error(self, mock_path_exists, mock_fallback_catalog):
         """Test list models handles catalog loading errors gracefully"""
         # Setup mocks - directory exists but loading fails, fallback succeeds
         mock_path_exists.return_value = True
-        mock_load_catalog.return_value = {}  # Empty catalog
-        mock_fallback_catalog.return_value = {}  # Empty fallback
-        
+        mock_fallback_catalog.return_value = {}  # Empty catalog
+
         # Execute command - should exit with error code 1 when empty
         result = self.runner.invoke(self.app, ['models'])
-        
-        # Should attempt to load
-        mock_load_catalog.assert_called_once()
+
+        # Should attempt to load catalog from directory
+        mock_fallback_catalog.assert_called_once()

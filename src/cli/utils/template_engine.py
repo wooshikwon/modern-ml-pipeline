@@ -60,7 +60,7 @@ class TemplateEngine:
             template = self.env.get_template(template_name)
             return template.render(**context)
         except TemplateNotFound:
-            logger.error(f"Template not found: {template_name}")
+            logger.error(f"Template을 찾을 수 없습니다: {template_name}")
             raise
     
     def write_rendered_file(
@@ -91,9 +91,9 @@ class TemplateEngine:
         
         try:
             output_path.write_text(rendered_content, encoding='utf-8')
-            logger.debug(f"Template written to: {output_path}")
+            logger.debug(f"Template이 작성되었습니다: {output_path}")
         except IOError as e:
-            logger.error(f"Failed to write file: {output_path}, Error: {e}")
+            logger.error(f"파일 작성에 실패했습니다: {output_path}, 오류: {e}")
             raise
     
     def copy_static_file(
@@ -125,9 +125,9 @@ class TemplateEngine:
         try:
             import shutil
             shutil.copy2(source_path, output_path)
-            logger.debug(f"File copied to: {output_path}")
+            logger.debug(f"파일이 복사되었습니다: {output_path}")
         except IOError as e:
-            logger.error(f"Failed to copy file: {source_path} -> {output_path}, Error: {e}")
+            logger.error(f"파일 복사에 실패했습니다: {source_path} -> {output_path}, 오류: {e}")
             raise
     
     def list_templates(self, pattern: Optional[str] = None) -> list[str]:

@@ -300,45 +300,32 @@ class TestSystemChecker:
     def test_run_all_checks(self, basic_config):
         """전체 체크 실행 테스트."""
         checker = SystemChecker(basic_config, "test")
-        
+
         with patch.object(Path, 'exists', return_value=True):
             results = checker.run_all_checks()
-            
+
+        # New format: Dict[str, Dict[str, Any]]
+        assert isinstance(results, dict)
         assert len(results) > 0
-        
+
         # Check that key services were checked
-        service_names = [r.service for r in results]
+        service_names = list(results.keys())
         assert any("MLflow" in s for s in service_names)
         assert any("Storage" in s for s in service_names)
         assert any("ArtifactStore" in s for s in service_names)
         # Output checks use the underlying adapter service names (e.g., "Storage:inference_output")
         assert any("inference_output" in s for s in service_names)
+
+        # Verify structure of each result
+        for service_name, result in results.items():
+            assert 'status' in result
+            assert 'message' in result
+            assert 'details' in result
+            assert 'solution' in result
+            assert result['status'] in ['success', 'failed', 'warning', 'skipped']
     
-    def test_display_results(self, basic_config, capsys):
-        """결과 표시 테스트."""
-        checker = SystemChecker(basic_config, "test")
-        
-        # Add some test results
-        checker.results = [
-            CheckResult("Service1", CheckStatus.SUCCESS, "Test success"),
-            CheckResult("Service2", CheckStatus.FAILED, "Test failed", solution="Fix this"),
-            CheckResult("Service3", CheckStatus.WARNING, "Test warning", solution="Check this"),
-            CheckResult("Service4", CheckStatus.SKIPPED, "Test skipped")
-        ]
-        
-        # Mock UI methods
-        with patch.object(checker.ui, 'show_panel'), \
-             patch.object(checker.ui, 'show_table'), \
-             patch.object(checker.ui, 'show_success'), \
-             patch.object(checker.ui, 'show_error'), \
-             patch.object(checker.ui, 'show_warning'):
-            
-            checker.display_results(show_actionable=True)
-            
-            # Verify methods were called
-            checker.ui.show_panel.assert_called()
-            checker.ui.show_table.assert_called()
-            checker.ui.show_error.assert_called()  # Because we have 1 failed
+    # test_display_results removed - display functionality moved to console_manager
+    # SystemChecker now focuses only on checking, not displaying
     
     def test_no_preprocessed_output_check(self, basic_config):
         """Preprocessed output이 체크되지 않는지 확인."""
@@ -357,7 +344,7 @@ class TestSystemChecker:
             results = checker.run_all_checks()
             
         # Check that preprocessed output was NOT checked
-        service_names = [r.service for r in results]
+        service_names = list(results.keys())
         assert not any("preprocessed" in s.lower() for s in service_names)
         # But inference output should be checked (using underlying adapter naming)
         assert any("inference_output" in s for s in service_names)

@@ -44,7 +44,7 @@ def show_banner():
     """Display ASCII art banner when CLI is invoked."""
     banner_text = Text(ASCII_BANNER, style="bold cyan")
     console.print(banner_text)
-    console.print("[bold yellow]Modern ML Pipeline[/bold yellow] - CLI Tool for ML Workflows\n")
+    console.print("[bold yellow]Modern ML Pipeline[/bold yellow] - ML 워크플로우를 위한 CLI 도구\n")
 
 def _get_version() -> str:
     """
@@ -75,7 +75,7 @@ epilog_text = """
 [bold cyan]██║ ╚═╝ ██║██║ ╚═╝ ██║██║     [/bold cyan]
 [bold cyan]╚═╝     ╚═╝╚═╝     ╚═╝╚═╝     [/bold cyan]
 
-[bold yellow]Modern ML Pipeline[/bold yellow] - CLI Tool for ML Workflows
+[bold yellow]Modern ML Pipeline[/bold yellow] - ML 워크플로우를 위한 CLI 도구
 """
 
 app = typer.Typer(

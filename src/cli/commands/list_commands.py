@@ -26,13 +26,13 @@ def list_adapters() -> None:
     데이터 어댑터는 다양한 데이터 소스(DB, 파일, 클라우드 등)에서
     데이터를 로드하는 컴포넌트입니다.
     """
-    cli_success("Available Adapters:")
+    cli_success("사용 가능한 Adapter들:")
     available_items = sorted(AdapterRegistry.list_adapters().keys())
     for item in available_items:
         cli_print(f"  - [cyan]{item}[/cyan]")
     
     if not available_items:
-        cli_print("  [dim](No adapters available)[/dim]")
+        cli_print("  [dim](사용 가능한 adapter가 없습니다)[/dim]")
 
 
 def list_evaluators() -> None:
@@ -42,13 +42,13 @@ def list_evaluators() -> None:
     평가자는 모델의 성능을 측정하는 메트릭을 제공하는 컴포넌트입니다.
     Task별로 적절한 평가 메트릭이 제공됩니다.
     """
-    cli_success("Available Evaluators:")
+    cli_success("사용 가능한 Evaluator들:")
     available_items = sorted(EvaluatorRegistry.get_available_tasks())
     for item in available_items:
         cli_print(f"  - [cyan]{item}[/cyan]")
     
     if not available_items:
-        cli_print("  [dim](No evaluators available)[/dim]")
+        cli_print("  [dim](사용 가능한 evaluator가 없습니다)[/dim]")
 
 
 def list_preprocessors() -> None:
@@ -58,13 +58,13 @@ def list_preprocessors() -> None:
     전처리기는 데이터 변환 및 피처 엔지니어링을 수행하는 컴포넌트입니다.
     StandardScaler, OneHotEncoder 등이 포함됩니다.
     """
-    cli_success("Available Preprocessor Steps:")
+    cli_success("사용 가능한 Preprocessor Step들:")
     available_items = sorted(PreprocessorStepRegistry.preprocessor_steps.keys())
     for item in available_items:
         cli_print(f"  - [cyan]{item}[/cyan]")
     
     if not available_items:
-        cli_print("  [dim](No preprocessor steps available)[/dim]")
+        cli_print("  [dim](사용 가능한 preprocessor step이 없습니다)[/dim]")
 
 
 def _load_catalog_from_directory() -> Dict[str, Any]:
@@ -106,7 +106,7 @@ def list_models() -> None:
     
     모델은 Task별로 그룹화되어 표시되며, 각 모델의 라이브러리 정보도 함께 표시됩니다.
     """
-    cli_success("Available Models from Catalog:")
+    cli_success("Catalog에서 사용 가능한 Model들:")
     
     # 새로운 디렉토리 구조에서 로드 시도
     catalog_dir = Path(__file__).parent.parent.parent / "models" / "catalog"

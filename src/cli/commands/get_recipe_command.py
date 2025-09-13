@@ -117,4 +117,4 @@ def _show_success_message(recipe_path: Path, selections: dict) -> None:
     Recipe는 환경과 독립적이므로,
     동일한 Recipe를 여러 환경에서 사용할 수 있습니다!"""
     
-    cli_success_panel(success_content, "Recipe Generation Complete")
+    cli_success_panel(success_content, "Recipe 생성 완료")

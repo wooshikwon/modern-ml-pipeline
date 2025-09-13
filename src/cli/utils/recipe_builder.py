@@ -305,8 +305,12 @@ class RecipeBuilder:
     def _configure_hyperparameters(self, selected_model: Dict) -> Dict:
         """하이퍼파라미터 설정 구성"""
         enable_tuning = self.ui.confirm("하이퍼파라미터 튜닝을 활성화하시겠습니까?")
-        
+
         hyperparams = selected_model.get("hyperparameters", {})
+
+        # None 처리 추가 - 견고성 개선
+        if hyperparams is None:
+            hyperparams = {}
         
         if enable_tuning:
             return {
@@ -319,8 +323,11 @@ class RecipeBuilder:
             }
         else:
             # 기본값 사용
-            values = hyperparams.get("fixed", {}).copy()
-            for param, config in hyperparams.get("tunable", {}).items():
+            fixed_params = hyperparams.get("fixed") or {}
+            values = fixed_params.copy()
+
+            tunable_params = hyperparams.get("tunable") or {}
+            for param, config in tunable_params.items():
                 values[param] = config.get("default", config.get("range", [1])[0])
             
             return {

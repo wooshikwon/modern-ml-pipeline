@@ -432,12 +432,12 @@ def log_enhanced_model_with_schema(
             metadata={"data_schema": json.dumps(data_schema)}
         )
         update(1)
-        console.print("✅ Model logged")
+        console.print("✅ Model이 로그되었습니다")
         
         # 2. 🆕 완전한 스키마 메타데이터 저장
         mlflow.log_dict(data_schema, "model/data_schema.json")
         update(2)
-        console.print("✅ Data schema saved")
+        console.print("✅ Data schema가 저장되었습니다")
         
         # 3. 🆕 호환성 및 버전 정보 저장
         compatibility_info = {
@@ -470,7 +470,7 @@ def log_enhanced_model_with_schema(
         }
         mlflow.log_dict(compatibility_info, "model/compatibility_info.json")
         update(3)
-        console.print("✅ Compatibility info uploaded")
+        console.print("✅ 호환성 정보가 업로드되었습니다")
         
         # 4. 🆕 Phase 통합 요약 정보 저장
         phase_summary = {
@@ -497,7 +497,7 @@ def log_enhanced_model_with_schema(
         }
         mlflow.log_dict(phase_summary, "model/phase_integration_summary.json")
         update(4)
-        console.print("✅ Phase integration summary uploaded")
+        console.print("✅ Phase 통합 요약이 업로드되었습니다")
     
     # Display run information
     run = mlflow.active_run()
