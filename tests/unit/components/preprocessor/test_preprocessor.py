@@ -314,7 +314,7 @@ class TestPreprocessorRichConsoleIntegration:
             raw_df = ctx.adapter.read(ctx.data_path)
 
             # Mock Rich console to capture calls
-            with patch('src.utils.core.console_manager.UnifiedConsole') as mock_console_class:
+            with patch('src.utils.core.console.UnifiedConsole') as mock_console_class:
                 mock_console = MagicMock()
                 mock_console_class.return_value = mock_console
 
@@ -351,7 +351,7 @@ class TestPreprocessorRichConsoleIntegration:
             raw_df = ctx.adapter.read(ctx.data_path)
 
             # Mock Rich console to capture error formatting
-            with patch('src.utils.core.console_manager.UnifiedConsole') as mock_console_class:
+            with patch('src.utils.core.console.UnifiedConsole') as mock_console_class:
                 mock_console = MagicMock()
                 mock_console_class.return_value = mock_console
 
@@ -403,7 +403,7 @@ class TestPreprocessorRichConsoleIntegration:
             raw_df = ctx.adapter.read(ctx.data_path)
 
             # Mock console to track data shape logging
-            with patch('src.utils.core.console_manager.UnifiedConsole') as mock_console_class:
+            with patch('src.utils.core.console.UnifiedConsole') as mock_console_class:
                 mock_console = MagicMock()
                 mock_console_class.return_value = mock_console
 
