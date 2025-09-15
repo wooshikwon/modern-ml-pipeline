@@ -15,7 +15,7 @@ class TabularDataHandler(BaseDataHandler):
     def __init__(self, settings, data_interface=None):
         # data_interface는 BaseDataHandler에서 자동으로 설정됨
         super().__init__(settings)
-        self.console = UnifiedConsole(settings)
+        self.console = Console(settings)
         self.console.info("[TabularDataHandler] 초기화 시작합니다")
         self.console.info("[TabularDataHandler] 초기화 완료되었습니다",
                          rich_message="✅ [TabularDataHandler] initialized")
@@ -52,10 +52,10 @@ class TabularDataHandler(BaseDataHandler):
         train_ratio = split_config.train
         validation_ratio = split_config.validation
         test_ratio = split_config.test
-        calibration_ratio = split_config.calibration  # DataSplit 모델에서 기본값 0.0 설정됨
+        calibration_ratio = split_config.calibration if split_config.calibration is not None else 0.0  # None 보호
         
         # 비율 합 검증
-        total_ratio = train_ratio + validation_ratio + test_ratio + calibration_ratio
+        total_ratio = float(train_ratio) + float(validation_ratio) + float(test_ratio) + float(calibration_ratio)
         if abs(total_ratio - 1.0) > 0.001:
             raise ValueError(f"분할 비율의 합이 1.0이 아닙니다: {total_ratio}")
         
@@ -295,7 +295,11 @@ class TabularDataHandler(BaseDataHandler):
         if split_results['calibration'] is not None and not split_results['calibration'].empty:
             X_calib, y_calib, add_calib = self.prepare_data(split_results['calibration'])
             calibration_data = (X_calib, y_calib, add_calib)
-        
+ 
+        # Backward-compatible return shape for causal task: use 2-way (train/test)
+        if self.settings.recipe.task_choice == "causal":
+            return X_train, y_train, add_train, X_test, y_test, add_test
+
         return X_train, y_train, add_train, X_val, y_val, add_val, X_test, y_test, add_test, calibration_data
 
     def _get_exclude_columns(self, df: pd.DataFrame) -> list:

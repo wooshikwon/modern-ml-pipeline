@@ -114,7 +114,7 @@ class Factory:
         self._ensure_components_registered()
 
         self.settings = settings
-        self.console = UnifiedConsole(settings)
+        self.console = Console(settings)
 
         # Recipe 구조 검증
         if not self.settings.recipe:
@@ -551,7 +551,7 @@ class Factory:
             # 캐싱 저장
             self._component_cache[cache_key] = trainer
             self.console.info(f"Trainer를 생성했습니다: {trainer_type}",
-                            rich_message=f"✅ Trainer 생성 완룼: [green]{trainer_type}[/green]")
+                            rich_message=f"✅ Trainer 생성 완료: [green]{trainer_type}[/green]")
             return trainer
 
         except Exception:
@@ -749,7 +749,7 @@ class Factory:
             # 캐싱 저장
             self._component_cache[cache_key] = trainer
             self.console.info(f"Trainer를 생성했습니다: {trainer_type}",
-                            rich_message=f"✅ Trainer 생성 완룼: [green]{trainer_type}[/green]")
+                            rich_message=f"✅ Trainer 생성 완료: [green]{trainer_type}[/green]")
             return trainer
 
         except Exception:

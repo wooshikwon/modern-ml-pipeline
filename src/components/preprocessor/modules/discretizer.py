@@ -4,7 +4,7 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from typing import List
 import pandas as pd
 from src.interface import BasePreprocessor
-from src.utils.core.console import get_console
+from src.utils.core.console import Console
 from ..registry import PreprocessorStepRegistry
 
 class KBinsDiscretizerWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
@@ -18,7 +18,7 @@ class KBinsDiscretizerWrapper(BasePreprocessor, BaseEstimator, TransformerMixin)
         self.encode = encode
         self.strategy = strategy
         self.columns = columns
-        self.console = get_console()
+        self.console = Console()
         self.discretizer = KBinsDiscretizer(n_bins=self.n_bins, encode=self.encode, strategy=self.strategy, subsample=None)
 
     def fit(self, X: pd.DataFrame, y=None):

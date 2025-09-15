@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 from src.interface import BasePreprocessor
 from ..registry import PreprocessorStepRegistry
+from src.utils.core.console import Console
 
 class SimpleImputerWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
     """
@@ -23,7 +24,8 @@ class SimpleImputerWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
         self.imputer = SimpleImputer(strategy=self.strategy)
         self.missing_indicator = None
         self._input_columns = None
-        self.console = get_console()
+        self.console = Console()
+        self._all_null_columns: List[str] = []
         if self.create_missing_indicators:
             self.missing_indicator = MissingIndicator(features='missing-only')
 
@@ -33,18 +35,20 @@ class SimpleImputerWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
         self.console.info(f"[SimpleImputer] 결측값 대체 학습을 시작합니다 - strategy: {self.strategy}, 대상 컬럼: {len(X.columns)}개",
                          rich_message=f"🔧 [SimpleImputer] Training started with {self.strategy} strategy")
 
-        # Fast-fail: 전체가 NaN인 컬럼 감지
+        # 전체가 NaN인 컬럼 감지 → 에러 대신 경고 후 폴백 처리 (transform에서 0으로 채움)
         all_null_columns = [col for col in X.columns if X[col].isnull().all()]
+        self._all_null_columns = all_null_columns
         if all_null_columns:
-            self.console.error(f"[SimpleImputer] 전체가 결측값인 컬럼 발견: {all_null_columns}",
-                             rich_message="❌ [SimpleImputer] All-NaN columns detected")
-            raise ValueError(
-                f"SimpleImputer는 전체가 결측값인 컬럼을 처리할 수 없습니다: {all_null_columns}\n"
-                f"해당 컬럼들을 데이터에서 제거하거나 다른 전처리 방법을 사용하세요."
+            self.console.warning(
+                f"[SimpleImputer] 전체가 결측값인 컬럼 발견: {all_null_columns}",
+                rich_message="⚠️  [SimpleImputer] All-NaN columns detected; will fill with 0 at transform"
             )
-        
+        cols_to_fit = [c for c in X.columns if c not in self._all_null_columns]
+
         try:
-            self.imputer.fit(X)
+            if cols_to_fit:
+                self.imputer.fit(X[cols_to_fit])
+            # else: 모든 컬럼이 all-null → fit 생략
         except ValueError as e:
             error_msg = str(e)
             if "strategy" in error_msg.lower():
@@ -94,9 +98,16 @@ class SimpleImputerWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
                 self.console.info(f"[SimpleImputer] 결측값 지시자 생성 완료 - 지시자 컬럼: {len(indicator_feature_names)}개",
                                  rich_message="📍 [SimpleImputer] Missing indicators created")
 
-        # 2. Imputation 수행
-        imputed_array = self.imputer.transform(X)
-        imputed_data = pd.DataFrame(imputed_array, index=X.index, columns=X.columns)
+        # 2. Imputation 수행 (fit된 컬럼만 대상) + all-null 컬럼 폴백 채우기
+        result_cols = list(X.columns)
+        imputed_data = pd.DataFrame(index=X.index, columns=result_cols)
+        cols_to_transform = [c for c in X.columns if c not in self._all_null_columns]
+        if cols_to_transform:
+            imputed_array = self.imputer.transform(X[cols_to_transform])
+            imputed_data[cols_to_transform] = pd.DataFrame(imputed_array, index=X.index, columns=cols_to_transform)
+        # All-NaN 컬럼은 0으로 채움 (수치형 가정). 비수치인 경우에도 0으로 안전 채움.
+        for c in self._all_null_columns:
+            imputed_data[c] = 0
         self.console.info(f"[SimpleImputer] 결측값 대체 완료 - 처리된 데이터: {imputed_data.shape}",
                          rich_message="✅ [SimpleImputer] Imputation completed")
         

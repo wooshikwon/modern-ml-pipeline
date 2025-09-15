@@ -124,7 +124,12 @@ class SqlAdapter(BaseAdapter):
         try:
             # 새로운 Settings 구조: config.data_source 접근
             data_source_config = self.settings.config.data_source.config
-            connection_uri = data_source_config['connection_uri']
+            # Pydantic models or dicts both supported
+            connection_uri = (
+                data_source_config.connection_uri
+                if hasattr(data_source_config, 'connection_uri')
+                else data_source_config['connection_uri']
+            )
             
             # URI 파싱하여 DB 타입과 엔진 설정 추출
             db_type, processed_uri, engine_kwargs = self._parse_connection_uri(connection_uri)
@@ -138,9 +143,14 @@ class SqlAdapter(BaseAdapter):
                 # BigQuery는 추가 설정이 필요할 수 있음
                 try:
                     # BigQuery 인증 설정이 있는 경우 처리
-                    if 'credentials_path' in data_source_config:
+                    cred_path = (
+                        getattr(data_source_config, 'credentials_path', None)
+                        if hasattr(data_source_config, 'credentials_path')
+                        else data_source_config.get('credentials_path')
+                    )
+                    if cred_path:
                         import os
-                        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = data_source_config['credentials_path']
+                        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = cred_path
                         console.info("BigQuery 인증 파일 설정 완료")
                 except Exception as e:
                     console.warning(f"BigQuery 인증 설정 중 경고: {e}")

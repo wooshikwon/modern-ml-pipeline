@@ -422,11 +422,10 @@ class SettingsBuilder:
             self._feature_store = FeatureStore(
                 provider="feast",
                 feast_config=FeastConfig(
-                    feature_store_path="test_feature_store.yaml",
                     project="test_project",
                     registry="registry.db",
                     online_store={"type": "sqlite", "path": "test_online_store.db"},
-                    offline_store={"type": "file"}
+                    offline_store={"type": "file", "path": "./feature_repo"}
                 )
             )
             self._data.fetcher = Fetcher(

@@ -550,7 +550,7 @@ docker logs -f {{ project_name }}-api
 docker stats {{ project_name }}-api
 
 # 헬스체크 상태 확인
-docker inspect {{ project_name }}-api --format='{{json .State.Health}}'
+docker inspect {{ project_name }}-api --format='{% raw %}{{json .State.Health}}{% endraw %}'
 ```
 
 #### 트러블슈팅

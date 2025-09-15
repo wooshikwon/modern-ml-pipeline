@@ -12,6 +12,7 @@ from src.utils.core.environment_check import get_pip_requirements
 from src.utils.core.reproducibility import set_global_seeds
 from src.utils.integrations.mlflow_integration import log_training_results
 from src.utils.integrations.mlflow_integration import log_enhanced_model_with_schema
+from datetime import datetime
 
 def _display_mlflow_ui_info(
     run_id: str,
@@ -80,8 +81,24 @@ def run_train_pipeline(
     with console.pipeline_context("Training Pipeline", pipeline_description):
         context_params = context_params or {}
 
+        # Ensure computed fields exist for run_name (defensive fallback)
+        try:
+            model = settings.recipe.model
+            if not hasattr(model, 'computed') or not isinstance(model.computed, dict):
+                model.computed = {}
+            if 'run_name' not in model.computed:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                recipe_name = getattr(settings.recipe, 'name', 'run')
+                model.computed.update({
+                    'run_name': f"{recipe_name}_{timestamp}",
+                    'environment': getattr(settings.config.environment, 'name', 'local'),
+                    'recipe_file': getattr(model.computed, 'recipe_file', recipe_name)
+                })
+        except Exception:
+            pass
+
         # MLflow 실행 컨텍스트 시작
-        with mlflow_utils.start_run(settings, run_name=settings.recipe.model.computed["run_name"]) as run:
+        with mlflow_utils.start_run(settings, run_name=settings.recipe.model.computed.get("run_name", "training_run")) as run:
             run_id = run.info.run_id
             
             # Factory 생성

@@ -24,6 +24,7 @@ class Model(BaseModel):
     library: str = Field(..., description="라이브러리 이름")
     hyperparameters: HyperparametersTuning
     calibration: Optional[Calibration] = Field(None, description="캘리브레이션 설정")
+    computed: Optional[Dict[str, Any]] = Field(default_factory=dict, description="런타임 계산 필드")
 
 
 class Loader(BaseModel):

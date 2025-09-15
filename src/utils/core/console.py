@@ -38,6 +38,15 @@ class Console:
         self.mode: str = self._detect_output_mode(settings)
 
     # ========== 기본 로그 ==========
+    def print(self, *args, **kwargs) -> None:
+        """Passthrough to underlying Rich console for direct printing."""
+        try:
+            self.console.print(*args, **kwargs)
+        except Exception:
+            # Fallback to plain print
+            builtins_print = __builtins__.get('print') if isinstance(__builtins__, dict) else print
+            builtins_print(*args)
+
     def log(
         self,
         message: str,
@@ -281,7 +290,27 @@ class Console:
             self.console.print(f"   [dim]Result: {result_info}[/dim]")
 
     def log_data_operation(self, operation: str, shape: Optional[tuple] = None, details: str = "") -> None:
-        shape_str = f" ({shape[0]} rows, {shape[1]} columns)" if shape else ""
+        shape_str = ""
+        if shape is not None:
+            try:
+                # tuple/list like (rows, cols)
+                if isinstance(shape, (list, tuple)) and len(shape) >= 2:
+                    shape_str = f" ({shape[0]} rows, {shape[1]} columns)"
+                # dict-like with keys
+                elif isinstance(shape, dict):
+                    rows = shape.get("rows") or shape.get(0)
+                    cols = shape.get("columns") or shape.get(1) or shape.get("cols")
+                    if rows is not None and cols is not None:
+                        shape_str = f" ({rows} rows, {cols} columns)"
+                # DataFrame-like
+                elif hasattr(shape, "shape") and isinstance(getattr(shape, "shape"), tuple):
+                    r, c = shape.shape
+                    shape_str = f" ({r} rows, {c} columns)"
+                # Fallback to string
+                else:
+                    shape_str = f" ({shape})"
+            except Exception:
+                shape_str = ""
         self.console.print(f"📊 {operation}{shape_str}")
         if details:
             self.console.print(f"   [dim]{details}[/dim]")

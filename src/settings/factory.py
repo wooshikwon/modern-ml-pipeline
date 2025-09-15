@@ -169,11 +169,62 @@ class SettingsFactory:
         
         # 환경변수 치환
         config_data = self._resolve_env_variables(config_data)
-        
+ 
+        # 최소 동작을 위한 기본값 보강 (CLI/E2E용 관용적 기본치)
+        try:
+            # 1) data_source.config 기본화 (storage 어댑터의 빈 설정 허용)
+            ds = config_data.get("data_source", {})
+            if isinstance(ds, dict):
+                adapter_type = ds.get("adapter_type")
+                cfg = ds.get("config")
+                if adapter_type == "storage":
+                    if not isinstance(cfg, dict) or not cfg:
+                        # LocalFilesConfig에 맞는 최소 설정 주입
+                        ds["config"] = {
+                            "base_path": "./data",
+                            "storage_options": {}
+                        }
+                        config_data["data_source"] = ds
+
+            # 2) output 기본화 (없을 경우 inference 저장소를 로컬로 지정)
+            if "output" not in config_data or not config_data.get("output"):
+                config_data["output"] = {
+                    "inference": {
+                        "name": "default_output",
+                        "adapter_type": "storage",
+                        "config": {"base_path": "./artifacts"}
+                    }
+                }
+        except Exception as _:
+            # 기본값 보강은 베스트-에포트
+            pass
+
         # Config 객체 생성
         try:
             config = Config(**config_data)
             logger.debug(f"Config 로드 성공: {config_path}")
+
+            # MLflow sqlite 경로 정규화: 부모 디렉토리 보장 및 불가 경로 재지정
+            try:
+                if config.mlflow and isinstance(config.mlflow.tracking_uri, str):
+                    uri = config.mlflow.tracking_uri
+                    if uri.startswith("sqlite:///"):
+                        from urllib.parse import urlparse
+                        from pathlib import Path as _P
+                        parsed = urlparse(uri)
+                        db_path = _P(parsed.path)
+                        # 절대 경로이면서 생성 불가한 경우, 작업 디렉토리 하위로 재지정
+                        target_path = db_path
+                        try:
+                            target_path.parent.mkdir(parents=True, exist_ok=True)
+                        except Exception:
+                            # Fallback: ./mlruns/mlflow.db
+                            target_path = _P("mlruns") / "mlflow.db"
+                            target_path.parent.mkdir(parents=True, exist_ok=True)
+                            config.mlflow.tracking_uri = f"sqlite:///{target_path.resolve()}"
+            except Exception:
+                pass
+
             return config
         except Exception as e:
             raise ValueError(f"Config 파싱 실패 ({config_path}): {str(e)}")
@@ -208,7 +259,31 @@ class SettingsFactory:
         
         # 환경변수 치환
         recipe_data = self._resolve_env_variables(recipe_data)
-        
+ 
+        # 최소 동작을 위한 기본값 보강 (CLI/E2E용 관용적 기본치)
+        try:
+            # 1) data.split 기본 비율
+            data_section = recipe_data.get("data") or {}
+            if "split" not in data_section or not data_section.get("split"):
+                data_section["split"] = {
+                    "train": 0.6,
+                    "validation": 0.2,
+                    "test": 0.2,
+                    "calibration": 0.0,
+                }
+                recipe_data["data"] = data_section
+
+            # 2) metadata 기본값
+            if "metadata" not in recipe_data or not recipe_data.get("metadata"):
+                recipe_data["metadata"] = {
+                    "author": "CLI Recipe Builder",
+                    "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "description": "Auto-filled by SettingsFactory for minimal recipe",
+                }
+        except Exception as _:
+            # 기본값 보강은 베스트-에포트
+            pass
+
         # Recipe 객체 생성
         try:
             recipe = Recipe(**recipe_data)

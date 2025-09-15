@@ -410,10 +410,24 @@ environment:
 data_source:
   name: test_storage
   adapter_type: storage
+  config:
+    base_path: ./test_data
+
+feature_store:
+  provider: feast
+  enabled: false
 
 mlflow:
   tracking_uri: {config_mlflow}
   experiment_name: {error_scenario}_test
+
+output:
+  inference:
+    name: test_inference
+    enabled: true
+    adapter_type: storage
+    config:
+      base_path: ./inference
 """
 
         # Create recipe content
@@ -569,11 +583,25 @@ environment:
 data_source:
   name: test_storage
   adapter_type: storage
+  config:
+    base_path: ./test_data
+
+feature_store:
+  provider: feast
+  enabled: false
 
 mlflow:
   tracking_uri: {mlflow_ctx.mlflow_uri}
   experiment_name: {mlflow_ctx.experiment_name}
   model_registry_uri: {mlflow_ctx.mlflow_uri}
+
+output:
+  inference:
+    name: test_inference
+    enabled: true
+    adapter_type: storage
+    config:
+      base_path: ./inference
 """
 
             recipe_content = """
@@ -581,6 +609,7 @@ name: mlflow_lifecycle_test
 task_choice: classification
 model:
   class_path: sklearn.ensemble.RandomForestClassifier
+  library: sklearn
   hyperparameters:
     tuning_enabled: false
     values:
@@ -589,8 +618,11 @@ model:
 data:
   loader:
     source_uri: train.csv
+  fetcher:
+    type: pass_through
   data_interface:
     target_column: target
+    entity_columns: [id]
     feature_columns: [feature_0, feature_1, feature_2, feature_3]
 evaluation:
   metrics: [accuracy, f1]

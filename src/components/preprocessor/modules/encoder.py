@@ -5,7 +5,7 @@ from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder
 from typing import List
 import pandas as pd
 from src.interface import BasePreprocessor
-from src.utils.core.console import get_console
+from src.utils.core.console import Console
 from ..registry import PreprocessorStepRegistry
 
 class OneHotEncoderWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
@@ -19,7 +19,7 @@ class OneHotEncoderWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
         self.columns = columns
         self.encoder = OneHotEncoder(handle_unknown=self.handle_unknown, sparse_output=self.sparse_output)
         self._input_columns = None
-        self.console = get_console()
+        self.console = Console()
 
     def fit(self, X: pd.DataFrame, y=None):
         self._input_columns = list(X.columns)
@@ -99,7 +99,7 @@ class OrdinalEncoderWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
         self.handle_unknown = handle_unknown
         self.unknown_value = unknown_value
         self.columns = columns
-        self.console = get_console()
+        self.console = Console()
 
         # sklearn 호환성: handle_unknown='error'일 때는 unknown_value 파라미터 제외
         if self.handle_unknown == 'error':
@@ -165,7 +165,7 @@ class CatBoostEncoderWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
     def __init__(self, sigma: float = 0.05, columns: List[str] = None):
         self.sigma = sigma
         self.columns = columns
-        self.console = get_console()
+        self.console = Console()
         self.encoder = CatBoostEncoder(sigma=self.sigma, cols=self.columns)
 
     def fit(self, X: pd.DataFrame, y=None):

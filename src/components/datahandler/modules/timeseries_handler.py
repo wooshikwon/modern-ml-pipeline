@@ -127,6 +127,13 @@ class TimeseriesDataHandler(BaseDataHandler):
         }
         
         return X, y, additional_data
+
+    def split_and_prepare(self, df: pd.DataFrame):
+        """Compatibility helper: return 6-tuple (train/test) for tests expecting 2-way output."""
+        train_df, val_df, test_df = self.split_data(df)
+        X_train, y_train, add_train = self.prepare_data(train_df)
+        X_test, y_test, add_test = self.prepare_data(test_df)
+        return X_train, y_train, add_train, X_test, y_test, add_test
     
     def _generate_time_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """시계열 시간 기반 특성 자동 생성"""

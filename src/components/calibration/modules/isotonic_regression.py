@@ -3,6 +3,7 @@ from sklearn.isotonic import IsotonicRegression
 from typing import List, Union
 from src.interface import BaseCalibrator
 from ..registry import CalibrationRegistry
+from src.utils.core.console import Console
 
 
 class IsotonicCalibration(BaseCalibrator):
@@ -27,7 +28,7 @@ class IsotonicCalibration(BaseCalibrator):
         self._supports_multiclass = True
         self._n_classes = None
 
-        console = get_console()
+        console = Console()
         console.log_component_init("IsotonicCalibration 초기화 완료", "success")
     
     def fit(self, y_prob: np.ndarray, y_true: np.ndarray) -> 'IsotonicCalibration':
@@ -46,7 +47,7 @@ class IsotonicCalibration(BaseCalibrator):
         Raises:
             ValueError: 입력 형식이 잘못된 경우
         """
-        console = get_console()
+        console = Console()
         console.log_model_operation("Isotonic Calibration 학습 시작", f"데이터 샘플: {len(y_prob):,}개")
 
         # 입력 검증

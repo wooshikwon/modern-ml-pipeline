@@ -190,7 +190,12 @@ def _save_to_storage(
 ):
     """Storage 어댑터를 사용한 저장."""
     storage_adapter = factory.create_data_adapter("storage")
-    base_path = target_cfg.config.get('base_path', f'./artifacts/{output_type}')
+    cfg = target_cfg.config
+    base_path = (
+        getattr(cfg, 'base_path', None)
+        if hasattr(cfg, 'base_path')
+        else (cfg.get('base_path') if isinstance(cfg, dict) else None)
+    ) or f'./artifacts/{output_type}'
     
     # 파일명 생성
     if output_type == "inference":
@@ -221,7 +226,12 @@ def _save_to_sql(
 ):
     """SQL 데이터베이스를 사용한 저장."""
     sql_adapter = factory.create_data_adapter("sql")
-    table = target_cfg.config.get('table')
+    cfg = target_cfg.config
+    table = (
+        getattr(cfg, 'table', None)
+        if hasattr(cfg, 'table')
+        else (cfg.get('table') if isinstance(cfg, dict) else None)
+    )
     
     if not table:
         raise ValueError(f"output.{output_type}.config.table이 필요합니다.")
@@ -243,10 +253,11 @@ def _save_to_bigquery(
     """BigQuery를 사용한 저장."""
     bq_adapter = factory.create_data_adapter("bigquery")
     
-    project_id = target_cfg.config.get('project_id')
-    dataset = target_cfg.config.get('dataset_id')
-    table = target_cfg.config.get('table')
-    location = target_cfg.config.get('location')
+    cfg = target_cfg.config
+    project_id = getattr(cfg, 'project_id', None) if hasattr(cfg, 'project_id') else (cfg.get('project_id') if isinstance(cfg, dict) else None)
+    dataset = getattr(cfg, 'dataset_id', None) if hasattr(cfg, 'dataset_id') else (cfg.get('dataset_id') if isinstance(cfg, dict) else None)
+    table = getattr(cfg, 'table', None) if hasattr(cfg, 'table') else (cfg.get('table') if isinstance(cfg, dict) else None)
+    location = getattr(cfg, 'location', None) if hasattr(cfg, 'location') else (cfg.get('location') if isinstance(cfg, dict) else None)
     
     if not all([project_id, dataset, table]):
         raise ValueError(f"BigQuery {output_type} 출력에는 project_id, dataset_id, table이 필요합니다.")

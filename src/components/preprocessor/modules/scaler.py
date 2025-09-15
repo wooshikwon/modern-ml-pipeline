@@ -4,7 +4,7 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from typing import List
 import pandas as pd
 from src.interface import BasePreprocessor
-from src.utils.core.console import get_console
+from src.utils.core.console import Console
 from ..registry import PreprocessorStepRegistry
 
 class StandardScalerWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
@@ -16,7 +16,7 @@ class StandardScalerWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
         self.columns = columns  # global 타입이므로 무시됨
         self.scaler = StandardScaler()
         self._fitted_columns = []
-        self.console = get_console()
+        self.console = Console()
 
     def fit(self, X: pd.DataFrame, y=None):
         self.console.info("StandardScaler 학습을 시작합니다",
@@ -106,7 +106,7 @@ class MinMaxScalerWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
         self.columns = columns  # global 타입이므로 무시됨
         self.scaler = MinMaxScaler()
         self._fitted_columns = []
-        self.console = get_console()
+        self.console = Console()
 
     def fit(self, X: pd.DataFrame, y=None):
         self.console.info("MinMaxScaler 학습을 시작합니다",
@@ -189,7 +189,7 @@ class RobustScalerWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
         self.columns = columns  # global 타입이므로 무시됨
         self.scaler = RobustScaler()
         self._fitted_columns = []
-        self.console = get_console()
+        self.console = Console()
 
     def fit(self, X: pd.DataFrame, y=None):
         # 적용 가능한 컬럼 필터링

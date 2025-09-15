@@ -25,7 +25,7 @@ class Preprocessor(BasePreprocessor):
     
     def __init__(self, settings: Settings):
         self.settings = settings
-        self.console = UnifiedConsole(settings)
+        self.console = Console(settings)
         self.config = settings.recipe.preprocessor  # Recipe 루트의 preprocessor 참조
         self.pipeline: Optional[Pipeline] = None
 
