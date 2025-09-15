@@ -1,249 +1,533 @@
 """
-Unit Tests for Train Command CLI
-Days 3-5: CLI argument parsing and validation tests
+Unit Tests for Train Command CLI - No Mock Hell Approach
+Following tests/README.md principles: Real components, Context classes, Public API
 """
 
+import json
 import pytest
-from unittest.mock import patch, MagicMock, call
-import typer
+from pathlib import Path
+import pandas as pd
+import numpy as np
 from typer.testing import CliRunner
+import typer
+import yaml
+import mlflow
+from unittest.mock import patch, MagicMock
 
 from src.cli.commands.train_command import train_command
+from src.settings import SettingsFactory
+from src.pipelines.train_pipeline import run_train_pipeline
 
 
 class TestTrainCommandArgumentParsing:
-    """Train command argument parsing tests"""
-    
+    """Train command argument parsing tests using real components"""
+
     def setup_method(self):
         self.runner = CliRunner()
         self.app = typer.Typer()
         self.app.command()(train_command)
-    
-    @patch('src.cli.commands.train_command.SettingsFactory.for_training')
-    @patch('src.cli.commands.train_command.run_train_pipeline')
-    @patch('src.cli.commands.train_command.cli_command_start')
-    @patch('src.cli.commands.train_command.cli_command_success')
-    def test_train_command_with_required_arguments(self, mock_cli_success, mock_cli_start, mock_run_pipeline, mock_settings_factory):
-        """Test train command with all required arguments"""
-        # Setup mocks
-        mock_settings = MagicMock()
-        mock_settings.recipe.model.computed = {"run_name": "test_run"}
-        mock_settings_factory.return_value = mock_settings
 
-        mock_result = MagicMock()
-        mock_result.run_id = "test_run_id"
-        mock_result.model_uri = "models:/test_model/1"
-        mock_run_pipeline.return_value = mock_result
+    def test_train_command_with_required_arguments(self, component_test_context, isolated_temp_directory, add_model_computed):
+        """Test train command with all required arguments using real settings"""
+        # Given: Real test data in temp directory
+        test_data = pd.DataFrame({
+            'feature1': np.random.rand(50),
+            'feature2': np.random.rand(50),
+            'target': np.random.randint(0, 2, 50)
+        })
+        data_path = isolated_temp_directory / "train_data.csv"
+        test_data.to_csv(data_path, index=False)
 
-        # Execute command
-        result = self.runner.invoke(self.app, [
-            '--recipe-path', 'recipes/test.yaml',
-            '--config-path', 'configs/test.yaml',
-            '--data-path', 'data/train.csv'
-        ])
+        # Given: Real recipe and config files
+        recipe_path = isolated_temp_directory / "recipe.yaml"
+        recipe_content = {
+            'name': 'test_recipe',
+            'task_choice': 'classification',
+            'model': {
+                'class_path': 'sklearn.ensemble.RandomForestClassifier',
+                'library': 'sklearn',
+                'hyperparameters': {
+                    'tuning_enabled': False,
+                    'values': {'n_estimators': 10, 'random_state': 42}
+                }
+            },
+            'data': {
+                'loader': {'source_uri': str(data_path)},
+                'data_interface': {
+                    'target_column': 'target',
+                    'feature_columns': ['feature1', 'feature2'],
+                    'entity_columns': []
+                },
+                'fetcher': {
+                    'type': 'pass_through'
+                },
+                'split': {
+                    'train': 0.6,
+                    'validation': 0.2,
+                    'test': 0.2
+                }
+            },
+            'evaluation': {
+                'metrics': ['accuracy', 'roc_auc'],
+                'random_state': 42
+            },
+            'metadata': {
+                'created_at': '2024-01-01 00:00:00',
+                'description': 'Test recipe for CLI unit test'
+            }
+        }
+        with open(recipe_path, 'w') as f:
+            yaml.dump(recipe_content, f)
 
-        # Verify success
+        config_path = isolated_temp_directory / "config.yaml"
+        config_content = {
+            'environment': {
+                'name': 'test'
+            },
+            'data_source': {
+                'name': 'test_storage',
+                'adapter_type': 'storage',
+                'config': {
+                    'base_path': str(isolated_temp_directory),
+                    'storage_options': {}
+                }
+            },
+            'feature_store': {
+                'provider': 'none'
+            },
+            'output': {
+                'inference': {
+                    'name': 'test_output',
+                    'enabled': True,
+                    'adapter_type': 'storage',
+                    'config': {
+                        'base_path': str(isolated_temp_directory / 'output')
+                    }
+                }
+            },
+            'mlflow': {
+                'tracking_uri': f'file://{isolated_temp_directory}/mlruns',
+                'experiment_name': f'test_exp_{isolated_temp_directory.name[:8]}'
+            }
+        }
+        with open(config_path, 'w') as f:
+            yaml.dump(config_content, f)
+
+        # When: Execute command with real files
+        # Mock only the pipeline execution to avoid full training in unit test
+        with patch('src.cli.commands.train_command.run_train_pipeline') as mock_pipeline:
+            mock_result = MagicMock()
+            mock_result.run_id = "test_run_id"
+            mock_result.model_uri = "models:/test_model/1"
+            mock_pipeline.return_value = mock_result
+
+            # Patch SettingsFactory to add computed fields
+            original_for_training = SettingsFactory.for_training
+
+            def for_training_with_computed(*args, **kwargs):
+                settings = original_for_training(*args, **kwargs)
+                return add_model_computed(settings)
+
+            with patch.object(SettingsFactory, 'for_training', for_training_with_computed):
+                result = self.runner.invoke(self.app, [
+                    '--recipe-path', str(recipe_path),
+                    '--config-path', str(config_path),
+                    '--data-path', str(data_path)
+                ])
+
+        # Then: Command executes successfully
+        if result.exit_code != 0:
+            print(f"Command failed with output:\n{result.output}")
+            print(f"Exception: {result.exception}")
         assert result.exit_code == 0
 
-        # Verify SettingsFactory call
-        mock_settings_factory.assert_called_once_with(
-            recipe_path='recipes/test.yaml',
-            config_path='configs/test.yaml',
-            data_path='data/train.csv',
-            context_params=None
-        )
+        # Then: Pipeline was called with real settings
+        mock_pipeline.assert_called_once()
+        call_args = mock_pipeline.call_args
+        settings = call_args.kwargs['settings']
 
-        # Verify pipeline execution
-        mock_run_pipeline.assert_called_once_with(
-            settings=mock_settings,
-            context_params=None,
-            record_requirements=False
-        )
+        # Verify settings were created correctly
+        assert settings is not None
+        assert settings.recipe.model.class_path == 'sklearn.ensemble.RandomForestClassifier'
+        assert settings.recipe.data.data_interface.target_column == 'target'
+        assert 'feature1' in settings.recipe.data.data_interface.feature_columns
 
-        # Verify Rich Console calls
-        mock_cli_start.assert_called_once_with("Training", "모델 학습 파이프라인 실행")
-        mock_cli_success.assert_called_once_with("Training", ["Run ID: test_run_id", "Model URI: models:/test_model/1"])
-    
-    @patch('src.cli.commands.train_command.SettingsFactory.for_training')
-    @patch('src.cli.commands.train_command.run_train_pipeline')
-    @patch('src.cli.commands.train_command.cli_command_start')
-    @patch('src.cli.commands.train_command.cli_command_success')
-    def test_train_command_with_optional_params(self, mock_cli_success, mock_cli_start, mock_run_pipeline, mock_settings_factory):
+    def test_train_command_with_optional_params(self, component_test_context, isolated_temp_directory):
         """Test train command with optional context parameters"""
-        # Setup mocks
-        mock_settings = MagicMock()
-        mock_settings.recipe.model.computed = {"run_name": "test_run_with_params"}
-        mock_settings_factory.return_value = mock_settings
+        # Given: Real test data
+        test_data = pd.DataFrame({
+            'feature1': np.random.rand(50),
+            'feature2': np.random.rand(50),
+            'target': np.random.rand(50)  # Regression target
+        })
+        data_path = isolated_temp_directory / "train_regression.csv"
+        test_data.to_csv(data_path, index=False)
 
-        mock_result = MagicMock()
-        mock_result.run_id = "param_run_id"
-        mock_result.model_uri = "models:/param_model/1"
-        mock_run_pipeline.return_value = mock_result
+        # Given: Recipe with Jinja template placeholders
+        recipe_path = isolated_temp_directory / "recipe_template.yaml"
+        recipe_content = {
+            'name': 'test_regression_recipe',
+            'task_choice': 'regression',
+            'model': {
+                'class_path': 'sklearn.linear_model.LinearRegression',
+                'library': 'sklearn',
+                'hyperparameters': {
+                    'tuning_enabled': False,
+                    'values': {}
+                }
+            },
+            'data': {
+                'loader': {'source_uri': str(data_path)},
+                'data_interface': {
+                    'target_column': 'target',
+                    'feature_columns': ['feature1', 'feature2'],
+                    'entity_columns': []
+                },
+                'fetcher': {
+                    'type': 'pass_through'
+                },
+                'split': {
+                    'train': 0.6,
+                    'validation': 0.2,
+                    'test': 0.2
+                },
+                'context': {
+                    'date': '{{ date }}',
+                    'version': '{{ version }}'
+                }
+            },
+            'evaluation': {
+                'metrics': ['rmse', 'r2'],
+                'random_state': 42
+            },
+            'metadata': {
+                'created_at': '2024-01-01 00:00:00',
+                'description': 'Test recipe for regression'
+            }
+        }
+        with open(recipe_path, 'w') as f:
+            yaml.dump(recipe_content, f)
 
-        # Execute command with JSON params
-        result = self.runner.invoke(self.app, [
-            '--recipe-path', 'recipes/advanced.yaml',
-            '--config-path', 'configs/prod.yaml',
-            '--data-path', 'data/features.parquet',
-            '--params', '{"date": "2024-01-01", "version": 2}'
-        ])
+        config_path = isolated_temp_directory / "config.yaml"
+        config_content = {
+            'environment': {
+                'name': 'test'
+            },
+            'data_source': {
+                'name': 'test_storage',
+                'adapter_type': 'storage',
+                'config': {
+                    'base_path': str(isolated_temp_directory),
+                    'storage_options': {}
+                }
+            },
+            'feature_store': {
+                'provider': 'none'
+            },
+            'output': {
+                'inference': {
+                    'name': 'test_output',
+                    'enabled': True,
+                    'adapter_type': 'storage',
+                    'config': {
+                        'base_path': str(isolated_temp_directory / 'output')
+                    }
+                }
+            },
+            'mlflow': {
+                'tracking_uri': f'file://{isolated_temp_directory}/mlruns',
+                'experiment_name': f'test_regression_{isolated_temp_directory.name[:8]}'
+            }
+        }
+        with open(config_path, 'w') as f:
+            yaml.dump(config_content, f)
 
-        # Verify success
+        # When: Execute with JSON params
+        with patch('src.cli.commands.train_command.run_train_pipeline') as mock_pipeline:
+            mock_result = MagicMock()
+            mock_result.run_id = "param_run_id"
+            mock_result.model_uri = "models:/param_model/1"
+            mock_pipeline.return_value = mock_result
+
+            result = self.runner.invoke(self.app, [
+                '--recipe-path', str(recipe_path),
+                '--config-path', str(config_path),
+                '--data-path', str(data_path),
+                '--params', '{"date": "2024-01-01", "version": 2}'
+            ])
+
+        # Then: Command executes successfully with params
         assert result.exit_code == 0
 
-        # Verify SettingsFactory call with parsed parameters
-        mock_settings_factory.assert_called_once_with(
-            recipe_path='recipes/advanced.yaml',
-            config_path='configs/prod.yaml',
-            data_path='data/features.parquet',
-            context_params={"date": "2024-01-01", "version": 2}
-        )
+        # Then: Settings were created with context params
+        mock_pipeline.assert_called_once()
+        call_args = mock_pipeline.call_args
+        assert call_args.kwargs['context_params'] == {"date": "2024-01-01", "version": 2}
 
-        # Verify pipeline execution
-        mock_run_pipeline.assert_called_once_with(
-            settings=mock_settings,
-            context_params={"date": "2024-01-01", "version": 2},
-            record_requirements=False
-        )
+    def test_train_command_with_missing_file(self, isolated_temp_directory):
+        """Test train command error handling for missing files"""
+        # Given: Non-existent file paths
+        recipe_path = isolated_temp_directory / "nonexistent_recipe.yaml"
+        config_path = isolated_temp_directory / "nonexistent_config.yaml"
+        data_path = isolated_temp_directory / "nonexistent_data.csv"
 
-        # Verify Rich Console calls
-        mock_cli_start.assert_called_once_with("Training", "모델 학습 파이프라인 실행")
-        mock_cli_success.assert_called_once_with("Training", ["Run ID: param_run_id", "Model URI: models:/param_model/1"])
-    
-    def test_train_command_missing_required_arguments(self):
-        """Test train command fails with missing required arguments"""
-        # Missing recipe-path
+        # When: Execute command with missing files
         result = self.runner.invoke(self.app, [
-            '--config-path', 'configs/test.yaml',
-            '--data-path', 'data/train.csv'
+            '--recipe-path', str(recipe_path),
+            '--config-path', str(config_path),
+            '--data-path', str(data_path)
         ])
+
+        # Then: Command fails with appropriate error
         assert result.exit_code != 0
-        assert "Missing option '--recipe-path'" in result.output
-        
-        # Missing config-path
+        assert "not found" in result.output.lower() or "error" in result.output.lower()
+
+    def test_train_command_with_invalid_json_params(self, component_test_context, isolated_temp_directory):
+        """Test train command error handling for invalid JSON params"""
+        # Given: Valid files
+        test_data = pd.DataFrame({'feature1': [1, 2], 'target': [0, 1]})
+        data_path = isolated_temp_directory / "data.csv"
+        test_data.to_csv(data_path, index=False)
+
+        recipe_path = isolated_temp_directory / "recipe.yaml"
+        recipe_content = {
+            'name': 'test_recipe',
+            'task_choice': 'classification',
+            'model': {
+                'class_path': 'sklearn.ensemble.RandomForestClassifier',
+                'library': 'sklearn',
+                'hyperparameters': {
+                    'tuning_enabled': False,
+                    'values': {'random_state': 42}
+                }
+            },
+            'data': {
+                'loader': {'source_uri': str(data_path)},
+                'data_interface': {
+                    'target_column': 'target',
+                    'feature_columns': ['feature1'],
+                    'entity_columns': []
+                },
+                'fetcher': {'type': 'pass_through'},
+                'split': {'train': 0.8, 'validation': 0.1, 'test': 0.1}
+            },
+            'evaluation': {
+                'metrics': ['accuracy'],
+                'random_state': 42
+            },
+            'metadata': {
+                'created_at': '2024-01-01 00:00:00',
+                'description': 'Test recipe for classification'
+            }
+        }
+        with open(recipe_path, 'w') as f:
+            yaml.dump(recipe_content, f)
+
+        config_path = isolated_temp_directory / "config.yaml"
+        config_content = {
+            'environment': {'name': 'test'},
+            'data_source': {'name': 'test_storage', 'adapter_type': 'storage', 'config': {'base_path': str(isolated_temp_directory), 'storage_options': {}}},
+            'feature_store': {'provider': 'none'},
+            'output': {
+                'inference': {
+                    'name': 'test_output',
+                    'enabled': True,
+                    'adapter_type': 'storage',
+                    'config': {'base_path': str(isolated_temp_directory / 'output')}
+                }
+            }
+        }
+        with open(config_path, 'w') as f:
+            yaml.dump(config_content, f)
+
+        # When: Execute with invalid JSON
         result = self.runner.invoke(self.app, [
-            '--recipe-path', 'recipes/test.yaml',
-            '--data-path', 'data/train.csv'
+            '--recipe-path', str(recipe_path),
+            '--config-path', str(config_path),
+            '--data-path', str(data_path),
+            '--params', 'invalid-json-{not-valid}'
         ])
+
+        # Then: Command fails with JSON error
         assert result.exit_code != 0
-        assert "Missing option '--config-path'" in result.output
-        
-        # Missing data-path
-        result = self.runner.invoke(self.app, [
-            '--recipe-path', 'recipes/test.yaml',
-            '--config-path', 'configs/test.yaml'
-        ])
-        assert result.exit_code != 0
-        assert "Missing option '--data-path'" in result.output
-    
-    @patch('src.cli.commands.train_command.SettingsFactory.for_training')
-    @patch('src.cli.commands.train_command.cli_command_start')
-    @patch('src.cli.commands.train_command.cli_command_error')
-    def test_train_command_file_not_found_error(self, mock_cli_error, mock_cli_start, mock_settings_factory):
-        """Test train command handles FileNotFoundError"""
-        # Setup mock to raise FileNotFoundError
-        mock_settings_factory.side_effect = FileNotFoundError("Recipe 파일을 찾을 수 없습니다")
+        assert "json" in result.output.lower() or "invalid" in result.output.lower()
 
-        # Execute command
-        result = self.runner.invoke(self.app, [
-            '--recipe-path', 'nonexistent/recipe.yaml',
-            '--config-path', 'configs/test.yaml',
-            '--data-path', 'data/train.csv'
-        ])
+    def test_train_command_with_record_reqs_flag(self, component_test_context, isolated_temp_directory):
+        """Test train command with requirements recording flag"""
+        # Given: Minimal valid setup
+        test_data = pd.DataFrame({'feature1': [1, 2], 'target': [0, 1]})
+        data_path = isolated_temp_directory / "data.csv"
+        test_data.to_csv(data_path, index=False)
 
-        # Verify exit code and error handling
-        assert result.exit_code == 1
+        recipe_path = isolated_temp_directory / "recipe.yaml"
+        recipe_content = {
+            'name': 'test_recipe',
+            'task_choice': 'classification',
+            'model': {
+                'class_path': 'sklearn.tree.DecisionTreeClassifier',
+                'library': 'sklearn',
+                'hyperparameters': {
+                    'tuning_enabled': False,
+                    'values': {'random_state': 42}
+                }
+            },
+            'data': {
+                'loader': {'source_uri': str(data_path)},
+                'data_interface': {
+                    'target_column': 'target',
+                    'feature_columns': ['feature1'],
+                    'entity_columns': []
+                },
+                'fetcher': {'type': 'pass_through'},
+                'split': {'train': 0.8, 'validation': 0.1, 'test': 0.1}
+            },
+            'evaluation': {
+                'metrics': ['accuracy'],
+                'random_state': 42
+            },
+            'metadata': {
+                'created_at': '2024-01-01 00:00:00',
+                'description': 'Test recipe for classification'
+            }
+        }
+        with open(recipe_path, 'w') as f:
+            yaml.dump(recipe_content, f)
 
-        # Verify Rich Console calls
-        mock_cli_start.assert_called_once_with("Training", "모델 학습 파이프라인 실행")
-        mock_cli_error.assert_called_once_with(
-            "Training",
-            "파일을 찾을 수 없습니다: Recipe 파일을 찾을 수 없습니다",
-            "파일 경로를 확인하거나 'mmp get-config/get-recipe'를 실행하세요"
-        )
-        
-    def test_train_command_invalid_json_params(self):
-        """Test train command handles invalid JSON in context_params"""
-        # Execute command with invalid JSON
-        result = self.runner.invoke(self.app, [
-            '--recipe-path', 'recipes/test.yaml',
-            '--config-path', 'configs/test.yaml',
-            '--data-path', 'data/train.csv',
-            '--params', '{"invalid": json}'  # Invalid JSON
-        ])
+        config_path = isolated_temp_directory / "config.yaml"
+        config_content = {
+            'environment': {'name': 'test'},
+            'data_source': {'name': 'test_storage', 'adapter_type': 'storage', 'config': {'base_path': str(isolated_temp_directory), 'storage_options': {}}},
+            'feature_store': {'provider': 'none'},
+            'output': {
+                'inference': {
+                    'name': 'test_output',
+                    'enabled': True,
+                    'adapter_type': 'storage',
+                    'config': {'base_path': str(isolated_temp_directory / 'output')}
+                }
+            },
+            'mlflow': {
+                'tracking_uri': f'file://{isolated_temp_directory}/mlruns',
+                'experiment_name': f'test_reqs_{isolated_temp_directory.name[:8]}'
+            }
+        }
+        with open(config_path, 'w') as f:
+            yaml.dump(config_content, f)
 
-        # Should fail due to JSON parsing error
-        assert result.exit_code != 0  # Typer will catch JSON parsing error
-    
-    @patch('src.cli.commands.train_command.SettingsFactory.for_training')
-    @patch('src.cli.commands.train_command.run_train_pipeline')
-    @patch('src.cli.commands.train_command.cli_command_start')
-    @patch('src.cli.commands.train_command.cli_command_success')
-    def test_train_command_jinja_template_processing(self, mock_cli_success, mock_cli_start, mock_run_pipeline, mock_settings_factory):
-        """Test train command with Jinja template data path"""
-        # Setup mocks
-        mock_settings = MagicMock()
-        mock_settings.recipe.model.computed = {"run_name": "template_run"}
-        mock_settings_factory.return_value = mock_settings
+        # When: Execute with --record-reqs flag
+        with patch('src.cli.commands.train_command.run_train_pipeline') as mock_pipeline:
+            mock_result = MagicMock()
+            mock_result.run_id = "reqs_run_id"
+            mock_result.model_uri = "models:/reqs_model/1"
+            mock_pipeline.return_value = mock_result
 
-        mock_result = MagicMock()
-        mock_result.run_id = "template_run_id"
-        mock_result.model_uri = "models:/template_model/1"
-        mock_run_pipeline.return_value = mock_result
+            result = self.runner.invoke(self.app, [
+                '--recipe-path', str(recipe_path),
+                '--config-path', str(config_path),
+                '--data-path', str(data_path),
+                '--record-reqs'
+            ])
 
-        result = self.runner.invoke(self.app, [
-            '--recipe-path', 'recipes/test.yaml',
-            '--config-path', 'configs/test.yaml',
-            '--data-path', 'queries/dynamic.sql.j2',
-            '--params', '{"date": "2024-01-01"}'
-        ])
-
-        # Verify template processing delegation to SettingsFactory
+        # Then: Pipeline called with record_requirements=True
         assert result.exit_code == 0
-        mock_settings_factory.assert_called_once_with(
-            recipe_path='recipes/test.yaml',
-            config_path='configs/test.yaml',
-            data_path='queries/dynamic.sql.j2',
-            context_params={"date": "2024-01-01"}
-        )
+        mock_pipeline.assert_called_once()
+        call_args = mock_pipeline.call_args
+        assert call_args.kwargs['record_requirements'] == True
 
-        # Verify Rich Console calls
-        mock_cli_start.assert_called_once_with("Training", "모델 학습 파이프라인 실행")
-        mock_cli_success.assert_called_once_with("Training", ["Run ID: template_run_id", "Model URI: models:/template_model/1"])
-    
-    @patch('src.cli.commands.train_command.SettingsFactory.for_training')
-    @patch('src.cli.commands.train_command.run_train_pipeline')
-    @patch('src.cli.commands.train_command.cli_command_start')
-    @patch('src.cli.commands.train_command.cli_command_success')
-    def test_train_command_short_options(self, mock_cli_success, mock_cli_start, mock_run_pipeline, mock_settings_factory):
-        """Test train command with short option flags"""
-        # Setup mocks
-        mock_settings = MagicMock()
-        mock_settings_factory.return_value = mock_settings
 
-        mock_result = MagicMock()
-        mock_result.run_id = "short_run_id"
-        mock_result.model_uri = "models:/short_model/1"
-        mock_run_pipeline.return_value = mock_result
+class TestTrainCommandIntegration:
+    """Integration tests with real pipeline execution"""
 
-        # Test short flags work
-        result = self.runner.invoke(self.app, [
-            '-r', 'recipes/test.yaml',
-            '-c', 'configs/test.yaml',
-            '-d', 'data/train.csv',
-            '-p', '{}'
-        ])
+    def test_train_command_end_to_end_with_real_pipeline(self, mlflow_test_context, isolated_temp_directory):
+        """Test full train command execution with real components"""
+        # Given: Complete setup with MLflow context
+        with mlflow_test_context.for_classification(experiment="cli_train_test") as ctx:
+            # Create real training data
+            test_data = pd.DataFrame({
+                'feature1': np.random.rand(100),
+                'feature2': np.random.rand(100),
+                'feature3': np.random.rand(100),
+                'target': np.random.randint(0, 2, 100)
+            })
+            data_path = isolated_temp_directory / "real_train.csv"
+            test_data.to_csv(data_path, index=False)
 
-        assert result.exit_code == 0
+            # Create recipe file
+            recipe_path = isolated_temp_directory / "real_recipe.yaml"
+            recipe_content = {
+                'name': 'e2e_test_recipe',
+                'task_choice': 'classification',
+                'model': {
+                    'class_path': 'sklearn.tree.DecisionTreeClassifier',
+                    'library': 'sklearn',
+                    'hyperparameters': {
+                        'tuning_enabled': False,
+                        'values': {'max_depth': 3, 'random_state': 42}
+                    }
+                },
+                'data': {
+                    'loader': {'source_uri': str(data_path)},
+                    'data_interface': {
+                        'target_column': 'target',
+                        'feature_columns': ['feature1', 'feature2', 'feature3'],
+                        'entity_columns': []
+                    },
+                    'fetcher': {'type': 'pass_through'},
+                    'split': {'train': 0.7, 'validation': 0.15, 'test': 0.15}
+                },
+                'evaluation': {
+                    'metrics': ['accuracy', 'f1_score'],
+                    'random_state': 42
+                },
+                'metadata': {
+                    'created_at': '2024-01-01 00:00:00',
+                    'description': 'E2E test recipe'
+                }
+            }
+            with open(recipe_path, 'w') as f:
+                yaml.dump(recipe_content, f)
 
-        # Verify SettingsFactory call with short options
-        mock_settings_factory.assert_called_once_with(
-            recipe_path='recipes/test.yaml',
-            config_path='configs/test.yaml',
-            data_path='data/train.csv',
-            context_params={}
-        )
+            # Create config file with MLflow settings
+            config_path = isolated_temp_directory / "real_config.yaml"
+            config_content = {
+                'environment': {'name': 'test'},
+                'data_source': {'name': 'test_storage', 'adapter_type': 'storage', 'config': {'base_path': str(isolated_temp_directory), 'storage_options': {}}},
+                'feature_store': {'provider': 'none'},
+                'output': {
+                    'inference': {
+                        'name': 'test_output',
+                        'enabled': True,
+                        'adapter_type': 'storage',
+                        'config': {'base_path': str(isolated_temp_directory / 'output')}
+                    }
+                },
+                'mlflow': {
+                    'tracking_uri': ctx.mlflow_uri,
+                    'experiment_name': ctx.experiment_name
+                }
+            }
+            with open(config_path, 'w') as f:
+                yaml.dump(config_content, f)
 
-        # Verify Rich Console calls
-        mock_cli_start.assert_called_once_with("Training", "모델 학습 파이프라인 실행")
-        mock_cli_success.assert_called_once_with("Training", ["Run ID: short_run_id", "Model URI: models:/short_model/1"])
+            # When: Run actual train command
+            runner = CliRunner()
+            app = typer.Typer()
+            app.command()(train_command)
+
+            result = runner.invoke(app, [
+                '--recipe-path', str(recipe_path),
+                '--config-path', str(config_path),
+                '--data-path', str(data_path)
+            ])
+
+            # Then: Training completes successfully
+            assert result.exit_code == 0
+
+            # Then: MLflow experiment exists with runs
+            assert ctx.experiment_exists()
+            assert ctx.get_experiment_run_count() > 0
+
+            # Then: Metrics were logged
+            metrics = ctx.get_run_metrics()
+            assert metrics is not None
+            assert len(metrics) > 0

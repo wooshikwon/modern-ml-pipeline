@@ -7,6 +7,8 @@ Based on comprehensive testing strategy document
 import uuid
 import tempfile
 import time
+import random
+import os
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple
 import pandas as pd
@@ -23,6 +25,37 @@ from src.settings import (
 from src.settings.recipe import Metadata
 from src.settings.config import Output, OutputTarget
 # from src.settings.factory import RecipeFactory, ConfigFactory  # deprecated
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# DETERMINISTIC TESTING ENHANCEMENT (Phase 3)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@pytest.fixture(autouse=True)
+def ensure_deterministic_execution():
+    """모든 테스트에서 재현 가능성 보장 - Phase 3 Enhancement"""
+    # Set all random seeds for reproducibility
+    random.seed(42)
+    np.random.seed(42)
+
+    # Try to set PyTorch seeds if available
+    try:
+        import torch
+        torch.manual_seed(42)
+        torch.cuda.manual_seed_all(42)
+        # Additional PyTorch deterministic settings
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+    except ImportError:
+        pass  # PyTorch not installed, skip
+
+    # Set environment variable for Python hash seed
+    os.environ['PYTHONHASHSEED'] = '42'
+
+    # Yield to run the test
+    yield
+
+    # No cleanup needed for deterministic settings
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -228,10 +261,27 @@ class SettingsBuilder:
     # Data source configuration
     def with_data_source(self, adapter_type: str, name: str = "test_source", config: Dict[str, Any] = None) -> "SettingsBuilder":
         """Set data source configuration."""
+        if config is None:
+            # Provide default configs based on adapter_type
+            if adapter_type == "storage":
+                from src.settings.config import LocalFilesConfig
+                config = LocalFilesConfig(
+                    base_path="tests/fixtures/data",
+                    storage_options={}
+                )
+            elif adapter_type == "sql":
+                from src.settings.config import PostgreSQLConfig
+                config = PostgreSQLConfig(
+                    connection_uri="postgresql://test:test@localhost:5432/test",
+                    query_timeout=300
+                )
+            else:
+                config = {}
+
         self._data_source = DataSource(
             name=name,
             adapter_type=adapter_type,
-            config=config or {}
+            config=config
         )
         return self
     
@@ -433,7 +483,52 @@ def settings_builder():
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 3. ISOLATED ENVIRONMENT FIXTURES
+# 3. COMPUTED FIELD HELPERS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@pytest.fixture
+def add_model_computed():
+    """
+    Model에 computed 필드를 추가하는 헬퍼 fixture.
+
+    SettingsFactory가 동적으로 추가하는 computed 필드를
+    단위 테스트에서 시뮬레이션하기 위한 헬퍼.
+
+    Usage:
+        settings = add_model_computed(settings, run_name="test_run")
+    """
+    def _add_computed(settings: Settings,
+                     run_name: str = None,
+                     environment: str = None,
+                     seed: int = 42) -> Settings:
+        from datetime import datetime
+
+        # SettingsFactory와 동일한 로직
+        if not hasattr(settings.recipe.model, 'computed'):
+            settings.recipe.model.computed = {}
+
+        # 기본값 설정
+        if run_name is None:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            run_name = f"test_run_{timestamp}"
+
+        if environment is None:
+            environment = settings.config.environment.name
+
+        settings.recipe.model.computed.update({
+            "run_name": run_name,
+            "environment": environment,
+            "seed": seed,
+            "recipe_file": "test_recipe.yaml"
+        })
+
+        return settings
+
+    return _add_computed
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 4. ISOLATED ENVIRONMENT FIXTURES
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @pytest.fixture(scope="function")

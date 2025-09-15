@@ -1,214 +1,419 @@
-# Tests Architecture & Authoring Guide
+# Test Architecture & Development Guide
 
 ## 목적
-이 문서는 현재 리팩토링된 테스트 구조의 전체 스켈레톤, 각 구성요소의 역할, 파일별 규칙과 패턴, 그리고 새로운 테스트를 작성할 때 일관성과 품질을 유지하기 위한 구체적인 가이드를 제공합니다. 큰 관점 → 세부 관점 순으로 설명합니다.
+이 문서는 Modern ML Pipeline 프로젝트의 테스트 아키텍처, 개발 철학, 그리고 테스트 작성 시 준수해야 할 핵심 원칙을 정의합니다.
 
 ---
 
-## 1) 전체 스켈레톤(High-level Skeleton)
+## 1. 테스트 철학
+
+### 핵심 원칙
+- **Real Object Testing**: Mock 사용을 최소화하고 실제 객체 사용
+- **Public API Focus**: 내부 구현이 아닌 퍼블릭 인터페이스 테스트
+- **Deterministic Execution**: 모든 테스트는 결정론적이고 재현 가능
+- **Test Isolation**: 각 테스트는 독립적으로 실행 가능
+- **Clear Boundaries**: 테스트 계층별 명확한 책임 분리
+
+### No Mock Hell 원칙
+Mock 사용은 계층별로 엄격히 제한:
+- **금지**: 내부 컴포넌트, 비즈니스 로직
+- **허용**: 외부 서비스(MLflow server, DB), 네트워크 I/O
+- **예외**: CLI 단위 테스트에서 파이프라인 실행 부분
+
+---
+
+## 2. 디렉토리 구조
+
 ```
 tests/
-├── conftest.py                     # 공용 픽스처 등록 (context fixtures 포함)
-├── fixtures/
-│   ├── contexts/                   # Context 클래스(설정/자원 준비 + 관찰 헬퍼)
-│   │   ├── mlflow_context.py       # MLflowTestContext (uuid 실험명, file://mlruns, search_runs)
-│   │   ├── database_context.py     # DatabaseTestContext (sqlite 격리)
-│   │   └── component_context.py    # ComponentTestContext (Factory 스택)
-│   ├── templates/                  # 테스트용 YAML 템플릿(필요 시)
-│   └── expected/                   # 기대 산출물(지속 유지 필요 항목만)
-│       └── metrics/
-│           └── classification_baseline.json
-├── integration/                    # 통합/시나리오 테스트 (퍼블릭 API 중심)
+├── conftest.py                 # 공용 fixtures, Context 클래스
+├── fixtures/                   # 테스트 자원
+│   ├── contexts/              # Test Context 클래스들
+│   │   ├── mlflow_context.py
+│   │   ├── component_context.py
+│   │   └── database_context.py
+│   ├── data/                  # 테스트 데이터 파일
+│   ├── expected/              # 기대 결과 (실제 값만, 빈 디렉토리 금지)
+│   └── templates/             # 테스트용 YAML 템플릿
+├── unit/                      # 단위 테스트
+│   ├── cli/                  # CLI 명령어 파싱
+│   ├── components/           # 개별 컴포넌트
+│   ├── factory/              # Factory 패턴
+│   ├── models/               # ML 모델
+│   ├── pipelines/            # 파이프라인 로직
+│   ├── serving/              # API 서빙
+│   └── settings/             # 설정 시스템
+├── integration/               # 통합 테스트
 │   ├── test_mlflow_integration.py
 │   ├── test_component_interactions.py
-│   ├── test_database_integration.py
-│   ├── test_pipeline_orchestration.py
-│   ├── test_settings_integration.py
-│   └── test_error_propagation.py
-└── unit/                           # 단위 테스트(인터페이스 계약, 경계 조건)
-    ├── settings/ ...
-    ├── cli/ ...
-    └── factory/ ...
+│   └── test_pipeline_orchestration.py
+└── e2e/                       # End-to-End 테스트
 ```
 
-### 스위트 구분과 철학
-- Unit: 최소 격리, 빠른 피드백, 계약 검증(인터페이스/타입/경계값).
-- Integration: 실제 퍼블릭 API 호출 중심, 컨텍스트로 세팅을 중앙화, 비즈니스 의도 검증.
-- E2E(필요 시): 전체 파이프라인 흐름 정상 동작 검증(현재는 Integration 내에서 커버).
-
 ---
 
-## 2) 핵심 역할(Responsibilities)
-- Contexts (tests/fixtures/contexts/*):
-  - 설정/데이터/자원 준비를 캡슐화하고, 퍼블릭 API 호출 후 결과를 관찰하는 헬퍼 제공.
-  - “오케스트레이션을 호출하고 결과를 관찰”만 담당. 비즈니스 로직 재구현 금지.
-- Templates (tests/fixtures/templates/*):
-  - 테스트 전용 YAML 템플릿(최소화). 중복/중복된 설정 방지 목적.
-- Expected (tests/fixtures/expected/*):
-  - 장기 유지가 필요한 기준 산출물만 저장(예: metrics baseline). 빈 디렉터리/플레이스홀더 금지.
-- Integration tests:
-  - 컨텍스트를 사용해 설정/자원 준비 코드를 제거하고, 검증 로직에 집중.
-- Unit tests:
-  - 빠르고 결정론적이며, 외부 자원 의존 없이 동작.
+## 3. 테스트 계층별 가이드
 
----
+### Unit Tests (`tests/unit/`)
 
-## 3) 표준 정책(Policies)
-- MLflow 파일 스토어: `file://{temp_dir}/mlruns` 고정 (외부 경로 금지).
-- 실험명/모델명: `uuid4().hex[:8]` 접미사 사용(시간기반 명명 금지).
-- 데이터 경로 주입: CLI `--data-path`(또는 테스트 컨텍스트 빌더의 `with_data_path`)로만 주입. 레시피에 `loader.source_uri`를 저장하지 않음.
-- 상태 격리: 테스트마다 새 `Settings`/`Factory` 생성. 전역 캐시/공유 금지.
-- 결정론성: 컨텍스트 데이터 생성은 고정 시드(`seed=42` 기본) 사용.
-- Pydantic v2: `@field_validator`, `model_config=ConfigDict(...)`, `.model_dump()` 사용.
-- 병렬 실행: 워커 간 MLflow 파일 스토어 충돌 방지를 위해 temp 디렉토리별 고유 경로 사용.
- - Timeseries 규약: `data_interface.timestamp_column`은 필수입니다(누락 시 Validator/CI 실패).
- - Feature Store 권장: `data.fetcher.timestamp_column`을 지정하세요(POINT-IN-TIME join 기준 컬럼).
- - 카탈로그-핸들러 매칭: DataHandler 선택은 카탈로그의 `data_handler` 선언이 우선입니다(LSTM=deeplearning).
+**목적**: 개별 컴포넌트의 인터페이스 계약 검증
 
----
+**원칙**:
+- 단일 클래스/함수 테스트
+- 외부 의존성 격리
+- 빠른 실행 (< 100ms per test)
+- 결정론적 결과
 
-## 4) 컨텍스트 상세(Contexts Detail)
-
-### 4.1 MLflowTestContext (`tests/fixtures/contexts/mlflow_context.py`)
-- 제공 속성: `settings`, `data_path`, `tracking_uri`, `experiment_name`
-- 필수 헬퍼: `experiment_exists()`, `get_experiment_run_count()`, `get_run_metrics()`
-- 구현 요점:
-  - `tracking_uri = f"file://{temp_dir}/mlruns"`
-  - `experiment_name = f"{suffix}-{uuid4().hex[:8]}"`
-  - `MlflowClient.search_runs([...])` 사용(MLflow 3.x 호환)
-
-예시:
+**Mock 정책**:
 ```python
-with mlflow_test_context.for_classification(experiment="experiment_creation") as ctx:
-    mlflow.set_tracking_uri(ctx.mlflow_uri)
-    result = run_train_pipeline(ctx.settings)
-    assert result is not None
+# ✅ 허용: 외부 의존성
+with patch('mlflow.start_run'):
+    ...
+
+# ❌ 금지: 내부 컴포넌트
+# Bad: Mock(spec=DataAdapter)
+# Good: 실제 DataAdapter 인스턴스 사용
+```
+
+**특수 케이스 - CLI 단위 테스트**:
+```python
+# CLI는 인터페이스만 테스트
+def test_train_command_parsing():
+    # Pipeline 실행은 Mock 허용 (CLI 범위 밖)
+    with patch('src.pipelines.run_train_pipeline'):
+        result = runner.invoke(app, ['--recipe-path', 'r.yaml'])
+        # CLI 인자 파싱만 검증
+```
+
+### Integration Tests (`tests/integration/`)
+
+**목적**: 컴포넌트 간 상호작용 검증
+
+**원칙**:
+- 2개 이상 컴포넌트 통합
+- Context 클래스로 환경 구성
+- 실제 데이터 플로우 검증
+- Mock 최소화
+
+**필수 사용**:
+```python
+# Context 클래스로 환경 구성
+with mlflow_test_context.for_classification() as ctx:
+    # 실제 컴포넌트 상호작용
+    result = factory.create_adapter().read(data_path)
+```
+
+### E2E Tests (`tests/e2e/`)
+
+**목적**: 전체 워크플로우 검증
+
+**원칙**:
+- 실제 사용 시나리오 재현
+- CLI → Pipeline → Output 전체 플로우
+- Mock 완전 금지
+- 성능 기준 검증 (< 10분)
+
+---
+
+## 4. Context 클래스 시스템
+
+### 역할
+Context 클래스는 테스트 환경 설정과 결과 관찰을 캡슐화:
+
+```python
+# MLflowTestContext: MLflow 실험 환경
+with mlflow_test_context.for_classification(experiment="test") as ctx:
     assert ctx.experiment_exists()
-    assert ctx.get_experiment_run_count() == 1
-    assert isinstance(ctx.get_run_metrics(), dict)
-```
+    assert ctx.get_experiment_run_count() > 0
 
-### 4.2 ComponentTestContext (`tests/fixtures/contexts/component_context.py`)
-- 역할: Factory 스택(adapter/model/evaluator/preprocessor) 준비와 데이터 흐름 관찰.
-- 규칙: 퍼블릭 API(`Factory.create_*`)만 호출, 내부 엔진 재현 금지.
-
-예시:
-```python
+# ComponentTestContext: Factory 스택 환경
 with component_test_context.classification_stack() as ctx:
     raw_df = ctx.adapter.read(ctx.data_path)
-    processed_df = ctx.prepare_model_input(raw_df)
     assert ctx.validate_data_flow(raw_df, processed_df)
-```
 
-### 4.3 DatabaseTestContext (`tests/fixtures/contexts/database_context.py`)
-- 역할: SQLite 기반 임시 DB 준비 및 테이블 적재(테스트 격리 보장).
-- 규칙: DB는 temp 디렉토리 하위 파일로만 생성, 외부 의존 금지.
-
----
-
-## 5) 파일/디렉토리별 세부 규칙(Per-file Guidance)
-- `tests/conftest.py`:
-  - 컨텍스트 픽스처 등록(`mlflow_test_context`, `component_test_context`, `database_test_context`).
-  - 데이터 생성기, 임시 디렉토리, 성능 벤치마크 픽스처 등 공용 제공.
-- `tests/fixtures/templates/*`:
-  - 꼭 필요한 최소 템플릿만 유지. 중복 템플릿 금지.
-- `tests/fixtures/expected/*`:
-  - 현재 유지 대상: `metrics/classification_baseline.json`.
-  - 빈 디렉토리(예: predictions/responses)는 제거. 필요해지면 실제 산출물과 함께 추가.
-- `tests/integration/*`:
-  - MLflow/컴포넌트/DB/파이프라인/설정/에러 전파 등 기능별 그룹화.
-  - MLflow 관련 테스트는 반드시 컨텍스트 또는 정책을 준수(URI, uuid, search_runs).
-- `tests/unit/*`:
-  - 인터페이스 계약 준수, 에지 케이스 검증, 외부 I/O 없음.
-
----
-
-## 6) 테스트 작성 절차(Authoring Flow)
-1. 목적 정의: 무엇을 검증할 것인가? (행동/계약/시나리오)
-2. 컨텍스트 선택/확장: MLflow/Component/Database 중 선택, 필요하면 최소 규약 준수로 신규 추가.
-3. 데이터 준비: 컨텍스트가 제공하는 생성기/헬퍼 사용(고정 시드). 파일은 temp 디렉토리에 저장.
-4. 퍼블릭 API 호출: `run_train_pipeline`, `Factory.create_*`, `MlflowClient` 등.
-5. 관찰/검증: 컨텍스트 헬퍼로 결과를 관찰하고 단언. 비즈니스 로직 재구현 금지.
-6. 표준 정책 확인: URI/file-store, uuid 명명, data-path 주입, 결정론성.
-7. 성능/격리 점검: 한 테스트-한 run, 상태 공유 금지, 필요 시 `performance_benchmark` 사용.
-8. 실행/병렬: `pytest -n auto` 권장. MLflow 파일 스토어 경로 충돌 방지 확인.
-
-### SettingsBuilder 헬퍼(권장)
-- 가독성/일관성 향상을 위해 컬럼 지정은 빌더 헬퍼를 사용합니다.
-```python
-settings = settings_builder \
-  .with_task("timeseries") \
-  .with_timestamp_column("timestamp") \
-  .with_treatment_column("treatment") \
-  .build()
-```
-
----
-
-## 7) 안티 패턴(Anti-Patterns)
-- 컨텍스트 내부에서 엔진/파이프라인 로직 재현
-- 전역 상태/캐시 공유
-- 시간기반 명명(`int(time.time())`) 사용
-- 외부 경로 MLflow store 사용(`sqlite:///...` or 원격) – 테스트는 `file://.../mlruns` 고정
-- 레시피에 `loader.source_uri` 영구 저장(주입만 허용)
-- 불필요한 모킹(레지스트리/팩토리 경로)
-
----
-
-## 8) 마이그레이션/유지 전략
-- A/B 공존: 기존(v1)과 새로운(context v2) 테스트를 같은 파일에서 공존 가능.
-- 동등성 검증: 결과/아티팩트(메트릭/파라미터/시그니처/스키마) 비교로 동등성 보장.
-- 성공 후 정리: v2가 안정화되면 v1 중복 세팅/헬퍼 제거.
-
-### E2E 참고(선택)
-- 현재 통합 테스트에서 전체 흐름을 대부분 커버합니다. 필요 시 신뢰성 강화를 위해 E2E 1건(예: `mmp train` happy path, 30초 이내)을 추가할 수 있습니다.
-
----
-
-## 9) CI/실행 가이드
-- 스위트 분리 실행: `unit`/`integration`/`e2e` 잡 분리 권장.
-- 병렬: `pytest -n auto --dist=loadscope --durations=15`.
-- 게이팅: A/B 동등성, 컨텍스트 init 시간 상한(0.12s) 체크.
-
----
-
-## 10) 새 테스트 리뷰 체크리스트
-- [ ] 컨텍스트 사용으로 세팅 코드 최소화
-- [ ] MLflow file store/uuid 명명/seed 정책 준수
-- [ ] 퍼블릭 API만 호출(엔진 재현 금지)
-- [ ] 상태 공유 없음(Factory/Settings 새로 생성)
-- [ ] 환경/경로는 temp 디렉토리 내부만 사용
-- [ ] 필요 시 기대 산출물은 실제 값으로 추가(빈 디렉토리 금지)
-- [ ] 실행 시간/격리/플레이키 방지 점검
-
----
-
-## 부록: 스니펫
-- MLflow 실험 검증 스니펫
-```python
-with mlflow_test_context.for_classification(experiment="exp") as ctx:
-    mlflow.set_tracking_uri(ctx.mlflow_uri)
-    result = run_train_pipeline(ctx.settings)
-    client = MlflowClient(tracking_uri=ctx.mlflow_uri)
-    exp = client.get_experiment_by_name(ctx.experiment_name)
-    assert exp is not None
-    assert client.get_run(result.run_id) is not None
-```
-
-- Component 데이터 흐름 검증 스니펫
-```python
-with component_test_context.classification_stack() as ctx:
-    raw_df = ctx.adapter.read(ctx.data_path)
-    processed_df = ctx.prepare_model_input(raw_df)
-    assert ctx.validate_data_flow(raw_df, processed_df)
-```
-
-- Database 컨텍스트 스니펫
-```python
+# DatabaseTestContext: 임시 DB 환경
 with database_test_context.sqlite_db({"users": df}) as db:
     assert db.connection_uri.startswith("sqlite:///")
 ```
 
+### 규칙
+- 설정 코드 캡슐화
+- 퍼블릭 API만 사용
+- 비즈니스 로직 재구현 금지
+- 헬퍼 메서드로 관찰 지원
+
 ---
 
-본 가이드는 리팩토링 철학(책임 분리, 표준화, 퍼블릭 API 중심, 제로리스크 전환)을 유지하면서 테스트를 확장/개선하기 위한 실천적 기준입니다. 새로운 테스트 추가 시 위 가이드를 준수하면, 리팩토링 결과를 안정적으로 유지하고 품질을 지속적으로 향상시킬 수 있습니다.
+## 5. 표준 정책
+
+### 명명 규칙
+```python
+# MLflow 실험명: UUID 접미사 사용
+experiment_name = f"test_exp_{uuid4().hex[:8]}"
+
+# 파일 경로: 임시 디렉토리 사용
+file_path = isolated_temp_directory / "test.csv"
+
+# 시간 기반 명명 금지
+# ❌ Bad: f"run_{int(time.time())}"
+# ✅ Good: f"run_{uuid4().hex[:8]}"
+```
+
+### MLflow 설정
+```python
+# 파일 스토어만 사용 (원격 금지)
+tracking_uri = f"file://{temp_dir}/mlruns"
+
+# 실험 격리
+experiment_name = f"test_{test_name}_{uuid4().hex[:8]}"
+```
+
+### 데이터 격리
+```python
+# 데이터는 temp 디렉토리에
+data_path = isolated_temp_directory / "data.csv"
+
+# loader.source_uri는 런타임 주입
+settings.recipe.data.loader.source_uri = str(data_path)
+```
+
+### 결정론적 실행
+```python
+# conftest.py의 autouse fixture가 자동 적용
+# - random.seed(42)
+# - np.random.seed(42)
+# - torch.manual_seed(42)
+# - PYTHONHASHSEED='42'
+```
+
+---
+
+## 6. Fixture 가이드
+
+### 기본 Fixtures (`conftest.py`)
+
+```python
+@pytest.fixture
+def settings_builder():
+    """Settings 객체 빌더"""
+    return SettingsBuilder()
+
+@pytest.fixture
+def isolated_temp_directory():
+    """격리된 임시 디렉토리"""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        yield Path(temp_dir)
+
+@pytest.fixture
+def test_data_generator():
+    """테스트 데이터 생성기"""
+    return TestDataGenerator()
+
+@pytest.fixture
+def add_model_computed():
+    """Model.computed 필드 추가 헬퍼"""
+    # SettingsFactory의 동적 필드 추가 시뮬레이션
+```
+
+### Context Fixtures
+
+```python
+@pytest.fixture
+def mlflow_test_context(isolated_temp_directory):
+    """MLflow 테스트 컨텍스트"""
+    return MLflowTestContext(isolated_temp_directory)
+
+@pytest.fixture
+def component_test_context(isolated_temp_directory, settings_builder):
+    """컴포넌트 테스트 컨텍스트"""
+    return ComponentTestContext(isolated_temp_directory, settings_builder)
+```
+
+---
+
+## 7. 안티 패턴
+
+### 피해야 할 패턴
+
+**❌ Context 내부에서 비즈니스 로직 재구현**
+```python
+# Bad: Context가 직접 계산
+def validate_metrics(self):
+    return self.calculate_accuracy()  # 비즈니스 로직
+
+# Good: 실제 컴포넌트 사용
+def validate_metrics(self):
+    return self.evaluator.evaluate()  # 퍼블릭 API
+```
+
+**❌ 전역 상태 공유**
+```python
+# Bad: 전역 변수
+GLOBAL_SETTINGS = None
+
+# Good: 각 테스트마다 새로 생성
+settings = SettingsBuilder().build()
+```
+
+**❌ 시간 기반 명명**
+```python
+# Bad: 타임스탬프
+run_name = f"run_{datetime.now()}"
+
+# Good: UUID
+run_name = f"run_{uuid4().hex[:8]}"
+```
+
+**❌ 외부 경로 사용**
+```python
+# Bad: 고정 경로
+data_path = "/tmp/test_data.csv"
+
+# Good: 임시 디렉토리
+data_path = isolated_temp_directory / "test_data.csv"
+```
+
+---
+
+## 8. 테스트 작성 체크리스트
+
+### 새 테스트 작성 시
+
+- [ ] **적절한 계층 선택**: unit/integration/e2e 중 선택
+- [ ] **Context 사용**: 환경 설정은 Context 클래스로
+- [ ] **실제 객체 우선**: Mock 대신 실제 컴포넌트 사용
+- [ ] **격리 보장**: 임시 디렉토리, UUID 명명
+- [ ] **결정론적**: 시드 고정, 랜덤 요소 제거
+- [ ] **퍼블릭 API**: 내부 구현 의존 금지
+- [ ] **빠른 실행**: Unit < 100ms, Integration < 1s
+- [ ] **명확한 검증**: Given-When-Then 구조
+
+### 코드 리뷰 체크리스트
+
+- [ ] Mock 사용이 정당한가? (외부 서비스만?)
+- [ ] Context 클래스를 적절히 활용했는가?
+- [ ] 테스트가 독립적으로 실행 가능한가?
+- [ ] 임시 자원이 정리되는가?
+- [ ] 실행 시간이 적절한가?
+- [ ] 에러 메시지가 명확한가?
+
+---
+
+## 9. CI/CD 통합
+
+### 테스트 실행 전략
+
+```bash
+# 단위 테스트 (빠른 피드백)
+pytest tests/unit -n auto --maxfail=3
+
+# 통합 테스트 (병렬 실행)
+pytest tests/integration -n 4
+
+# E2E 테스트 (순차 실행)
+pytest tests/e2e
+
+# 전체 테스트 with 커버리지
+pytest tests/ --cov=src --cov-report=html --cov-fail-under=90
+```
+
+### 성능 기준
+
+- Unit tests: < 2분
+- Integration tests: < 5분
+- E2E tests: < 10분
+- Total: < 15분
+
+---
+
+## 10. 특수 케이스 가이드
+
+### Model.computed 필드 처리
+
+Settings의 Model 객체에 동적으로 추가되는 computed 필드 처리:
+
+```python
+# Unit Test: add_model_computed fixture 사용
+def test_something(settings_builder, add_model_computed):
+    settings = settings_builder.build()
+    settings = add_model_computed(settings)  # computed 추가
+
+# Integration Test: SettingsFactory 직접 사용
+settings = SettingsFactory.for_training(...)  # 자동 추가
+```
+
+### Async 테스트
+
+```python
+# pytest-asyncio 사용
+@pytest.mark.asyncio
+async def test_async_endpoint():
+    async with httpx.AsyncClient() as client:
+        response = await client.get("/health")
+```
+
+### 병렬 실행 안전성
+
+```python
+# 각 테스트는 고유 식별자 사용
+experiment_name = f"test_{test_name}_{uuid4().hex[:8]}"
+
+# 파일 충돌 방지
+temp_dir = isolated_temp_directory / f"test_{uuid4().hex[:8]}"
+```
+
+---
+
+## 부록: 테스트 패턴 예시
+
+### Unit Test 패턴
+```python
+class TestDataAdapter:
+    def test_read_csv(self, isolated_temp_directory):
+        # Given: 테스트 데이터
+        data_path = isolated_temp_directory / "test.csv"
+        pd.DataFrame({"a": [1, 2]}).to_csv(data_path)
+
+        # When: 실제 adapter 사용
+        adapter = StorageAdapter(settings)
+        result = adapter.read(str(data_path))
+
+        # Then: 결과 검증
+        assert len(result) == 2
+```
+
+### Integration Test 패턴
+```python
+def test_pipeline_flow(component_test_context):
+    with component_test_context.classification_stack() as ctx:
+        # Given: 컴포넌트 스택
+        raw_data = ctx.adapter.read(ctx.data_path)
+
+        # When: 컴포넌트 상호작용
+        processed = ctx.preprocessor.transform(raw_data)
+        model = ctx.trainer.train(processed)
+
+        # Then: 데이터 플로우 검증
+        assert ctx.validate_data_flow(raw_data, processed)
+```
+
+### E2E Test 패턴
+```python
+def test_train_to_serve_workflow(mlflow_test_context):
+    with mlflow_test_context.for_classification() as ctx:
+        # Given: 전체 환경
+        runner = CliRunner()
+
+        # When: 전체 워크플로우
+        train_result = runner.invoke(app, ['train', ...])
+        serve_result = runner.invoke(app, ['serve', ...])
+
+        # Then: 종단 검증
+        assert ctx.experiment_exists()
+        assert ctx.get_model_version() > 0
+```
+
+---
+
+이 가이드는 테스트 품질과 유지보수성을 보장하면서도 실용적인 접근을 유지하는 것을 목표로 합니다.
+각 테스트는 명확한 목적을 가지고, 적절한 계층에서, 올바른 도구를 사용하여 작성되어야 합니다.

@@ -1,14 +1,8 @@
 """
-Fixtures Module - Example Data and Test Fixtures
+Fixtures Module - Test Resources and Context Classes
 
-이 모듈은 Pydantic 모델의 예제 데이터와 테스트용 fixtures를 제공합니다.
-원래 model_config에 하드코딩되어 있던 예제 데이터들을 분리하여 관리합니다.
+이 모듈은 테스트용 자원과 Context 클래스들을 제공합니다.
+테스트 환경 설정과 결과 관찰을 캡슐화하는 도구들을 포함합니다.
 """
 
-from .recipe_examples import RECIPE_EXAMPLES
-from .config_examples import CONFIG_EXAMPLES
-
-__all__ = [
-    "RECIPE_EXAMPLES",
-    "CONFIG_EXAMPLES",
-]
+__all__ = []

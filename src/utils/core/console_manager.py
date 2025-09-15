@@ -453,7 +453,127 @@ class UnifiedConsole:
         else:
             shape_str = f" ({shape[0]} rows, {shape[1]} columns)" if shape else ""
             print(f"DATA: {operation}{shape_str}")
-    
+
+    # === Quick Fix: 누락된 메서드들 추가 ===
+    def log_processing_step(self, step_name: str, details: str = ""):
+        """Processing step logging - delegates to RichConsoleManager"""
+        if self.mode in ["rich", "test"]:
+            self.rich_console.log_processing_step(step_name, details)
+        else:
+            print(f"STEP: {step_name}")
+            if details:
+                print(f"  {details}")
+
+    def log_data_operation(self, operation: str, shape: tuple = None, details: str = ""):
+        """Data operation logging - delegates to RichConsoleManager"""
+        if self.mode in ["rich", "test"]:
+            self.rich_console.log_data_operation(operation, shape, details)
+        else:
+            shape_str = f" ({shape[0]} rows, {shape[1]} columns)" if shape else ""
+            print(f"DATA: {operation}{shape_str}")
+            if details:
+                print(f"  {details}")
+
+    def log_error_with_context(self, message: str, context: Dict[str, Any] = None, suggestion: str = None):
+        """Error logging with context - delegates to RichConsoleManager"""
+        if self.mode in ["rich", "test"]:
+            self.rich_console.log_error_with_context(message, context, suggestion)
+        else:
+            print(f"ERROR: {message}")
+            if context:
+                print(f"  Context: {context}")
+            if suggestion:
+                print(f"  Suggestion: {suggestion}")
+
+    def log_warning_with_context(self, message: str, context: Dict[str, Any] = None):
+        """Warning logging with context - delegates to RichConsoleManager"""
+        if self.mode in ["rich", "test"]:
+            self.rich_console.log_warning_with_context(message, context)
+        else:
+            print(f"WARNING: {message}")
+            if context:
+                print(f"  Context: {context}")
+
+    def log_milestone(self, message: str, level: str = "info"):
+        """Milestone logging - delegates to RichConsoleManager"""
+        if self.mode in ["rich", "test"]:
+            self.rich_console.log_milestone(message, level)
+        else:
+            level_prefix = level.upper()
+            print(f"{level_prefix}: {message}")
+
+    def log_phase(self, phase_name: str, emoji: str = "📝"):
+        """Phase logging - delegates to RichConsoleManager"""
+        if self.mode in ["rich", "test"]:
+            self.rich_console.log_phase(phase_name, emoji)
+        else:
+            print(f"\n{'='*50}")
+            print(f"{emoji} {phase_name}")
+            print(f"{'='*50}")
+
+    def log_model_operation(self, operation: str, model_info: str = ""):
+        """Model operation logging - delegates to RichConsoleManager"""
+        if self.mode in ["rich", "test"]:
+            self.rich_console.log_model_operation(operation, model_info)
+        else:
+            print(f"MODEL: {operation}")
+            if model_info:
+                print(f"  {model_info}")
+
+    def log_validation_result(self, success: bool, errors: List[str] = None, warnings: List[str] = None):
+        """Validation result logging - delegates to RichConsoleManager"""
+        if self.mode in ["rich", "test"]:
+            self.rich_console.log_validation_result(success, errors, warnings)
+        else:
+            status = "SUCCESS" if success else "FAILED"
+            print(f"VALIDATION: {status}")
+            if errors:
+                for error in errors:
+                    print(f"  ERROR: {error}")
+            if warnings:
+                for warning in warnings:
+                    print(f"  WARNING: {warning}")
+
+    def log_connection_status(self, service: str, status: str, details: str = ""):
+        """Connection status logging - delegates to RichConsoleManager"""
+        if self.mode in ["rich", "test"]:
+            self.rich_console.log_connection_status(service, status, details)
+        else:
+            print(f"CONNECTION: {service} - {status}")
+            if details:
+                print(f"  {details}")
+
+    def log_pipeline_connection(self, from_component: str, to_component: str, status: str = "connected"):
+        """Pipeline connection logging - delegates to RichConsoleManager"""
+        if self.mode in ["rich", "test"]:
+            self.rich_console.log_pipeline_connection(from_component, to_component, status)
+        else:
+            print(f"PIPELINE: {from_component} -> {to_component} [{status}]")
+
+    def log_performance_guidance(self, metric: str, value: float, unit: str, recommendation: str = None):
+        """Performance guidance logging - delegates to RichConsoleManager"""
+        if self.mode in ["rich", "test"]:
+            self.rich_console.log_performance_guidance(metric, value, unit, recommendation)
+        else:
+            print(f"PERFORMANCE: {metric} = {value} {unit}")
+            if recommendation:
+                print(f"  Recommendation: {recommendation}")
+
+    def log_periodic(self, message: str, interval_seconds: int = 60):
+        """Periodic logging - delegates to RichConsoleManager"""
+        if self.mode in ["rich", "test"]:
+            self.rich_console.log_periodic(message, interval_seconds)
+        else:
+            print(f"PERIODIC: {message} (every {interval_seconds}s)")
+
+    def log_artifacts_progress(self, current: int, total: int, item: str = ""):
+        """Artifacts progress logging - delegates to RichConsoleManager"""
+        if self.mode in ["rich", "test"]:
+            self.rich_console.log_artifacts_progress(current, total, item)
+        else:
+            percentage = (current / total * 100) if total > 0 else 0
+            print(f"ARTIFACTS: [{current}/{total}] {percentage:.1f}% - {item}")
+
     def _detect_output_mode(self, settings) -> str:
         """Detect appropriate output mode"""
         import os

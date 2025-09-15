@@ -38,7 +38,10 @@ class StorageAdapter(BaseAdapter):
         file_ext = Path(uri).suffix.lower()
 
         # 파일 정보 및 옵션 체크
-        console.log_file_operation(f"Storage 파일 읽기 시작", uri, f"유형: {file_ext}, Storage 옵션: {len(self.storage_options)}개")
+        console.log_processing_step(
+            f"Storage 파일 읽기 시작: {file_name}",
+            f"유형: {file_ext}, Storage 옵션: {len(self.storage_options)}개"
+        )
 
         # 지원 형식 및 옵션 검증
         if self.storage_options:
@@ -103,9 +106,8 @@ class StorageAdapter(BaseAdapter):
         file_ext = Path(uri).suffix.lower()
         data_size_mb = df.memory_usage(deep=True).sum() / (1024 * 1024)
 
-        console.log_file_operation(
-            f"Storage 파일 저장 시작",
-            uri,
+        console.log_processing_step(
+            f"Storage 파일 저장 시작: {file_name}",
             f"크기: {data_size_mb:.1f} MB, 형식: {file_ext}"
         )
 
@@ -150,15 +152,20 @@ class StorageAdapter(BaseAdapter):
                 saved_path = Path(uri.replace("file://", ""))
                 if saved_path.exists():
                     file_size_mb = saved_path.stat().st_size / (1024 * 1024)
-                    console.log_file_operation(
-                        "Storage 파일 저장 완료",
-                        uri,
+                    console.log_processing_step(
+                        f"Storage 파일 저장 완료: {file_name}",
                         f"디스크 크기: {file_size_mb:.1f} MB, 압축비: {data_size_mb/file_size_mb:.1f}x"
                     )
                 else:
-                    console.log_file_operation("Storage 파일 저장 완료", uri, f"{len(df):,} rows 저장")
+                    console.log_processing_step(
+                        f"Storage 파일 저장 완료: {file_name}",
+                        f"{len(df):,} rows 저장"
+                    )
             else:
-                console.log_file_operation("Remote storage 저장 완료", uri, f"{len(df):,} rows 전송")
+                console.log_processing_step(
+                    f"Remote storage 저장 완료: {file_name}",
+                    f"{len(df):,} rows 전송"
+                )
 
         except Exception as e:
             console.log_error_with_context(

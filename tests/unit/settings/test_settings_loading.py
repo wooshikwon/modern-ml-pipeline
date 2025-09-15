@@ -248,7 +248,7 @@ class TestRecipeLoading:
 class TestSettingsIntegration:
     """Test Settings integration and validation using Real Object Testing"""
 
-    def test_complete_settings_loading(self, component_test_context):
+    def test_complete_settings_loading(self, component_test_context, isolated_temp_directory):
         """Test loading complete Settings with Config + Recipe using context"""
         with component_test_context.classification_stack() as ctx:
             # Use existing settings from context and verify integration
@@ -259,8 +259,8 @@ class TestSettingsIntegration:
             assert settings.recipe.task_choice == 'classification'
             assert settings.recipe.model.class_path.endswith('RandomForestClassifier')
 
-            # Test real loading with temporary files
-            temp_dir = Path(tempfile.mkdtemp())
+            # Test real loading with temporary files using isolated_temp_directory fixture
+            temp_dir = isolated_temp_directory
             config_data = {
                 'environment': {'name': 'test'},
                 'data_source': {
@@ -326,10 +326,10 @@ class TestSettingsIntegration:
             assert loaded_settings.recipe.task_choice == 'classification'
             assert loaded_settings.config.mlflow.experiment_name == 'test_experiment'
     
-    def test_feature_store_validation_error(self, component_test_context):
+    def test_feature_store_validation_error(self, component_test_context, isolated_temp_directory):
         """Test validation error when recipe uses feature_store but config doesn't support it"""
         with component_test_context.classification_stack() as ctx:
-            temp_dir = Path(tempfile.mkdtemp())
+            temp_dir = isolated_temp_directory
 
             # Config without feast
             config_data = {
@@ -379,7 +379,7 @@ class TestSettingsIntegration:
             with pytest.raises((ValueError, ValidationError)):
                 load_settings(str(recipe_file), str(config_file))
     
-    def test_settings_computed_fields(self, component_test_context):
+    def test_settings_computed_fields(self, component_test_context, isolated_temp_directory):
         """Test that computed fields are properly added to Settings"""
         with component_test_context.classification_stack() as ctx:
             # Use context-provided settings to check computed fields
@@ -391,7 +391,7 @@ class TestSettingsIntegration:
             assert settings.recipe.model.computed['environment'] == 'test'
 
             # Test with Real Object Testing for additional scenarios
-            temp_dir = Path(tempfile.mkdtemp())
+            temp_dir = isolated_temp_directory
             config_data = {
                 'environment': {'name': 'test'},
                 'data_source': {'name': 'test', 'adapter_type': 'storage', 'config': {}},

@@ -27,9 +27,9 @@ class TestFTTransformerWrapperBase:
     def test_ft_transformer_base_initialization(self, component_test_context):
         """FTTransformerWrapperBase 초기화 테스트"""
         with component_test_context.classification_stack() as ctx:
-            # Test basic initialization
+            # Test basic initialization with concrete class
             hyperparams = {'d_block': 64, 'n_blocks': 3}
-            model = FTTransformerWrapperBase(**hyperparams)
+            model = FTTransformerClassifier(**hyperparams)
 
             # Verify initialization
             assert model.model is None
@@ -40,7 +40,7 @@ class TestFTTransformerWrapperBase:
     def test_ft_transformer_base_empty_hyperparams(self, component_test_context):
         """빈 하이퍼파라미터로 초기화 테스트"""
         with component_test_context.classification_stack() as ctx:
-            model = FTTransformerWrapperBase()
+            model = FTTransformerClassifier()
 
             assert model.model is None
             assert model._internal_preprocessor is None
@@ -50,7 +50,7 @@ class TestFTTransformerWrapperBase:
     def test_ft_transformer_base_predict_before_fit_error(self, component_test_context):
         """학습 전 예측 시도 시 에러 테스트"""
         with component_test_context.classification_stack() as ctx:
-            model = FTTransformerWrapperBase()
+            model = FTTransformerClassifier()
 
             # Create test data
             X = pd.DataFrame({'feature1': [1, 2, 3], 'feature2': ['a', 'b', 'c']})
@@ -83,8 +83,8 @@ class TestFTTransformerDataPreprocessing:
                 })
                 y = pd.Series([0, 1, 0])
 
-                model = FTTransformerWrapperBase()
-                model._initialize_and_fit(X, y, d_out=2)
+                model = FTTransformerClassifier()
+                model.fit(X, y)
 
                 # Verify preprocessing was set up correctly
                 assert model._internal_preprocessor is not None
@@ -119,8 +119,8 @@ class TestFTTransformerDataPreprocessing:
                 })
                 y = pd.Series([0, 1, 0])
 
-                model = FTTransformerWrapperBase()
-                model._initialize_and_fit(X, y, d_out=2)
+                model = FTTransformerClassifier()
+                model.fit(X, y)
 
                 # Check FTTransformer parameters
                 call_args = mock_ft_transformer.call_args[1]
@@ -141,8 +141,8 @@ class TestFTTransformerDataPreprocessing:
                 })
                 y = pd.Series([0, 1, 2])
 
-                model = FTTransformerWrapperBase()
-                model._initialize_and_fit(X, y, d_out=3)
+                model = FTTransformerClassifier()
+                model.fit(X, y)
 
                 # Check FTTransformer parameters
                 call_args = mock_ft_transformer.call_args[1]
@@ -168,8 +168,8 @@ class TestFTTransformerCardinalityCalculation:
                 })
                 y = pd.Series([0, 1])
 
-                model = FTTransformerWrapperBase()
-                model._initialize_and_fit(X, y, d_out=2)
+                model = FTTransformerClassifier()
+                model.fit(X, y)
 
                 # Check cardinalities include space for unknown values
                 call_args = mock_ft_transformer.call_args[1]
@@ -189,8 +189,8 @@ class TestFTTransformerCardinalityCalculation:
                 X = pd.DataFrame({'cat1': ['a', 'b', 'c']})
                 y = pd.Series([0, 1, 0])
 
-                model = FTTransformerWrapperBase()
-                model._initialize_and_fit(X, y, d_out=2)
+                model = FTTransformerClassifier()
+                model.fit(X, y)
 
                 # Check OrdinalEncoder configuration
                 cat_transformer = model._internal_preprocessor.named_transformers_['cat']
@@ -212,8 +212,8 @@ class TestFTTransformerHyperparameterHandling:
                 X = pd.DataFrame({'num1': [1, 2, 3]})
                 y = pd.Series([0, 1, 0])
 
-                model = FTTransformerWrapperBase()
-                model._initialize_and_fit(X, y, d_out=2)
+                model = FTTransformerClassifier()
+                model.fit(X, y)
 
                 # Check default hyperparameters were applied
                 call_args = mock_ft_transformer.call_args[1]
@@ -341,8 +341,8 @@ class TestFTTransformerPrediction:
                 y_train = pd.Series([0, 1, 2])
                 X_test = pd.DataFrame({'num1': [4, 5, 6]}, index=[10, 11, 12])
 
-                model = FTTransformerWrapperBase()
-                model._initialize_and_fit(X_train, y_train, d_out=3)
+                model = FTTransformerClassifier()
+                model.fit(X_train, y_train)
 
                 predictions = model.predict(X_test)
 
@@ -366,8 +366,8 @@ class TestFTTransformerPrediction:
                 y_train = pd.Series([1.0, 2.0, 1.5])
                 X_test = pd.DataFrame({'num1': [4, 5, 6]}, index=[10, 11, 12])
 
-                model = FTTransformerWrapperBase()
-                model._initialize_and_fit(X_train, y_train, d_out=1)
+                model = FTTransformerRegressor()
+                model.fit(X_train, y_train)
 
                 predictions = model.predict(X_test)
 
