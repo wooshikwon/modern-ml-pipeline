@@ -186,7 +186,7 @@ def _save_to_storage(
     factory: Factory,
     run_id: str,
     output_type: str,
-    console: RichConsoleManager
+    console: Console
 ):
     """Storage 어댑터를 사용한 저장."""
     storage_adapter = factory.create_data_adapter("storage")
@@ -217,7 +217,7 @@ def _save_to_sql(
     target_cfg,
     factory: Factory,
     output_type: str,
-    console: RichConsoleManager
+    console: Console
 ):
     """SQL 데이터베이스를 사용한 저장."""
     sql_adapter = factory.create_data_adapter("sql")
@@ -238,7 +238,7 @@ def _save_to_bigquery(
     target_cfg,
     factory: Factory,
     output_type: str,
-    console: RichConsoleManager
+    console: Console
 ):
     """BigQuery를 사용한 저장."""
     bq_adapter = factory.create_data_adapter("bigquery")

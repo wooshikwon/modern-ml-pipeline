@@ -80,7 +80,7 @@ class TestMLflowSetup:
             mock_mlflow.set_experiment.assert_called_once()
 
     @patch('src.utils.integrations.mlflow_integration.mlflow')
-    @patch('src.utils.integrations.mlflow_integration.RichConsoleManager')
+    @patch('src.utils.integrations.mlflow_integration.Console')
     def test_setup_mlflow_console_output(self, mock_console_class, mock_mlflow, component_test_context):
         """MLflow 설정 시 콘솔 출력 테스트"""
         with component_test_context.classification_stack() as ctx:
@@ -405,7 +405,7 @@ class TestEnhancedMLflowIntegration:
             assert data_schema['phase_integration']['phase_5_enhanced_artifact'] is True
 
     @patch('src.utils.integrations.mlflow_integration.mlflow')
-    @patch('src.utils.integrations.mlflow_integration.RichConsoleManager')
+    @patch('src.utils.integrations.mlflow_integration.Console')
     def test_log_enhanced_model_with_schema(self, mock_console_class, mock_mlflow, component_test_context):
         """Enhanced model + schema 저장 테스트"""
         with component_test_context.classification_stack() as ctx:

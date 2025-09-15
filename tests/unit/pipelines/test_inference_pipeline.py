@@ -16,7 +16,7 @@ class TestInferencePipeline:
     
     @patch('src.pipelines.inference_pipeline.mlflow')
     @patch('src.pipelines.inference_pipeline.Factory')
-    @patch('src.pipelines.inference_pipeline.RichConsoleManager')
+    @patch('src.pipelines.inference_pipeline.Console')
     @patch('src.pipelines.inference_pipeline.load_inference_data')
     @patch('src.pipelines.inference_pipeline.save_output')
     def test_inference_with_datainterface(
@@ -102,7 +102,7 @@ class TestInferencePipeline:
         
     @patch('src.pipelines.inference_pipeline.mlflow')
     @patch('src.pipelines.inference_pipeline.Factory')
-    @patch('src.pipelines.inference_pipeline.RichConsoleManager')
+    @patch('src.pipelines.inference_pipeline.Console')
     def test_inference_without_datainterface(
         self,
         mock_console_cls,
@@ -245,7 +245,7 @@ class TestInferencePipelineErrorHandling:
     """Test error handling in inference pipeline"""
     
     @patch('src.pipelines.inference_pipeline.mlflow')
-    @patch('src.pipelines.inference_pipeline.RichConsoleManager')
+    @patch('src.pipelines.inference_pipeline.Console')
     def test_model_load_failure(self, mock_console_cls, mock_mlflow):
         """Test handling of model load failure"""
         mock_console = MagicMock()
@@ -267,7 +267,7 @@ class TestInferencePipelineErrorHandling:
         
     @patch('src.pipelines.inference_pipeline.mlflow')
     @patch('src.pipelines.inference_pipeline.Factory')
-    @patch('src.pipelines.inference_pipeline.RichConsoleManager')
+    @patch('src.pipelines.inference_pipeline.Console')
     @patch('src.pipelines.inference_pipeline.load_inference_data')
     def test_prediction_failure(
         self,
@@ -314,7 +314,7 @@ class TestInferencePipelineIntegration:
     
     @patch('src.pipelines.inference_pipeline.mlflow')
     @patch('src.pipelines.inference_pipeline.Factory')
-    @patch('src.pipelines.inference_pipeline.RichConsoleManager')
+    @patch('src.pipelines.inference_pipeline.Console')
     @patch('src.pipelines.inference_pipeline.load_inference_data')
     @patch('src.pipelines.inference_pipeline.save_output')
     def test_end_to_end_inference_flow(

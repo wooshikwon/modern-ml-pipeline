@@ -60,7 +60,7 @@ class TestDataIOFunctionality:
                     output_type="inference",
                     factory=ctx.factory,
                     run_id="test_run_123",
-                    console=RichConsoleManager()
+                    console=Console()
                 )
 
             # Verify output file exists and has correct structure
@@ -76,7 +76,7 @@ class TestDataIOFunctionality:
         """Real adapter를 사용한 데이터 로드 테스트"""
         with component_test_context.classification_stack() as ctx:
             # Test data is already created by context
-            console = RichConsoleManager()
+            console = Console()
 
             # Load data using real adapter
             loaded_df = load_data(
@@ -185,7 +185,7 @@ class TestDataIOFunctionality:
             rendered_sql = process_template_file(
                 template_path=str(template_path),
                 context_params=context_params,
-                console=RichConsoleManager()
+                console=Console()
             )
 
             # Validate rendered content
@@ -206,7 +206,7 @@ class TestDataIOFunctionality:
                 model=mock_model,
                 run_id="test_run",
                 context_params={},
-                console=RichConsoleManager()
+                console=Console()
             )
 
             # Validate loaded data
@@ -322,7 +322,7 @@ class TestDataIOIntegration:
             raw_data = load_data(
                 data_adapter=ctx.adapter,
                 data_source=ctx.data_path,
-                console=RichConsoleManager()
+                console=Console()
             )
 
             # 2. Create mock predictions

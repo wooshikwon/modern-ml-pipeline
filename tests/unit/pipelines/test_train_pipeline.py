@@ -16,7 +16,7 @@ class TestTrainPipeline:
     
     @patch('src.pipelines.train_pipeline.mlflow')
     @patch('src.pipelines.train_pipeline.Factory')
-    @patch('src.pipelines.train_pipeline.RichConsoleManager')
+    @patch('src.pipelines.train_pipeline.Console')
     @patch('src.pipelines.train_pipeline.log_enhanced_model_with_schema')
     @patch('src.pipelines.train_pipeline.get_pip_requirements')
     def test_train_with_preprocessor(
@@ -131,7 +131,7 @@ class TestTrainPipeline:
         
     @patch('src.pipelines.train_pipeline.mlflow')
     @patch('src.pipelines.train_pipeline.Factory')
-    @patch('src.pipelines.train_pipeline.RichConsoleManager')
+    @patch('src.pipelines.train_pipeline.Console')
     @patch('src.pipelines.train_pipeline.save_output')
     def test_train_with_preprocessed_output(
         self,
@@ -231,7 +231,7 @@ class TestTrainPipeline:
         
     @patch('src.pipelines.train_pipeline.mlflow')
     @patch('src.pipelines.train_pipeline.Factory')
-    @patch('src.pipelines.train_pipeline.RichConsoleManager')
+    @patch('src.pipelines.train_pipeline.Console')
     def test_train_without_preprocessor(
         self,
         mock_console_cls,
@@ -311,7 +311,7 @@ class TestTrainPipelineErrorHandling:
     
     @patch('src.pipelines.train_pipeline.mlflow')
     @patch('src.pipelines.train_pipeline.Factory')
-    @patch('src.pipelines.train_pipeline.RichConsoleManager')
+    @patch('src.pipelines.train_pipeline.Console')
     def test_data_load_failure(
         self,
         mock_console_cls,
@@ -343,7 +343,7 @@ class TestTrainPipelineErrorHandling:
         
     @patch('src.pipelines.train_pipeline.mlflow')
     @patch('src.pipelines.train_pipeline.Factory')
-    @patch('src.pipelines.train_pipeline.RichConsoleManager')
+    @patch('src.pipelines.train_pipeline.Console')
     def test_model_training_failure(
         self,
         mock_console_cls,
@@ -403,7 +403,7 @@ class TestPyfuncWrapperCreation:
     
     @patch('src.pipelines.train_pipeline.mlflow')
     @patch('src.pipelines.train_pipeline.Factory')
-    @patch('src.pipelines.train_pipeline.RichConsoleManager')
+    @patch('src.pipelines.train_pipeline.Console')
     @patch('src.pipelines.train_pipeline.log_enhanced_model_with_schema')
     def test_pyfunc_wrapper_with_datainterface(
         self,

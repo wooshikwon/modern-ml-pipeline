@@ -567,3 +567,7 @@ def success_print(message: str) -> None:
 
 def testing_info(message: str) -> None:
     testing_print(message, emoji="ℹ️")
+
+# ===== Legacy aliases for backward compatibility =====
+RichConsoleManager = Console
+UnifiedConsole = Console
