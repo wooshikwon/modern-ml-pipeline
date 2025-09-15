@@ -92,6 +92,12 @@ class Console:
     def is_ci_environment(self) -> bool:
         return any(env in os.environ for env in ['CI', 'GITHUB_ACTIONS', 'JENKINS_URL'])
 
+    def get_console_mode(self) -> str:
+        """이전 API 호환: 현재 환경에 따른 콘솔 모드 문자열 반환"""
+        if self.is_ci_environment() or not sys.stdout.isatty():
+            return "plain"
+        return "rich"
+
     # ========== 파이프라인/프로그레스 ==========
     @contextmanager
     def pipeline_context(self, name: str, description: str):
@@ -388,6 +394,14 @@ def get_console(settings: Any = None) -> Console:
     return Console(settings)
 
 
+def get_rich_console(settings: Any = None) -> Console:
+    """레거시 호환: RichConsoleManager 대체 함수"""
+    return Console(settings)
+
+# Provide module-level instances for legacy import names used in tests
+console_manager = Console()
+unified_console = Console()
+
 # CLI helper functions (kept for compatibility with existing callers)
 _module_console = Console()
 
@@ -534,3 +548,22 @@ def cli_troubleshooting_tip(issue: str, solution: str) -> None:
 def cli_process_status(process: str, current: int, total: int, details: str = "") -> None:
     detail_str = f" - {details}" if details else ""
     _module_console.console.print(f"{process}: [{current}/{total}]{detail_str}")
+
+
+# ===== Test Helper Functions (compatibility) =====
+
+def testing_print(message: str, emoji: str = "📝") -> None:
+    test_console = RichConsole()
+    test_console.print(f"{emoji} {message}")
+
+
+def phase_print(phase_name: str, emoji: str = "🔍") -> None:
+    testing_print(f"\n=== {phase_name} ===", emoji=emoji)
+
+
+def success_print(message: str) -> None:
+    testing_print(message, emoji="✅")
+
+
+def testing_info(message: str) -> None:
+    testing_print(message, emoji="ℹ️")
