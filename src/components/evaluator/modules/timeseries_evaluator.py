@@ -2,7 +2,7 @@ import numpy as np
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 from src.interface import BaseEvaluator
 from src.settings import Settings
-from src.utils.core.console_manager import get_console
+from src.utils.core.console import get_console
 
 class TimeSeriesEvaluator(BaseEvaluator):
     """시계열 태스크 전용 Evaluator - MAPE, SMAPE 등 시계열 특화 메트릭 제공"""

@@ -20,8 +20,8 @@ if TYPE_CHECKING:
     from mlflow.pyfunc import PyFuncModel
 
 from src.utils.core.logger import logger
-from src.utils.core.console_manager import RichConsoleManager
-from src.utils.core.console_manager import UnifiedConsole
+from src.utils.core.console import Console
+from src.utils.core.console import Console
 
 def generate_unique_run_name(base_run_name: str) -> str:
     """
@@ -45,7 +45,7 @@ def setup_mlflow(settings: "Settings") -> None:
     """
     주입된 settings 객체를 기반으로 MLflow 클라이언트를 설정합니다.
     """
-    console = RichConsoleManager()
+    console = Console()
     
     mlflow.set_tracking_uri(settings.config.mlflow.tracking_uri)
     mlflow.set_experiment(settings.config.mlflow.experiment_name)
@@ -62,7 +62,7 @@ def start_run(settings: "Settings", run_name: str) -> "Run":
     외부 환경 변수의 영향을 받지 않도록 tracking_uri를 명시적으로 설정합니다.
     자동으로 유니크한 run name을 생성하여 병렬 실행 시 충돌을 방지합니다.
     """
-    console = RichConsoleManager()
+    console = Console()
     
     # 🆕 충돌 방지를 위해 유니크한 run name 생성
     unique_run_name = generate_unique_run_name(run_name)
@@ -414,7 +414,7 @@ def log_enhanced_model_with_schema(
         data_schema (dict): 완전한 스키마 메타데이터
         input_example (pd.DataFrame): 입력 예제 데이터
     """
-    console = RichConsoleManager()
+    console = Console()
     
     # Track artifact upload progress
     artifacts = ["model", "data_schema", "compatibility_info", "phase_integration_summary"]

@@ -3,7 +3,7 @@ import numpy as np
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 from src.interface import BaseEvaluator
 from src.settings import DataInterface
-from src.utils.core.console_manager import get_console
+from src.utils.core.console import get_console
 
 class ClassificationEvaluator(BaseEvaluator):
     METRIC_KEYS = ["accuracy", "precision", "recall", "f1", "roc_auc"]

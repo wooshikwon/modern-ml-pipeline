@@ -26,7 +26,7 @@ from src.utils.data.data_io import (
 )
 from src.settings import Settings
 from src.factory import Factory
-from src.utils.core.console_manager import RichConsoleManager
+from src.utils.core.console import Console
 
 
 class TestDataIOFunctionality:

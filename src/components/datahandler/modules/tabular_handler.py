@@ -6,7 +6,7 @@ from sklearn.model_selection import train_test_split
 
 from src.interface import BaseDataHandler
 from ..registry import DataHandlerRegistry
-from src.utils.core.console_manager import UnifiedConsole
+from src.utils.core.console import Console
 
 
 class TabularDataHandler(BaseDataHandler):

@@ -9,7 +9,7 @@ from typing_extensions import Annotated
 
 from src.settings import SettingsFactory
 from src.serving import run_api_server
-from src.utils.core.console_manager import (
+from src.utils.core.console import (
     cli_command_start, cli_command_error,
     cli_step_complete, get_rich_console
 )

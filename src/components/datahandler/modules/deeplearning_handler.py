@@ -14,7 +14,7 @@ from typing import Tuple, Dict, Any, Union, Optional
 
 from src.interface import BaseDataHandler
 from ..registry import DataHandlerRegistry
-from src.utils.core.console_manager import get_console
+from src.utils.core.console import get_console
 
 
 class DeepLearningDataHandler(BaseDataHandler):

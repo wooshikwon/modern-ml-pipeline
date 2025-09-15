@@ -6,7 +6,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
 
 from src.interface import BasePreprocessor
-from src.utils.core.console_manager import UnifiedConsole
+from src.utils.core.console import Console
 from .registry import PreprocessorStepRegistry
 
 if TYPE_CHECKING:

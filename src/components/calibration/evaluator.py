@@ -7,7 +7,7 @@ import numpy as np
 from typing import Dict, Any, Optional
 from sklearn.metrics import brier_score_loss
 
-from src.utils.core.console_manager import get_console
+from src.utils.core.console import get_console
 
 
 def expected_calibration_error(y_true: np.ndarray, y_prob: np.ndarray, n_bins: int = 10) -> float:

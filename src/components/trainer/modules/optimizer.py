@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Dict, Any, Callable
 import pandas as pd
 from src.settings import Settings
-from src.utils.core.console_manager import get_console
+from src.utils.core.console import get_console
 from src.utils.integrations.optuna_integration import logging_callback
 from ..registry import TrainerRegistry
 

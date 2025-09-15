@@ -13,7 +13,7 @@ from typing import Dict, Any, Optional, List
 from datetime import datetime
 
 from src.cli.utils.template_engine import TemplateEngine
-from src.utils.core.console_manager import (
+from src.utils.core.console import (
     cli_step_complete, cli_info, cli_success_panel, cli_print
 )
 

@@ -11,7 +11,7 @@ from pathlib import Path
 project_root = Path(__file__).resolve().parent
 sys.path.insert(0, str(project_root / "src"))
 
-from src.utils.core.console_manager import get_rich_console
+from src.utils.core.console import Console
 from src.components.calibration.modules.isotonic_regression import IsotonicCalibration
 import numpy as np
 
@@ -19,7 +19,7 @@ import numpy as np
 def test_enhanced_console_output():
     """개선된 콘솔 출력 시스템 테스트"""
 
-    console = get_rich_console()
+    console = Console()
 
     print("\n" + "="*80)
     print("MLOps 파이프라인 콘솔 출력 개선사항 테스트")

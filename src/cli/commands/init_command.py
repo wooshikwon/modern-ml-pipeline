@@ -9,7 +9,7 @@ import typer
 
 from src.cli.utils.template_engine import TemplateEngine
 from src.cli.utils.interactive_ui import InteractiveUI
-from src.utils.core.console_manager import (
+from src.utils.core.console import (
     cli_command_start, cli_command_error, cli_step_complete,
     cli_info, cli_success_panel
 )

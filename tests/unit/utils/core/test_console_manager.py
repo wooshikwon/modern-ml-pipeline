@@ -26,7 +26,7 @@ from unittest.mock import Mock, patch, MagicMock
 from contextlib import contextmanager
 from io import StringIO
 
-from src.utils.core.console_manager import (
+from src.utils.core.console import (
     RichConsoleManager,
     UnifiedConsole,
     console_manager,

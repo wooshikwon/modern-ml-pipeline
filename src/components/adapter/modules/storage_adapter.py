@@ -4,7 +4,7 @@ from pathlib import Path
 
 from src.interface.base_adapter import BaseAdapter
 from src.settings import Settings
-from src.utils.core.console_manager import get_console
+from src.utils.core.console import get_console
 
 class StorageAdapter(BaseAdapter):
     """

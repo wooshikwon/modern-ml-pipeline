@@ -6,7 +6,7 @@ from typing import Optional
 import typer
 from pathlib import Path
 
-from src.utils.core.console_manager import (
+from src.utils.core.console import (
     cli_command_start, cli_command_error, cli_step_complete,
     cli_info, cli_success_panel
 )

@@ -6,7 +6,7 @@ import mlflow
 
 from src.settings import Settings
 from src.factory import Factory
-from src.utils.core.console_manager import RichConsoleManager
+from src.utils.core.console import Console
 from src.utils.integrations import mlflow_integration as mlflow_utils
 from src.utils.core.reproducibility import set_global_seeds
 from src.utils.data.data_io import save_output, load_inference_data, format_predictions
@@ -23,7 +23,7 @@ def run_inference_pipeline(
     지정된 Run ID의 모델을 로드하여 예측을 수행하고,
     결과를 설정된 출력 어댑터에 저장합니다.
     """
-    console = RichConsoleManager()
+    console = Console()
     
     # 재현성을 위한 전역 시드 설정
     seed = getattr(settings.recipe.model, 'computed', {}).get('seed', 42)

@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Dict, Type
 from src.interface import BaseFetcher
-from src.utils.core.console_manager import get_console
+from src.utils.core.console import get_console
 
 class FetcherRegistry:
     """컴포넌트 레벨 피처 페처 레지스트리 (엔진 의존성 제거)."""

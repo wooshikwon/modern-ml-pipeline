@@ -10,7 +10,7 @@ from src.components.adapter import AdapterRegistry
 from src.components.evaluator import EvaluatorRegistry
 from src.interface import BaseAdapter
 from src.settings import Settings
-from src.utils.core.console_manager import UnifiedConsole, get_console
+from src.utils.core.console import Console, get_console
 
 if TYPE_CHECKING:
     from src.utils.integrations.pyfunc_wrapper import PyfuncWrapper

@@ -8,7 +8,7 @@ from typing_extensions import Annotated
 import yaml
 
 from src.cli.utils.system_checker import SystemChecker
-from src.utils.core.console_manager import (
+from src.utils.core.console import (
     cli_command_start, cli_command_success, cli_command_error,
     cli_system_check_header, cli_validation_summary,
     cli_step_start, cli_step_complete, get_rich_console

@@ -76,7 +76,7 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
     def console(self):
         if self._console is None:
             try:
-                from src.utils.core.console_manager import get_console
+                from src.utils.core.console import get_console
                 self._console = get_console()
             except Exception:
                 import logging

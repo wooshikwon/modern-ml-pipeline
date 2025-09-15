@@ -16,7 +16,7 @@ from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
 # console_manager와 연동
-from src.utils.core.console_manager import (
+from src.utils.core.console import (
     cli_success, cli_error, cli_warning, cli_info, cli_success_panel
 )
 

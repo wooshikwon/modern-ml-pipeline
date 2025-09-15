@@ -4,7 +4,7 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from typing import List
 import pandas as pd
 from src.interface import BasePreprocessor
-from src.utils.core.console_manager import get_console
+from src.utils.core.console import get_console
 from ..registry import PreprocessorStepRegistry
 
 class StandardScalerWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):

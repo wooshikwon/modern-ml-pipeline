@@ -11,7 +11,7 @@ from typing_extensions import Annotated
 
 from src.settings import SettingsFactory
 from src.pipelines.inference_pipeline import run_inference_pipeline
-from src.utils.core.console_manager import (
+from src.utils.core.console import (
     cli_command_start, cli_command_success, cli_command_error,
     cli_step_complete, get_rich_console
 )

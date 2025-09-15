@@ -10,15 +10,15 @@ from typing import Optional, Dict, Any
 from urllib.parse import urlparse
 
 from src.utils.core.logger import logger
-from src.utils.core.console_manager import RichConsoleManager
+from src.utils.core.console import Console
 
 
 class MLflowUIHelper:
     """Helper class for MLflow UI access and visualization"""
     
-    def __init__(self, tracking_uri: str, console: Optional[RichConsoleManager] = None):
+    def __init__(self, tracking_uri: str, console: Optional[Console] = None):
         self.tracking_uri = tracking_uri
-        self.console = console or RichConsoleManager()
+        self.console = console or Console()()
         self.mlflow_process = None
         
     def get_ui_url(self, run_id: Optional[str] = None, experiment_id: Optional[str] = None) -> str:
@@ -267,8 +267,8 @@ class MLflowUIHelper:
 class MLflowRunSummary:
     """Generate and display MLflow run summary"""
     
-    def __init__(self, console: Optional[RichConsoleManager] = None):
-        self.console = console or RichConsoleManager()
+    def __init__(self, console: Optional[Console] = None):
+        self.console = console or Console()()
         
     def display_run_summary(
         self,

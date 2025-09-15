@@ -2,7 +2,7 @@
 from sklearn.metrics import silhouette_score
 from src.interface import BaseEvaluator
 from src.settings import DataInterface
-from src.utils.core.console_manager import get_console
+from src.utils.core.console import get_console
 
 class ClusteringEvaluator(BaseEvaluator):
     METRIC_KEYS = ["silhouette_score", "inertia", "n_clusters", "bic", "aic"]

@@ -8,7 +8,7 @@ from scipy.optimize import minimize
 from scipy.special import expit
 
 from src.interface.base_calibrator import BaseCalibrator
-from src.utils.core.console_manager import get_console
+from src.utils.core.console import get_console
 from ..registry import CalibrationRegistry
 
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 import pandas as pd
 from typing import TYPE_CHECKING, Dict, Any, List
 from src.interface.base_adapter import BaseAdapter
-from src.utils.core.console_manager import get_console
+from src.utils.core.console import get_console
 from pydantic import BaseModel
 from src.settings import Settings
 

@@ -5,7 +5,7 @@ Adapter Registry - Self-registration pattern for data adapters.
 
 from typing import Dict, Type
 from src.interface.base_adapter import BaseAdapter
-from src.utils.core.console_manager import get_console
+from src.utils.core.console import get_console
 
 
 class AdapterRegistry:

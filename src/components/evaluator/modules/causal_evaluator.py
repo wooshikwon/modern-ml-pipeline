@@ -2,7 +2,7 @@
 import numpy as np
 from src.interface import BaseEvaluator
 from src.settings import DataInterface
-from src.utils.core.console_manager import get_console
+from src.utils.core.console import get_console
 
 class CausalEvaluator(BaseEvaluator):
     METRIC_KEYS = ["ate", "ate_std", "treatment_effect_significance"]

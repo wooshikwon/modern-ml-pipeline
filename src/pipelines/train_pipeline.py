@@ -6,7 +6,7 @@ import mlflow
 from src.settings import Settings
 from src.factory import Factory
 from src.utils.core.logger import logger
-from src.utils.core.console_manager import RichConsoleManager
+from src.utils.core.console import Console
 from src.utils.integrations import mlflow_integration as mlflow_utils
 from src.utils.core.environment_check import get_pip_requirements
 from src.utils.core.reproducibility import set_global_seeds
@@ -17,7 +17,7 @@ def _display_mlflow_ui_info(
     run_id: str,
     run: Any,
     metrics: Dict[str, Any],
-    console: RichConsoleManager
+    console: Console
 ):
     """Display MLflow UI access information after training"""
     try:
@@ -66,7 +66,7 @@ def run_train_pipeline(
     Factory를 통해 데이터 어댑터와 모든 컴포넌트를 생성하고,
     PyfuncWrapper를 생성하여 MLflow에 저장합니다.
     """
-    console = RichConsoleManager()
+    console = Console()
     
     # 재현성을 위한 전역 시드 설정
     seed = getattr(settings.recipe.model, 'computed', {}).get('seed', 42)

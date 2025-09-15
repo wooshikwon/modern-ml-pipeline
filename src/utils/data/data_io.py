@@ -18,7 +18,7 @@ import mlflow
 from src.settings import Settings
 from src.factory import Factory
 from src.utils.core.logger import logger
-from src.utils.core.console_manager import RichConsoleManager
+from src.utils.core.console import Console
 from src.utils.template.templating_utils import render_template_from_string, is_jinja_template
 
 
@@ -69,7 +69,7 @@ def save_output(
     output_type: str,
     factory: Factory,
     run_id: str,
-    console: Optional[RichConsoleManager] = None,
+    console: Optional[Console] = None,
     additional_metadata: Optional[Dict[str, Any]] = None
 ) -> None:
     """
@@ -87,7 +87,7 @@ def save_output(
         additional_metadata: 추가 메타데이터 (선택)
     """
     if console is None:
-        console = RichConsoleManager()
+        console = Console()
     
     # Output 설정 확인
     output_cfg = getattr(settings.config, 'output', None)
@@ -133,7 +133,7 @@ def load_data(
     data_adapter,
     data_source: str,
     context_params: Optional[Dict[str, Any]] = None,
-    console: Optional[RichConsoleManager] = None
+    console: Optional[Console] = None
 ) -> pd.DataFrame:
     """
     범용 데이터 로드 함수.
@@ -150,7 +150,7 @@ def load_data(
         로드된 DataFrame
     """
     if console is None:
-        console = RichConsoleManager()
+        console = Console()
     
     final_data_source = data_source
     
@@ -271,7 +271,7 @@ def _save_to_bigquery(
 def process_template_file(
     template_path: str,
     context_params: Dict[str, Any],
-    console: Optional[RichConsoleManager] = None
+    console: Optional[Console] = None
 ) -> str:
     """
     파일 기반 Jinja 템플릿을 처리합니다.
@@ -289,7 +289,7 @@ def process_template_file(
         ValueError: Jinja 템플릿에 파라미터가 없는 경우
     """
     if console is None:
-        console = RichConsoleManager()
+        console = Console()
         
     template_file = Path(template_path)
     
@@ -409,7 +409,7 @@ def load_inference_data(
     model,
     run_id: str,
     context_params: Dict[str, Any],
-    console: Optional[RichConsoleManager] = None
+    console: Optional[Console] = None
 ) -> pd.DataFrame:
     """
     추론용 데이터를 로드합니다.
@@ -431,7 +431,7 @@ def load_inference_data(
         ValueError: CSV 모델인데 data_path가 없거나, 보안 위반 시
     """
     if console is None:
-        console = RichConsoleManager()
+        console = Console()
         
     if data_path:
         # CLI에서 지정한 data_path 사용

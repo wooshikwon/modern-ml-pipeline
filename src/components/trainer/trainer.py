@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Dict, Any, Optional, TYPE_CHECKING, Callable
 
 from src.settings import Settings
-from src.utils.core.console_manager import get_console
+from src.utils.core.console import get_console
 from src.interface import BaseTrainer, BaseModel
 from .registry import TrainerRegistry
 

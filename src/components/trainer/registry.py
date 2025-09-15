@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Dict, Type, Any
 from src.interface import BaseTrainer
 from src.utils.core.logger import logger
-from src.utils.core.console_manager import get_console
+from src.utils.core.console import get_console
 
 class TrainerRegistry:
     """컴포넌트 레벨 트레이너 레지스트리 (엔진 의존성 제거)."""

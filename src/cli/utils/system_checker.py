@@ -14,7 +14,7 @@ from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
 from enum import Enum
 
-from src.utils.core.console_manager import (
+from src.utils.core.console import (
     cli_validation_summary, cli_connection_test, cli_success_panel,
     cli_info, cli_success, cli_error, cli_warning, cli_print
 )
