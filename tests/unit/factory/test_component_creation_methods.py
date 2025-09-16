@@ -413,7 +413,7 @@ class TestFactoryPyfuncWrapperCreation:
         )
         
         # Validate wrapper
-        from src.factory.artifact import PyfuncWrapper
+        from src.utils.integrations.pyfunc_wrapper import PyfuncWrapper
         assert isinstance(pyfunc_wrapper, PyfuncWrapper)
         assert pyfunc_wrapper.trained_model is model
         # Note: PyfuncWrapper sets trained_datahandler to None for serialization
@@ -449,7 +449,7 @@ class TestFactoryPyfuncWrapperCreation:
         )
         
         # Validate wrapper with all components
-        from src.factory.artifact import PyfuncWrapper
+        from src.utils.integrations.pyfunc_wrapper import PyfuncWrapper
         assert isinstance(pyfunc_wrapper, PyfuncWrapper)
         assert pyfunc_wrapper.trained_model is model
         # Note: PyfuncWrapper sets complex objects to None for MLflow serialization

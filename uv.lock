@@ -1766,7 +1766,10 @@ dev = [
     { name = "isort" },
     { name = "mypy" },
     { name = "psycopg" },
+    { name = "psycopg2-binary" },
     { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "pytest-xdist" },
     { name = "ruff" },
     { name = "safety" },
 ]
@@ -1843,7 +1846,10 @@ dev = [
     { name = "isort", specifier = ">=6.0.1" },
     { name = "mypy", specifier = ">=1.0.0" },
     { name = "psycopg", specifier = ">=3.2.9" },
+    { name = "psycopg2-binary", specifier = ">=2.9.10" },
     { name = "pytest", specifier = ">=8.4.1" },
+    { name = "pytest-cov", specifier = ">=6.2.1" },
+    { name = "pytest-xdist", specifier = ">=3.8.0" },
     { name = "ruff", specifier = ">=0.12.3" },
     { name = "safety", specifier = ">=3.6.1" },
 ]

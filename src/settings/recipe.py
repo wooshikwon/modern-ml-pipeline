@@ -98,5 +98,3 @@ class Recipe(BaseModel):
     preprocessor: Optional[Preprocessor] = None
     evaluation: Evaluation
     metadata: Metadata
-
-    # 검증 로직은 validation/ 으로 완전 분리
