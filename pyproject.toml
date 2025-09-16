@@ -208,6 +208,9 @@ omit = [
     "*/__pycache__/*",
     "*/conftest.py",
 ]
+# Prevent parallel execution from creating multiple coverage files
+parallel = true
+data_file = ".coverage"
 
 [tool.coverage.report]
 exclude_lines = [

@@ -1,0 +1,40 @@
+# Coverage.py configuration file
+# This file ensures proper coverage collection when running tests in parallel
+
+[run]
+source = src
+parallel = true
+data_file = .coverage
+concurrency = multiprocessing,thread
+omit =
+    */tests/*
+    */__pycache__/*
+    */conftest.py
+    */test_*.py
+    *_test.py
+
+[report]
+# Reporting
+precision = 2
+show_missing = true
+skip_covered = false
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    if self\.debug:
+    if __name__ == .__main__.:
+    raise NotImplementedError
+    pass
+    except ImportError
+    @abstractmethod
+    @abc.abstractmethod
+    except KeyboardInterrupt
+    if TYPE_CHECKING:
+    if typing\.TYPE_CHECKING:
+
+[html]
+directory = htmlcov
+title = Modern ML Pipeline Coverage Report
+
+[xml]
+output = coverage.xml
