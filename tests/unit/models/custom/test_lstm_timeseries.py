@@ -127,7 +127,7 @@ class TestLSTMTimeSeriesSequenceInfoExtraction:
                 model = LSTMTimeSeries()
 
                 # Create DataFrame without seq pattern
-                X = pd.DataFrame(np.zeros((5, 20)))  # 20 columns
+                X = pd.DataFrame(np.zeros((5, 20)), columns=[f'feat_{i}' for i in range(20)])  # 20 columns
 
                 seq_info = model._infer_sequence_info_from_dataframe(X)
 
@@ -163,7 +163,7 @@ class TestLSTMTimeSeries3DReconstruction:
                 model = LSTMTimeSeries()
 
                 # Create flattened sequence data
-                X = pd.DataFrame(np.arange(24).reshape(2, 12))  # 2 samples, 12 features
+                X = pd.DataFrame(np.arange(24).reshape(2, 12), columns=[f'feat_{i}' for i in range(12)])  # 2 samples, 12 features
                 seq_info = {
                     'original_shape': (2, 4, 3),  # 2 samples, seq_len=4, n_features=3
                     'sequence_length': 4,
@@ -186,7 +186,7 @@ class TestLSTMTimeSeries3DReconstruction:
                 model = LSTMTimeSeries()
 
                 # Prediction data with different sample count than training
-                X = pd.DataFrame(np.arange(18).reshape(3, 6))  # 3 samples, 6 features
+                X = pd.DataFrame(np.arange(18).reshape(3, 6), columns=[f'feat_{i}' for i in range(6)])  # 3 samples, 6 features
                 seq_info = {
                     'original_shape': (10, 2, 3),  # Training had 10 samples, but prediction has 3
                     'sequence_length': 2,
@@ -597,7 +597,7 @@ class TestLSTMTimeSeriesModelInfo:
         """학습된 모델 정보 테스트"""
         with component_test_context.classification_stack() as ctx:
             with patch('src.models.custom.lstm_timeseries.get_device', return_value='cuda:0'), \
-                 patch('src.models.custom.lstm_timeseries.count_parameters') as mock_count_params:
+                 patch('src.models.custom.pytorch_utils.count_parameters') as mock_count_params:
 
                 # Mock parameter counting
                 mock_count_params.return_value = {
@@ -662,7 +662,7 @@ class TestLSTMTimeSeriesIntegration:
                 )
 
                 # Training data
-                X_train = pd.DataFrame(np.random.random((15, 18)))  # 15 samples, 18 features
+                X_train = pd.DataFrame(np.random.random((15, 18)), columns=[f'feat_{i}' for i in range(18)])  # 15 samples, 18 features
                 y_train = pd.Series(np.random.random(15))
                 kwargs = {'original_sequence_shape': (15, 6, 3)}  # seq_len=6, n_features=3
 
@@ -676,7 +676,7 @@ class TestLSTMTimeSeriesIntegration:
                 mock_train.assert_called_once()
 
                 # Test prediction
-                X_test = pd.DataFrame(np.random.random((3, 18)), index=[100, 101, 102])
+                X_test = pd.DataFrame(np.random.random((3, 18)), columns=[f'feat_{i}' for i in range(18)], index=[100, 101, 102])
                 predictions = model.predict(X_test)
 
                 # Verify prediction results
@@ -686,7 +686,7 @@ class TestLSTMTimeSeriesIntegration:
                 np.testing.assert_array_equal(predictions['prediction'].values, [2.1, 1.8, 2.5])
 
                 # Test model info
-                with patch('src.models.custom.lstm_timeseries.count_parameters', return_value={'total_params': 5000}):
+                with patch('src.models.custom.pytorch_utils.count_parameters', return_value={'total_params': 5000}):
                     info = model.get_model_info()
                     assert info['status'] == 'fitted'
                     assert info['architecture'] == 'LSTM'

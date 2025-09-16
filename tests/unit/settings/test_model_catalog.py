@@ -13,361 +13,214 @@ from pydantic import ValidationError
 
 from src.settings.validation.catalog_validator import CatalogValidator
 from src.settings.validation.common import ValidationResult
+from src.settings.recipe import Model, HyperparametersTuning
 
 
 class TestCatalogValidatorTaskValidation:
     """Model catalog task validation tests using Real Object Testing"""
 
-    def test_task_type_validation_success(self, component_test_context):
-        """Test successful task type validation"""
+    def test_get_available_tasks(self, component_test_context):
+        """Test getting available tasks from catalog"""
         with component_test_context.classification_stack() as ctx:
             validator = CatalogValidator()
 
-            # Use actual task type from context settings
+            # Real Object Testing - get actual tasks from catalog
+            tasks = validator.get_available_tasks()
+            assert isinstance(tasks, set)
+            # Common ML tasks should be available
+            # Note: actual availability depends on catalog directory
+            if tasks:  # Only test if catalog exists
+                assert all(isinstance(task, str) for task in tasks)
+
+    def test_get_available_models_for_task(self, component_test_context):
+        """Test getting available models for specific task"""
+        with component_test_context.classification_stack() as ctx:
+            validator = CatalogValidator()
+
+            # Get models for classification task
+            models = validator.get_available_models_for_task('classification')
+            assert isinstance(models, dict)
+
+            # Each model should have proper structure
+            for model_name, model_spec in models.items():
+                assert isinstance(model_name, str)
+                assert isinstance(model_spec, dict)
+
+    def test_validate_task_model_compatibility(self, component_test_context):
+        """Test task and model compatibility validation"""
+        with component_test_context.classification_stack() as ctx:
+            validator = CatalogValidator()
+
+            # Use actual model from context
+            model = ctx.settings.recipe.model
             task_type = ctx.settings.recipe.task_choice
-            assert task_type == 'classification'
 
-            # Real Object Testing - validator should handle the task type
-            result = validator.validate_task_type(task_type)
-            # Let the real validator determine validity
-            assert isinstance(result, bool)
+            # Real Object Testing - validate compatibility
+            result = validator.validate_task_model_compatibility(task_type, model)
+            assert isinstance(result, ValidationResult)
+            # Result validity depends on actual catalog content
 
-    def test_task_type_validation_with_registry(self, component_test_context):
-        """Test task type validation with registry data"""
+    def test_validate_model_specification(self, component_test_context):
+        """Test model specification validation"""
         with component_test_context.classification_stack() as ctx:
             validator = CatalogValidator()
 
-            # Test with common task types
-            for task_type in ['classification', 'regression', 'timeseries']:
-                result = validator.validate_task_type(task_type)
-                # Real Object Testing - observe actual validation behavior
-                assert isinstance(result, bool)
-    
-    def test_invalid_task_type_validation(self, component_test_context):
-        """Test validation with invalid task types"""
+            # Use actual model from context
+            model = ctx.settings.recipe.model
+
+            # Real Object Testing - validate specification
+            result = validator.validate_model_specification(model)
+            assert isinstance(result, ValidationResult)
+            assert hasattr(result, 'is_valid')
+            assert hasattr(result, 'error_message')
+
+
+class TestCatalogValidatorModelValidation:
+    """Model validation tests using Real Object Testing"""
+
+    def test_validate_model_with_tuning_enabled(self, component_test_context):
+        """Test model validation with hyperparameter tuning enabled"""
         with component_test_context.classification_stack() as ctx:
             validator = CatalogValidator()
 
-            # Test with invalid task types
-            invalid_tasks = ['invalid_task', '', None, 123]
-            for invalid_task in invalid_tasks:
-                try:
-                    result = validator.validate_task_type(invalid_task)
-                    # Real Object Testing - let validator handle invalid inputs
-                    assert isinstance(result, bool)
-                except (TypeError, AttributeError):
-                    # Some invalid inputs may raise exceptions - this is acceptable
-                    pass
+            # Create model with tuning enabled
+            model = Model(
+                class_path="sklearn.ensemble.RandomForestClassifier",
+                library="sklearn",
+                hyperparameters=HyperparametersTuning(
+                    tuning_enabled=True,
+                    tunable={
+                        "n_estimators": {"range": [10, 100]},
+                        "max_depth": {"range": [3, 10]}
+                    }
+                )
+            )
 
+            result = validator.validate_model_specification(model)
+            assert isinstance(result, ValidationResult)
+            # Should be valid as tuning is enabled with tunable params
+            assert result.is_valid is True
 
-class TestCatalogValidatorPreprocessorValidation:
-    """Preprocessor validation tests using Real Object Testing"""
-
-    def test_preprocessor_steps_validation_success(self, component_test_context):
-        """Test successful preprocessor steps validation"""
+    def test_validate_model_with_tuning_disabled(self, component_test_context):
+        """Test model validation with hyperparameter tuning disabled"""
         with component_test_context.classification_stack() as ctx:
             validator = CatalogValidator()
 
-            # Test with valid preprocessor configuration
-            valid_config = {
-                "steps": [
-                    {"type": "standard_scaler", "columns": ["feature1"]},
-                    {"type": "one_hot_encoder", "columns": ["category"]}
-                ]
-            }
+            # Create model with tuning disabled
+            model = Model(
+                class_path="sklearn.ensemble.RandomForestClassifier",
+                library="sklearn",
+                hyperparameters=HyperparametersTuning(
+                    tuning_enabled=False,
+                    values={
+                        "n_estimators": 100,
+                        "max_depth": 5
+                    }
+                )
+            )
 
-            result = validator.validate_preprocessor_steps(valid_config)
-            # Real Object Testing - let validator determine validity
-            assert isinstance(result, bool)
+            result = validator.validate_model_specification(model)
+            assert isinstance(result, ValidationResult)
+            # Should be valid as tuning is disabled with values
+            assert result.is_valid is True
 
-    def test_preprocessor_steps_validation_empty_config(self, component_test_context):
-        """Test preprocessor steps validation with empty configuration"""
+    def test_validate_model_missing_class_path(self, component_test_context):
+        """Test model validation with missing class_path"""
         with component_test_context.classification_stack() as ctx:
             validator = CatalogValidator()
 
-            # Test with None and empty configurations
-            test_configs = [None, {}, {"steps": []}]
-            for config in test_configs:
-                result = validator.validate_preprocessor_steps(config)
-                # Real Object Testing - empty configs should be handled gracefully
-                assert isinstance(result, bool)
+            # Create model without class_path
+            model = Model(
+                class_path="",  # Empty class_path
+                library="sklearn",
+                hyperparameters=HyperparametersTuning(
+                    tuning_enabled=False,
+                    values={"n_estimators": 100}
+                )
+            )
 
-    def test_preprocessor_steps_validation_invalid_structure(self, component_test_context):
-        """Test preprocessor steps validation with invalid structure"""
+            result = validator.validate_model_specification(model)
+            assert isinstance(result, ValidationResult)
+            # Should be invalid due to missing class_path
+            assert result.is_valid is False
+            assert "class_path" in result.error_message.lower()
+
+    def test_validate_model_invalid_hyperparameters(self, component_test_context):
+        """Test model validation with invalid hyperparameters"""
         with component_test_context.classification_stack() as ctx:
             validator = CatalogValidator()
 
-            # Test with invalid configurations
-            invalid_configs = [
-                {"steps": "not_a_list"},
-                {"steps": ["not_a_dict"]},
-                {"steps": [{"missing_type": "value"}]}
-            ]
+            # Create model with tuning enabled but no tunable params
+            model = Model(
+                class_path="sklearn.ensemble.RandomForestClassifier",
+                library="sklearn",
+                hyperparameters=HyperparametersTuning(
+                    tuning_enabled=True,
+                    tunable={}  # Empty tunable when tuning is enabled
+                )
+            )
 
-            for config in invalid_configs:
-                result = validator.validate_preprocessor_steps(config)
-                # Real Object Testing - invalid configs should be handled
-                assert isinstance(result, bool)
-                # Validator may add errors for invalid configs
-                if not result:
-                    assert len(validator.errors) > 0
-                validator.clear_messages()  # Clear for next test
-    
-    def test_preprocessor_validation_with_registry_check(self, component_test_context):
-        """Test preprocessor validation with registry availability check"""
-        with component_test_context.classification_stack() as ctx:
-            validator = CatalogValidator()
-
-            # Test validation with preprocessor steps that may or may not be in registry
-            test_config = {
-                "steps": [
-                    {"type": "standard_scaler"},
-                    {"type": "one_hot_encoder"},
-                    {"type": "unknown_processor"}  # This may not be registered
-                ]
-            }
-
-            result = validator.validate_preprocessor_steps(test_config)
-            # Real Object Testing - let validator handle registry checks
-            assert isinstance(result, bool)
-
-            # Check if validator provides helpful information
-            summary = validator.get_validation_summary()
-            assert 'is_valid' in summary
-            assert 'error_count' in summary
-            assert 'warning_count' in summary
+            result = validator.validate_model_specification(model)
+            assert isinstance(result, ValidationResult)
+            # Should be invalid
+            assert result.is_valid is False
+            assert "tunable" in result.error_message.lower()
 
 
 class TestCatalogValidatorFetcherValidation:
-    """Fetcher validation tests using Real Object Testing"""
+    """Fetcher validation tests - removed as not part of CatalogValidator"""
 
-    def test_fetcher_type_validation_success(self, component_test_context):
-        """Test successful fetcher type validation"""
-        with component_test_context.classification_stack() as ctx:
-            validator = CatalogValidator()
-
-            # Use actual fetcher from context settings
-            fetcher_config = ctx.settings.recipe.data.fetcher.model_dump()
-            assert 'type' in fetcher_config
-
-            result = validator.validate_fetcher_type(fetcher_config)
-            # Real Object Testing - let validator determine validity
-            assert isinstance(result, bool)
-
-    def test_fetcher_type_validation_various_types(self, component_test_context):
-        """Test fetcher type validation with various configurations"""
-        with component_test_context.classification_stack() as ctx:
-            validator = CatalogValidator()
-
-            # Test with different fetcher types
-            test_configs = [
-                {"type": "pass_through"},
-                {"type": "feature_store", "feature_views": {}},
-                {"type": "unknown_fetcher"},  # May not be registered
-                {"missing_type": "value"}     # Invalid structure
-            ]
-
-            for config in test_configs:
-                result = validator.validate_fetcher_type(config)
-                assert isinstance(result, bool)
-                # Clear messages for next iteration
-                validator.clear_messages()
-
-    def test_fetcher_validation_error_handling(self, component_test_context):
-        """Test fetcher validation error handling"""
-        with component_test_context.classification_stack() as ctx:
-            validator = CatalogValidator()
-
-            # Test with invalid fetcher configurations
-            invalid_configs = [
-                None,  # Null config
-                {},    # Missing type
-                {"type": None},  # Null type
-                {"type": ""},    # Empty type
-            ]
-
-            for config in invalid_configs:
-                result = validator.validate_fetcher_type(config)
-                # Real Object Testing - validator should handle invalid inputs gracefully
-                assert isinstance(result, bool)
-
-
-class TestCatalogValidatorAdapterValidation:
-    """Adapter validation tests using Real Object Testing"""
-
-    def test_adapter_type_validation_success(self, component_test_context):
-        """Test successful adapter type validation"""
-        with component_test_context.classification_stack() as ctx:
-            validator = CatalogValidator()
-
-            # Use actual adapter type from context settings
-            adapter_type = ctx.settings.config.data_source.adapter_type
-            assert isinstance(adapter_type, str)
-
-            result = validator.validate_adapter_type(adapter_type)
-            # Real Object Testing - let validator determine validity
-            assert isinstance(result, bool)
-
-    def test_adapter_type_validation_various_types(self, component_test_context):
-        """Test adapter type validation with various types"""
-        with component_test_context.classification_stack() as ctx:
-            validator = CatalogValidator()
-
-            # Test with different adapter types
-            adapter_types = ['storage', 'sql', 'bigquery', 'unknown_adapter']
-            for adapter_type in adapter_types:
-                result = validator.validate_adapter_type(adapter_type)
-                assert isinstance(result, bool)
-                # Clear messages for next iteration
-                validator.clear_messages()
-
-    def test_adapter_validation_error_handling(self, component_test_context):
-        """Test adapter validation error handling"""
-        with component_test_context.classification_stack() as ctx:
-            validator = CatalogValidator()
-
-            # Test with invalid adapter types
-            invalid_adapters = [None, "", 123, ["list"], {"dict": "value"}]
-            for invalid_adapter in invalid_adapters:
-                try:
-                    result = validator.validate_adapter_type(invalid_adapter)
-                    assert isinstance(result, bool)
-                except (TypeError, AttributeError):
-                    # Some invalid inputs may raise exceptions - acceptable
-                    pass
-                validator.clear_messages()
-
-
-class TestCatalogValidatorCalibrationValidation:
-    """Calibration validation tests using Real Object Testing"""
-
-    def test_calibration_method_validation_disabled(self, component_test_context):
-        """Test calibration validation when disabled"""
-        with component_test_context.classification_stack() as ctx:
-            validator = CatalogValidator()
-
-            # Test with calibration disabled
-            config = {"enabled": False}
-            result = validator.validate_calibration_method(config)
-            assert result is True  # Disabled calibration should always be valid
-
-    def test_calibration_method_validation_enabled(self, component_test_context):
-        """Test calibration validation when enabled"""
-        with component_test_context.classification_stack() as ctx:
-            validator = CatalogValidator()
-
-            # Test with calibration enabled and various methods
-            test_configs = [
-                {"enabled": True, "method": "beta"},
-                {"enabled": True, "method": "isotonic"},
-                {"enabled": True, "method": "unknown_method"},
-                {"enabled": True},  # Missing method
-            ]
-
-            for config in test_configs:
-                result = validator.validate_calibration_method(config)
-                assert isinstance(result, bool)
-                validator.clear_messages()
-
-    def test_calibration_method_validation_edge_cases(self, component_test_context):
-        """Test calibration validation edge cases"""
-        with component_test_context.classification_stack() as ctx:
-            validator = CatalogValidator()
-
-            # Test with edge cases
-            edge_configs = [None, {}, {"enabled": None}]
-            for config in edge_configs:
-                result = validator.validate_calibration_method(config)
-                assert isinstance(result, bool)
-                validator.clear_messages()
+    def test_fetcher_validation_not_in_catalog_validator(self):
+        """Note: Fetcher validation is not part of CatalogValidator"""
+        # This test class is kept for clarity but tests are removed
+        # as CatalogValidator doesn't handle fetcher validation
+        pass
 
 
 class TestCatalogValidatorIntegration:
-    """Integration tests for catalog validator using Real Object Testing"""
+    """Integration tests for CatalogValidator with Factory"""
 
-    def test_complete_recipe_validation(self, component_test_context):
-        """Test complete recipe validation with real settings"""
+    def test_catalog_validator_with_factory_settings(self, component_test_context):
+        """Test CatalogValidator working with Factory-created settings"""
         with component_test_context.classification_stack() as ctx:
             validator = CatalogValidator()
 
-            # Use actual recipe data from context
-            recipe_data = ctx.settings.recipe.model_dump()
+            # Validate the entire model from factory settings
+            model = ctx.settings.recipe.model
+            result = validator.validate_model_specification(model)
 
-            result = validator.validate_recipe_components(recipe_data)
-            # Real Object Testing - let validator handle full recipe validation
-            assert isinstance(result, bool)
+            assert isinstance(result, ValidationResult)
+            # Factory-created models should typically be valid
 
-            # Check validation summary
-            summary = validator.get_validation_summary()
-            assert isinstance(summary, dict)
-            assert 'is_valid' in summary
-            assert 'error_count' in summary
-            assert 'warning_count' in summary
-
-    def test_complete_config_validation(self, component_test_context):
-        """Test complete config validation with real settings"""
+    def test_catalog_validator_error_messages(self, component_test_context):
+        """Test that validation error messages are helpful"""
         with component_test_context.classification_stack() as ctx:
             validator = CatalogValidator()
 
-            # Use actual config data from context
-            config_data = ctx.settings.config.model_dump()
+            # Create intentionally invalid model
+            invalid_model = Model(
+                class_path="",
+                library="unknown",
+                hyperparameters=HyperparametersTuning()
+            )
 
-            result = validator.validate_config_components(config_data)
-            # Real Object Testing - let validator handle full config validation
-            assert isinstance(result, bool)
+            result = validator.validate_model_specification(invalid_model)
+            assert isinstance(result, ValidationResult)
 
-            # Verify validator provides useful information
-            components_summary = validator.get_available_components_summary()
-            assert isinstance(components_summary, dict)
+            if not result.is_valid:
+                # Error message should be informative
+                assert result.error_message
+                assert len(result.error_message) > 10
 
-    def test_validator_utility_methods(self, component_test_context):
-        """Test catalog validator utility methods"""
+    def test_catalog_validator_with_various_tasks(self, component_test_context):
+        """Test validator with different ML task types"""
         with component_test_context.classification_stack() as ctx:
             validator = CatalogValidator()
 
-            # Test error and warning management
-            validator.add_error("Test error")
-            validator.add_warning("Test warning")
+            # Test with different task types (if available in catalog)
+            tasks_to_test = ['classification', 'regression', 'clustering']
 
-            summary = validator.get_validation_summary()
-            assert summary['error_count'] >= 1
-            assert summary['warning_count'] >= 1
-            assert "Test error" in summary['errors']
-            assert "Test warning" in summary['warnings']
-
-            # Test clearing messages
-            validator.clear_messages()
-            summary_after_clear = validator.get_validation_summary()
-            assert summary_after_clear['error_count'] == 0
-            assert summary_after_clear['warning_count'] == 0
-
-    def test_component_existence_validation(self, component_test_context):
-        """Test component existence validation"""
-        with component_test_context.classification_stack() as ctx:
-            validator = CatalogValidator()
-
-            # Test component validation with various component types
-            test_cases = [
-                ('task_type', 'classification'),
-                ('adapter', 'storage'),
-                ('preprocessor', 'standard_scaler'),
-            ]
-
-            for component_type, component_name in test_cases:
-                result = validator.validate_component_exists(component_type, component_name)
-                # Real Object Testing - let validator handle component checks
-                assert isinstance(result, bool)
-
-    def test_alternative_suggestions(self, component_test_context):
-        """Test alternative component suggestions"""
-        with component_test_context.classification_stack() as ctx:
-            validator = CatalogValidator()
-
-            # Test suggestion functionality
-            suggestions = validator.suggest_alternatives('preprocessor', 'scaler')
-            assert isinstance(suggestions, list)
-            # Suggestions may be empty if no similar components found
-
-            suggestions = validator.suggest_alternatives('unknown_type', 'unknown_name')
-            assert isinstance(suggestions, list)
-            assert len(suggestions) == 0  # Should be empty for unknown types
+            for task in tasks_to_test:
+                models = validator.get_available_models_for_task(task)
+                # Models dict should be returned (may be empty if task not in catalog)
+                assert isinstance(models, dict)

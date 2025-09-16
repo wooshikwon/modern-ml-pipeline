@@ -431,18 +431,14 @@ class TestModelUtilities:
     def test_get_model_device_cuda(self, component_test_context):
         """GPU에 있는 모델의 디바이스 확인 테스트"""
         with component_test_context.classification_stack() as ctx:
-            model = self.create_test_model()
+            # Skip this test if CUDA is not actually available
+            if not torch.cuda.is_available():
+                pytest.skip("CUDA not available for testing")
 
-            # Mock CUDA availability and move model to GPU
-            with patch('torch.cuda.is_available', return_value=True):
-                # Simulate model on CUDA
-                if torch.cuda.is_available():
-                    model.cuda()
-                    device = get_model_device(model)
-                    assert device.type == 'cuda'
-                else:
-                    # If CUDA not actually available, skip this part
-                    pytest.skip("CUDA not available for testing")
+            model = self.create_test_model()
+            model.cuda()
+            device = get_model_device(model)
+            assert device.type == 'cuda'
 
     def test_count_parameters_all_trainable(self, component_test_context):
         """모든 파라미터가 학습 가능한 모델 테스트"""

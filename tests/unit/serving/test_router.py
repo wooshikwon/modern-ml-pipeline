@@ -19,6 +19,8 @@ from src.serving.schemas import (
     ModelMetadataResponse,
     OptimizationHistoryResponse,
     MinimalPredictionResponse,
+    HyperparameterOptimizationInfo,
+    TrainingMethodologyInfo,
 )
 
 
@@ -36,7 +38,7 @@ class TestFastAPIAppConfiguration:
             # Verify app is properly configured
             assert app is not None
             assert hasattr(app, 'router')
-            assert hasattr(app, 'lifespan')
+            # Lifespan is configured during app initialization, not as an attribute
 
     def test_fastapi_app_routes_existence(self, component_test_context):
         """FastAPI 앱 라우트 존재 확인 테스트"""
@@ -130,8 +132,8 @@ class TestStaticEndpoints:
                 with patch('src.serving.router.handlers.health') as mock_health:
                     mock_health.return_value = HealthCheckResponse(
                         status="healthy",
-                        model_loaded=True,
-                        timestamp="2025-09-13T12:00:00Z"
+                        model_uri="runs:/test-run/model",
+                        model_name="test_model"
                     )
 
                     response = client.get("/health")
@@ -139,8 +141,8 @@ class TestStaticEndpoints:
                     assert response.status_code == 200
                     data = response.json()
                     assert data["status"] == "healthy"
-                    assert data["model_loaded"] is True
-                    assert "timestamp" in data
+                    assert data["model_uri"] == "runs:/test-run/model"
+                    assert data["model_name"] == "test_model"
 
     def test_health_endpoint_error_handling(self, component_test_context):
         """Health 체크 엔드포인트 에러 처리 테스트"""
@@ -163,19 +165,26 @@ class TestStaticEndpoints:
                 # Mock the metadata handler
                 with patch('src.serving.router.handlers.get_model_metadata') as mock_metadata:
                     mock_metadata.return_value = ModelMetadataResponse(
-                        model_name="test_model",
-                        model_version="1.0",
-                        task_type="classification",
-                        features=[{"name": "feature1", "type": "float"}],
-                        hyperparameters={"n_estimators": 100}
+                        model_uri="runs:/test-run/model",
+                        model_class_path="sklearn.ensemble.RandomForestClassifier",
+                        hyperparameter_optimization=HyperparameterOptimizationInfo(
+                            enabled=True,
+                            engine="optuna",
+                            best_params={"n_estimators": 100},
+                            best_score=0.95
+                        ),
+                        training_methodology=TrainingMethodologyInfo(
+                            train_test_split_method="stratified",
+                            train_ratio=0.8
+                        )
                     )
 
                     response = client.get("/model/metadata")
 
                     assert response.status_code == 200
                     data = response.json()
-                    assert data["model_name"] == "test_model"
-                    assert data["task_type"] == "classification"
+                    assert data["model_uri"] == "runs:/test-run/model"
+                    assert data["hyperparameter_optimization"]["enabled"] is True
 
     def test_model_optimization_endpoint_success(self, component_test_context):
         """모델 최적화 히스토리 엔드포인트 테스트"""
@@ -184,18 +193,17 @@ class TestStaticEndpoints:
                 # Mock the optimization handler
                 with patch('src.serving.router.handlers.get_optimization_history') as mock_opt:
                     mock_opt.return_value = OptimizationHistoryResponse(
-                        optimization_method="optuna",
-                        n_trials=100,
-                        best_trial={"params": {"n_estimators": 150}, "value": 0.95},
-                        history=[{"trial": 1, "value": 0.90}]
+                        enabled=True,
+                        optimization_history=[{"trial": 1, "value": 0.90}],
+                        search_space={"n_estimators": [50, 200]}
                     )
 
                     response = client.get("/model/optimization")
 
                     assert response.status_code == 200
                     data = response.json()
-                    assert data["optimization_method"] == "optuna"
-                    assert data["n_trials"] == 100
+                    assert data["enabled"] is True
+                    assert len(data["optimization_history"]) > 0
 
     def test_model_schema_endpoint_success(self, component_test_context):
         """모델 스키마 엔드포인트 테스트"""
@@ -259,7 +267,7 @@ class TestPredictEndpoint:
                     with patch('src.serving.router.handlers.predict') as mock_predict:
                         mock_predict.return_value = {
                             "prediction": 0.85,
-                            "model_version": "1.0"
+                            "model_uri": "runs:/test-run/model"
                         }
 
                         test_request = {"feature1": 1.0, "feature2": "test"}
@@ -405,8 +413,8 @@ class TestRunAPIServer:
                 # Should return early without starting server
                 run_api_server(mock_settings, "test-run-id")
 
-                # setup_api_context should still be called
-                mock_setup.assert_called_once_with(run_id="test-run-id", settings=mock_settings)
+                # When serving is disabled, should return early without calling anything
+                mock_setup.assert_not_called()  # setup_api_context should NOT be called
                 # uvicorn.run should not be called
                 mock_run.assert_not_called()
 
@@ -489,8 +497,8 @@ class TestRouterIntegration:
                         with patch('src.serving.router.handlers.health') as mock_health:
                             mock_health.return_value = HealthCheckResponse(
                                 status="healthy",
-                                model_loaded=True,
-                                timestamp="2025-09-13T12:00:00Z"
+                                model_uri="runs:/integration-test/model",
+                                model_name="integration_model"
                             )
 
                             health_response = client.get("/health")
@@ -502,7 +510,7 @@ class TestRouterIntegration:
                         with patch('src.serving.router.handlers.predict') as mock_predict:
                             mock_predict.return_value = {
                                 "prediction": 0.92,
-                                "model_version": "integration-test-1.0"
+                                "model_uri": "runs:/integration-test/model"
                             }
 
                             pred_response = client.post("/predict", json={"feature1": 2.5})

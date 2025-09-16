@@ -161,9 +161,12 @@ class SettingsFactory:
                 raise FileNotFoundError(f"Config 파일을 찾을 수 없습니다: {config_path}")
         
         # YAML 로드
-        with open(config_path, 'r', encoding='utf-8') as f:
-            config_data = yaml.safe_load(f)
-        
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config_data = yaml.safe_load(f)
+        except yaml.YAMLError as e:
+            raise ValueError(f"Config 파싱 실패 ({config_path}): {str(e)}")
+
         if not config_data:
             raise ValueError(f"Config 파일이 비어있습니다: {config_path}")
         
