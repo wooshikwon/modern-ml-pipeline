@@ -385,8 +385,8 @@ class SettingsBuilder:
                 n_trials=n_trials,
                 fixed={"random_state": 42},
                 tunable={
-                    "n_estimators": {"type": "int", "range": [10, 100]},
-                    "max_depth": {"type": "int", "range": [3, 10]}
+                    "n_estimators": {"type": "int", "low": 10, "high": 100},
+                    "max_depth": {"type": "int", "low": 3, "high": 10}
                 }
             )
         else:

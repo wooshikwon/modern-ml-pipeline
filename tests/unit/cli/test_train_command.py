@@ -173,7 +173,9 @@ class TestTrainCommandArgumentParsing:
                 'library': 'sklearn',
                 'hyperparameters': {
                     'tuning_enabled': False,
-                    'values': {}
+                    'values': {
+                        'fit_intercept': True  # Provide actual hyperparameter for LinearRegression
+                    }
                 }
             },
             'data': {
@@ -280,7 +282,8 @@ class TestTrainCommandArgumentParsing:
 
         # Then: Command fails with appropriate error
         assert result.exit_code != 0
-        assert "not found" in result.output.lower() or "error" in result.output.lower()
+        # Check for Korean error message or error symbol
+        assert "파일을 찾을 수 없습니다" in result.output or "❌" in result.output
 
     def test_train_command_with_invalid_json_params(self, component_test_context, isolated_temp_directory):
         """Test train command error handling for invalid JSON params"""
@@ -350,7 +353,8 @@ class TestTrainCommandArgumentParsing:
 
         # Then: Command fails with JSON error
         assert result.exit_code != 0
-        assert "json" in result.output.lower() or "invalid" in result.output.lower()
+        # Check for JSON parsing error indicators
+        assert "expecting value" in result.output.lower() or "❌" in result.output
 
     def test_train_command_with_record_reqs_flag(self, component_test_context, isolated_temp_directory):
         """Test train command with requirements recording flag"""

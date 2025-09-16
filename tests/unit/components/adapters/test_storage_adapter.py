@@ -116,18 +116,19 @@ class TestStorageAdapterWithRealFiles:
         assert len(read_df) == len(df)
         pd.testing.assert_frame_equal(read_df, df)
     
-    def test_storage_adapter_with_custom_options(self, settings_builder):
+    def test_storage_adapter_with_custom_options(self, settings_builder, tmp_path):
         """Test StorageAdapter with custom storage options."""
-        # Given: Settings with custom storage options
+        # Given: Settings with custom storage options and base_path
         settings = settings_builder \
             .with_data_source("storage", config={
+                "base_path": str(tmp_path),
                 "storage_options": {"timeout": 30, "cache": True}
             }) \
             .build()
-        
+
         # When: Creating StorageAdapter
         adapter = StorageAdapter(settings)
-        
+
         # Then: Storage options are properly set
         assert adapter.storage_options == {"timeout": 30, "cache": True}
     

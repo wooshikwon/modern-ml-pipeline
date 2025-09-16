@@ -434,7 +434,7 @@ class TestEnhancedMLflowIntegration:
             mock_mlflow.log_dict.assert_called()  # Multiple calls for different JSON files
 
     @patch('src.utils.integrations.mlflow_integration.mlflow')
-    @patch('src.utils.integrations.mlflow_integration.UnifiedConsole')
+    @patch('src.utils.integrations.mlflow_integration.Console')
     def test_log_training_results_with_hpo(self, mock_console_class, mock_mlflow, component_test_context):
         """HPO 활성화된 훈련 결과 로깅 테스트"""
         with component_test_context.classification_stack() as ctx:
@@ -462,7 +462,7 @@ class TestEnhancedMLflowIntegration:
             mock_mlflow.log_metric.assert_any_call('total_trials', 50)
 
     @patch('src.utils.integrations.mlflow_integration.mlflow')
-    @patch('src.utils.integrations.mlflow_integration.UnifiedConsole')
+    @patch('src.utils.integrations.mlflow_integration.Console')
     def test_log_training_results_without_hpo(self, mock_console_class, mock_mlflow, component_test_context):
         """HPO 비활성화된 훈련 결과 로깅 테스트"""
         with component_test_context.classification_stack() as ctx:

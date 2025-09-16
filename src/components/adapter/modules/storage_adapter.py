@@ -19,8 +19,13 @@ class StorageAdapter(BaseAdapter):
         # 새로운 settings 스키마에서 data_source 설정을 사용
         try:
             # data_source.config에서 storage_options 추출
-            if hasattr(settings.config.data_source, 'config') and isinstance(settings.config.data_source.config, dict):
-                self.storage_options = settings.config.data_source.config.get('storage_options', {})
+            config = settings.config.data_source.config
+            if hasattr(config, 'storage_options'):
+                # Pydantic model의 경우 (LocalFilesConfig)
+                self.storage_options = config.storage_options
+            elif isinstance(config, dict):
+                # dict의 경우
+                self.storage_options = config.get('storage_options', {})
             else:
                 self.storage_options = {}
             console.info(f"[StorageAdapter] 설정 로드 완료: storage_options={len(self.storage_options)} items")

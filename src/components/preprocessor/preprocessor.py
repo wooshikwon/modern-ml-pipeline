@@ -65,9 +65,16 @@ class Preprocessor(BasePreprocessor):
                     self.console.info(f"Targeted 적용 - 매핑된 컬럼: {step.columns} -> {target_columns}",
                                     rich_message=f"   🎯 Targeted mapping: [yellow]{step.columns}[/yellow] → [green]{target_columns}[/green]")
                 
-                
+
                 # 실제로 존재하는 컬럼만 필터링 (graceful error handling)
-                existing_columns = [col for col in target_columns if col in current_data.columns]
+                existing_columns = []
+                if target_columns:
+                    existing_columns = [col for col in target_columns if col in current_data.columns]
+                else:
+                    # target_columns가 None인 경우 처리
+                    self.console.warning(f"Step {i+1} ({step.type}): 대상 컬럼이 지정되지 않았습니다.",
+                                        rich_message=f"   ⚠️  No target columns specified for [red]{step.type}[/red]")
+                    continue
                 
                 if not existing_columns:
                     self.console.warning(f"Step {i+1} ({step.type}): 적용할 컬럼이 없습니다. 지정된 컬럼: {target_columns}",

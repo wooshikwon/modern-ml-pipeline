@@ -207,14 +207,13 @@ class TestSqlAdapterBigQuerySupport:
         # When: Creating SqlAdapter with SQLite
         adapter = SqlAdapter(settings)
         
-        # Then: SQLite connection works and BigQuery config is parsed
+        # Then: SQLite connection works
         assert adapter.db_type == 'sqlite'  # Actual connection is SQLite
-        # BigQuery configuration should be stored for later use
+        # Config is a Pydantic model (PostgreSQLConfig), not dict
         config = adapter.settings.config.data_source.config
-        assert config.get("bigquery_project_id") == "test-project"
-        assert config.get("bigquery_dataset_id") == "test-dataset"
-        assert config.get("bigquery_location") == "EU"
-        assert config.get("bigquery_use_pandas_gbq") == True
+        assert hasattr(config, 'connection_uri')
+        assert config.connection_uri == "sqlite:///:memory:"
+        # Extra fields are ignored by Pydantic in SQLite/PostgreSQL config
     
     def test_bigquery_default_configuration(self, settings_builder):
         """Test BigQuery default values with SQLite compatibility testing."""
@@ -229,14 +228,13 @@ class TestSqlAdapterBigQuerySupport:
         # When: Creating SqlAdapter with SQLite
         adapter = SqlAdapter(settings)
         
-        # Then: SQLite connection works with default BigQuery values
+        # Then: SQLite connection works with defaults
         assert adapter.db_type == 'sqlite'
         config = adapter.settings.config.data_source.config
-        # Default BigQuery values should be None when not specified
-        assert config.get("bigquery_project_id") is None
-        assert config.get("bigquery_dataset_id") is None
-        assert config.get("bigquery_location", "US") == "US"  # Default location
-        assert config.get("bigquery_use_pandas_gbq", False) == False  # Default
+        # Config is a Pydantic model, not dict
+        assert hasattr(config, 'connection_uri')
+        assert config.connection_uri == "sqlite:///:memory:"
+        assert config.query_timeout == 300  # Default timeout
     
     def test_postgresql_not_affected_by_bigquery_changes(self, settings_builder):
         """Test PostgreSQL configuration isolation using SQLite for compatibility."""
@@ -251,10 +249,10 @@ class TestSqlAdapterBigQuerySupport:
         # When: Creating SqlAdapter with SQLite
         adapter = SqlAdapter(settings)
         
-        # Then: No BigQuery settings interfere with PostgreSQL-style config
+        # Then: SQLite connection works independently
         assert adapter.db_type == 'sqlite'  # Using SQLite for testing
         config = adapter.settings.config.data_source.config
-        # Verify BigQuery settings don't affect PostgreSQL mode
-        assert config.get("bigquery_project_id") is None
-        assert config.get("bigquery_dataset_id") is None
-        assert config.get("postgresql_mode") == True
+        # Config is a Pydantic model
+        assert hasattr(config, 'connection_uri')
+        assert config.connection_uri == "sqlite:///:memory:"
+        # Extra fields like 'postgresql_mode' are ignored

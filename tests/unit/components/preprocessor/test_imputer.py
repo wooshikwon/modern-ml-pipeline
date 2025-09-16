@@ -189,21 +189,25 @@ class TestSimpleImputerWrapper:
         assert not result.isnull().any().any()
     
     def test_simple_imputer_handles_all_missing_column_error(self):
-        """Test error handling when column has all missing values"""
+        """Test handling when column has all missing values"""
         # Given: Column with all missing values
         df = pd.DataFrame({
-            'all_missing': [np.nan, np.nan, np.nan, np.nan]
+            'all_missing': [np.nan, np.nan, np.nan, np.nan],
+            'normal': [1.0, 2.0, np.nan, 4.0]
         })
-        
+
         imputer = SimpleImputerWrapper(strategy='mean')
-        
-        # When & Then: Should raise meaningful error
-        with pytest.raises(ValueError) as exc_info:
-            imputer.fit(df)
-        
-        error_msg = str(exc_info.value)
-        assert "전체가 결측값인 컬럼" in error_msg
-        assert "all_missing" in error_msg
+
+        # When: Fit with all missing column - should warn but not fail
+        imputer.fit(df)
+
+        # Then: Transform should fill all_missing column with 0
+        result = imputer.transform(df)
+
+        # All missing column should be filled with 0
+        assert all(result['all_missing'] == 0)
+        # Normal column should be imputed with mean (2.33...)
+        assert not result['normal'].isnull().any()
     
     def test_simple_imputer_invalid_strategy_error(self):
         """Test error handling for invalid strategy"""
@@ -458,18 +462,18 @@ class TestSimpleImputerIntegration:
         
         # When: Apply to edge cases
         for i, df in enumerate(edge_cases):
+            # Should handle all edge cases (including all missing)
+            result = imputer.fit_transform(df)
+            assert isinstance(result, pd.DataFrame)
+            assert len(result) == len(df)
+
+            # Check specific behavior for each case
             if df['feature'].dropna().empty:
-                # All missing case - should raise error
-                with pytest.raises(ValueError):
-                    imputer.fit(df)
+                # All missing case - should fill with 0
+                assert all(result['feature'] == 0)
             else:
-                # Should handle other edge cases
-                result = imputer.fit_transform(df)
-                assert isinstance(result, pd.DataFrame)
-                assert len(result) == len(df)
                 # For non-empty cases, should not have missing values
-                if not df['feature'].dropna().empty:
-                    assert not result.isnull().any().any()
+                assert not result.isnull().any().any()
     
     def test_simple_imputer_memory_efficiency(self):
         """Test SimpleImputer doesn't create excessive memory overhead"""

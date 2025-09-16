@@ -67,7 +67,7 @@ backup.sql
 *.bak
 
 # Test artifacts
-test_results/
+tests/fixtures/output/
 *.test
 
 # Test databases (auto-generated during testing)

@@ -26,8 +26,8 @@ Mock 사용은 계층별로 엄격히 제한:
 
 ```
 tests/
-├── conftest.py                 # 공용 fixtures, Context 클래스
-├── fixtures/                   # 테스트 자원
+├── conftest.py                # 공용 fixtures, Context 클래스
+├── fixtures/                  # 테스트 자원
 │   ├── contexts/              # Test Context 클래스들
 │   │   ├── mlflow_context.py
 │   │   ├── component_context.py
@@ -36,13 +36,13 @@ tests/
 │   ├── expected/              # 기대 결과 (실제 값만, 빈 디렉토리 금지)
 │   └── templates/             # 테스트용 YAML 템플릿
 ├── unit/                      # 단위 테스트
-│   ├── cli/                  # CLI 명령어 파싱
-│   ├── components/           # 개별 컴포넌트
-│   ├── factory/              # Factory 패턴
-│   ├── models/               # ML 모델
-│   ├── pipelines/            # 파이프라인 로직
-│   ├── serving/              # API 서빙
-│   └── settings/             # 설정 시스템
+│   ├── cli/                   # CLI 명령어 파싱
+│   ├── components/            # 개별 컴포넌트
+│   ├── factory/               # Factory 패턴
+│   ├── models/                # ML 모델
+│   ├── pipelines/             # 파이프라인 로직
+│   ├── serving/               # API 서빙
+│   └── settings/              # 설정 시스템
 ├── integration/               # 통합 테스트
 │   ├── test_mlflow_integration.py
 │   ├── test_component_interactions.py

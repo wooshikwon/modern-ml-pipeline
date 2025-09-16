@@ -897,6 +897,7 @@ class TestComponentDataFlowValidation:
         with mlflow_test_context.for_classification(experiment="trainer_di_objective_v2") as ctx:
             import mlflow
             from mlflow.tracking import MlflowClient
+            from src.pipelines.train_pipeline import run_train_pipeline
 
             settings = settings_builder \
                 .with_task("classification") \

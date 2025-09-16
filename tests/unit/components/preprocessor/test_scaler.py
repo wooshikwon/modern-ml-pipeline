@@ -20,6 +20,8 @@ from src.components.preprocessor.modules.scaler import (
     RobustScalerWrapper
 )
 from src.components.preprocessor.registry import PreprocessorStepRegistry
+# Import the entire scaler module to trigger registration
+import src.components.preprocessor.modules.scaler  # noqa: F401
 
 
 class TestStandardScalerWrapper:

@@ -63,7 +63,7 @@ class OptunaOptimizer:
             params = optuna_integration.suggest_hyperparameters(
                 trial, self.settings.recipe.model.hyperparameters.tunable or {}
             )
-            result = training_callback(train_df=train_df, params=params, seed=trial.number)
+            result = training_callback(train_df, params, trial.number)
             
             # 선택된 optimization_metric에 해당하는 점수 반환
             if optimization_metric in result:

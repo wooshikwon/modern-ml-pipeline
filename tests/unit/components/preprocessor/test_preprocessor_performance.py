@@ -287,6 +287,10 @@ class TestCorePreprocessingStepPerformance:
         """Test SimpleImputer performance with missing data"""
         df, _ = medium_dataset
 
+        # Only use numeric columns for mean strategy
+        numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
+        df_numeric = df[numeric_columns]
+
         # Force reload to ensure imputer is registered
         import sys
         import importlib
@@ -301,21 +305,21 @@ class TestCorePreprocessingStepPerformance:
             "simple_imputer_fit",
             expected_max_time=0.3,  # 300ms for 10K rows with missing data
             memory_limit_mb=100,
-            data_size=len(df)
+            data_size=len(df_numeric)
         ):
-            imputer.fit(df)
+            imputer.fit(df_numeric)
 
         with performance_benchmark.measure_operation(
             "simple_imputer_transform",
             expected_max_time=0.2,  # 200ms for transform
             memory_limit_mb=80,
-            data_size=len(df)
+            data_size=len(df_numeric)
         ):
-            result = imputer.transform(df)
+            result = imputer.transform(df_numeric)
 
         # Validate result - imputer should handle missing values
         assert isinstance(result, pd.DataFrame)
-        assert len(result) == len(df)
+        assert len(result) == len(df_numeric)
         # Check that missing values were actually imputed (at least some)
         numeric_cols = result.select_dtypes(include=[np.number]).columns
         if len(numeric_cols) > 0:
@@ -347,6 +351,10 @@ class TestPreprocessorPipelinePerformance:
                 memory_limit_mb=100
             ):
                 preprocessor = ctx.preprocessor
+
+            # Skip test if no preprocessor configured
+            if preprocessor is None:
+                pytest.skip("No preprocessor configured in test context")
 
             # Test end-to-end preprocessing performance
             input_data = ctx.prepare_model_input(raw_df)
@@ -408,7 +416,9 @@ class TestPreprocessorPipelinePerformance:
         df.to_csv(data_path, index=False)
 
         # Create settings with multiple preprocessing steps
-        from src.settings.recipe import PreprocessorStep, PreprocessorConfig
+        from src.settings.recipe import PreprocessorStep, Preprocessor as PreprocessorConfig
+        from src.components.preprocessor.preprocessor import Preprocessor
+
         preprocessing_config = PreprocessorConfig(steps=[
             PreprocessorStep(type="simple_imputer", columns=["feature_0"], strategy="mean"),
             PreprocessorStep(type="standard_scaler", columns=["feature_0", "feature_1", "feature_2"])

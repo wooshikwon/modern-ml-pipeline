@@ -50,7 +50,7 @@ class TestFactoryInitialization:
         factory = Factory(minimal_classification_settings)
         assert factory.console is not None
         # Console should be properly initialized
-        assert factory.console.__class__.__name__ == 'UnifiedConsole'
+        assert factory.console.__class__.__name__ == 'Console'
 
 
 class TestComponentRegistration:

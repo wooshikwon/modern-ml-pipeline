@@ -498,10 +498,10 @@ class TestPreprocessorDataQualityPreservation:
             # Compare first result with others
             base_result = results[0]
             for i, result in enumerate(results[1:], 1):
+                # Verify preprocessing results are identical across runs
                 pd.testing.assert_frame_equal(
                     base_result, result,
-                    check_dtype=True,
-                    msg=f"Preprocessing results differ between runs 0 and {i}"
+                    check_dtype=True
                 )
 
             # Context validation for all results
