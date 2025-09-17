@@ -100,6 +100,7 @@ pids
 *.pid
 *.seed
 *.pid.lock
+tests/fixtures/output/
 
 # MLflow
 /mlruns/
