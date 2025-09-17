@@ -1,40 +1,51 @@
-# Coverage.py configuration file
-# This file ensures proper coverage collection when running tests in parallel
-
+# Coverage.py 설정 - 메모리 누수 및 OOM 방지
 [run]
-source = src
-parallel = true
+# 단일 파일로 통합하여 메모리 사용량 최소화
 data_file = .coverage
-concurrency = multiprocessing,thread
+
+# 병렬 실행 비활성화 - 메모리 누수 방지
+parallel = false
+
+# 소스 코드 경로
+source = src
+
+# 제외할 파일/디렉토리 패턴
 omit =
     */tests/*
+    */test_*
     */__pycache__/*
-    */conftest.py
-    */test_*.py
-    *_test.py
+    */venv/*
+    */.venv/*
+    */migrations/*
+    */build/*
+    */dist/*
+
+# 브랜치 커버리지 비활성화 (메모리 절약)
+branch = false
+
+# 서브프로세스 추적 비활성화
+cover_pylib = false
 
 [report]
-# Reporting
-precision = 2
+# 리포트 최적화
 show_missing = true
 skip_covered = false
+precision = 2
+
+# 제외할 라인 패턴
 exclude_lines =
     pragma: no cover
     def __repr__
-    if self\.debug:
-    if __name__ == .__main__.:
+    raise AssertionError
     raise NotImplementedError
-    pass
-    except ImportError
-    @abstractmethod
-    @abc.abstractmethod
-    except KeyboardInterrupt
+    if __name__ == .__main__.:
     if TYPE_CHECKING:
-    if typing\.TYPE_CHECKING:
 
 [html]
+# HTML 리포트 설정
 directory = htmlcov
 title = Modern ML Pipeline Coverage Report
 
 [xml]
+# XML 리포트 최적화
 output = coverage.xml

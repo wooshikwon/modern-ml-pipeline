@@ -14,18 +14,20 @@ from src.utils.data.data_io import format_predictions
 class TestInferencePipeline:
     """Test inference pipeline with DataInterface"""
     
+    @patch('src.pipelines.inference_pipeline.mlflow_utils')
     @patch('src.pipelines.inference_pipeline.mlflow')
     @patch('src.pipelines.inference_pipeline.Factory')
     @patch('src.pipelines.inference_pipeline.Console')
     @patch('src.pipelines.inference_pipeline.load_inference_data')
     @patch('src.pipelines.inference_pipeline.save_output')
     def test_inference_with_datainterface(
-        self, 
+        self,
         mock_save_output,
         mock_load_data,
         mock_console_cls,
         mock_factory_cls,
-        mock_mlflow
+        mock_mlflow,
+        mock_mlflow_utils
     ):
         """Test inference pipeline uses DataInterface from PyfuncWrapper"""
         # Setup mocks
@@ -35,12 +37,12 @@ class TestInferencePipeline:
         mock_console.pipeline_context.return_value.__exit__ = Mock()
         mock_console.progress_tracker.return_value.__enter__ = Mock(return_value=Mock())
         mock_console.progress_tracker.return_value.__exit__ = Mock()
-        
+
         # Mock MLflow run
         mock_run = Mock()
         mock_run.info.run_id = 'inference_run_123'
-        mock_mlflow.start_run.return_value.__enter__ = Mock(return_value=mock_run)
-        mock_mlflow.start_run.return_value.__exit__ = Mock()
+        mock_mlflow_utils.start_run.return_value.__enter__.return_value = mock_run
+        mock_mlflow_utils.start_run.return_value.__exit__.return_value = None
         
         # Mock PyfuncWrapper with DataInterface
         mock_wrapper = Mock()
@@ -85,8 +87,10 @@ class TestInferencePipeline:
         )
         
         # Assertions
+        assert result is not None
         assert result.run_id == 'inference_run_123'
         assert result.model_uri == 'runs:/model_run_123/model'
+        assert result.prediction_count == 3
         assert result.prediction_count == 3
         
         # Verify model was loaded correctly
@@ -235,36 +239,50 @@ class TestFormatPredictions:
         }
         
         result = format_predictions(predictions, df, data_interface)
-        
-        # Should handle multi-dimensional predictions
-        assert 'prediction' in result.columns
-        assert result['prediction'].shape == (3,) or result['prediction'].shape == (3, 3)
+
+        # Should create probability columns for multiclass predictions
+        assert 'prob_class_0' in result.columns
+        assert 'prob_class_1' in result.columns
+        assert 'prob_class_2' in result.columns
+        assert 'id' in result.columns
+        assert result.shape == (3, 4)  # 3 prob columns + 1 entity column
 
 
 class TestInferencePipelineErrorHandling:
     """Test error handling in inference pipeline"""
     
+    @patch('src.pipelines.inference_pipeline.mlflow_utils')
     @patch('src.pipelines.inference_pipeline.mlflow')
     @patch('src.pipelines.inference_pipeline.Console')
-    def test_model_load_failure(self, mock_console_cls, mock_mlflow):
+    def test_model_load_failure(self, mock_console_cls, mock_mlflow, mock_mlflow_utils):
         """Test handling of model load failure"""
         mock_console = MagicMock()
+        mock_console.pipeline_context.return_value.__enter__ = MagicMock()
+        mock_console.pipeline_context.return_value.__exit__ = MagicMock()
         mock_console_cls.return_value = mock_console
-        
+
+        # Mock MLflow run context
+        mock_run = MagicMock()
+        mock_run.info.run_id = 'test_inference_run'
+        mock_mlflow_utils.start_run.return_value.__enter__.return_value = mock_run
+        mock_mlflow_utils.start_run.return_value.__exit__.return_value = None
+
         # Mock model load failure
         mock_mlflow.pyfunc.load_model.side_effect = Exception("Model not found")
-        
+
         mock_settings = Mock()
         mock_settings.recipe.model.computed = {'seed': 42}
-        
+        mock_settings.config.environment.name = 'test'
+
         with pytest.raises(Exception) as exc_info:
             run_inference_pipeline(
                 settings=mock_settings,
                 run_id='invalid_run_id'
             )
-        
+
         assert "Model not found" in str(exc_info.value)
         
+    @patch('src.pipelines.inference_pipeline.mlflow_utils')
     @patch('src.pipelines.inference_pipeline.mlflow')
     @patch('src.pipelines.inference_pipeline.Factory')
     @patch('src.pipelines.inference_pipeline.Console')
@@ -274,44 +292,52 @@ class TestInferencePipelineErrorHandling:
         mock_load_data,
         mock_console_cls,
         mock_factory_cls,
-        mock_mlflow
+        mock_mlflow,
+        mock_mlflow_utils
     ):
         """Test handling of prediction failure"""
         mock_console = MagicMock()
+        mock_console.pipeline_context.return_value.__enter__ = MagicMock()
+        mock_console.pipeline_context.return_value.__exit__ = MagicMock()
         mock_console_cls.return_value = mock_console
-        mock_console.pipeline_context.return_value.__enter__ = Mock()
-        mock_console.pipeline_context.return_value.__exit__ = Mock()
-        
+
+        # Mock MLflow run context
+        mock_run = MagicMock()
+        mock_run.info.run_id = 'test_inference_run'
+        mock_mlflow_utils.start_run.return_value.__enter__.return_value = mock_run
+        mock_mlflow_utils.start_run.return_value.__exit__.return_value = None
+
         # Mock successful model load
         mock_model = Mock()
         mock_model.unwrap_python_model.return_value = Mock(data_interface_schema=None)
         mock_model.predict.side_effect = Exception("Prediction failed")
         mock_mlflow.pyfunc.load_model.return_value = mock_model
-        
+
         # Mock data
         mock_load_data.return_value = pd.DataFrame({'col': [1, 2, 3]})
-        
+
         # Mock factory
         mock_factory = Mock()
         mock_factory_cls.return_value = mock_factory
         mock_factory.create_data_adapter.return_value = Mock()
-        
+
         mock_settings = Mock()
         mock_settings.recipe.model.computed = {'seed': 42}
         mock_settings.config.environment.name = 'test'
-        
+
         with pytest.raises(Exception) as exc_info:
             run_inference_pipeline(
                 settings=mock_settings,
                 run_id='model_run_123'
             )
-        
+
         assert "Prediction failed" in str(exc_info.value)
 
 
 class TestInferencePipelineIntegration:
     """Integration tests for inference pipeline"""
     
+    @patch('src.pipelines.inference_pipeline.mlflow_utils')
     @patch('src.pipelines.inference_pipeline.mlflow')
     @patch('src.pipelines.inference_pipeline.Factory')
     @patch('src.pipelines.inference_pipeline.Console')
@@ -323,18 +349,21 @@ class TestInferencePipelineIntegration:
         mock_load_data,
         mock_console_cls,
         mock_factory_cls,
-        mock_mlflow
+        mock_mlflow,
+        mock_mlflow_utils
     ):
         """Test complete inference flow from data load to save"""
         # Setup comprehensive mocks
         mock_console = MagicMock()
+        mock_console.pipeline_context.return_value.__enter__ = MagicMock()
+        mock_console.pipeline_context.return_value.__exit__ = MagicMock()
         mock_console_cls.return_value = mock_console
-        
-        # Mock MLflow
+
+        # Mock MLflow run context
         mock_run = Mock()
         mock_run.info.run_id = 'inf_123'
-        mock_mlflow.start_run.return_value.__enter__ = Mock(return_value=mock_run)
-        mock_mlflow.start_run.return_value.__exit__ = Mock()
+        mock_mlflow_utils.start_run.return_value.__enter__.return_value = mock_run
+        mock_mlflow_utils.start_run.return_value.__exit__.return_value = None
         
         # Mock model with full DataInterface
         mock_wrapper = Mock()

@@ -483,3 +483,22 @@ class TestFactoryCalibrationMethods:
             error_msg = str(e)
             # Should contain list of available adapters
             assert "storage" in error_msg or "sql" in error_msg
+
+    def test_calibrator_creation_with_real_factory(self, settings_builder, add_model_computed):
+        """Test calibrator creation using real Factory - Phase 1 requirement"""
+        # Given: Settings with calibration enabled
+        settings = settings_builder.with_calibration(True).build()
+        settings = add_model_computed(settings)  # computed 필드 추가
+
+        # When: Create factory and calibrator
+        factory = Factory(settings)
+        calibrator = factory.create_calibrator()
+
+        # Then: Should create calibrator successfully
+        assert calibrator is not None
+        assert hasattr(calibrator, 'fit')
+        assert hasattr(calibrator, 'transform')
+
+        # And: Should be real calibrator component, not mock
+        from src.interface import BaseCalibrator
+        assert isinstance(calibrator, BaseCalibrator)

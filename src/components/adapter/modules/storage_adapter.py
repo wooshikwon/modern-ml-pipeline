@@ -39,8 +39,10 @@ class StorageAdapter(BaseAdapter):
     def read(self, uri: str, **kwargs) -> pd.DataFrame:
         """URI로부터 데이터를 읽어 DataFrame으로 반환합니다."""
         console = get_console()
-        file_name = Path(uri).name
-        file_ext = Path(uri).suffix.lower()
+        # Convert Path object to string if needed
+        uri_str = str(uri)
+        file_name = Path(uri_str).name
+        file_ext = Path(uri_str).suffix.lower()
 
         # 파일 정보 및 옵션 체크
         console.log_processing_step(
@@ -56,19 +58,19 @@ class StorageAdapter(BaseAdapter):
             )
 
         try:
-            lower = uri.lower()
+            lower = uri_str.lower()
             if lower.endswith('.csv'):
                 console.log_processing_step("CSV 파일 파싱 시작", f"속성: {len(kwargs)}개 옵션 적용")
-                result = pd.read_csv(uri, storage_options=self.storage_options, **kwargs)
+                result = pd.read_csv(uri_str, storage_options=self.storage_options, **kwargs)
 
             elif lower.endswith('.parquet'):
                 console.log_processing_step("Parquet 파일 파싱 시작", f"속성: {len(kwargs)}개 옵션 적용")
-                result = pd.read_parquet(uri, storage_options=self.storage_options, **kwargs)
+                result = pd.read_parquet(uri_str, storage_options=self.storage_options, **kwargs)
 
             else:
                 # 기타 파일 형식도 지원
                 if lower.endswith('.json'):
-                    result = pd.read_json(uri, **kwargs)
+                    result = pd.read_json(uri_str, **kwargs)
                 else:
                     raise ValueError(f"지원되지 않는 파일 형식: {file_ext}")
 
@@ -95,7 +97,7 @@ class StorageAdapter(BaseAdapter):
             console.log_error_with_context(
                 f"Storage 파일 읽기 실패: {e}",
                 context={
-                    "file_path": uri,
+                    "file_path": uri_str,
                     "file_type": file_ext,
                     "storage_options_count": len(self.storage_options),
                     "kwargs_count": len(kwargs)
@@ -107,8 +109,10 @@ class StorageAdapter(BaseAdapter):
     def write(self, df: pd.DataFrame, uri: str, **kwargs):
         """DataFrame을 지정된 URI에 저장합니다."""
         console = get_console()
-        file_name = Path(uri).name
-        file_ext = Path(uri).suffix.lower()
+        # Convert Path object to string if needed
+        uri_str = str(uri)
+        file_name = Path(uri_str).name
+        file_ext = Path(uri_str).suffix.lower()
         data_size_mb = df.memory_usage(deep=True).sum() / (1024 * 1024)
 
         console.log_processing_step(
@@ -117,8 +121,8 @@ class StorageAdapter(BaseAdapter):
         )
 
         # 로컬 파일 시스템의 경우, 쓰기 전에 디렉토리가 존재하는지 확인하고 생성합니다.
-        if "://" not in uri or uri.startswith("file://"):
-            path = Path(uri.replace("file://", ""))
+        if "://" not in uri_str or uri_str.startswith("file://"):
+            path = Path(uri_str.replace("file://", ""))
             if not path.parent.exists():
                 console.log_processing_step(
                     "디렉토리 생성",
@@ -129,10 +133,10 @@ class StorageAdapter(BaseAdapter):
                 console.log_processing_step("디렉토리 확인", "기존 경로 사용")
 
         try:
-            lower = uri.lower()
+            lower = uri_str.lower()
             if lower.endswith('.csv'):
                 console.log_processing_step("CSV 형식 저장", f"{len(df):,} rows × {len(df.columns)} columns")
-                df.to_csv(uri, index=False, **kwargs)
+                df.to_csv(uri_str, index=False, **kwargs)
 
             elif lower.endswith('.parquet'):
                 console.log_processing_step("Parquet 형식 저장", f"{len(df):,} rows × {len(df.columns)} columns")
@@ -141,20 +145,20 @@ class StorageAdapter(BaseAdapter):
                         "Storage 옵션 적용",
                         f"{len(self.storage_options)}개 옵션 사용"
                     )
-                df.to_parquet(uri, storage_options=self.storage_options, **kwargs)
+                df.to_parquet(uri_str, storage_options=self.storage_options, **kwargs)
 
             elif lower.endswith('.json'):
                 console.log_processing_step("JSON 형식 저장", f"{len(df):,} rows × {len(df.columns)} columns")
-                df.to_json(uri, **kwargs)
+                df.to_json(uri_str, **kwargs)
 
             else:
                 # 기본적으로 Parquet 사용
                 console.log_processing_step("Parquet 형식으로 자동 저장", f"확장자 미지원: {file_ext}")
-                df.to_parquet(uri, storage_options=self.storage_options, **kwargs)
+                df.to_parquet(uri_str, storage_options=self.storage_options, **kwargs)
 
             # 저장 완료 확인 및 파일 크기 체크
-            if "://" not in uri or uri.startswith("file://"):
-                saved_path = Path(uri.replace("file://", ""))
+            if "://" not in uri_str or uri_str.startswith("file://"):
+                saved_path = Path(uri_str.replace("file://", ""))
                 if saved_path.exists():
                     file_size_mb = saved_path.stat().st_size / (1024 * 1024)
                     console.log_processing_step(
@@ -176,7 +180,7 @@ class StorageAdapter(BaseAdapter):
             console.log_error_with_context(
                 f"Storage 파일 저장 실패: {e}",
                 context={
-                    "file_path": uri,
+                    "file_path": uri_str,
                     "file_type": file_ext,
                     "data_shape": f"{len(df)} × {len(df.columns)}",
                     "storage_options_count": len(self.storage_options)

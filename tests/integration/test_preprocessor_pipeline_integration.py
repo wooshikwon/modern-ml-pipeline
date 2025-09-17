@@ -56,7 +56,7 @@ class TestMultiComponentPreprocessingPipelines:
             preprocessing_config = PreprocessorConfig(steps=[
                 PreprocessorStep(type="simple_imputer", columns=["feature_0"], strategy="mean"),
                 PreprocessorStep(type="standard_scaler"),  # Global application
-                PreprocessorStep(type="kbins_discretizer", columns=["categorical_feature"], n_bins=2)
+                PreprocessorStep(type="one_hot_encoder", columns=["categorical_feature"])
             ])
 
             ctx.settings.recipe.preprocessor = preprocessing_config
@@ -87,8 +87,10 @@ class TestMultiComponentPreprocessingPipelines:
                     assert abs(processed_data[col].mean()) < 0.5
                     assert abs(processed_data[col].std() - 1.0) < 0.5
 
-            # Validate discretization applied (original categorical_feature should be processed)
-            assert 'categorical_feature' not in processed_data.columns or processed_data['categorical_feature'].nunique() <= 2
+            # Validate one-hot encoding applied (original categorical_feature should be transformed)
+            # One-hot encoding creates new columns and removes the original
+            assert 'categorical_feature' not in processed_data.columns
+            # Should have one-hot encoded columns (A, B, C -> 3 columns or less with drop_first)
 
             # Context validation
             assert ctx.validate_data_flow(input_data, processed_data)
@@ -100,7 +102,9 @@ class TestMultiComponentPreprocessingPipelines:
             raw_df = ctx.adapter.read(ctx.data_path)
 
             # Configure pipeline with feature generation
+            # First impute missing values, then generate polynomial features
             preprocessing_config = PreprocessorConfig(steps=[
+                PreprocessorStep(type="simple_imputer", columns=["feature_0", "feature_1"], strategy="mean"),
                 PreprocessorStep(type="polynomial_features", columns=["feature_0", "feature_1"], degree=2),
                 PreprocessorStep(type="standard_scaler")  # Scale the generated features
             ])

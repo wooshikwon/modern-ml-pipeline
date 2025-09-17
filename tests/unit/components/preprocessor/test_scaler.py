@@ -374,7 +374,30 @@ class TestRobustScalerWrapper:
 
 class TestScalerRegistration:
     """Test scaler registration in PreprocessorStepRegistry"""
-    
+
+    def setup_method(self):
+        """Backup current registry and restore scaler registrations"""
+        import sys
+        import importlib
+
+        # Backup current state
+        self._backup_registry = PreprocessorStepRegistry.preprocessor_steps.copy()
+
+        # Clear and re-populate with scaler modules
+        PreprocessorStepRegistry.preprocessor_steps.clear()
+
+        # Force reload scaler module to trigger re-registration
+        module_name = 'src.components.preprocessor.modules.scaler'
+        if module_name in sys.modules:
+            importlib.reload(sys.modules[module_name])
+        else:
+            __import__(module_name)
+
+    def teardown_method(self):
+        """Restore original registry state"""
+        PreprocessorStepRegistry.preprocessor_steps.clear()
+        PreprocessorStepRegistry.preprocessor_steps.update(self._backup_registry)
+
     def test_all_scalers_registered(self):
         """Verify all scaler types are properly registered"""
         # Given: Registry should contain all scalers
@@ -392,28 +415,70 @@ class TestScalerRegistration:
     def test_scaler_creation_through_registry(self):
         """Test creating scalers through registry"""
         # Given: Registry with registered scalers
-        
+
         # When: Create scalers through registry
         standard_scaler = PreprocessorStepRegistry.create('standard_scaler')
         minmax_scaler = PreprocessorStepRegistry.create('min_max_scaler')
         robust_scaler = PreprocessorStepRegistry.create('robust_scaler')
-        
-        # Then: Should create correct instances
-        assert isinstance(standard_scaler, StandardScalerWrapper)
-        assert isinstance(minmax_scaler, MinMaxScalerWrapper)
-        assert isinstance(robust_scaler, RobustScalerWrapper)
+
+        # Then: Should create correct instances with proper class names
+        from src.interface import BasePreprocessor
+        assert isinstance(standard_scaler, BasePreprocessor)
+        assert isinstance(minmax_scaler, BasePreprocessor)
+        assert isinstance(robust_scaler, BasePreprocessor)
+
+        # And: Should have correct class names
+        assert standard_scaler.__class__.__name__ == 'StandardScalerWrapper'
+        assert minmax_scaler.__class__.__name__ == 'MinMaxScalerWrapper'
+        assert robust_scaler.__class__.__name__ == 'RobustScalerWrapper'
+
+        # And: Should have required methods
+        assert hasattr(standard_scaler, 'fit')
+        assert hasattr(standard_scaler, 'transform')
+        assert hasattr(minmax_scaler, 'fit')
+        assert hasattr(minmax_scaler, 'transform')
+        assert hasattr(robust_scaler, 'fit')
+        assert hasattr(robust_scaler, 'transform')
     
     def test_scaler_creation_with_parameters(self):
         """Test creating scalers with parameters through registry"""
         # Given: Registry and parameters
         columns_param = ['feature_1', 'feature_2']
-        
+
         # When: Create with parameters (though columns are ignored for global scalers)
         standard_scaler = PreprocessorStepRegistry.create('standard_scaler', columns=columns_param)
-        
+
         # Then: Should create instance with parameters
-        assert isinstance(standard_scaler, StandardScalerWrapper)
+        from src.interface import BasePreprocessor
+        assert isinstance(standard_scaler, BasePreprocessor)
+        assert standard_scaler.__class__.__name__ == 'StandardScalerWrapper'
         assert standard_scaler.columns == columns_param  # Stored but ignored
+        assert hasattr(standard_scaler, 'fit')
+        assert hasattr(standard_scaler, 'transform')
+
+    def test_scaler_registration_with_component_context(self, component_test_context):
+        """Test scaler registration using ComponentTestContext - Phase 1 requirement"""
+        with component_test_context.classification_stack() as ctx:
+            # Given: Import to trigger registration
+            import src.components.preprocessor.modules.scaler
+
+            # When: Registry에서 실제 생성 테스트
+            scaler = PreprocessorStepRegistry.create('standard_scaler')
+
+            # Then: Should create correct StandardScalerWrapper instance
+            from src.components.preprocessor.modules.scaler import StandardScalerWrapper
+            assert scaler is not None
+            assert scaler.__class__.__name__ == 'StandardScalerWrapper'
+            assert hasattr(scaler, 'fit')
+            assert hasattr(scaler, 'transform')
+
+            # And: Should work with component context data
+            if hasattr(ctx, 'data_path') and ctx.data_path:
+                # Test with context data if available
+                import pandas as pd
+                test_data = pd.DataFrame({'numeric_col': [1, 2, 3], 'text_col': ['a', 'b', 'c']})
+                fitted_scaler = scaler.fit(test_data)
+                assert fitted_scaler is not None
 
 
 class TestScalerIntegration:

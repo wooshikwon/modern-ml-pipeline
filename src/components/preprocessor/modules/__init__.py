@@ -1,18 +1,17 @@
 # Import core preprocessor modules to ensure they register themselves
-# Only importing modules that don't have external dependencies
+# All modules should be imported to ensure proper registration
 from . import imputer
 from . import scaler
 from . import discretizer
 from . import feature_generator
 from . import missing
-
-# Skip encoder for now due to category_encoders dependency
-# from . import encoder
+from . import encoder  # Required for one_hot_encoder and label_encoder
 
 __all__ = [
     'imputer',
     'scaler',
     'discretizer',
     'feature_generator',
-    'missing'
+    'missing',
+    'encoder'
 ]

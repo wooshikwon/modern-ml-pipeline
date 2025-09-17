@@ -89,12 +89,35 @@ class TestStandardized4WaySplitInterface:
 
     def test_proposed_base_handler_4way_upgrade(self, sample_data, mock_settings):
         """BaseDataHandler를 4-way로 업그레이드하는 방안 테스트"""
-        
+
         # 제안된 4-way BaseDataHandler 시뮬레이션
         class Upgraded4WayBaseHandler(BaseDataHandler):
+            def prepare_data(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, Any, Dict[str, Any]]:
+                """Concrete implementation of abstract prepare_data method"""
+                # Extract features based on data_interface settings
+                target_col = self.data_interface.target_column
+                entity_cols = self.data_interface.entity_columns or []
+                feature_cols = self.data_interface.feature_columns
+
+                # If feature_cols not specified, use all except target and entity
+                if feature_cols is None:
+                    all_cols = df.columns.tolist()
+                    exclude_cols = set([target_col] + entity_cols)
+                    feature_cols = [col for col in all_cols if col not in exclude_cols]
+
+                # Prepare X, y, and additional data
+                X = df[feature_cols]
+                y = df[target_col] if target_col in df.columns else None
+                additional_data = {
+                    "entity_data": df[entity_cols] if entity_cols else None,
+                    "indices": df.index.tolist()
+                }
+
+                return X, y, additional_data
+
             def split_and_prepare(self, df: pd.DataFrame) -> Tuple[
                 pd.DataFrame, Any, Dict[str, Any],  # train
-                pd.DataFrame, Any, Dict[str, Any],  # validation  
+                pd.DataFrame, Any, Dict[str, Any],  # validation
                 pd.DataFrame, Any, Dict[str, Any],  # test
                 Optional[Tuple[pd.DataFrame, Any, Dict[str, Any]]]  # calibration (None for non-tabular)
             ]:
@@ -102,21 +125,21 @@ class TestStandardized4WaySplitInterface:
                 # 3-way split: train/validation/test
                 train_df, temp_df = self._split_train_temp(df, train_ratio=0.6)
                 val_df, test_df = self._split_validation_test(temp_df, val_ratio=0.5)  # 0.2/0.2 split
-                
+
                 # 각 분할에 대해 prepare_data 수행
                 X_train, y_train, add_train = self.prepare_data(train_df)
-                X_val, y_val, add_val = self.prepare_data(val_df)  
+                X_val, y_val, add_val = self.prepare_data(val_df)
                 X_test, y_test, add_test = self.prepare_data(test_df)
-                
+
                 # Non-tabular handlers는 calibration=None
                 calibration_data = None
-                
+
                 return X_train, y_train, add_train, X_val, y_val, add_val, X_test, y_test, add_test, calibration_data
-            
+
             def _split_train_temp(self, df, train_ratio):
                 split_idx = int(len(df) * train_ratio)
                 return df.iloc[:split_idx].copy(), df.iloc[split_idx:].copy()
-            
+
             def _split_validation_test(self, df, val_ratio):
                 split_idx = int(len(df) * val_ratio)
                 return df.iloc[:split_idx].copy(), df.iloc[split_idx:].copy()
