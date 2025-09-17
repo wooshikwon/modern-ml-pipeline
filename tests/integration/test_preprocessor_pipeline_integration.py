@@ -155,13 +155,12 @@ class TestMultiComponentPreprocessingPipelines:
             # When: Execute tree-based feature generation
             preprocessor = ctx.factory.create_preprocessor()
 
-            # For tree-based features, we need to include target in fit but not in final output
-            input_data_with_target = ctx.prepare_model_input(enhanced_data)
-            if 'target' not in input_data_with_target.columns:
-                input_data_with_target['target'] = enhanced_data['target']
+            # For tree-based features, we need to pass target separately to fit method
+            input_data = ctx.prepare_model_input(enhanced_data)
+            target_data = enhanced_data['target']
 
-            # Fit with target data
-            preprocessor.fit(input_data_with_target)
+            # Fit with input data and target passed separately
+            preprocessor.fit(input_data, target_data)
 
             # Transform without target for prediction scenario
             input_data = ctx.prepare_model_input(enhanced_data)

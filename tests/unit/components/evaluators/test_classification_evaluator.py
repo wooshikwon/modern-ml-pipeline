@@ -143,3 +143,79 @@ class TestClassificationEvaluator:
             assert metrics['precision'] == 1.0
         if 'recall' in metrics:
             assert metrics['recall'] == 1.0
+
+    def test_evaluate_with_model_without_predict_proba(self, settings_builder):
+        """Test evaluation with model that doesn't support predict_proba."""
+        # Given: Model without predict_proba method (multiclass case)
+        class ModelWithoutProba:
+            def predict(self, X):
+                # Return multiclass predictions (3 classes: 0, 1, 2)
+                return np.array([0, 1, 2, 0, 1, 2, 0, 1, 2, 0])
+
+        model = ModelWithoutProba()
+        X_test = np.random.randn(10, 3)
+        y_test = np.array([0, 1, 2, 0, 1, 2, 0, 1, 2, 0])  # Multiclass to trigger ovr ROC AUC path
+
+        settings = settings_builder \
+            .with_task("classification") \
+            .build()
+        evaluator = ClassificationEvaluator(settings)
+
+        # When: Evaluating model without predict_proba
+        metrics = evaluator.evaluate(model, X_test, y_test)
+
+        # Then: ROC AUC should be None due to missing predict_proba
+        assert metrics['roc_auc'] is None
+        assert 'accuracy' in metrics
+        assert metrics['accuracy'] == 1.0  # Perfect predictions
+
+    def test_evaluate_with_predict_proba_exception(self, settings_builder):
+        """Test evaluation when predict_proba raises an exception."""
+        # Given: Model with predict_proba that raises exception
+        class ProblematicModel:
+            def predict(self, X):
+                return np.array([0, 1, 2, 0, 1])
+
+            def predict_proba(self, X):
+                raise ValueError("Prediction failed")
+
+        model = ProblematicModel()
+        X_test = np.random.randn(5, 3)
+        y_test = np.array([0, 1, 2, 0, 1])  # Multiclass
+
+        settings = settings_builder \
+            .with_task("classification") \
+            .build()
+        evaluator = ClassificationEvaluator(settings)
+
+        # When: Evaluating model with problematic predict_proba
+        metrics = evaluator.evaluate(model, X_test, y_test)
+
+        # Then: ROC AUC should be None due to exception handling
+        assert metrics['roc_auc'] is None
+        assert 'accuracy' in metrics
+
+    def test_evaluate_with_poor_performance_model(self, settings_builder):
+        """Test evaluation with very poor performing model to trigger guidance."""
+        # Given: Model with very poor accuracy (< 0.7)
+        class PoorModel:
+            def predict(self, X):
+                # Always predict class 0, but most data is class 1
+                return np.zeros(len(X), dtype=int)
+
+        model = PoorModel()
+        X_test = np.random.randn(20, 3)
+        y_test = np.ones(20, dtype=int)  # All true labels are 1, but model predicts 0
+
+        settings = settings_builder \
+            .with_task("classification") \
+            .build()
+        evaluator = ClassificationEvaluator(settings)
+
+        # When: Evaluating poor model
+        metrics = evaluator.evaluate(model, X_test, y_test)
+
+        # Then: Metrics should reflect poor performance
+        assert 'accuracy' in metrics
+        assert metrics['accuracy'] == 0.0  # Worst possible accuracy
+        assert metrics['accuracy'] < 0.7  # Triggers poor performance guidance
