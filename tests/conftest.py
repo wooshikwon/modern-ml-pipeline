@@ -28,6 +28,103 @@ from src.settings.config import Output, OutputTarget
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# MEMORY MANAGEMENT & CLEANUP (Phase 2)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def cleanup_mlflow_processes():
+    """Clean up any MLflow server processes to prevent memory leaks"""
+    import signal
+    import subprocess
+
+    try:
+        # Find MLflow server processes
+        result = subprocess.run(
+            ["pgrep", "-f", "mlflow.server"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+
+        if result.returncode == 0 and result.stdout.strip():
+            pids = result.stdout.strip().split('\n')
+            for pid in pids:
+                try:
+                    pid_int = int(pid.strip())
+                    os.kill(pid_int, signal.SIGTERM)
+                except (ValueError, ProcessLookupError, PermissionError):
+                    # Process already dead or permission denied
+                    pass
+
+        # Also try pkill as backup
+        try:
+            subprocess.run(["pkill", "-f", "mlflow.server"],
+                         capture_output=True, timeout=3)
+            subprocess.run(["pkill", "-f", "uvicorn.*mlflow"],
+                         capture_output=True, timeout=3)
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            pass
+
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        # pgrep not available or timeout - skip cleanup
+        pass
+
+
+def finalize_coverage():
+    """Combine coverage files and clean up temporary files"""
+    import shutil
+    import subprocess
+    import time
+
+    tmp_coverage_dir = Path('.tmp_coverage')
+
+    if tmp_coverage_dir.exists():
+        # Small delay to ensure all coverage processes are done
+        time.sleep(0.5)
+
+        try:
+            # Try to find any main coverage file in temp directory
+            main_coverage = tmp_coverage_dir / '.coverage'
+            if main_coverage.exists():
+                # Simply move the main coverage file
+                try:
+                    shutil.move(str(main_coverage), '.coverage')
+                except (FileNotFoundError, PermissionError):
+                    pass
+
+            # Clean up temporary directory (best effort)
+            try:
+                shutil.rmtree(tmp_coverage_dir)
+            except (FileNotFoundError, PermissionError, OSError):
+                # If cleanup fails, schedule delayed cleanup
+                try:
+                    import threading
+                    def delayed_cleanup():
+                        time.sleep(2)
+                        try:
+                            shutil.rmtree(tmp_coverage_dir)
+                        except:
+                            pass
+                    threading.Thread(target=delayed_cleanup, daemon=True).start()
+                except:
+                    pass
+
+        except Exception:
+            # Best effort cleanup - don't fail the tests
+            pass
+
+
+def pytest_sessionstart(session):
+    """Called after the Session object has been created"""
+    cleanup_mlflow_processes()
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """Called after whole test run finished, before returning exit status"""
+    finalize_coverage()
+    cleanup_mlflow_processes()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # DETERMINISTIC TESTING ENHANCEMENT (Phase 3)
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -55,7 +152,13 @@ def ensure_deterministic_execution():
     # Yield to run the test
     yield
 
-    # No cleanup needed for deterministic settings
+    # Light cleanup after each test (avoid heavy operations)
+    try:
+        import subprocess
+        subprocess.run(["pkill", "-f", "mlflow.server"],
+                     capture_output=True, timeout=1)
+    except:
+        pass
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

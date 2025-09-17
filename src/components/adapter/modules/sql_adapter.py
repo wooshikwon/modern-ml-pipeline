@@ -43,10 +43,10 @@ class SqlAdapter(BaseAdapter):
         
         if self.db_type == 'bigquery':
             config = self.settings.config.data_source.config
-            self.use_pandas_gbq = config.get('use_pandas_gbq', False)
-            self.project_id = config.get('project_id')
-            self.dataset_id = config.get('dataset_id')
-            self.location = config.get('location', 'US')
+            self.use_pandas_gbq = getattr(config, 'use_pandas_gbq', False)
+            self.project_id = getattr(config, 'project_id', None)
+            self.dataset_id = getattr(config, 'dataset_id', None)
+            self.location = getattr(config, 'location', 'US')
 
     def _parse_connection_uri(self, uri: str) -> Tuple[str, str, Dict[str, Any]]:
         """

@@ -25,9 +25,62 @@ log_error() {
 # Coverage 파일 정리 함수
 cleanup_coverage() {
     log_info "Coverage 파일 정리 중..."
+
+    # 프로젝트 루트의 coverage 파일들 정리
     rm -f .coverage.*
     rm -f .coverage
+
+    # 임시 coverage 디렉토리 정리
+    rm -rf .tmp_coverage
+
     log_info "Coverage 파일 정리 완료"
+}
+
+# Coverage 결과 통합 및 정리 함수
+finalize_coverage() {
+    log_info "Coverage 결과 통합 중..."
+
+    # 임시 디렉토리 존재 확인
+    if [ -d ".tmp_coverage" ]; then
+        cd .tmp_coverage 2>/dev/null || return 1
+
+        # Coverage 파일들이 존재하면 combine 실행
+        if ls .coverage.* 1> /dev/null 2>&1; then
+            if command -v coverage >/dev/null 2>&1; then
+                coverage combine 2>/dev/null || true
+                # 통합된 파일을 프로젝트 루트로 이동
+                if [ -f ".coverage" ]; then
+                    mv .coverage ../.coverage 2>/dev/null || true
+                fi
+            fi
+        fi
+
+        cd ..
+        # 임시 디렉토리 정리
+        rm -rf .tmp_coverage
+    fi
+
+    log_info "Coverage 결과 통합 완료"
+}
+
+# MLflow 서버 정리 함수
+cleanup_mlflow_servers() {
+    log_info "MLflow 서버 정리 중..."
+
+    # MLflow 서버 프로세스 종료
+    if command -v pkill >/dev/null 2>&1; then
+        pkill -f "mlflow.server" 2>/dev/null || true
+        pkill -f "uvicorn.*mlflow" 2>/dev/null || true
+    fi
+
+    # 잠시 대기 후 강제 종료
+    sleep 1
+    if command -v pkill >/dev/null 2>&1; then
+        pkill -9 -f "mlflow.server" 2>/dev/null || true
+        pkill -9 -f "uvicorn.*mlflow" 2>/dev/null || true
+    fi
+
+    log_info "MLflow 서버 정리 완료"
 }
 
 # 메모리 사용량 체크 함수
@@ -56,6 +109,9 @@ check_memory() {
 pre_test_cleanup() {
     log_info "테스트 전 정리 작업 시작..."
 
+    # MLflow 서버 정리 (메모리 누수 방지)
+    cleanup_mlflow_servers
+
     # Coverage 파일 정리
     cleanup_coverage
 
@@ -73,8 +129,11 @@ pre_test_cleanup() {
 post_test_cleanup() {
     log_info "테스트 후 정리 작업 시작..."
 
-    # 임시 Coverage 파일들만 정리 (메인 .coverage는 유지)
-    rm -f .coverage.* 2>/dev/null || true
+    # MLflow 서버 정리 (메모리 누수 방지)
+    cleanup_mlflow_servers
+
+    # Coverage 결과 통합 및 정리
+    finalize_coverage
 
     log_info "정리 작업 완료"
 }

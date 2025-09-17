@@ -75,8 +75,38 @@ class _MLflowContextManager:
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:
-        # No special teardown needed; temp_dir is owned by fixture
+        # Clean up any MLflow server processes that might have been started
+        self._cleanup_mlflow_processes()
+        # temp_dir cleanup is handled by fixture
         return None
+
+    def _cleanup_mlflow_processes(self) -> None:
+        """Clean up any MLflow server processes to prevent memory leaks"""
+        import subprocess
+        import os
+        import signal
+
+        try:
+            # Find MLflow server processes
+            result = subprocess.run(
+                ["pgrep", "-f", "mlflow.server"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+
+            if result.returncode == 0 and result.stdout.strip():
+                pids = result.stdout.strip().split('\n')
+                for pid in pids:
+                    try:
+                        pid_int = int(pid.strip())
+                        os.kill(pid_int, signal.SIGTERM)
+                    except (ValueError, ProcessLookupError, PermissionError):
+                        # Process already dead or permission denied
+                        pass
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            # pgrep not available or timeout - skip cleanup
+            pass
 
     # ===== Helpers (required) =====
     def experiment_exists(self) -> bool:

@@ -146,7 +146,11 @@ class Factory:
         컴포넌트들이 Registry에 등록되었는지 확인하고, 필요시 등록합니다.
         이 메서드는 Factory 인스턴스가 처음 생성될 때 한 번만 실행됩니다.
         """
-        if not cls._components_registered:
+        # Check if calibration components are already registered
+        from src.components.calibration.registry import CalibrationRegistry
+        is_calibration_registered = bool(CalibrationRegistry.get_available_methods())
+
+        if not cls._components_registered or not is_calibration_registered:
             # Use global console for classmethod
             console = get_console()
             console.info("Component registry를 초기화하는 중...", rich_message="🔧 Component registry를 초기화하는 중...")
@@ -154,6 +158,7 @@ class Factory:
             # 컴포넌트 모듈들을 import하여 self-registration 트리거
             try:
                 import src.components.adapter
+                import src.components.calibration
                 import src.components.evaluator
                 import src.components.fetcher
                 import src.components.trainer
