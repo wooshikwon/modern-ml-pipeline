@@ -219,3 +219,221 @@ class TestClassificationEvaluator:
         assert 'accuracy' in metrics
         assert metrics['accuracy'] == 0.0  # Worst possible accuracy
         assert metrics['accuracy'] < 0.7  # Triggers poor performance guidance
+
+    def test_evaluate_binary_classification_with_roc_auc(self, settings_builder):
+        """Test binary classification ROC AUC calculation."""
+        # Given: Binary classification model
+        from sklearn.datasets import make_classification
+        X, y = make_classification(n_samples=100, n_features=4, n_classes=2,
+                                 n_informative=3, n_redundant=0, random_state=42)
+        X_train, y_train = X[:70], y[:70]
+        X_test, y_test = X[70:], y[70:]
+
+        model = LogisticRegression(random_state=42, max_iter=200)
+        model.fit(X_train, y_train)
+
+        settings = settings_builder \
+            .with_task("classification") \
+            .build()
+        evaluator = ClassificationEvaluator(settings)
+
+        # When: Evaluating binary classification model
+        metrics = evaluator.evaluate(model, X_test, y_test)
+
+        # Then: ROC AUC should be calculated for binary classification
+        assert 'roc_auc' in metrics
+        assert metrics['roc_auc'] is not None
+        assert 0 <= metrics['roc_auc'] <= 1
+        assert len(np.unique(y_test)) == 2  # Confirm binary classification
+
+    def test_evaluate_multiclass_with_predict_proba_success(self, settings_builder):
+        """Test multiclass classification with successful predict_proba."""
+        # Given: Multiclass model with working predict_proba
+        from sklearn.datasets import make_classification
+        X, y = make_classification(n_samples=120, n_features=5, n_classes=3,
+                                 n_informative=4, n_redundant=0, random_state=42)
+        X_train, y_train = X[:90], y[:90]
+        X_test, y_test = X[90:], y[90:]
+
+        model = RandomForestClassifier(n_estimators=20, random_state=42)
+        model.fit(X_train, y_train)
+
+        settings = settings_builder \
+            .with_task("classification") \
+            .build()
+        evaluator = ClassificationEvaluator(settings)
+
+        # When: Evaluating multiclass model
+        metrics = evaluator.evaluate(model, X_test, y_test)
+
+        # Then: ROC AUC should be calculated for multiclass with predict_proba
+        assert 'roc_auc' in metrics
+        assert metrics['roc_auc'] is not None
+        assert 0 <= metrics['roc_auc'] <= 1
+        assert len(np.unique(y_test)) == 3  # Confirm multiclass classification
+
+    def test_evaluate_excellent_performance_guidance(self, settings_builder):
+        """Test performance guidance for excellent model (≥0.9 accuracy)."""
+        # Given: Model with excellent performance
+        class ExcellentModel:
+            def predict(self, X):
+                # 95% accuracy - excellent performance
+                predictions = np.ones(len(X), dtype=int)
+                # Make 5% wrong predictions
+                wrong_indices = np.random.choice(len(X), size=max(1, len(X) // 20), replace=False)
+                predictions[wrong_indices] = 0
+                return predictions
+
+        model = ExcellentModel()
+        X_test = np.random.randn(20, 3)
+        y_test = np.ones(20, dtype=int)
+
+        settings = settings_builder \
+            .with_task("classification") \
+            .build()
+        evaluator = ClassificationEvaluator(settings)
+
+        # When: Evaluating excellent model
+        metrics = evaluator.evaluate(model, X_test, y_test)
+
+        # Then: Should trigger excellent performance guidance
+        assert 'accuracy' in metrics
+        assert metrics['accuracy'] >= 0.9
+
+    def test_evaluate_good_performance_guidance(self, settings_builder):
+        """Test performance guidance for good model (0.8-0.9 accuracy)."""
+        # Given: Model with good performance (85% accuracy)
+        class GoodModel:
+            def predict(self, X):
+                predictions = np.ones(len(X), dtype=int)
+                # Make 15% wrong predictions for ~85% accuracy
+                wrong_indices = np.random.choice(len(X), size=3, replace=False)
+                predictions[wrong_indices] = 0
+                return predictions
+
+        model = GoodModel()
+        X_test = np.random.randn(20, 3)
+        y_test = np.ones(20, dtype=int)
+
+        settings = settings_builder \
+            .with_task("classification") \
+            .build()
+        evaluator = ClassificationEvaluator(settings)
+
+        # When: Evaluating good model
+        metrics = evaluator.evaluate(model, X_test, y_test)
+
+        # Then: Should trigger good performance guidance
+        assert 'accuracy' in metrics
+        assert 0.8 <= metrics['accuracy'] < 0.9
+
+    def test_evaluate_moderate_performance_guidance(self, settings_builder):
+        """Test performance guidance for moderate model (0.7-0.8 accuracy)."""
+        # Given: Model with moderate performance (75% accuracy)
+        class ModerateModel:
+            def predict(self, X):
+                predictions = np.ones(len(X), dtype=int)
+                # Make 25% wrong predictions for 75% accuracy
+                wrong_indices = np.random.choice(len(X), size=5, replace=False)
+                predictions[wrong_indices] = 0
+                return predictions
+
+        model = ModerateModel()
+        X_test = np.random.randn(20, 3)
+        y_test = np.ones(20, dtype=int)
+
+        settings = settings_builder \
+            .with_task("classification") \
+            .build()
+        evaluator = ClassificationEvaluator(settings)
+
+        # When: Evaluating moderate model
+        metrics = evaluator.evaluate(model, X_test, y_test)
+
+        # Then: Should trigger moderate performance guidance
+        assert 'accuracy' in metrics
+        assert 0.7 <= metrics['accuracy'] < 0.8
+
+    def test_evaluate_with_class_specific_metrics_coverage(self, settings_builder):
+        """Test comprehensive class-specific metrics calculation."""
+        # Given: Model with known predictions for each class
+        class DetailedTestModel:
+            def predict(self, X):
+                # Create predictions that will generate specific precision/recall values
+                return np.array([0, 0, 1, 1, 0, 1, 0, 1, 0, 1])  # 50/50 split
+
+        model = DetailedTestModel()
+        X_test = np.random.randn(10, 3)
+        y_test = np.array([0, 0, 1, 1, 1, 0, 0, 1, 0, 1])  # Mixed labels
+
+        settings = settings_builder \
+            .with_task("classification") \
+            .build()
+        evaluator = ClassificationEvaluator(settings)
+
+        # When: Evaluating with detailed metrics
+        metrics = evaluator.evaluate(model, X_test, y_test)
+
+        # Then: All class-specific metrics should be present
+        unique_classes = np.unique(y_test)
+        for class_label in unique_classes:
+            assert f'class_{class_label}_precision' in metrics
+            assert f'class_{class_label}_recall' in metrics
+            assert f'class_{class_label}_f1' in metrics
+            assert f'class_{class_label}_support' in metrics
+
+            # Verify metrics are valid
+            assert 0 <= metrics[f'class_{class_label}_precision'] <= 1
+            assert 0 <= metrics[f'class_{class_label}_recall'] <= 1
+            assert 0 <= metrics[f'class_{class_label}_f1'] <= 1
+            assert metrics[f'class_{class_label}_support'] > 0
+
+    def test_evaluate_with_single_class_data(self, settings_builder):
+        """Test evaluation with single class in test data."""
+        # Given: Model and test data with only one class
+        class SingleClassModel:
+            def predict(self, X):
+                return np.zeros(len(X), dtype=int)  # Always predict 0
+
+        model = SingleClassModel()
+        X_test = np.random.randn(10, 3)
+        y_test = np.zeros(10, dtype=int)  # All true labels are 0
+
+        settings = settings_builder \
+            .with_task("classification") \
+            .build()
+        evaluator = ClassificationEvaluator(settings)
+
+        # When: Evaluating with single class
+        metrics = evaluator.evaluate(model, X_test, y_test)
+
+        # Then: Should handle single class scenario
+        assert 'accuracy' in metrics
+        assert metrics['accuracy'] == 1.0  # Perfect accuracy with single class
+        assert 'class_0_precision' in metrics
+        assert 'class_0_support' in metrics
+
+    def test_evaluate_console_logging_coverage(self, settings_builder):
+        """Test console logging system coverage."""
+        # Given: Model to trigger various logging paths
+        from sklearn.ensemble import RandomForestClassifier
+
+        X, y = np.random.randn(50, 4), np.random.randint(0, 2, 50)
+        X_train, y_train = X[:35], y[:35]
+        X_test, y_test = X[35:], y[35:]
+
+        model = RandomForestClassifier(n_estimators=5, random_state=42)
+        model.fit(X_train, y_train)
+
+        settings = settings_builder \
+            .with_task("classification") \
+            .build()
+        evaluator = ClassificationEvaluator(settings)
+
+        # When: Evaluating to trigger logging
+        metrics = evaluator.evaluate(model, X_test, y_test)
+
+        # Then: Should execute all logging paths including pipeline connection
+        assert 'accuracy' in metrics
+        assert isinstance(metrics, dict)
+        # Test passes if no exceptions are thrown during logging

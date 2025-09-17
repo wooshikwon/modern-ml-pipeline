@@ -386,6 +386,8 @@ data_source:
     base_path: /data
 feature_store:
   provider: none
+serving:
+  enabled: true
 output:
   inference:
     name: serving_output
@@ -398,7 +400,7 @@ output:
         run_id = "test_serving_run_123"
 
         # Mock MLflow recipe restoration (external service - mocking allowed)
-        with patch('src.settings.mlflow_restore.MLflowRecipeRestorer') as mock_restorer_class:
+        with patch('src.settings.factory.MLflowRecipeRestorer') as mock_restorer_class:
             mock_restorer = MagicMock()
             mock_restorer_class.return_value = mock_restorer
 
@@ -421,7 +423,7 @@ output:
                         "entity_columns": ["id"]
                     },
                     "fetcher": {"type": "pass_through"},
-                    "split": {"train": 0.8, "test": 0.2}
+                    "split": {"train": 0.8, "validation": 0.1, "test": 0.1}
                 },
                 evaluation={"metrics": ["accuracy"]},
                 metadata={
@@ -474,6 +476,8 @@ data_source:
     base_path: /staging/data
 feature_store:
   provider: none
+serving:
+  enabled: true
 output:
   inference:
     name: staging_output
@@ -486,7 +490,7 @@ output:
         run_id = "staging_run_456"
 
         # Mock successful MLflow restoration and validation
-        with patch('src.settings.mlflow_restore.MLflowRecipeRestorer') as mock_restorer_class:
+        with patch('src.settings.factory.MLflowRecipeRestorer') as mock_restorer_class:
             mock_restorer = MagicMock()
             mock_restorer_class.return_value = mock_restorer
 
@@ -509,7 +513,7 @@ output:
                         "entity_columns": ["user_id"]
                     },
                     "fetcher": {"type": "pass_through"},
-                    "split": {"train": 0.7, "test": 0.3}
+                    "split": {"train": 0.7, "validation": 0.2, "test": 0.1}
                 },
                 evaluation={"metrics": ["accuracy", "precision"]},
                 metadata={
@@ -565,7 +569,7 @@ output:
         run_id = "inference_run_789"
 
         # Mock MLflow recipe restoration
-        with patch('src.settings.mlflow_restore.MLflowRecipeRestorer') as mock_restorer_class:
+        with patch('src.settings.factory.MLflowRecipeRestorer') as mock_restorer_class:
             mock_restorer = MagicMock()
             mock_restorer_class.return_value = mock_restorer
 
@@ -669,7 +673,7 @@ LIMIT 10000
         }
 
         # Mock MLflow recipe restoration
-        with patch('src.settings.mlflow_restore.MLflowRecipeRestorer') as mock_restorer_class:
+        with patch('src.settings.factory.MLflowRecipeRestorer') as mock_restorer_class:
             mock_restorer = MagicMock()
             mock_restorer_class.return_value = mock_restorer
 
@@ -679,7 +683,7 @@ LIMIT 10000
                 model={
                     "class_path": "sklearn.linear_model.LinearRegression",
                     "library": "sklearn",
-                    "hyperparameters": {"tuning_enabled": False, "values": {}}
+                    "hyperparameters": {"tuning_enabled": False, "values": {"fit_intercept": True}}
                 },
                 data={
                     "loader": {"source_uri": None},
@@ -1183,3 +1187,171 @@ metadata:
 
         error_message = str(exc_info.value)
         assert "검증 실패" in error_message or "validation" in error_message.lower()
+
+
+class TestSettingsFactoryEdgeCases:
+    """Test edge cases and error handling paths to achieve 70% coverage target."""
+
+    def test_config_file_fallback_to_base_yaml(self, isolated_temp_directory):
+        """Test config file fallback logic when main config doesn't exist but base.yaml does."""
+        # Given: Non-existent main config but existing base.yaml
+        nonexistent_config = isolated_temp_directory / "nonexistent.yaml"
+        base_config_dir = isolated_temp_directory / "configs"
+        base_config_dir.mkdir(exist_ok=True)
+        base_config_path = base_config_dir / "base.yaml"
+
+        base_config_content = """
+environment:
+  name: fallback_env
+data_source:
+  name: storage
+  adapter_type: storage
+  config:
+    base_path: /fallback/data
+feature_store:
+  provider: none
+"""
+        base_config_path.write_text(base_config_content)
+
+        # When: Loading config from nonexistent path (should fallback to base.yaml)
+        factory = SettingsFactory()
+
+        # Change to the isolated directory so base.yaml can be found
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(str(isolated_temp_directory))
+            config = factory._load_config(str(nonexistent_config))
+
+            # Then: Should load base.yaml and show warning
+            assert config.environment.name == "fallback_env"
+            assert config.data_source.config.base_path == "/fallback/data"
+        finally:
+            os.chdir(original_cwd)
+
+    def test_config_file_not_found_error(self, isolated_temp_directory):
+        """Test FileNotFoundError when neither main config nor base.yaml exist."""
+        # Given: Non-existent config and no base.yaml
+        nonexistent_config = isolated_temp_directory / "nonexistent.yaml"
+
+        # When: Loading config from nonexistent path
+        factory = SettingsFactory()
+
+        # Change to the isolated directory where no base.yaml exists
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(str(isolated_temp_directory))
+
+            # Then: Should raise FileNotFoundError
+            with pytest.raises(FileNotFoundError) as exc_info:
+                factory._load_config(str(nonexistent_config))
+
+            assert "Config 파일을 찾을 수 없습니다" in str(exc_info.value)
+        finally:
+            os.chdir(original_cwd)
+
+    def test_recipe_enhancement_with_minimal_recipe(self, isolated_temp_directory):
+        """Test recipe enhancement logic when data split is missing."""
+        # Given: Minimal recipe without data split
+        recipe_path = isolated_temp_directory / "minimal_recipe.yaml"
+
+        minimal_recipe_content = """
+name: minimal_recipe
+task_choice: classification
+model:
+  class_path: sklearn.ensemble.RandomForestClassifier
+  library: sklearn
+  hyperparameters:
+    tuning_enabled: false
+    values:
+      n_estimators: 50
+data:
+  loader:
+    source_uri: null
+  data_interface:
+    target_column: target
+    entity_columns: [id]
+  fetcher:
+    type: pass_through
+evaluation:
+  metrics: [accuracy]
+metadata:
+  author: test
+  created_at: "2024-01-01T00:00:00"
+  description: Test minimal recipe
+"""
+        recipe_path.write_text(minimal_recipe_content)
+
+        # When: Loading and enhancing recipe
+        factory = SettingsFactory()
+        recipe = factory._load_recipe(str(recipe_path))
+
+        # Then: Should have enhanced data split with defaults
+        assert recipe.data.split is not None
+        assert recipe.data.split.train == 0.6
+        assert recipe.data.split.validation == 0.2
+        assert recipe.data.split.test == 0.2
+        assert recipe.data.split.calibration == 0.0
+
+    def test_validation_warnings_logging(self, isolated_temp_directory):
+        """Test validation warnings are logged correctly."""
+        # Given: Config that will trigger validation warnings
+        config_path = isolated_temp_directory / "warning_config.yaml"
+        recipe_path = isolated_temp_directory / "warning_recipe.yaml"
+
+        # Create config with potential warning triggers
+        config_content = """
+environment:
+  name: test_env
+data_source:
+  name: storage
+  adapter_type: storage
+  config:
+    base_path: /data
+feature_store:
+  provider: none
+# Missing serving section - might trigger warnings in some contexts
+"""
+
+        recipe_content = """
+name: warning_recipe
+task_choice: classification
+model:
+  class_path: sklearn.ensemble.RandomForestClassifier
+  library: sklearn
+  hyperparameters:
+    tuning_enabled: false
+    values:
+      n_estimators: 50
+data:
+  loader:
+    source_uri: null
+  data_interface:
+    target_column: target
+    entity_columns: [id]
+  fetcher:
+    type: pass_through
+  split:
+    train: 0.8
+    validation: 0.1
+    test: 0.1
+evaluation:
+  metrics: [accuracy]
+metadata:
+  author: test
+  created_at: "2024-01-01T00:00:00"
+  description: Recipe that might trigger warnings
+"""
+
+        config_path.write_text(config_content)
+        recipe_path.write_text(recipe_content)
+
+        # When: Creating Settings (should log any warnings)
+        settings = SettingsFactory.for_training(
+            recipe_path=str(recipe_path),
+            config_path=str(config_path)
+        )
+
+        # Then: Settings should be created successfully
+        # (warnings are logged but don't prevent creation)
+        assert isinstance(settings, Settings)
+        assert settings.config.environment.name == "test_env"
