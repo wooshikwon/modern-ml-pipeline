@@ -42,6 +42,17 @@ class TestInferenceCommandWithRealSettingsFactory:
                 'name': 'test_storage',
                 'adapter_type': 'storage',
                 'config': {'base_path': str(temp_dir / 'data')}
+            },
+            'feature_store': {
+                'provider': 'none'
+            },
+            'output': {
+                'inference': {
+                    'name': 'test_output',
+                    'enabled': True,
+                    'adapter_type': 'storage',
+                    'config': {'base_path': str(temp_dir / 'output')}
+                }
             }
         }
         with open(config_path, 'w') as f:
@@ -85,9 +96,9 @@ class TestInferenceCommandWithRealSettingsFactory:
         return config_path, recipe_path, data_path
 
     @patch('src.cli.commands.inference_command.run_inference_pipeline')
-    @patch('src.settings.factory.load_run_settings')  # Mock MLflow run loading
+    @patch('src.settings.factory.MLflowRecipeRestorer')  # Mock MLflow restorer
     def test_inference_command_real_settings_factory_integration(
-        self, mock_load_run_settings, mock_run_pipeline
+        self, mock_restorer_class, mock_run_pipeline
     ):
         """Test inference command with real SettingsFactory to verify actual component integration"""
         # Setup mocks
@@ -96,7 +107,7 @@ class TestInferenceCommandWithRealSettingsFactory:
         mock_result.output_path = "/tmp/predictions.csv"
         mock_run_pipeline.return_value = mock_result
 
-        # Mock MLflow run settings loading
+        # Mock MLflow Recipe Restorer
         mock_recipe = MagicMock()
         mock_recipe.task_choice = 'classification'
         mock_recipe.model = MagicMock()
@@ -105,7 +116,9 @@ class TestInferenceCommandWithRealSettingsFactory:
         mock_recipe.data = MagicMock()
         mock_recipe.data.loader = MagicMock()
         mock_recipe.data.loader.name = 'csv'
-        mock_load_run_settings.return_value = (MagicMock(), mock_recipe)
+        mock_restorer = MagicMock()
+        mock_restorer.restore_recipe.return_value = mock_recipe
+        mock_restorer_class.return_value = mock_restorer
 
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
@@ -134,9 +147,9 @@ class TestInferenceCommandWithRealSettingsFactory:
             assert call_args.kwargs['context_params'] == {}
 
     @patch('src.cli.commands.inference_command.run_inference_pipeline')
-    @patch('src.settings.factory.load_run_settings')
+    @patch('src.settings.factory.MLflowRecipeRestorer')
     def test_inference_command_with_json_params_real_factory(
-        self, mock_load_run_settings, mock_run_pipeline
+        self, mock_restorer_class, mock_run_pipeline
     ):
         """Test inference command with JSON parameters using real SettingsFactory"""
         # Setup mocks
@@ -145,13 +158,15 @@ class TestInferenceCommandWithRealSettingsFactory:
         mock_result.output_path = "/tmp/batch_output.csv"
         mock_run_pipeline.return_value = mock_result
 
-        # Mock MLflow run settings loading
+        # Mock MLflow Recipe Restorer
         mock_recipe = MagicMock()
         mock_recipe.task_choice = 'classification'
         mock_recipe.model = MagicMock()
         mock_recipe.data = MagicMock()
         mock_recipe.data.loader = MagicMock()
-        mock_load_run_settings.return_value = (MagicMock(), mock_recipe)
+        mock_restorer = MagicMock()
+        mock_restorer.restore_recipe.return_value = mock_recipe
+        mock_restorer_class.return_value = mock_restorer
 
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
@@ -220,6 +235,17 @@ class TestInferenceCommandWithRealSettingsFactory:
                     'name': 'test_storage',
                     'adapter_type': 'storage',
                     'config': {'base_path': str(temp_path / 'data')}
+                },
+                'feature_store': {
+                    'provider': 'none'
+                },
+                'output': {
+                    'inference': {
+                        'name': 'test_output',
+                        'enabled': True,
+                        'adapter_type': 'storage',
+                        'config': {'base_path': str(temp_path / 'output')}
+                    }
                 }
             }
             with open(config_path, 'w') as f:
@@ -267,9 +293,9 @@ class TestInferenceCommandWithRealSettingsFactory:
             assert any(keyword in output_str for keyword in ['오류', 'error', 'Error'])
 
     @patch('src.cli.commands.inference_command.run_inference_pipeline')
-    @patch('src.settings.factory.load_run_settings')
+    @patch('src.settings.factory.MLflowRecipeRestorer')
     def test_inference_command_progress_tracking_real_factory(
-        self, mock_load_run_settings, mock_run_pipeline
+        self, mock_restorer_class, mock_run_pipeline
     ):
         """Test inference command console progress tracking with real SettingsFactory"""
         # Setup mocks
@@ -278,13 +304,15 @@ class TestInferenceCommandWithRealSettingsFactory:
         mock_result.output_path = "/tmp/results.csv"
         mock_run_pipeline.return_value = mock_result
 
-        # Mock MLflow run settings loading
+        # Mock MLflow Recipe Restorer
         mock_recipe = MagicMock()
         mock_recipe.task_choice = 'classification'
         mock_recipe.model = MagicMock()
         mock_recipe.data = MagicMock()
         mock_recipe.data.loader = MagicMock()
-        mock_load_run_settings.return_value = (MagicMock(), mock_recipe)
+        mock_restorer = MagicMock()
+        mock_restorer.restore_recipe.return_value = mock_recipe
+        mock_restorer_class.return_value = mock_restorer
 
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
@@ -315,9 +343,9 @@ class TestInferenceCommandWithRealSettingsFactory:
             assert hasattr(settings, 'recipe')
 
     @patch('src.cli.commands.inference_command.run_inference_pipeline')
-    @patch('src.settings.factory.load_run_settings')
+    @patch('src.settings.factory.MLflowRecipeRestorer')
     def test_inference_command_result_processing_real_factory(
-        self, mock_load_run_settings, mock_run_pipeline
+        self, mock_restorer_class, mock_run_pipeline
     ):
         """Test inference command result processing with real SettingsFactory"""
         # Setup mocks with different result attributes
@@ -327,13 +355,15 @@ class TestInferenceCommandWithRealSettingsFactory:
         mock_result.output_path = "/tmp/final_predictions.csv"
         mock_run_pipeline.return_value = mock_result
 
-        # Mock MLflow run settings loading
+        # Mock MLflow Recipe Restorer
         mock_recipe = MagicMock()
         mock_recipe.task_choice = 'classification'
         mock_recipe.model = MagicMock()
         mock_recipe.data = MagicMock()
         mock_recipe.data.loader = MagicMock()
-        mock_load_run_settings.return_value = (MagicMock(), mock_recipe)
+        mock_restorer = MagicMock()
+        mock_restorer.restore_recipe.return_value = mock_recipe
+        mock_restorer_class.return_value = mock_restorer
 
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
@@ -355,9 +385,9 @@ class TestInferenceCommandWithRealSettingsFactory:
             assert any(keyword in output_str for keyword in ['처리', '완료', '출력'])
 
     @patch('src.cli.commands.inference_command.run_inference_pipeline')
-    @patch('src.settings.factory.load_run_settings')
+    @patch('src.settings.factory.MLflowRecipeRestorer')
     def test_inference_command_result_without_attributes_real_factory(
-        self, mock_load_run_settings, mock_run_pipeline
+        self, mock_restorer_class, mock_run_pipeline
     ):
         """Test inference command when result doesn't have optional attributes"""
         # Setup mocks without processed_rows or output_path attributes
@@ -367,13 +397,15 @@ class TestInferenceCommandWithRealSettingsFactory:
         del mock_result.output_path
         mock_run_pipeline.return_value = mock_result
 
-        # Mock MLflow run settings loading
+        # Mock MLflow Recipe Restorer
         mock_recipe = MagicMock()
         mock_recipe.task_choice = 'classification'
         mock_recipe.model = MagicMock()
         mock_recipe.data = MagicMock()
         mock_recipe.data.loader = MagicMock()
-        mock_load_run_settings.return_value = (MagicMock(), mock_recipe)
+        mock_restorer = MagicMock()
+        mock_restorer.restore_recipe.return_value = mock_recipe
+        mock_restorer_class.return_value = mock_restorer
 
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
@@ -436,21 +468,23 @@ class TestInferenceCommandErrorHandlingWithRealComponents:
             assert any(keyword in output_str for keyword in ['오류', 'error', 'Error'])
 
     @patch('src.cli.commands.inference_command.run_inference_pipeline')
-    @patch('src.settings.factory.load_run_settings')
+    @patch('src.settings.factory.MLflowRecipeRestorer')
     def test_inference_command_pipeline_runtime_error_real_factory(
-        self, mock_load_run_settings, mock_run_pipeline
+        self, mock_restorer_class, mock_run_pipeline
     ):
         """Test inference command handling of pipeline runtime errors with real SettingsFactory"""
         # Mock pipeline to raise exception
         mock_run_pipeline.side_effect = RuntimeError("Model loading failed")
 
-        # Mock MLflow run settings loading
+        # Mock MLflow Recipe Restorer
         mock_recipe = MagicMock()
         mock_recipe.task_choice = 'classification'
         mock_recipe.model = MagicMock()
         mock_recipe.data = MagicMock()
         mock_recipe.data.loader = MagicMock()
-        mock_load_run_settings.return_value = (MagicMock(), mock_recipe)
+        mock_restorer = MagicMock()
+        mock_restorer.restore_recipe.return_value = mock_recipe
+        mock_restorer_class.return_value = mock_restorer
 
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
@@ -467,6 +501,17 @@ class TestInferenceCommandErrorHandlingWithRealComponents:
                     'name': 'test_storage',
                     'adapter_type': 'storage',
                     'config': {'base_path': str(temp_path / 'data')}
+                },
+                'feature_store': {
+                    'provider': 'none'
+                },
+                'output': {
+                    'inference': {
+                        'name': 'test_output',
+                        'enabled': True,
+                        'adapter_type': 'storage',
+                        'config': {'base_path': str(temp_path / 'output')}
+                    }
                 }
             }
             with open(config_path, 'w') as f:

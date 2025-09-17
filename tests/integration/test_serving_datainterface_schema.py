@@ -38,7 +38,7 @@ class TestDataInterfaceSchemaGeneration:
         )
         
         # Then: target_column should be excluded
-        fields = PredictionRequest.__fields__
+        fields = PredictionRequest.model_fields
         assert 'price' not in fields, "Target column 'price' should be excluded"
         assert 'product_id' in fields
         assert 'store_id' in fields
@@ -65,7 +65,7 @@ class TestDataInterfaceSchemaGeneration:
         )
         
         # Then: Include timestamp but exclude target
-        fields = PredictionRequest.__fields__
+        fields = PredictionRequest.model_fields
         assert 'date' in fields, "Timestamp column should be included"
         assert 'sales' not in fields, "Target should be excluded"
         assert 'store_id' in fields
@@ -91,7 +91,7 @@ class TestDataInterfaceSchemaGeneration:
         )
         
         # Then: Include treatment but exclude target
-        fields = PredictionRequest.__fields__
+        fields = PredictionRequest.model_fields
         assert 'treatment_group' in fields, "Treatment column should be included"
         assert 'conversion' not in fields, "Target should be excluded"
         assert 'user_id' in fields
@@ -116,7 +116,7 @@ class TestDataInterfaceSchemaGeneration:
         )
         
         # Then: Include all columns except target
-        fields = PredictionRequest.__fields__
+        fields = PredictionRequest.model_fields
         assert 'label' not in fields, "Target should be excluded"
         assert 'id' in fields
         assert 'feature1' in fields
@@ -142,7 +142,7 @@ class TestDataInterfaceSchemaGeneration:
         BatchRequest = create_batch_prediction_request(PredictionRequest)
         
         # Then: Should have samples field
-        fields = BatchRequest.__fields__
+        fields = BatchRequest.model_fields
         assert 'samples' in fields
         
     def test_schema_field_descriptions(self):
@@ -163,9 +163,9 @@ class TestDataInterfaceSchemaGeneration:
         )
         
         # Then: Fields should have descriptions
-        assert 'Entity column' in PredictionRequest.__fields__['user_id'].field_info.description
-        assert 'Feature column' in PredictionRequest.__fields__['age'].field_info.description
-        assert 'Timestamp column' in PredictionRequest.__fields__['date'].field_info.description
+        assert 'Entity column' in PredictionRequest.model_fields['user_id'].description
+        assert 'Feature column' in PredictionRequest.model_fields['age'].description
+        assert 'Timestamp column' in PredictionRequest.model_fields['date'].description
 
 
 class TestAPIContextSetup:
@@ -198,7 +198,7 @@ class TestAPIContextSetup:
         assert app_context.model_uri == "runs:/test_run/model"
         
         # Verify correct schema was created (target excluded)
-        fields = app_context.PredictionRequest.__fields__
+        fields = app_context.PredictionRequest.model_fields
         assert 'target' not in fields
         assert 'id' in fields
         assert 'f1' in fields
@@ -223,7 +223,9 @@ class TestAPIContextSetup:
         
         # When: Setup API context
         with patch('src.serving._lifespan.create_dynamic_prediction_request') as mock_create:
-            mock_create.return_value = Mock(spec=BaseModel)
+            mock_prediction_request = Mock(spec=BaseModel)
+            mock_prediction_request.__name__ = "MockPredictionRequest"
+            mock_create.return_value = mock_prediction_request
             setup_api_context(run_id="test_run", settings=mock_settings)
             
             # Then: Should fall back to legacy method
@@ -252,7 +254,7 @@ class TestEndToEndSchemaGeneration:
         )
         
         # Then: All features should be included
-        fields = PredictionRequest.__fields__
+        fields = PredictionRequest.model_fields
         assert 'customer_id' in fields
         assert 'age' in fields
         assert 'income' in fields
@@ -277,7 +279,7 @@ class TestEndToEndSchemaGeneration:
         )
         
         # Then: Required columns should be included
-        fields = PredictionRequest.__fields__
+        fields = PredictionRequest.model_fields
         assert 'computed_feature1' in fields
         assert 'computed_feature2' in fields
         assert 'target' not in fields

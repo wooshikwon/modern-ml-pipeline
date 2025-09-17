@@ -40,6 +40,17 @@ class TestServeCommandWithRealSettingsFactory:
                 'name': 'test_storage',
                 'adapter_type': 'storage',
                 'config': {'base_path': str(temp_dir / 'data')}
+            },
+            'feature_store': {
+                'provider': 'none'
+            },
+            'output': {
+                'inference': {
+                    'name': 'test_output',
+                    'enabled': True,
+                    'adapter_type': 'storage',
+                    'config': {'base_path': str(temp_dir / 'output')}
+                }
             }
         }
         with open(config_path, 'w') as f:
@@ -69,7 +80,7 @@ class TestServeCommandWithRealSettingsFactory:
         return config_path, recipe_path
 
     @patch('src.cli.commands.serve_command.run_api_server')
-    @patch('src.settings.mlflow_restore.MLflowRecipeRestorer')  # Mock MLflow restorer
+    @patch('src.settings.factory.MLflowRecipeRestorer')  # Mock MLflow restorer
     def test_serve_command_real_settings_factory_integration(
         self, mock_restorer_class, mock_run_server
     ):
@@ -147,7 +158,16 @@ class TestServeCommandWithRealSettingsFactory:
             # Create invalid config file (missing required fields)
             config_path = temp_path / "invalid_config.yaml"
             config_data = {
-                'environment': {'name': 'test'}
+                'environment': {'name': 'test'},
+                'feature_store': {'provider': 'none'},
+                'output': {
+                    'inference': {
+                        'name': 'test_output',
+                        'enabled': True,
+                        'adapter_type': 'storage',
+                        'config': {'base_path': str(temp_path / 'output')}
+                    }
+                }
                 # Missing mlflow and data_source
             }
             with open(config_path, 'w') as f:
@@ -170,7 +190,7 @@ class TestServeCommandWithRealSettingsFactory:
             assert any(keyword in output_str for keyword in ['오류', 'error', 'Error'])
 
     @patch('src.cli.commands.serve_command.run_api_server')
-    @patch('src.settings.mlflow_restore.MLflowRecipeRestorer')
+    @patch('src.settings.factory.MLflowRecipeRestorer')
     def test_serve_command_with_custom_host_port_real_factory(
         self, mock_restorer_class, mock_run_server
     ):
@@ -210,7 +230,7 @@ class TestServeCommandWithRealSettingsFactory:
             assert call_args.kwargs['port'] == 9000
 
     @patch('src.cli.commands.serve_command.run_api_server')
-    @patch('src.settings.mlflow_restore.MLflowRecipeRestorer')
+    @patch('src.settings.factory.MLflowRecipeRestorer')
     def test_serve_command_progress_tracking_with_real_factory(
         self, mock_restorer_class, mock_run_server
     ):
@@ -295,7 +315,7 @@ class TestServeCommandErrorHandlingWithRealComponents:
             assert any(keyword in output_str for keyword in ['오류', 'error', 'Error'])
 
     @patch('src.cli.commands.serve_command.run_api_server')
-    @patch('src.settings.mlflow_restore.MLflowRecipeRestorer')
+    @patch('src.settings.factory.MLflowRecipeRestorer')
     def test_serve_command_server_runtime_error_real_factory(
         self, mock_restorer_class, mock_run_server
     ):
@@ -324,6 +344,17 @@ class TestServeCommandErrorHandlingWithRealComponents:
                     'name': 'test_storage',
                     'adapter_type': 'storage',
                     'config': {'base_path': str(temp_path / 'data')}
+                },
+                'feature_store': {
+                    'provider': 'none'
+                },
+                'output': {
+                    'inference': {
+                        'name': 'test_output',
+                        'enabled': True,
+                        'adapter_type': 'storage',
+                        'config': {'base_path': str(temp_path / 'output')}
+                    }
                 }
             }
             with open(config_path, 'w') as f:
