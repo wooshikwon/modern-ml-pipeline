@@ -210,28 +210,29 @@ class ComprehensiveTestRunner:
     def _build_pytest_command(self, group: Dict[str, Any], verbose: bool = True) -> str:
         """그룹에 맞는 pytest 명령어 생성"""
         paths = " ".join(group["paths"])
-        
+
         base_cmd = f"pytest {paths}"
         options = []
-        
+
         # 기본 옵션
         if verbose:
             options.append("-v --tb=short")
         else:
             options.append("--tb=line")
-            
-        # 병렬 처리
+
+        # 병렬 처리 (커버리지와 병렬 실행 시 문제가 있으므로 조정)
         if group.get("parallel", False):
-            options.append("-n auto")
+            # 커버리지를 사용할 때는 병렬 처리 제한
+            options.append("-n 2")  # auto 대신 2로 제한
         elif group.get("workers"):
             options.append(f"-n {group['workers']}")
         else:
             options.append("-n 1")
-            
+
         # 타임아웃
         if group.get("timeout"):
             options.append(f"--timeout={group['timeout']}")
-            
+
         # 에러 처리
         if group["phase"] == 3:  # Phase 3은 격리 실행
             options.append("-x --maxfail=2")
@@ -239,12 +240,12 @@ class ComprehensiveTestRunner:
             options.append("--maxfail=10")
         else:  # Phase 1은 관대
             options.append("--maxfail=15")
-            
-        # 커버리지
+
+        # 커버리지 (병렬 실행 시 데이터 파일 분리)
         options.append("--cov=src")
         options.append(f"--cov-report=html:htmlcov/group{group['id']}")
         options.append("--cov-report=term-missing")
-        
+
         return f"{base_cmd} {' '.join(options)}"
     
     def _parse_pytest_output(self, stdout: str, stderr: str) -> Dict[str, int]:
@@ -320,8 +321,8 @@ class ComprehensiveTestRunner:
         """커버리지 정보 추출"""
         lines = stdout.split('\n')
         for line in lines:
+            # Pattern 1: "TOTAL     1234    567    54%"
             if "TOTAL" in line and "%" in line:
-                # TOTAL     1234    567    54%
                 parts = line.split()
                 for part in parts:
                     if part.endswith('%'):
@@ -329,6 +330,18 @@ class ComprehensiveTestRunner:
                             return float(part.rstrip('%'))
                         except ValueError:
                             continue
+
+            # Pattern 2: Coverage report 마지막 줄 패턴
+            # "Required test coverage of 15% reached. Total coverage: 25.43%"
+            if "Total coverage:" in line:
+                import re
+                match = re.search(r'Total coverage:\s*([\d.]+)%', line)
+                if match:
+                    try:
+                        return float(match.group(1))
+                    except ValueError:
+                        continue
+
         return None
     
     def run_group(self, group: Dict[str, Any], verbose: bool = True) -> TestResult:
