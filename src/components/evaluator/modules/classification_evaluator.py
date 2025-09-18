@@ -2,14 +2,14 @@
 import numpy as np
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 from src.interface import BaseEvaluator
-from src.settings import DataInterface
+from src.settings import Settings
 from src.utils.core.console import get_console
 
 class ClassificationEvaluator(BaseEvaluator):
     METRIC_KEYS = ["accuracy", "precision", "recall", "f1", "roc_auc"]
-    
-    def __init__(self, data_interface_settings: DataInterface):
-        super().__init__(data_interface_settings)
+
+    def __init__(self, settings: Settings):
+        super().__init__(settings)
         self.console = get_console()
 
     def evaluate(self, model, X, y, source_df=None):
@@ -39,10 +39,21 @@ class ClassificationEvaluator(BaseEvaluator):
                          rich_message=f"   📈 Computing ROC AUC for [yellow]{'binary' if n_classes == 2 else 'multi-class'}[/yellow] classification")
 
         if n_classes == 2:
-            # Binary classification - predictions 사용 가능
-            metrics["roc_auc"] = roc_auc_score(y, predictions)
-            self.console.info(f"이진 분류 ROC AUC 완료: {metrics['roc_auc']:.4f}",
-                            rich_message=f"   ✅ Binary ROC AUC: [green]{metrics['roc_auc']:.4f}[/green]")
+            # Binary classification - predict_proba 필요
+            try:
+                if hasattr(model, 'predict_proba'):
+                    y_proba = model.predict_proba(X)[:, 1]  # 클래스 1의 확률
+                    metrics["roc_auc"] = roc_auc_score(y, y_proba)
+                    self.console.info(f"이진 분류 ROC AUC 완료: {metrics['roc_auc']:.4f}",
+                                    rich_message=f"   ✅ Binary ROC AUC: [green]{metrics['roc_auc']:.4f}[/green]")
+                else:
+                    metrics["roc_auc"] = None
+                    self.console.warning("모델이 predict_proba를 지원하지 않아 ROC AUC 계산을 스킵합니다",
+                                       rich_message="   ⚠️  ROC AUC skipped - model doesn't support predict_proba")
+            except Exception as e:
+                metrics["roc_auc"] = None
+                self.console.warning(f"ROC AUC 계산 중 오류 발생: {str(e)}",
+                                   rich_message="   ⚠️  ROC AUC calculation failed - see logs for details")
         else:
             # Multi-class classification - probabilities 필요
             try:

@@ -2,15 +2,15 @@
 import numpy as np
 from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
 from src.interface import BaseEvaluator
-from src.settings import DataInterface
+from src.settings import Settings
 from src.utils.core.console import get_console
 
 class RegressionEvaluator(BaseEvaluator):
-    
+
     METRIC_KEYS = ["r2_score", "mean_squared_error"]
 
-    def __init__(self, data_interface_settings: DataInterface):
-        super().__init__(data_interface_settings)
+    def __init__(self, settings: Settings):
+        super().__init__(settings)
         self.console = get_console()
 
     def evaluate(self, model, X, y, source_df=None):

@@ -746,10 +746,15 @@ def real_dataset_files(isolated_temp_directory, test_data_generator):
     cls_data.to_csv(cls_csv_path, index=False)
     files["classification_csv"] = {"path": cls_csv_path, "data": cls_data, "format": "csv"}
     
-    # Parquet format  
-    cls_parquet_path = isolated_temp_directory / "classification.parquet"
-    cls_data.to_parquet(cls_parquet_path)
-    files["classification_parquet"] = {"path": cls_parquet_path, "data": cls_data, "format": "parquet"}
+    # Parquet format (only if pyarrow is available)
+    try:
+        import pyarrow
+        cls_parquet_path = isolated_temp_directory / "classification.parquet"
+        cls_data.to_parquet(cls_parquet_path)
+        files["classification_parquet"] = {"path": cls_parquet_path, "data": cls_data, "format": "parquet"}
+    except ImportError:
+        # Create a dummy entry so tests can skip gracefully
+        files["classification_parquet"] = {"path": None, "data": cls_data, "format": "parquet"}
     
     # Regression dataset
     X_reg, y_reg = test_data_generator.regression_data(n_samples=80, n_features=4)

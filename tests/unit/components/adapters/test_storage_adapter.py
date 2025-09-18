@@ -4,6 +4,7 @@ Real files, real data, real behavior validation
 Following comprehensive testing strategy document principles
 """
 
+import importlib.util
 import pytest
 import pandas as pd
 import numpy as np
@@ -51,10 +52,16 @@ class TestStorageAdapterWithRealFiles:
         assert "entity_id" in df.columns
         assert df["target"].nunique() >= 2
     
+    @pytest.mark.skipif(
+        not importlib.util.find_spec("pyarrow"),
+        reason="pyarrow not installed - required for Parquet support"
+    )
     def test_read_parquet_file_with_real_data(self, settings_builder, real_dataset_files):
         """Test reading real Parquet file with actual data."""
         # Given: Real Parquet file and adapter
         parquet_info = real_dataset_files["classification_parquet"]
+        if parquet_info["path"] is None:
+            pytest.skip("Parquet file not created due to missing pyarrow")
         settings = settings_builder \
             .with_data_source("storage") \
             .build()
@@ -93,6 +100,10 @@ class TestStorageAdapterWithRealFiles:
         assert len(read_df) == len(df)
         pd.testing.assert_frame_equal(read_df, df)
     
+    @pytest.mark.skipif(
+        not importlib.util.find_spec("pyarrow"),
+        reason="pyarrow not installed - required for Parquet support"
+    )
     def test_write_parquet_file_with_real_data(self, settings_builder, isolated_temp_directory,
                                               test_data_generator):
         """Test writing DataFrame to Parquet file."""
