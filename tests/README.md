@@ -22,6 +22,37 @@ Mock 사용은 계층별로 엄격히 제한:
 
 ---
 
+## 실행/메트릭 수집 표준
+
+- 단일 실행(그룹 분리 + 커버리지 + 메트릭 집계):
+  ```bash
+  python3 scripts/run_tests_split.py
+  ```
+
+- 병렬 워커 제어(기본은 안정성 우선으로 각 그룹 1 워커):
+  ```bash
+  UNIT_WORKERS=1 INTEGRATION_WORKERS=1 E2E_WORKERS=1 python3 scripts/run_tests_split.py
+  ```
+
+- 산출물(`reports/`):
+  - `pytest.unit.json`, `pytest.integration.json`, `pytest.e2e.json`
+  - `coverage.unit.xml`, `coverage.integration.xml`, `coverage.e2e.xml`
+  - `metrics.summary.json`
+
+- 사용 플러그인/옵션:
+  - `pytest-xdist`, `pytest-cov`, `pytest-json-report`, `pytest-timeout`
+  - 기본 타임아웃: `--timeout=60` (테스트 단위)
+
+- 서버 테스트 직렬화:
+  - 서버/프로세스 의존 테스트는 `@pytest.mark.server`를 사용
+  - `server_serial_execution` 고정(fixture)과 파일락으로 병렬 경합 방지
+
+- 실행 소음/프로세스 관리:
+  - `MMP_QUIET_PROMPTS=1`로 비대화형 프롬프트 메시지 억제
+  - 전역 프로세스 강제 종료는 기본 비활성화: `MMP_ENABLE_GLOBAL_KILL=0` (필요 시 `1`)
+
+---
+
 ## 2. 디렉토리 구조
 
 ```

@@ -1,0 +1,14 @@
+{
+  "thresholds": {
+    "FAIL_RATE_MAX": 0.0,
+    "SKIP_RATE_MAX": 0.15,
+    "DURATION_MAX_UNIT": 0.0,
+    "DURATION_MAX_INTEGRATION": 0.0,
+    "DURATION_MAX_E2E": 0.0
+  },
+  "violations": [
+    "unit: fail_rate 0.080 > 0.000",
+    "integration: fail_rate 0.065 > 0.000"
+  ],
+  "passed": false
+}

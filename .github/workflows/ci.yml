@@ -250,6 +250,57 @@ jobs:
         path: coverage-integration.xml
 
   # ============================================================================
+  # Split Tests with Grouped Metrics (Unit → Integration → E2E)
+  # ============================================================================
+  grouped-tests:
+    name: Grouped Tests & Metrics
+    runs-on: ubuntu-latest
+    needs: [code-quality]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Cache Python dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies (dev + extras)
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .[dev,ml-extras,feature-store,cloud-extras]
+
+    - name: Run grouped tests script (unit → integration → e2e)
+      run: |
+        python scripts/run_tests_split.py
+
+    - name: Verify metrics thresholds
+      env:
+        FAIL_RATE_MAX: "0.0"
+        SKIP_RATE_MAX: "0.15"
+        DURATION_MAX_UNIT: "0"
+        DURATION_MAX_INTEGRATION: "0"
+        DURATION_MAX_E2E: "0"
+      run: |
+        python scripts/verify_metrics.py
+
+    - name: Upload grouped test reports
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: grouped-test-reports
+        path: reports/
+
+  # ============================================================================
   # End-to-End Tests (10 Major Use Cases)
   # ============================================================================
   e2e-tests:

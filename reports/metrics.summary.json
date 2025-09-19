@@ -1,0 +1,38 @@
+{
+  "unit": {
+    "total": 1398,
+    "passed": 1218,
+    "failed": 129,
+    "errors": 0,
+    "skipped": 51,
+    "xfailed": 0,
+    "xpassed": 0,
+    "skip_rate": 0.03648068669527897,
+    "fail_rate": 0.09227467811158799,
+    "duration_sec": 228.4634189605713
+  },
+  "integration": {
+    "total": 214,
+    "passed": 198,
+    "failed": 13,
+    "errors": 0,
+    "skipped": 3,
+    "xfailed": 0,
+    "xpassed": 0,
+    "skip_rate": 0.014018691588785047,
+    "fail_rate": 0.06074766355140187,
+    "duration_sec": 227.0990128517151
+  },
+  "e2e": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "xfailed": 0,
+    "xpassed": 0,
+    "skip_rate": 0.0,
+    "fail_rate": 0.0,
+    "duration_sec": 23.651790857315063
+  }
+}

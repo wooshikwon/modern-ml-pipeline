@@ -31,6 +31,10 @@ from src.settings.config import Output, OutputTarget
 # MEMORY MANAGEMENT & CLEANUP (Phase 2)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+def _global_kill_enabled() -> bool:
+    """Return True if global kill behavior is explicitly enabled via env var."""
+    return os.getenv("MMP_ENABLE_GLOBAL_KILL", "0") == "1"
+
 def cleanup_mlflow_processes():
     """Clean up any MLflow server processes to prevent memory leaks"""
     import signal
@@ -115,13 +119,15 @@ def finalize_coverage():
 
 def pytest_sessionstart(session):
     """Called after the Session object has been created"""
-    cleanup_mlflow_processes()
+    if _global_kill_enabled():
+        cleanup_mlflow_processes()
 
 
 def pytest_sessionfinish(session, exitstatus):
     """Called after whole test run finished, before returning exit status"""
     finalize_coverage()
-    cleanup_mlflow_processes()
+    if _global_kill_enabled():
+        cleanup_mlflow_processes()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -155,8 +161,9 @@ def ensure_deterministic_execution():
     # Light cleanup after each test (avoid heavy operations)
     try:
         import subprocess
-        subprocess.run(["pkill", "-f", "mlflow.server"],
-                     capture_output=True, timeout=1)
+        if _global_kill_enabled():
+            subprocess.run(["pkill", "-f", "mlflow.server"],
+                         capture_output=True, timeout=1)
     except:
         pass
 
@@ -288,8 +295,9 @@ class SettingsBuilder:
     def __init__(self):
         # Default minimal config
         self._environment = Environment(name="test")
+        # Default MLflow to isolated file store. Individual tests can override via fixtures.
         self._mlflow = MLflow(
-            tracking_uri="sqlite:///tests/fixtures/databases/test_mlflow.db",
+            tracking_uri=f"file://{Path(tempfile.gettempdir()) / 'mmp_default_mlruns'}",
             experiment_name="test_experiment"
         )
         self._data_source = DataSource(
@@ -959,6 +967,10 @@ def pytest_configure(config):
         "markers",
         "performance: marks tests as performance benchmarks"
     )
+    config.addinivalue_line(
+        "markers",
+        "server: marks tests that require exclusive access to server/ports/resources"
+    )
 
 
 def pytest_collection_modifyitems(config, items):
@@ -967,6 +979,40 @@ def pytest_collection_modifyitems(config, items):
         # Mark integration and e2e tests as slow
         if "integration" in str(item.fspath) or "e2e" in str(item.fspath):
             item.add_marker(pytest.mark.slow)
+        # Ensure server-marked tests acquire global server lock
+        if "server" in item.keywords:
+            item.add_marker(pytest.mark.usefixtures("server_serial_execution"))
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SERVER/RESOURCE SERIALIZATION LOCK (Phase 2)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@pytest.fixture(scope="session")
+def server_serial_execution():
+    """Serialize tests marked as 'server' across processes using a filesystem lock.
+
+    This avoids port/MLflow/SQLite conflicts when running in parallel (xdist).
+    """
+    lock_dir = Path("/tmp/mmp-server.lockdir")
+    start_time = time.time()
+    # Attempt to acquire lock by creating a directory atomically
+    while True:
+        try:
+            lock_dir.mkdir(mode=0o700)
+            break
+        except FileExistsError:
+            if time.time() - start_time > 300:  # 5 minutes safety timeout
+                pytest.skip("Server lock wait timeout exceeded; skipping server-marked test")
+            time.sleep(0.2)
+    try:
+        yield
+    finally:
+        try:
+            lock_dir.rmdir()
+        except Exception:
+            # Best-effort cleanup
+            pass
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1055,19 +1101,23 @@ def cli_test_environment(isolated_working_directory):
     (work_dir / "data").mkdir(exist_ok=True)
     
     # 테스트용 설정 파일들 생성
-    test_config = """
+    mlruns_dir = (work_dir / "mlruns")
+    mlruns_dir.mkdir(exist_ok=True)
+    tracking_uri_abs = f"file://{mlruns_dir.as_posix()}"
+
+    test_config = f"""
 environment:
   name: "test"
   description: "Test environment"
 
 mlflow:
-  tracking_uri: "sqlite:///tests/fixtures/databases/test_mlflow.db"
+  tracking_uri: "{tracking_uri_abs}"
   experiment_name: "test_experiment"
 
 data_source:
   name: "test_storage"
   adapter_type: "storage"
-  config: {}
+  config: {{}}
 
 feature_store:
   provider: "none"

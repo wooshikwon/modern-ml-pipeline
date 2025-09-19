@@ -9,6 +9,7 @@ CLAUDE.md 원칙 준수:
 """
 
 from pathlib import Path
+import os
 from typing import Dict, List, Set, Any, Optional
 from datetime import datetime
 import yaml
@@ -129,7 +130,9 @@ class InteractiveUI:
                 if result == key:
                     return key
 
-            print(f"❌ 유효한 선택지를 입력해주세요: {[k for k, _ in choices]}")
+            # Quiet repeated prompt errors when running non-interactively
+            if os.getenv("MMP_QUIET_PROMPTS", "0") != "1":
+                print(f"❌ 유효한 선택지를 입력해주세요: {[k for k, _ in choices]}")
 
     def print_divider(self):
         print("\n" + "="*50 + "\n")
