@@ -114,12 +114,12 @@ mmp train [OPTIONS]
 | `--data` | `-d` | - | 데이터 파일 경로 (CSV, Parquet, SQL) |
 | `--params` | `-p` | - | Jinja 템플릿 파라미터 (JSON 형식) |
 | `--record-reqs` | - | - | 패키지 요구사항을 MLflow artifact에 기록 |
-| `-v` | - | - | Verbose 모드 (상세 로그 출력) |
+| `-q` | `--quiet` | - | 요약 출력 모드 (진행 상태만 표시) |
 
 **예시:**
 
 ```bash
-# CSV 파일로 학습
+# CSV 파일로 학습 (기본: 상세 로그 출력)
 mmp train -c configs/dev.yaml -r recipes/model.yaml -d data/train.csv
 
 # SQL 템플릿으로 학습 (파라미터 전달)
@@ -127,8 +127,8 @@ mmp train -c configs/dev.yaml -r recipes/model.yaml \
   -d sql/train_data.sql.j2 \
   --params '{"data_interval_start": "2025-01-01", "data_interval_end": "2025-01-31"}'
 
-# Verbose 모드
-mmp train -c configs/dev.yaml -r recipes/model.yaml -d data/train.csv -v
+# Quiet 모드 (진행 상태만)
+mmp train -c configs/dev.yaml -r recipes/model.yaml -d data/train.csv -q
 ```
 
 **출력:**
@@ -162,7 +162,7 @@ mmp batch-inference [OPTIONS]
 | `--recipe` | `-r` | - | Recipe 파일 경로 (미지정 시 artifact 사용) |
 | `--data` | `-d` | - | 추론 데이터 경로 (미지정 시 artifact SQL 사용) |
 | `--params` | `-p` | - | Jinja 템플릿 파라미터 (JSON 형식) |
-| `-v` | - | - | Verbose 모드 |
+| `-q` | `--quiet` | - | 요약 출력 모드 |
 
 **예시:**
 
@@ -264,29 +264,31 @@ mmp list metrics
 
 ## 4. 터미널 출력
 
-### 진행 상태 표시
+### 기본 출력 (상세 모드)
 
-모든 명령어는 단계별 진행 상태를 표시합니다:
+기본적으로 모든 명령어는 상세 로그를 출력합니다:
+
+- `[DATA:...]` - 데이터 로딩/저장 상세
+- `[MODEL:...]` - 모델 컴포넌트 동작
+- `[PREPROCESS:...]` - 전처리 단계별 변환
+
+이는 K8s 로그, CI/CD 파이프라인 등에서 디버깅에 유용합니다.
+
+### Quiet 모드 (`-q`)
+
+진행 상태만 간략히 확인하려면 `-q` 옵션을 사용합니다:
+
+```bash
+mmp train -c configs/dev.yaml -r recipes/model.yaml -d data/train.csv -q
+```
+
+Quiet 모드 출력 예시:
 
 ```text
 [1/6] Loading config          done
 [2/6] Checking dependencies   done
 [3/6] Loading data            done  10,000 rows
 ```
-
-### Verbose 모드 (`-v`)
-
-상세 로그를 확인하려면 `-v` 옵션을 사용합니다:
-
-```bash
-mmp train -c configs/dev.yaml -r recipes/model.yaml -d data/train.csv -v
-```
-
-Verbose 모드에서는 다음 정보가 추가로 출력됩니다:
-
-- `[DATA:...]` - 데이터 로딩/저장 상세
-- `[MODEL:...]` - 모델 컴포넌트 동작
-- `[PREPROCESS:...]` - 전처리 단계별 변환
 
 ### 로그 파일
 
