@@ -28,7 +28,7 @@ pipx install git+https://github.com/wooshikwon/modern-ml-pipeline.git
 # XGBoost, LightGBM 등 추가 모델 사용 시
 pipx install "git+https://github.com/wooshikwon/modern-ml-pipeline.git#egg=modern-ml-pipeline[ml-extras]"
 
-# 클라우드 스토리지(BigQuery, S3, GCS) 사용 시
+# BigQuery, S3, GCS 사용 시
 pipx install "git+https://github.com/wooshikwon/modern-ml-pipeline.git#egg=modern-ml-pipeline[cloud-extras]"
 
 # 모든 기능 사용 시
@@ -57,167 +57,199 @@ uv sync --all-extras  # 전체 의존성 설치
 | Extras 이름 | 언제 필요한가요? | 포함된 주요 라이브러리 |
 |-------------|-------------------|----------------------|
 | `ml-extras` | XGBoost, LightGBM, CatBoost 모델 사용 시 | `xgboost`, `lightgbm`, `catboost` |
-| `torch-extras` | 딥러닝 모델(FT-Transformer, LSTM 등) 사용 시 | `torch`, `rtdl`, `pytorch-tabnet` |
-| `cloud-extras` | BigQuery, AWS S3, GCS 데이터 사용 시 | `google-cloud-bigquery`, `boto3`, `s3fs` |
-| `feature-store` | Feast Feature Store 연동 시 | `feast`, `redis` |
+| `torch-extras` | 딥러닝 모델(LSTM, TabNet 등) 사용 시 | `torch` |
+| `cloud-extras` | BigQuery, S3, GCS 사용 시 | `sqlalchemy-bigquery`, `gcsfs`, `s3fs` |
+| `feature-store` | Feast Feature Store 연동 시 | `feast` |
 | `all` | 모든 기능 사용 시 | 위 전체 포함 |
 
 ---
 
-## 2. 주요 연결 설정
+## 2. Config 파일 설정
 
-### 환경 변수 (.env) 설정
+MMP는 **Config 파일에 직접 값을 설정**하는 방식을 권장합니다. 민감한 정보(인증서 경로 등)만 환경 변수로 분리합니다.
 
-프로젝트 루트에 `.env` 파일을 만들면 민감한 정보를 안전하게 관리할 수 있습니다.
+### 권장 패턴
+
+```yaml
+# configs/dev.yaml - 권장 방식: 직접 값 지정
+mlflow:
+  tracking_uri: ./mlruns              # 직접 값
+  experiment_name: mmp-dev            # 직접 값
+
+data_source:
+  adapter_type: sql
+  config:
+    project_id: my-gcp-project        # 직접 값
+    credentials_path: "${GOOGLE_APPLICATION_CREDENTIALS}"  # 인증서만 환경변수
+```
+
+### 환경 변수가 필요한 경우
+
+인증 정보처럼 Git에 커밋하면 안 되는 값만 환경 변수로 처리합니다:
 
 ```bash
-# .env 파일 예시
-
-# MLflow 연결 정보
-MLFLOW_TRACKING_URI=http://localhost:5000
-MLFLOW_EXPERIMENT_NAME=my-project
-
-# 데이터베이스 연결 정보
-DATABASE_URI=postgresql://user:password@localhost:5432/mydb
-
-# GCP 인증 (BigQuery/GCS 사용 시)
-GOOGLE_APPLICATION_CREDENTIALS=./secrets/service-account.json
-GCP_PROJECT_ID=my-gcp-project
-
-# AWS 인증 (S3 사용 시)
-AWS_ACCESS_KEY_ID=AKIA...
-AWS_SECRET_ACCESS_KEY=...
-AWS_REGION=us-east-1
-```
-
-Config 파일에서는 `${ENV_VAR_NAME}` 형태로 환경 변수를 참조합니다.
-
----
-
-### MLflow 설정
-
-실험 추적 및 모델 저장을 위한 MLflow 연결 설정입니다.
-
-**Config 예시 (configs/dev.yaml):**
-
-```yaml
-mlflow:
-  tracking_uri: "${MLFLOW_TRACKING_URI}"
-  experiment_name: "my-experiment"
-```
-
-**로컬 파일 저장 (MLflow 서버 없이):**
-
-```yaml
-mlflow:
-  tracking_uri: "./mlruns"
-  experiment_name: "local-experiment"
+# 필수 환경 변수 (민감 정보)
+export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
+export AWS_ACCESS_KEY_ID=AKIA...
+export AWS_SECRET_ACCESS_KEY=...
 ```
 
 ---
 
-### 데이터베이스 (SQL) 설정
+## 3. 환경별 Config 예시
 
-SQL 기반 데이터를 학습에 사용할 때 필요합니다.
+### Dev 환경 (로컬 MLflow)
 
-#### PostgreSQL
+```yaml
+# configs/dev.yaml
+environment:
+  name: dev
+
+mlflow:
+  tracking_uri: ./mlruns              # 로컬 파일 저장
+  experiment_name: mmp-dev
+
+data_source:
+  name: BigQuery
+  adapter_type: sql
+  config:
+    connection_uri: bigquery://my-project
+    project_id: my-project
+    credentials_path: "${GOOGLE_APPLICATION_CREDENTIALS}"
+    location: US
+    use_pandas_gbq: true
+
+output:
+  inference:
+    enabled: true
+    adapter_type: storage
+    config:
+      base_path: gs://my-bucket/dev/predictions
+```
+
+### Staging/Prod 환경 (원격 MLflow 서버)
+
+```yaml
+# configs/staging.yaml
+environment:
+  name: staging
+
+mlflow:
+  tracking_uri: https://mlflow.example.com   # 원격 MLflow 서버
+  experiment_name: mmp-staging
+
+data_source:
+  name: BigQuery
+  adapter_type: sql
+  config:
+    connection_uri: bigquery://my-project
+    project_id: my-project
+    credentials_path: "${GOOGLE_APPLICATION_CREDENTIALS}"
+    location: US
+    use_pandas_gbq: true
+
+output:
+  inference:
+    enabled: true
+    adapter_type: storage
+    config:
+      base_path: gs://my-bucket/staging/predictions
+```
+
+---
+
+## 4. 데이터 소스 설정
+
+### PostgreSQL
 
 ```yaml
 data_source:
-  adapter_type: "sql"
+  adapter_type: sql
   config:
-    connection_uri: "${DATABASE_URI}"
-    # 형식: postgresql://USER:PASSWORD@HOST:PORT/DB_NAME
+    connection_uri: postgresql://user:password@localhost:5432/mydb
 ```
 
-#### BigQuery
+### BigQuery
 
 `cloud-extras` 설치와 GCP 서비스 계정 인증이 필요합니다.
 
 ```yaml
 data_source:
-  adapter_type: "bigquery"
+  name: BigQuery
+  adapter_type: sql
   config:
-    connection_uri: "bigquery://${GCP_PROJECT_ID}"
-    project_id: "${GCP_PROJECT_ID}"
-    dataset_id: "my_dataset"
-    location: "US"
+    connection_uri: bigquery://my-project
+    project_id: my-project
+    credentials_path: "${GOOGLE_APPLICATION_CREDENTIALS}"
+    location: US
     use_pandas_gbq: true
-    query_timeout: 300
 ```
 
 **인증 설정:**
 
 ```bash
-# 서비스 계정 JSON 파일 경로 설정
-export GOOGLE_APPLICATION_CREDENTIALS=./secrets/service-account.json
+export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
 ```
 
 ---
 
-### 클라우드 스토리지 설정
+## 5. 추론 결과 저장 설정
 
-모델 아티팩트나 대용량 데이터를 S3/GCS에 저장할 때 사용합니다.
+배치 추론 결과를 저장할 위치를 설정합니다.
 
-#### AWS S3
+### GCS (Google Cloud Storage)
 
-```yaml
-data_source:
-  adapter_type: "storage"
-  config:
-    # base_path는 프로젝트 루트 레벨까지만 지정
-    base_path: "s3://my-bucket/my-project/"
-    storage_options:
-      aws_access_key_id: "${AWS_ACCESS_KEY_ID}"
-      aws_secret_access_key: "${AWS_SECRET_ACCESS_KEY}"
-      region_name: "us-east-1"
-```
-
-#### Google Cloud Storage (GCS)
+`cloud-extras` 설치가 필요합니다.
 
 ```yaml
-data_source:
-  adapter_type: "storage"
-  config:
-    # base_path는 프로젝트 루트 레벨까지만 지정
-    base_path: "gs://my-bucket/my-project/"
-    storage_options:
-      project: "${GCP_PROJECT_ID}"
-      token: "${GOOGLE_APPLICATION_CREDENTIALS}"
+output:
+  inference:
+    enabled: true
+    adapter_type: storage
+    config:
+      base_path: gs://my-bucket/predictions
 ```
 
-#### 클라우드 스토리지 경로 사용
+### S3 (AWS)
 
-`base_path`를 프로젝트 루트로 설정하면 **로컬과 동일한 CLI 경로**를 사용할 수 있습니다:
+`cloud-extras` 설치가 필요합니다.
 
-```bash
-# 로컬과 클라우드 모두 동일한 경로 지정
-mmp train ... -d data/train.csv
-mmp train ... -d sql/query.sql
-
-# Config에 따라 자동 변환:
-# - 로컬: data/train.csv
-# - S3:   s3://my-bucket/my-project/data/train.csv
-# - GCS:  gs://my-bucket/my-project/data/train.csv
+```yaml
+output:
+  inference:
+    enabled: true
+    adapter_type: storage
+    config:
+      base_path: s3://my-bucket/predictions
 ```
 
-**경로 변환 규칙:**
+### 로컬 파일
 
-| 환경 | Config base_path | CLI -d 옵션 | 최종 경로 |
-|------|------------------|-------------|----------|
-| 로컬 | (없음) | `data/train.csv` | `data/train.csv` |
-| S3 | `s3://bucket/project/` | `data/train.csv` | `s3://bucket/project/data/train.csv` |
-| GCS | `gs://bucket/project/` | `data/train.csv` | `gs://bucket/project/data/train.csv` |
+```yaml
+output:
+  inference:
+    enabled: true
+    adapter_type: storage
+    config:
+      base_path: ./artifacts/predictions
+```
 
-전체 URL 직접 지정도 가능합니다:
+### BigQuery 테이블
 
-```bash
-mmp train ... -d s3://other-bucket/other-path/train.csv
+```yaml
+output:
+  inference:
+    enabled: true
+    adapter_type: sql
+    config:
+      connection_uri: bigquery://my-project
+      table_name: predictions
+      write_disposition: WRITE_APPEND
 ```
 
 ---
 
-## 3. Feature Store 설정 (선택)
+## 6. Feature Store 설정 (선택)
 
 Feature Store(Feast)는 **선택 사항**입니다. 다음 경우에만 필요합니다:
 
@@ -228,83 +260,32 @@ Feature Store(Feast)는 **선택 사항**입니다. 다음 경우에만 필요�
 | 실시간 서빙에서 피처 자동 조회 | **필요** |
 | Point-in-Time Join으로 Data Leakage 방지 | **필요** |
 
-### Feast 구성 요소
-
-| 구성 요소 | 역할 | 사용 시점 |
-|----------|------|----------|
-| **Offline Store** | 과거 피처 저장 (PostgreSQL, BigQuery, File) | 학습, 배치 추론 |
-| **Online Store** | 최신 피처 저장 (Redis, DynamoDB, SQLite) | 실시간 서빙 |
-| **Registry** | 피처 메타데이터 관리 | 항상 |
-
 ### Config 예시 (Feast 사용 시)
 
 ```yaml
 feature_store:
-  provider: "feast"
+  provider: feast
   feast_config:
-    project: "my_feature_store"
-    registry: "./feast/data/registry.db"
-    provider: "local"
+    project: my_feature_store
+    registry: ./feast/data/registry.db
+    provider: local
 
-    # Offline Store: 학습/배치 추론용
     offline_store:
-      type: "postgres"
-      host: "localhost"
+      type: postgres
+      host: localhost
       port: 5432
-      database: "features"
-      user: "mluser"
+      database: features
+      user: mluser
       password: "${DB_PASSWORD}"
 
-    # Online Store: 실시간 서빙용
     online_store:
-      type: "redis"
-      connection_string: "redis://localhost:6379"
-```
-
-### Recipe에서 Fetcher 설정
-
-Feature Store를 사용하려면 Recipe에 fetcher를 설정합니다:
-
-```yaml
-data:
-  loader:
-    source_uri: "sql/transactions.sql"
-
-  data_interface:
-    entity_columns: [user_id]
-    target_column: is_fraud
-    timestamp_column: event_time
-
-  # Feature Store fetcher 설정
-  fetcher:
-    timestamp_column: event_time
-    feature_views:
-      user_features:
-        join_key: user_id
-        features: [avg_amount, transaction_count_7d, age]
-      merchant_features:
-        join_key: merchant_id
-        features: [avg_fraud_rate, category]
-```
-
-### Fetcher 없이 사용 (기본)
-
-Feature Store가 필요 없으면 fetcher 설정을 생략합니다. 자동으로 `pass_through` fetcher가 사용됩니다:
-
-```yaml
-data:
-  loader:
-    source_uri: "data/train.csv"
-
-  data_interface:
-    entity_columns: [user_id]
-    target_column: is_fraud
-    # fetcher 설정 생략 → 피처 증강 없음
+      type: redis
+      connection_string: redis://localhost:6379
 ```
 
 ---
 
-## 4. 설정 검증하기
+## 7. 설정 검증하기
 
 모든 설정이 올바른지 확인하려면 `system-check` 명령어를 사용하세요.
 
@@ -324,13 +305,13 @@ mmp system-check --config configs/dev.yaml --actionable
 ```text
 시스템 연결 검사 결과:
   PackageDependencies: 패키지 설치 완료
-  MLflow: 연결됨 (http://localhost:5000)
+  MLflow: 연결됨 (./mlruns)
   Database: 연결됨
 ```
 
 ---
 
-## 5. 연결 테스트 (Docker)
+## 8. 연결 테스트 (Docker)
 
 로컬에서 MLflow, PostgreSQL, Redis 등을 테스트하려면 Docker를 사용할 수 있습니다.
 
