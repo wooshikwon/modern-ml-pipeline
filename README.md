@@ -21,16 +21,23 @@ YAML 설정 기반의 머신러닝 파이프라인 CLI 도구입니다.
 **요구사항**: Python 3.11 또는 3.12
 
 ```bash
-# 기본 설치
-pipx install --python python3.11 git+https://github.com/wooshikwon/modern-ml-pipeline.git
+# 1) Python 3.11 설치
+brew install python@3.11          # macOS
+# sudo apt install python3.11     # Ubuntu/Debian
+# winget install Python.Python.3.11  # Windows
 
-# extras 포함 설치 (클라우드 스토리지 등)
-pipx install --python python3.11 "modern-ml-pipeline[cloud-extras] @ git+https://github.com/wooshikwon/modern-ml-pipeline.git"
+# 2) pipx 설치
+brew install pipx && pipx ensurepath   # macOS
+# pip install pipx && pipx ensurepath  # Linux/Windows
+
+# 3) MMP 설치
+pipx install --python python3.11 git+https://github.com/wooshikwon/modern-ml-pipeline.git
 ```
 
-> pipx가 없다면: `brew install pipx && pipx ensurepath` (macOS) 또는 `pip install pipx && pipx ensurepath`
->
-> `--python python3.11` 옵션은 pipx가 올바른 Python 버전을 사용하도록 지정합니다.
+extras 포함 설치 (클라우드 스토리지 등):
+```bash
+pipx install --python python3.11 "modern-ml-pipeline[cloud-extras] @ git+https://github.com/wooshikwon/modern-ml-pipeline.git"
+```
 
 상세 설치 옵션은 [환경 설정 가이드](./docs/user/ENVIRONMENT_SETUP.md)를 참고하세요.
 
