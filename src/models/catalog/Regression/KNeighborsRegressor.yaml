@@ -1,0 +1,50 @@
+class_path: sklearn.neighbors.KNeighborsRegressor
+description: K-Nearest Neighbors Regressor from scikit-learn.
+library: scikit-learn
+hyperparameters:
+  fixed: {}
+  tunable:
+    n_neighbors:
+      type: int
+      range:
+      - 1
+      - 50
+      default: 5
+    weights:
+      type: categorical
+      range:
+      - uniform
+      - distance
+      default: uniform
+    algorithm:
+      type: categorical
+      range:
+      - auto
+      - ball_tree
+      - kd_tree
+      - brute
+      default: auto
+    leaf_size:
+      type: int
+      range:
+      - 10
+      - 100
+      default: 30
+    p:
+      type: int
+      range:
+      - 1
+      - 2
+      default: 2
+    metric:
+      type: categorical
+      range:
+      - euclidean
+      - manhattan
+      - minkowski
+      default: minkowski
+feature_requirements:
+  numerical: true
+  categorical: false
+  text: false
+data_handler: tabular

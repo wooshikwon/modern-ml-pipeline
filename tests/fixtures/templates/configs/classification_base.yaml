@@ -1,0 +1,14 @@
+environment:
+  name: "test_env"
+
+data_source:
+  name: "test_storage"
+  adapter_type: "storage"
+  config: {}
+
+feature_store:
+  provider: "none"
+
+mlflow:
+  tracking_uri: "{{mlflow_uri}}"
+  experiment_name: "{{experiment_name}}"

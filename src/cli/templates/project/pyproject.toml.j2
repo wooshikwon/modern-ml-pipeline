@@ -1,0 +1,67 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "{{ project_name }}"
+version = "0.1.0"
+description = "ML Pipeline project powered by Modern ML Pipeline"
+readme = "README.md"
+requires-python = ">=3.11"
+
+# Core dependency - Modern ML Pipeline Framework
+dependencies = [
+    "modern-ml-pipeline @ git+https://github.com/wooshikwon/modern-ml-pipeline.git@v1.0.0",
+]
+
+[project.optional-dependencies]
+# 기본 ML 워크플로우 (대부분 사용자가 필요)
+standard = [
+    "modern-ml-pipeline[ml-extras] @ git+https://github.com/wooshikwon/modern-ml-pipeline.git@v1.0.0",
+]
+
+# 클라우드 스토리지 (S3, GCS, BigQuery)
+cloud = [
+    "modern-ml-pipeline[cloud-extras] @ git+https://github.com/wooshikwon/modern-ml-pipeline.git@v1.0.0",
+]
+
+# 딥러닝 모델 (LSTM, TabNet 등)
+deep-learning = [
+    "modern-ml-pipeline[torch-extras] @ git+https://github.com/wooshikwon/modern-ml-pipeline.git@v1.0.0",
+]
+
+# Feature Store (Feast)
+feature-store = [
+    "modern-ml-pipeline[feature-store] @ git+https://github.com/wooshikwon/modern-ml-pipeline.git@v1.0.0",
+]
+
+# 전체 설치
+all = [
+    "modern-ml-pipeline[all] @ git+https://github.com/wooshikwon/modern-ml-pipeline.git@v1.0.0",
+]
+
+# 개발 도구
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=6.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.5.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-v"

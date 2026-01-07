@@ -1,0 +1,36 @@
+class_path: sklearn.ensemble.RandomForestClassifier
+description: Random Forest Classifier from scikit-learn.
+library: scikit-learn
+hyperparameters:
+  fixed:
+    random_state: 42
+  tunable:
+    n_estimators:
+      type: int
+      range:
+      - 10
+      - 200
+      default: 100
+    max_depth:
+      type: int
+      range:
+      - 3
+      - 20
+      default: 10
+    min_samples_split:
+      type: int
+      range:
+      - 2
+      - 20
+      default: 2
+    min_samples_leaf:
+      type: int
+      range:
+      - 1
+      - 10
+      default: 1
+feature_requirements:
+  numerical: true
+  categorical: true
+  text: false
+data_handler: tabular

@@ -1,0 +1,36 @@
+class_path: src.models.custom.timeseries_wrappers.ExponentialSmoothing
+description: Exponential Smoothing (Holt-Winters) model for trend and seasonality modeling
+library: statsmodels
+hyperparameters:
+  fixed:
+    seasonal_periods: 12
+  tunable:
+    trend:
+      type: categorical
+      range:
+      - add
+      - mul
+      - null
+      default: add
+      description: 트렌드 성분 타입 (additive, multiplicative, 없음)
+    seasonal:
+      type: categorical
+      range:
+      - add
+      - mul
+      - null
+      default: null
+      description: 계절성 성분 타입 (additive, multiplicative, 없음)
+requires_custom_wrapper: true
+feature_requirements:
+  numerical: true
+  categorical: false
+  text: false
+  univariate_preferred: true
+  time_features_auto: false
+preprocessing_notes: ExponentialSmoothing은 univariate 모델이므로 시계열 데이터만 사용합니다. 트렌드와 계절성을 자동으로 모델링합니다.
+model_type: exponential_smoothing
+forecasting_type: point_forecast
+handles_seasonality: true
+handles_trend: true
+data_handler: timeseries

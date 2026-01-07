@@ -1,0 +1,106 @@
+class_path: catboost.CatBoostClassifier
+description: CatBoost Classifier.
+library: catboost
+hyperparameters:
+  fixed:
+    random_seed: 42
+    logging_level: Silent
+    loss_function: Logloss
+    eval_metric: AUC
+  tunable:
+    iterations:
+      type: int
+      range:
+      - 100
+      - 2000
+      default: 1000
+    learning_rate:
+      type: float
+      range:
+      - 0.01
+      - 0.3
+      default: 0.1
+    depth:
+      type: int
+      range:
+      - 4
+      - 10
+      default: 6
+    l2_leaf_reg:
+      type: float
+      range:
+      - 1.0
+      - 10.0
+      default: 3.0
+    boosting_type:
+      type: categorical
+      range:
+      - Ordered
+      - Plain
+      default: Ordered
+    bootstrap_type:
+      type: categorical
+      range:
+      - Bayesian
+      - Bernoulli
+      - MVS
+      default: Bayesian
+    subsample:
+      type: float
+      range:
+      - 0.5
+      - 1.0
+      default: 0.66
+    rsm:
+      type: float
+      range:
+      - 0.1
+      - 1.0
+      default: 1.0
+    random_strength:
+      type: float
+      range:
+      - 0.0
+      - 10.0
+      default: 1.0
+    one_hot_max_size:
+      type: int
+      range:
+      - 2
+      - 255
+      default: 2
+    max_ctr_complexity:
+      type: int
+      range:
+      - 1
+      - 8
+      default: 4
+    model_size_reg:
+      type: float
+      range:
+      - 0.0
+      - 100.0
+      default: 0.5
+    ctr_leaf_count_limit:
+      type: int
+      range:
+      - 1
+      - 200
+      default: 64
+    leaf_estimation_iterations:
+      type: int
+      range:
+      - 1
+      - 10
+      default: 10
+    leaf_estimation_method:
+      type: categorical
+      range:
+      - Newton
+      - Gradient
+      default: Newton
+feature_requirements:
+  numerical: true
+  categorical: true
+  text: false
+data_handler: tabular

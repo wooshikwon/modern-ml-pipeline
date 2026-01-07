@@ -1,0 +1,133 @@
+# MacOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# venv
+.venv/
+.pytest_cache/
+
+# Docker volumes and data
+postgres_data/
+redis_data/
+pgadmin_data/
+mlflow_artifacts/
+
+# Logs
+logs/
+*.log
+
+# Environment variables
+.env
+.env.local
+.env.production
+.env.dev
+.env.dev.template
+.env.local.template
+
+# Temporary files
+*.tmp
+*.temp
+/tmp/
+
+# IDE
+.cursor/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Python (if any helper scripts)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Backup files
+backup.sql
+*.backup
+*.bak
+
+# Test artifacts
+tests/fixtures/output/
+*.test
+
+# Test databases (auto-generated during testing)
+*.db
+test*.db
+
+# Coverage reports
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+coverage.json
+*.cover
+.hypothesis/
+
+# OS generated files
+.directory
+.fuse_hidden*
+.nfs*
+
+# Docker Compose override files
+docker-compose.override.yml
+docker-compose.local.yml
+
+# Configuration backups
+config/*.backup
+config/*~
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+tests/fixtures/output/
+
+# MLflow
+/mlruns/
+
+# Local artifacts
+/local/
+/data/
+/test_project/
+
+# User-generated config/recipe files (created by mmp get-config, get-recipe)
+/configs/
+/queries/
+/recipes/
+/reports/
+/artifacts/
+
+# Claude
+.claude/
+
+# Development directory (excluded from PyPI builds)
+# Note: dev/ contains development-specific files and should not be packaged
+dev/docker-compose.override.yml
+dev/*/logs/
+dev/*/data/
+dev/*/tmp/.env.s3
+.env.s3

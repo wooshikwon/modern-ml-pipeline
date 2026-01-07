@@ -1,0 +1,73 @@
+class_path: src.models.custom.ft_transformer.FTTransformerClassifier
+description: FT-Transformer for classification tasks with PyTorch training loop
+library: rtdl_revisiting_models
+hyperparameters:
+  fixed:
+    seed: 42
+    early_stopping_patience: 10
+  tunable:
+    d_block:
+      type: int
+      range:
+        - 32
+        - 128
+      default: 64
+    n_blocks:
+      type: int
+      range:
+        - 1
+        - 4
+      default: 2
+    attention_n_heads:
+      type: int
+      range:
+        - 2
+        - 8
+      default: 4
+    attention_dropout:
+      type: float
+      range:
+        - 0.0
+        - 0.3
+      default: 0.1
+    ffn_d_hidden_multiplier:
+      type: float
+      range:
+        - 2.0
+        - 8.0
+      default: 4.0
+    ffn_dropout:
+      type: float
+      range:
+        - 0.0
+        - 0.3
+      default: 0.1
+    residual_dropout:
+      type: float
+      range:
+        - 0.0
+        - 0.2
+      default: 0.0
+    epochs:
+      type: int
+      range:
+        - 20
+        - 100
+      default: 50
+    batch_size:
+      type: int
+      range:
+        - 64
+        - 512
+      default: 256
+    learning_rate:
+      type: float
+      range:
+        - 0.0001
+        - 0.01
+      default: 0.001
+feature_requirements:
+  numerical: true
+  categorical: true
+  text: false
+data_handler: tabular

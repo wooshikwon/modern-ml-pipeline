@@ -1,0 +1,80 @@
+class_path: xgboost.XGBRegressor
+description: XGBoost Regressor.
+library: xgboost
+hyperparameters:
+  fixed:
+    random_state: 42
+    tree_method: hist
+    eval_metric: rmse
+  tunable:
+    n_estimators:
+      type: int
+      range:
+      - 50
+      - 1000
+      default: 100
+    max_depth:
+      type: int
+      range:
+      - 3
+      - 10
+      default: 6
+    learning_rate:
+      type: float
+      range:
+      - 0.01
+      - 0.3
+      default: 0.1
+    subsample:
+      type: float
+      range:
+      - 0.5
+      - 1.0
+      default: 1.0
+    colsample_bytree:
+      type: float
+      range:
+      - 0.5
+      - 1.0
+      default: 1.0
+    colsample_bylevel:
+      type: float
+      range:
+      - 0.5
+      - 1.0
+      default: 1.0
+    colsample_bynode:
+      type: float
+      range:
+      - 0.5
+      - 1.0
+      default: 1.0
+    reg_alpha:
+      type: float
+      range:
+      - 0.0
+      - 10.0
+      default: 0.0
+    reg_lambda:
+      type: float
+      range:
+      - 0.1
+      - 10.0
+      default: 1.0
+    gamma:
+      type: float
+      range:
+      - 0.0
+      - 5.0
+      default: 0.0
+    min_child_weight:
+      type: int
+      range:
+      - 1
+      - 10
+      default: 1
+feature_requirements:
+  numerical: true
+  categorical: true
+  text: false
+data_handler: tabular

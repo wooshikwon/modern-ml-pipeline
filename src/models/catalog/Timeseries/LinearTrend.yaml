@@ -1,0 +1,24 @@
+class_path: sklearn.linear_model.LinearRegression
+description: Linear trend model for timeseries forecasting with automated time-based features
+library: scikit-learn
+hyperparameters:
+  fixed:
+    fit_intercept: true
+    copy_X: true
+  tunable:
+    positive:
+      type: categorical
+      range:
+      - true
+      - false
+      default: false
+      description: 계수를 양수로 제한할지 여부
+feature_requirements:
+  numerical: true
+  categorical: false
+  text: false
+  time_features_auto: true
+preprocessing_notes: TimeseriesDataHandler에서 시간 기반 특성(year, month, day, lag, rolling)을 자동 생성합니다
+model_type: linear_trend
+forecasting_type: point_forecast
+data_handler: timeseries

@@ -1,0 +1,36 @@
+class_path: sklearn.linear_model.LogisticRegression
+description: Logistic Regression from scikit-learn.
+library: scikit-learn
+hyperparameters:
+  fixed:
+    random_state: 42
+    max_iter: 1000
+  tunable:
+    C:
+      type: float
+      range:
+      - 0.001
+      - 100.0
+      default: 1.0
+    penalty:
+      type: categorical
+      range:
+      - l1
+      - l2
+      - elasticnet
+      - none
+      default: l2
+    solver:
+      type: categorical
+      range:
+      - liblinear
+      - lbfgs
+      - newton-cg
+      - sag
+      - saga
+      default: lbfgs
+feature_requirements:
+  numerical: true
+  categorical: true
+  text: false
+data_handler: tabular

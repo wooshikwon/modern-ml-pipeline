@@ -1,0 +1,54 @@
+class_path: rtdl_revisiting_models.ResNetRegressor
+description: ResNet-like model for tabular data from RTDL.
+library: rtdl_revisiting_models
+hyperparameters:
+  fixed:
+    seed: 42
+  tunable:
+    n_blocks:
+      type: int
+      range:
+      - 1
+      - 8
+      default: 2
+    d_main:
+      type: int
+      range:
+      - 64
+      - 512
+      default: 128
+    d_hidden:
+      type: int
+      range:
+      - 64
+      - 1024
+      default: 256
+    dropout_first:
+      type: float
+      range:
+      - 0.0
+      - 0.5
+      default: 0.25
+    dropout_second:
+      type: float
+      range:
+      - 0.0
+      - 0.5
+      default: 0.0
+    normalization:
+      type: categorical
+      range:
+      - BatchNorm1d
+      - LayerNorm
+      default: BatchNorm1d
+    activation:
+      type: categorical
+      range:
+      - ReLU
+      - GELU
+      default: ReLU
+feature_requirements:
+  numerical: true
+  categorical: true
+  text: false
+data_handler: tabular

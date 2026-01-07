@@ -1,0 +1,47 @@
+class_path: src.models.custom.lstm_timeseries.LSTMTimeSeries
+description: LSTM-based time series forecasting model with PyTorch backend
+library: pytorch
+task_type: timeseries
+hyperparameters:
+  fixed:
+    epochs: 100
+    batch_size: 32
+    early_stopping_patience: 10
+  tunable:
+    hidden_dim:
+      type: int
+      range:
+      - 32
+      - 256
+      default: 64
+    num_layers:
+      type: int
+      range:
+      - 1
+      - 4
+      default: 2
+    dropout:
+      type: float
+      range:
+      - 0.0
+      - 0.5
+      default: 0.2
+    learning_rate:
+      type: float
+      range:
+      - 0.0001
+      - 0.01
+      default: 0.001
+    bidirectional:
+      type: categorical
+      range:
+      - true
+      - false
+      default: false
+feature_requirements:
+  numerical: true
+  categorical: false
+  text: false
+  sequence: true
+requires_gpu: false
+data_handler: sequence

@@ -1,0 +1,39 @@
+class_path: src.models.custom.timeseries_wrappers.ARIMA
+description: ARIMA (AutoRegressive Integrated Moving Average) model for time series forecasting
+library: statsmodels
+hyperparameters:
+  fixed: null
+  tunable:
+    order_p:
+      type: int
+      range:
+      - 0
+      - 5
+      default: 1
+      description: AR(p) - 자기회귀 차수
+    order_d:
+      type: int
+      range:
+      - 0
+      - 2
+      default: 1
+      description: I(d) - 차분 차수
+    order_q:
+      type: int
+      range:
+      - 0
+      - 5
+      default: 1
+      description: MA(q) - 이동평균 차수
+requires_custom_wrapper: true
+feature_requirements:
+  numerical: true
+  categorical: false
+  text: false
+  univariate_preferred: true
+  time_features_auto: false
+preprocessing_notes: ARIMA는 univariate 모델이므로 시계열 데이터만 사용합니다. 추가 특성은 무시됩니다.
+model_type: autoregressive
+forecasting_type: point_forecast
+stationarity_required: true
+data_handler: timeseries

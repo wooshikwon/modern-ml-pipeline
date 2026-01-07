@@ -1,0 +1,54 @@
+# 패키지 빌드 및 배포 워크플로우
+#
+# 배포 방법:
+# 1. Git Tag 배포:
+#    git tag v0.n.0
+#    git push origin main --tags
+#
+# 2. GitHub Release 배포:
+#    GitHub Repository → Releases → Create a new release
+#
+# 3. 수동 배포:
+#    GitHub Repository → Actions → Build Package → Run workflow
+
+name: Build Package
+
+on:
+  release:
+    types: [published]
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build and Verify Package
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install build tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install build hatchling twine
+
+    - name: Build package
+      run: python -m build
+
+    - name: Verify package
+      run: |
+        python -m twine check dist/*
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: dist
+        path: dist/

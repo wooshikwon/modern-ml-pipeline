@@ -1,0 +1,128 @@
+# Recipe: {{ recipe_name }}
+# Generated: {{ timestamp }}
+# Task: {{ task }}
+# Model: {{ model_class }}
+
+name: {{ recipe_name }}
+task_choice: {{ task|lower }}
+
+model:
+  class_path: {{ model_class }}
+  library: {{ model_library }}
+  
+  {% if task|lower == 'classification' %}
+  # Calibration 설정 (Classification only)
+  calibration:
+    enabled: {{ calibration_enabled | default(false) | lower }}
+    {% if calibration_enabled %}
+    method: {{ calibration_method }}  # Required when enabled: 'beta', 'isotonic'
+    {% endif %}
+  {% endif %}
+  
+  hyperparameters:
+    tuning_enabled: {{ enable_tuning | lower }}
+    {% if enable_tuning %}
+    # Optuna 튜닝 설정
+    optimization_metric: {{ optimization_metric }}
+    n_trials: {{ n_trials }}
+    timeout: {{ tuning_timeout }}
+    fixed:
+      {% for param, value in fixed_params.items() %}
+      {{ param }}: {{ value }}
+      {% endfor %}
+    tunable:
+      {% for param, spec in tunable_specs.items() %}
+      {{ param }}:
+        type: {{ spec.type }}
+        range: {{ spec.range }}
+      {% endfor %}
+    {% else %}
+    # 모든 파라미터 고정값
+    values:
+      {% for param, value in all_hyperparameters.items() %}
+      {{ param }}: {{ value }}
+      {% endfor %}
+    {% endif %}
+
+data:
+  loader:
+    source_uri: {{ data_source_uri | default('null') }}
+  
+  # Fetcher 설정 (Feature Store 연동)
+  fetcher:
+    type: {{ fetcher_type }}
+    {% if fetcher_type == "feature_store" and feature_views %}
+    # Feast FeatureView 설정
+    feature_views:
+      {% for view_name, view_config in feature_views.items() %}
+      {{ view_name }}:
+        join_key: {{ view_config.join_key }}
+        features: {{ view_config.features }}
+      {% endfor %}
+    timestamp_column: {{ timestamp_column }}
+    {% endif %}
+  
+  # Data interface 설정
+  data_interface:
+    target_column: {{ target_column if task|lower != 'clustering' else 'null' }}
+    {% if task|lower == "causal" %}
+    treatment_column: {{ treatment_column }}  # 처치 변수 (causal task 전용)
+    {% endif %}
+    {% if task|lower == "timeseries" %}
+    # 시계열 작업은 timestamp_column이 필수입니다.
+    timestamp_column: {{ timeseries_timestamp_column }}
+    {% endif %}
+    entity_columns:
+      {% for col in entity_columns %}
+      - {{ col }}
+      {% endfor %}
+    feature_columns: null # null 입력 시, target, treatment, entity columns 제외 모든 컬럼 사용
+  
+  # Data split configuration (Data Leakage 방지)
+  split:
+    train: {{ train_ratio | default(0.8) }}
+    test: {{ test_ratio | default(0.1) }}
+    validation: {{ validation_ratio | default(0.1) }}
+    {% if task|lower == 'classification' and calibration_enabled %}
+    calibration: {{ calibration_ratio | default(0.1) }}
+    {% endif %}
+
+# 전처리 파이프라인
+{% if preprocessor_steps %}
+preprocessor:
+  steps:
+    {% for step in preprocessor_steps %}
+    - type: {{ step.type }}
+      {% if step.columns is defined %}
+      columns: {{ step.columns }}
+      {% endif %}
+      {% if step.strategy is defined %}
+      strategy: {{ step.strategy }}
+      {% endif %}
+      {% if step.degree is defined %}
+      degree: {{ step.degree }}
+      {% endif %}
+      {% if step.n_bins is defined %}
+      n_bins: {{ step.n_bins }}
+      {% endif %}
+      {% if step.create_missing_indicators is defined %}
+      create_missing_indicators: {{ step.create_missing_indicators | lower }}
+      {% endif %}
+    {% endfor %}
+{% else %}
+# preprocessor 설정 없음 (전처리 단계 생략)
+preprocessor: null
+{% endif %}
+
+evaluation:
+  metrics: {{ metrics }}
+  # 데이터 분할은 data.split 섹션에서 관리됩니다
+  random_state: 42
+
+metadata:
+  author: {{ author | default('CLI Recipe Builder') }}
+  created_at: {{ timestamp }}
+  description: "{{ task }} task using {{ model_library }}"
+  {% if enable_tuning %}
+  tuning_note: "Optuna 하이퍼파라미터 튜닝이 활성화됨."
+  {% endif %}

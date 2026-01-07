@@ -1,0 +1,55 @@
+class_path: sklearn.linear_model.Lasso
+description: Lasso Regression with L1 regularization for feature selection.
+library: scikit-learn
+hyperparameters:
+  fixed:
+    random_state: 42
+    copy_X: true
+  tunable:
+    alpha:
+      type: float
+      range:
+      - 0.001
+      - 10.0
+      default: 1.0
+    fit_intercept:
+      type: categorical
+      range:
+      - true
+      - false
+      default: true
+    max_iter:
+      type: int
+      range:
+      - 100
+      - 5000
+      default: 1000
+    tol:
+      type: float
+      range:
+      - 1e-6
+      - 1e-2
+      default: 1e-4
+    positive:
+      type: categorical
+      range:
+      - true
+      - false
+      default: false
+    selection:
+      type: categorical
+      range:
+      - cyclic
+      - random
+      default: cyclic
+    warm_start:
+      type: categorical
+      range:
+      - true
+      - false
+      default: false
+feature_requirements:
+  numerical: true
+  categorical: false
+  text: false
+data_handler: tabular

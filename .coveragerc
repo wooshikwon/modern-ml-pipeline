@@ -1,0 +1,48 @@
+# Coverage.py 설정
+[run]
+# 병렬 실행 비활성화 (pytest-xdist 충돌 방지)
+parallel = false
+
+# 소스 코드 경로
+source = src
+
+# 제외할 파일/디렉토리 패턴
+omit =
+    */tests/*
+    */test_*
+    */__pycache__/*
+    */venv/*
+    */.venv/*
+    */migrations/*
+    */build/*
+    */dist/*
+
+# 브랜치 커버리지 비활성화 (메모리 절약)
+branch = false
+
+# 서브프로세스 추적 비활성화
+cover_pylib = false
+
+[report]
+# 리포트 최적화
+show_missing = true
+skip_covered = false
+precision = 2
+
+# 제외할 라인 패턴
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise AssertionError
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+
+[html]
+# HTML 리포트 설정
+directory = htmlcov
+title = Modern ML Pipeline Coverage Report
+
+[xml]
+# XML 리포트 최적화
+output = coverage.xml

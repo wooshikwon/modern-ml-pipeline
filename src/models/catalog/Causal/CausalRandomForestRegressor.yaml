@@ -1,0 +1,75 @@
+class_path: causalml.inference.tree.CausalRandomForestRegressor
+description: Causal Random Forest for Uplift Modeling.
+library: causalml
+hyperparameters:
+  fixed:
+    random_state: 42
+  tunable:
+    n_estimators:
+      type: int
+      range:
+      - 10
+      - 200
+      default: 100
+    max_depth:
+      type: int
+      range:
+      - 3
+      - 20
+      default: 8
+    min_samples_leaf:
+      type: int
+      range:
+      - 1
+      - 100
+      default: 5
+    min_samples_split:
+      type: int
+      range:
+      - 2
+      - 20
+      default: 2
+    max_features:
+      type: categorical
+      range:
+      - auto
+      - sqrt
+      - log2
+      - null
+      default: auto
+    bootstrap:
+      type: categorical
+      range:
+      - true
+      - false
+      default: true
+    n_reg:
+      type: float
+      range:
+      - 0.01
+      - 10.0
+      default: 1.0
+    evaluationFunction:
+      type: categorical
+      range:
+      - KL
+      - ED
+      - Chi
+      - CTS
+      default: KL
+    min_samples_treatment:
+      type: int
+      range:
+      - 10
+      - 200
+      default: 50
+    control_name:
+      type: categorical
+      range:
+      - control
+      default: control
+feature_requirements:
+  numerical: true
+  categorical: true
+  text: false
+data_handler: tabular

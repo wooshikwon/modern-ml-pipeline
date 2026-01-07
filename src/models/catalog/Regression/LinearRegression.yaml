@@ -1,0 +1,24 @@
+class_path: sklearn.linear_model.LinearRegression
+description: Linear Regression from scikit-learn.
+library: scikit-learn
+hyperparameters:
+  fixed:
+    copy_X: true
+  tunable:
+    fit_intercept:
+      type: categorical
+      range:
+      - true
+      - false
+      default: true
+    positive:
+      type: categorical
+      range:
+      - true
+      - false
+      default: false
+feature_requirements:
+  numerical: true
+  categorical: false
+  text: false
+data_handler: tabular

@@ -1,0 +1,233 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "modern-ml-pipeline"
+version = "1.0.0"
+description = "A modern, yaml-driven ML pipeline for multiple models."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.11,<3.12"
+authors = [
+    { name = "wooshikwon", email = "wooshikwon@github.com" }
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+# Core dependencies - Essential for basic ML pipeline functionality
+dependencies = [
+    # CLI and Configuration
+    "typer",
+    "pydantic>=2.0.0",
+    "pyyaml",
+    "jinja2",
+    "python-dotenv",
+    # Data Processing
+    "pandas",
+    "scikit-learn",
+    "pyarrow",
+    # ML Experiment Tracking
+    "mlflow>=3,<4",
+    # API Serving
+    "fastapi",
+    "uvicorn[standard]",
+    "httpx>=0.28.1",
+    "prometheus-fastapi-instrumentator>=7.0.0",
+    # Core utilities
+    "setuptools>=68",
+    "packaging>=24.2",
+    "rich>=14.0.0",
+    # ML Feature Engineering
+    "rtdl-revisiting-models>=0.0.2",
+    "category-encoders>=2.8.1",
+    # Cloud Storage (GCS, S3, BigQuery)
+    "google-cloud-storage>=2.0.0",
+    "google-cloud-bigquery>=3.12.0",
+    "boto3>=1.20.0",
+    # Database
+    "sqlalchemy>=2.0.0",
+    "psycopg[binary]>=3.2.9",
+    "redis>=6.2.0",
+    "s3fs>=2025.5.1",
+]
+
+[project.optional-dependencies]
+# Development and testing tools
+dev = [
+    # Testing framework
+    "pytest>=8.0.0",
+    "pytest-cov>=6.2.1",
+    "pytest-xdist>=3.8.0",
+    "pytest-timeout>=2.3.1",
+    "pytest-json-report>=1.5.0",
+    "psutil>=5.9.0",  # For resource monitoring in tests
+    "psycopg2-binary>=2.9.9",  # For legacy postgresql driver tests
+    # Development tools
+    "pre-commit>=3.0.0",
+    "ruff>=0.12.0",
+    "mypy>=1.8.0",
+    "ipykernel>=6.0.0",
+    "import-linter>=2.3.0",
+]
+
+# Extended ML libraries for advanced use cases (XGBoost, LightGBM, CatBoost)
+ml-extras = [
+    # Advanced ML Models
+    "xgboost>=1.7.0",
+    "catboost>=1.2.0",
+    "lightgbm>=4.1.0",
+    # Model Interpretation
+    "shap>=0.41.0",
+    "optuna>=3.0.0",
+    # Performance optimization
+    "numba>=0.58.1",
+    "llvmlite>=0.41.1",
+]
+
+# PyTorch for deep learning models (FT-Transformer, LSTM 등)
+torch-extras = [
+    "torch>=2.0.0",
+]
+
+# Extended cloud integrations (filesystem abstractions)
+cloud-extras = [
+    "gcsfs>=2023.0.0",
+    "s3fs>=2023.0.0",
+    "google-cloud-bigquery-storage>=2.24.0",
+    "db-dtypes>=1.0.0",
+    "fsspec>=2023.0.0",
+    "sqlalchemy-bigquery>=1.9.0",
+]
+
+# Feature Store integration
+feature-store = [
+    "feast>=0.35.0",
+]
+
+# Complete installation with all extras
+all = [
+    "modern-ml-pipeline[ml-extras,torch-extras,cloud-extras,feature-store]",
+]
+
+[project.urls]
+Homepage = "https://github.com/wooshikwon/modern-ml-pipeline"
+Issues = "https://github.com/wooshikwon/modern-ml-pipeline/issues"
+Repository = "https://github.com/wooshikwon/modern-ml-pipeline"
+
+[project.scripts]
+modern-ml-pipeline = "src.__main__:main"
+ml-pipeline = "src.__main__:main"
+mmp = "src.__main__:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[tool.hatch.build]
+exclude = [
+  "/dev",
+  "/mlruns", 
+  "/logs",
+  "/local",
+  "/.claude",
+  "*.log",
+  "factoringlog.md",
+  "main.py"
+]
+
+[tool.importlinter]
+root_package = "src"
+
+[[tool.importlinter.contracts]]
+name = "Components must not import engine (upward dependency forbidden)"
+type = "forbidden"
+source_modules = [
+  "src.components"
+]
+forbidden_modules = [
+  "src.factory",
+]
+
+[[tool.importlinter.contracts]]
+name = "Serving must not import pipelines directly"
+type = "forbidden"
+source_modules = [
+  "src.serving"
+]
+forbidden_modules = [
+  "src.pipelines",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = [
+    "E402",  # Module level import not at top of file (Self-registration 패턴)
+    "E501",  # Line too long (Black으로 관리)
+    "E712",  # Avoid equality comparisons to True/False
+    "E721",  # Use is/is not for type comparisons
+    "E722",  # Do not use bare except (추후 개선)
+    "F401",  # Imported but unused (side-effect imports, re-exports)
+    "F841",  # Local variable assigned but never used
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["F841", "F401", "F821"]  # Test fixtures and mocking patterns
+"src/**/__init__.py" = ["F401"]  # Re-exports in __init__.py
+
+[tool.mypy]
+python_version = "3.11"
+warn_unused_ignores = true
+warn_return_any = true
+disallow_untyped_defs = true
+no_implicit_optional = true
+
+# pytest 설정은 pytest.ini에서 관리 (중복 설정 제거)
+
+# Coverage configuration
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*/conftest.py",
+]
+# Prevent parallel execution from creating multiple coverage files
+parallel = true
+data_file = ".coverage"
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+    "pass",
+]
+
+[dependency-groups]
+dev = [
+    "import-linter>=2.3",
+    "pytest>=8.4.1",
+    "pytest-json-report>=1.5.0",
+    "pytest-xdist>=3.8.0",
+    "pytest-cov>=6.2.1",
+    "psycopg2-binary>=2.9.9",
+    "ruff>=0.12.3",
+    "mypy>=1.0.0",
+    "black>=25.1.0",
+    "isort>=6.0.1",
+    "bandit>=1.8.6",
+    "safety>=3.6.1",
+    "psycopg2-binary>=2.9.9",
+]
+torch-extras = [
+    "torch>=2.7.1",
+]
+
