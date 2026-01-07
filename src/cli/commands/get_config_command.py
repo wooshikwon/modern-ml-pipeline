@@ -75,30 +75,29 @@ def get_config_command(
         )
 
         builder = InteractiveConfigBuilder()
-        _print_step("Initialized", "InteractiveConfigBuilder ready")
 
         selections = builder.run_interactive_flow(env_name)
-        _print_step("Interactive flow", f"Environment '{selections['env_name']}' configured")
+        _print_step("설정 완료", f"환경 '{selections['env_name']}'")
 
         config_path = builder.generate_config_file(selections["env_name"], selections)
         env_template_path = builder.generate_env_template(selections["env_name"], selections)
 
-        _print_step("Config file", str(config_path))
-        _print_step("Env template", str(env_template_path))
+        _print_step("Config 파일 생성", str(config_path))
+        _print_step("Env 템플릿 생성", str(env_template_path))
 
         _show_completion_message(selections["env_name"], config_path, env_template_path, selections)
 
     except KeyboardInterrupt:
-        sys.stdout.write("\n  [CANCEL] Configuration cancelled by user\n")
+        sys.stdout.write("\n  [취소] 사용자에 의해 취소됨\n")
         raise typer.Exit(0)
     except FileNotFoundError as e:
-        _print_error("File not found", str(e))
+        _print_error("파일 없음", str(e))
         raise typer.Exit(1)
     except ValueError as e:
-        _print_error("Invalid value", str(e))
+        _print_error("잘못된 값", str(e))
         raise typer.Exit(1)
     except Exception as e:
-        _print_error("Config generation", str(e))
+        _print_error("Config 생성 실패", str(e))
         raise typer.Exit(1)
 
 
@@ -119,15 +118,17 @@ def _show_completion_message(
         if feature_store == "Feast":
             extras_needed.append("feature-store")
 
-    sys.stdout.write("\nNext Steps:\n")
+    sys.stdout.write("\n다음 단계:\n")
 
+    step_num = 1
     if extras_needed:
         extras_str = ",".join(extras_needed)
-        sys.stdout.write(f'  0. Install dependencies: pip install "modern-ml-pipeline[{extras_str}]"\n')
+        sys.stdout.write(f'  {step_num}. 의존성 설치: pip install "modern-ml-pipeline[{extras_str}]"\n')
+        step_num += 1
 
-    sys.stdout.write(f"  1. Prepare env file: cp {env_template_path} .env.{env_name}\n")
-    sys.stdout.write(f"  2. Edit .env.{env_name} with your credentials\n")
-    sys.stdout.write(f"  3. Test connection: mmp system-check -c {config_path}\n")
-    sys.stdout.write("  4. Create recipe: mmp get-recipe\n")
-    sys.stdout.write(f"  5. Train model: mmp train -r recipes/<recipe>.yaml -c {config_path} -d <data>\n")
+    sys.stdout.write(f"  {step_num}. 환경 파일 준비: cp {env_template_path} .env.{env_name}\n")
+    sys.stdout.write(f"  {step_num + 1}. 인증 정보 입력: .env.{env_name} 파일 편집\n")
+    sys.stdout.write(f"  {step_num + 2}. 연결 테스트: mmp system-check -c {config_path}\n")
+    sys.stdout.write(f"  {step_num + 3}. Recipe 생성: mmp get-recipe\n")
+    sys.stdout.write(f"  {step_num + 4}. 모델 학습: mmp train -r recipes/<recipe>.yaml -c {config_path} -d <data>\n")
     sys.stdout.flush()

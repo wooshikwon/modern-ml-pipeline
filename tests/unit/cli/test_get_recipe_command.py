@@ -59,7 +59,7 @@ class TestGetRecipeCommandBasicFunctionality:
         result = self.runner.invoke(self.app, [])
 
         assert result.exit_code == 0
-        assert "Recipe created successfully" in result.output
+        assert "Recipe 생성 완료" in result.output
         mock_builder.build_recipe_interactively.assert_called_once()
         mock_builder.create_recipe_file.assert_called_once_with(mock_recipe_data)
 
@@ -77,7 +77,7 @@ class TestGetRecipeCommandBasicFunctionality:
         result = self.runner.invoke(self.app, [])
 
         assert result.exit_code == 0
-        assert "CANCEL" in result.output
+        assert "취소" in result.output
 
     @patch("src.cli.utils.recipe_builder.RecipeBuilder")
     @patch("src.cli.utils.interactive_ui.InteractiveUI")
@@ -100,7 +100,7 @@ class TestGetRecipeCommandBasicFunctionality:
 
         assert result.exit_code == 1
         assert "FAIL" in result.output
-        assert "File not found" in result.output
+        assert "파일 없음" in result.output
 
     @patch("src.cli.utils.recipe_builder.RecipeBuilder")
     @patch("src.cli.utils.interactive_ui.InteractiveUI")
@@ -117,7 +117,7 @@ class TestGetRecipeCommandBasicFunctionality:
 
         assert result.exit_code == 1
         assert "FAIL" in result.output
-        assert "Invalid value" in result.output
+        assert "잘못된 값" in result.output
 
     @patch("src.cli.utils.recipe_builder.RecipeBuilder")
     @patch("src.cli.utils.interactive_ui.InteractiveUI")
@@ -134,7 +134,7 @@ class TestGetRecipeCommandBasicFunctionality:
 
         assert result.exit_code == 1
         assert "FAIL" in result.output
-        assert "Recipe generation" in result.output
+        assert "Recipe 생성 실패" in result.output
 
     def test_get_recipe_command_help_message(self):
         """도움말 메시지 테스트"""
@@ -303,7 +303,7 @@ class TestShowSuccessMessage:
         _show_success_message(recipe_path, recipe_data)
 
         captured = capsys.readouterr()
-        assert "Recipe created successfully" in captured.out
+        assert "Recipe 생성 완료" in captured.out
         assert str(recipe_path) in captured.out
         assert "classification" in captured.out
         assert "RandomForestClassifier" in captured.out
@@ -336,7 +336,7 @@ class TestShowSuccessMessage:
         _show_success_message(recipe_path, recipe_data)
 
         captured = capsys.readouterr()
-        assert "Next Steps" in captured.out
+        assert "다음 단계" in captured.out
         assert "mmp train" in captured.out
 
     def test_show_success_message_ml_extras_hint(self, capsys):

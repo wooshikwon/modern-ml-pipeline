@@ -71,30 +71,29 @@ def get_recipe_command() -> None:
         )
 
         builder = RecipeBuilder()
-        _print_step("Initialized", "RecipeBuilder ready")
 
         recipe_data = builder.build_recipe_interactively()
 
         task = recipe_data.get("task_choice", "N/A")
         model = recipe_data["model"].get("class_path", "N/A")
-        _print_step("Interactive flow", f"Task: {task}, Model: {model}")
+        _print_step("설정 완료", f"Task: {task}, Model: {model}")
 
         recipe_path = builder.create_recipe_file(recipe_data)
-        _print_step("Recipe file", str(recipe_path))
+        _print_step("Recipe 파일 생성", str(recipe_path))
 
         _show_success_message(recipe_path, recipe_data)
 
     except KeyboardInterrupt:
-        sys.stdout.write("\n  [CANCEL] Recipe generation cancelled by user\n")
+        sys.stdout.write("\n  [취소] 사용자에 의해 취소됨\n")
         raise typer.Exit(0)
     except FileNotFoundError as e:
-        _print_error("File not found", str(e))
+        _print_error("파일 없음", str(e))
         raise typer.Exit(1)
     except ValueError as e:
-        _print_error("Invalid value", str(e))
+        _print_error("잘못된 값", str(e))
         raise typer.Exit(1)
     except Exception as e:
-        _print_error("Recipe generation", str(e))
+        _print_error("Recipe 생성 실패", str(e))
         raise typer.Exit(1)
 
 
@@ -110,21 +109,23 @@ def _show_success_message(recipe_path: Path, recipe_data: dict) -> None:
     if library.lower() in torch_extras_libraries:
         extras_needed.append("torch-extras")
 
-    sys.stdout.write("\nRecipe created successfully!\n\n")
-    sys.stdout.write(f"  File: {recipe_path}\n")
+    sys.stdout.write("\nRecipe 생성 완료!\n\n")
+    sys.stdout.write(f"  파일: {recipe_path}\n")
     sys.stdout.write(f"  Task: {recipe_data['task_choice']}\n")
-    sys.stdout.write(f"  Model: {recipe_data['model']['class_path']}\n")
-    sys.stdout.write(f"  Library: {recipe_data['model']['library']}\n")
+    sys.stdout.write(f"  모델: {recipe_data['model']['class_path']}\n")
+    sys.stdout.write(f"  라이브러리: {recipe_data['model']['library']}\n")
 
-    sys.stdout.write("\nNext Steps:\n")
+    sys.stdout.write("\n다음 단계:\n")
 
+    step_num = 1
     if extras_needed:
         extras_str = ",".join(extras_needed)
-        sys.stdout.write(f'  0. Install dependencies: pip install "modern-ml-pipeline[{extras_str}]"\n')
+        sys.stdout.write(f'  {step_num}. 의존성 설치: pip install "modern-ml-pipeline[{extras_str}]"\n')
+        step_num += 1
 
-    sys.stdout.write(f"  1. Review recipe: cat {recipe_path}\n")
-    sys.stdout.write("  2. Update column names:\n")
-    sys.stdout.write("     - target_column: your actual target column\n")
-    sys.stdout.write("     - entity_columns: your actual entity columns\n")
-    sys.stdout.write(f"  3. Train model: mmp train -r {recipe_path} -c configs/<env>.yaml -d <data>\n")
+    sys.stdout.write(f"  {step_num}. Recipe 확인: cat {recipe_path}\n")
+    sys.stdout.write(f"  {step_num + 1}. 컬럼명 수정:\n")
+    sys.stdout.write("     - target_column: 실제 타겟 컬럼명\n")
+    sys.stdout.write("     - entity_columns: 실제 엔티티 컬럼명\n")
+    sys.stdout.write(f"  {step_num + 2}. 모델 학습: mmp train -r {recipe_path} -c configs/<env>.yaml -d <data>\n")
     sys.stdout.flush()

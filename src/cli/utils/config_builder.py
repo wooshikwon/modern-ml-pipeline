@@ -35,7 +35,7 @@ class InteractiveConfigBuilder:
             사용자 선택 사항을 담은 딕셔너리
         """
         selections = {}
-        total_steps = 6
+        total_steps = 5
 
         # Step 1: 환경 이름 입력
         self.ui.show_step(1, total_steps, "환경 이름")
@@ -107,33 +107,8 @@ class InteractiveConfigBuilder:
             else:
                 selections["feast_online_store"] = "SQLite"
 
-        # Step 5: Artifact Storage 선택 (MLflow 사용 시)
-        if use_mlflow:
-            self.ui.show_step(5, total_steps, "Artifact Storage")
-
-            mlflow_uri = selections.get("mlflow_tracking_uri", "./mlruns")
-            is_remote_mlflow = mlflow_uri.startswith("http://") or mlflow_uri.startswith("https://")
-
-            if is_remote_mlflow:
-                # 원격 MLflow 사용 시 공유 스토리지 권장
-                self.ui.show_warning(
-                    "원격 MLflow 서버 사용 시, 서버와 클라이언트 모두 접근 가능한 "
-                    "공유 스토리지(S3/GCS)를 권장합니다."
-                )
-                storages = ["S3", "GCS", "Local (서버와 동일 파일시스템 공유 시에만)"]
-            else:
-                storages = ["Local", "S3", "GCS"]
-
-            artifact_storage = self.ui.select_from_list(
-                "MLflow Artifacts를 저장할 스토리지를 선택하세요", storages, allow_cancel=False
-            )
-            # 긴 옵션명 정규화
-            if artifact_storage.startswith("Local"):
-                artifact_storage = "Local"
-            selections["artifact_storage"] = artifact_storage
-
-        # Step 6: 배치 추론 결과 저장 설정
-        self.ui.show_step(6, total_steps, "배치 추론 출력")
+        # Step 5: 배치 추론 결과 저장 설정
+        self.ui.show_step(5, total_steps, "배치 추론 출력")
         infer_enabled = self.ui.confirm("배치 추론 결과를 저장하시겠습니까?", default=True)
         selections["inference_output_enabled"] = infer_enabled
         if infer_enabled:
@@ -144,21 +119,48 @@ class InteractiveConfigBuilder:
             )
             selections["inference_output_source"] = infer_source
 
+            # 저장소별 추가 설정
+            if infer_source == "S3":
+                selections["infer_s3_bucket"] = self.ui.text_input(
+                    "S3 Bucket 이름", default="mmp-predictions"
+                )
+                selections["infer_s3_prefix"] = self.ui.text_input(
+                    "S3 Prefix (경로)", default=f"{env_name}/predictions"
+                )
+            elif infer_source == "GCS":
+                selections["infer_gcs_bucket"] = self.ui.text_input(
+                    "GCS Bucket 이름", default="mmp-predictions"
+                )
+                selections["infer_gcs_prefix"] = self.ui.text_input(
+                    "GCS Prefix (경로)", default=f"{env_name}/predictions"
+                )
+            elif infer_source == "BigQuery":
+                selections["infer_bq_dataset"] = self.ui.text_input(
+                    "BigQuery Dataset", default="ml_predictions"
+                )
+                selections["infer_bq_table"] = self.ui.text_input(
+                    "BigQuery Table", default=f"predictions_{env_name}"
+                )
+                selections["infer_bq_location"] = self.ui.text_input(
+                    "BigQuery Location", default="US"
+                )
+            elif infer_source == "PostgreSQL":
+                selections["infer_pg_table"] = self.ui.text_input(
+                    "PostgreSQL Table 이름", default=f"predictions_{env_name}"
+                )
+            elif infer_source == "Local Files":
+                selections["infer_local_path"] = self.ui.text_input(
+                    "저장 경로", default="./artifacts/predictions"
+                )
+
         # 최종 확인
+        infer_output_display = self._format_inference_output_display(selections)
         summary_data = {
             "환경 이름": selections["env_name"],
             "MLflow 사용": "예" if selections.get("use_mlflow") else "아니오",
             "데이터 소스": selections.get("data_source", "N/A"),
             "Feature Store": selections.get("feature_store", "없음"),
-            "Artifact Storage": selections.get("artifact_storage", "Local"),
-            "Inference Output": selections.get(
-                "inference_output_source",
-                (
-                    "Disabled"
-                    if not selections.get("inference_output_enabled", True)
-                    else "Local Files"
-                ),
-            ),
+            "Inference Output": infer_output_display,
         }
 
         if not self.ui.show_summary_and_confirm(summary_data, title="설정 요약"):
@@ -173,6 +175,35 @@ class InteractiveConfigBuilder:
             return "Disabled"
         return selections.get("inference_output_source", "Local Files")
 
+    def _format_inference_output_display(self, selections: Dict[str, Any]) -> str:
+        """Inference output 상세 표시 문자열 반환."""
+        if not selections.get("inference_output_enabled", True):
+            return "Disabled"
+
+        source = selections.get("inference_output_source", "Local Files")
+
+        if source == "S3":
+            bucket = selections.get("infer_s3_bucket", "")
+            prefix = selections.get("infer_s3_prefix", "")
+            return f"S3 (s3://{bucket}/{prefix})"
+        elif source == "GCS":
+            bucket = selections.get("infer_gcs_bucket", "")
+            prefix = selections.get("infer_gcs_prefix", "")
+            return f"GCS (gs://{bucket}/{prefix})"
+        elif source == "BigQuery":
+            dataset = selections.get("infer_bq_dataset", "")
+            table = selections.get("infer_bq_table", "")
+            location = selections.get("infer_bq_location", "US")
+            return f"BigQuery ({dataset}.{table} @ {location})"
+        elif source == "PostgreSQL":
+            table = selections.get("infer_pg_table", "")
+            return f"PostgreSQL ({table})"
+        elif source == "Local Files":
+            path = selections.get("infer_local_path", "./artifacts/predictions")
+            return f"Local ({path})"
+
+        return source
+
     def _show_selections_summary(self, selections: Dict[str, Any]) -> None:
         """
         선택 사항 요약 표시.
@@ -184,8 +215,7 @@ class InteractiveConfigBuilder:
 MLflow 사용: {'예' if selections.get('use_mlflow') else '아니오'}
 데이터 소스: {selections.get('data_source', 'N/A')}
 Feature Store: {selections.get('feature_store', '없음')}
-Artifact Storage: {selections.get('artifact_storage', 'Local')}
-Inference Output: {self._get_inference_output_display(selections)}"""
+Inference Output: {self._format_inference_output_display(selections)}"""
 
         self.ui.show_panel(summary, title="설정 요약")
 
@@ -288,7 +318,6 @@ Inference Output: {self._get_inference_output_display(selections)}"""
         needs_postgresql = False
 
         data_source = selections.get("data_source", "")
-        artifact_storage = selections.get("artifact_storage", "Local")
         feature_store = selections.get("feature_store", "없음")
         feast_registry = selections.get("feast_registry_location", "로컬")
         feast_online = selections.get("feast_online_store", "SQLite")
@@ -296,8 +325,6 @@ Inference Output: {self._get_inference_output_display(selections)}"""
 
         # AWS 필요 여부 확인
         if data_source == "S3":
-            needs_aws = True
-        if artifact_storage == "S3":
             needs_aws = True
         if feature_store == "Feast" and feast_registry == "S3":
             needs_aws = True
@@ -308,8 +335,6 @@ Inference Output: {self._get_inference_output_display(selections)}"""
 
         # GCP 필요 여부 확인
         if data_source in ["BigQuery", "GCS"]:
-            needs_gcp = True
-        if artifact_storage == "GCS":
             needs_gcp = True
         if feature_store == "Feast" and feast_registry == "GCS":
             needs_gcp = True
@@ -468,34 +493,6 @@ Inference Output: {self._get_inference_output_display(selections)}"""
                     ]
                 )
 
-        # Artifact Storage 설정
-        if artifact_storage == "S3":
-            lines.extend(
-                [
-                    "# MLflow Artifact Storage (S3)",
-                    "ARTIFACT_S3_BUCKET=mlflow-artifacts",
-                    f"ARTIFACT_S3_PREFIX={selections['env_name']}",
-                    "",
-                ]
-            )
-        elif artifact_storage == "GCS":
-            lines.extend(
-                [
-                    "# MLflow Artifact Storage (GCS)",
-                    "ARTIFACT_GCS_BUCKET=mlflow-artifacts",
-                    f"ARTIFACT_GCS_PREFIX={selections['env_name']}",
-                    "",
-                ]
-            )
-        elif artifact_storage == "Local":
-            lines.extend(
-                [
-                    "# MLflow Artifact Storage (Local)",
-                    "MLFLOW_ARTIFACT_PATH=./mlruns/artifacts",
-                    "",
-                ]
-            )
-
         # API Serving 설정
         if selections.get("enable_serving"):
             lines.extend(
@@ -518,29 +515,38 @@ Inference Output: {self._get_inference_output_display(selections)}"""
         )
         if infer_enabled:
             if infer_src == "Local Files":
-                lines.append("INFER_OUTPUT_BASE_PATH=./artifacts/predictions")
+                local_path = selections.get("infer_local_path", "./artifacts/predictions")
+                lines.append(f"INFER_OUTPUT_BASE_PATH={local_path}")
             elif infer_src == "S3":
+                s3_bucket = selections.get("infer_s3_bucket", "mmp-predictions")
+                s3_prefix = selections.get("infer_s3_prefix", f"{selections['env_name']}/predictions")
                 lines.extend(
                     [
-                        "INFER_OUTPUT_S3_BUCKET=mmp-out",
-                        f"INFER_OUTPUT_S3_PREFIX={selections['env_name']}/preds",
+                        f"INFER_OUTPUT_S3_BUCKET={s3_bucket}",
+                        f"INFER_OUTPUT_S3_PREFIX={s3_prefix}",
                     ]
                 )
             elif infer_src == "GCS":
+                gcs_bucket = selections.get("infer_gcs_bucket", "mmp-predictions")
+                gcs_prefix = selections.get("infer_gcs_prefix", f"{selections['env_name']}/predictions")
                 lines.extend(
                     [
-                        "INFER_OUTPUT_GCS_BUCKET=mmp-out",
-                        f"INFER_OUTPUT_GCS_PREFIX={selections['env_name']}/preds",
+                        f"INFER_OUTPUT_GCS_BUCKET={gcs_bucket}",
+                        f"INFER_OUTPUT_GCS_PREFIX={gcs_prefix}",
                     ]
                 )
             elif infer_src == "PostgreSQL":
-                lines.append(f"INFER_OUTPUT_PG_TABLE=predictions_{selections['env_name']}")
+                pg_table = selections.get("infer_pg_table", f"predictions_{selections['env_name']}")
+                lines.append(f"INFER_OUTPUT_PG_TABLE={pg_table}")
             elif infer_src == "BigQuery":
+                bq_dataset = selections.get("infer_bq_dataset", "ml_predictions")
+                bq_table = selections.get("infer_bq_table", f"predictions_{selections['env_name']}")
+                bq_location = selections.get("infer_bq_location", "US")
                 lines.extend(
                     [
-                        "INFER_OUTPUT_BQ_DATASET=analytics",
-                        f"INFER_OUTPUT_BQ_TABLE=predictions_{selections['env_name']}",
-                        "BQ_LOCATION=US",
+                        f"INFER_OUTPUT_BQ_DATASET={bq_dataset}",
+                        f"INFER_OUTPUT_BQ_TABLE={bq_table}",
+                        f"BQ_LOCATION={bq_location}",
                     ]
                 )
             lines.append("")
