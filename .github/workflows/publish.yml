@@ -1,17 +1,16 @@
-# 패키지 빌드 및 배포 워크플로우
+# PyPI 배포 워크플로우
 #
-# 배포 방법:
-# 1. Git Tag 배포:
-#    git tag v0.n.0
-#    git push origin main --tags
+# 배포 트리거:
+# 1. Git Tag 푸시: git tag v1.0.1 && git push origin v1.0.1
+# 2. GitHub Release 생성
+# 3. Actions 탭에서 수동 실행
 #
-# 2. GitHub Release 배포:
-#    GitHub Repository → Releases → Create a new release
-#
-# 3. 수동 배포:
-#    GitHub Repository → Actions → Build Package → Run workflow
+# 필수 설정:
+# GitHub Repository → Settings → Secrets → Actions → New repository secret
+# Name: PYPI_API_TOKEN
+# Value: pypi-xxx...
 
-name: Build Package
+name: Publish to PyPI
 
 on:
   release:
@@ -22,8 +21,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
-    name: Build and Verify Package
+  build-and-publish:
+    name: Build and Publish to PyPI
     runs-on: ubuntu-latest
 
     steps:
@@ -31,21 +30,26 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.11'
 
     - name: Install build tools
       run: |
         python -m pip install --upgrade pip
-        pip install build hatchling twine
+        pip install build twine
 
     - name: Build package
       run: python -m build
 
     - name: Verify package
-      run: |
-        python -m twine check dist/*
+      run: python -m twine check dist/*
+
+    - name: Upload to PyPI
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      run: python -m twine upload dist/*
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
