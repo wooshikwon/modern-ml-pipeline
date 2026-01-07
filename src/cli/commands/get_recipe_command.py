@@ -120,9 +120,8 @@ def _show_success_message(recipe_path: Path, recipe_data: dict) -> None:
     step_num = 1
     if extras_needed:
         extras_str = ",".join(extras_needed)
-        github_url = "git+https://github.com/wooshikwon/modern-ml-pipeline.git"
         sys.stdout.write(f"  {step_num}. 추가 의존성 설치:\n")
-        sys.stdout.write(f'     pipx install --force "{github_url}#egg=modern-ml-pipeline[{extras_str}]"\n')
+        sys.stdout.write(f'     pip install "modern-ml-pipeline[{extras_str}]"\n')
         step_num += 1
 
     sys.stdout.write(f"  {step_num}. Recipe 확인: cat {recipe_path}\n")

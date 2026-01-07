@@ -20,7 +20,14 @@ YAML 설정 기반의 머신러닝 파이프라인 CLI 도구입니다.
 ### 1. 설치
 
 ```bash
-pip install git+https://github.com/wooshikwon/modern-ml-pipeline.git
+pip install modern-ml-pipeline
+```
+
+extras 포함 설치:
+```bash
+pip install "modern-ml-pipeline[ml-extras]"      # XGBoost, LightGBM, CatBoost
+pip install "modern-ml-pipeline[cloud-extras]"   # GCS, S3, BigQuery
+pip install "modern-ml-pipeline[all]"            # 전체 기능
 ```
 
 상세 설치 옵션은 [환경 설정 가이드](https://github.com/wooshikwon/modern-ml-pipeline/blob/main/docs/user/ENVIRONMENT_SETUP.md)를 참고하세요.
