@@ -18,7 +18,13 @@ YAML 설정 기반의 머신러닝 파이프라인 CLI 도구입니다.
 
 ### 1. 설치
 
+**요구사항**: Python 3.11 또는 3.12
+
 ```bash
+# Python 버전 확인
+python --version  # Python 3.11.x 또는 3.12.x 필요
+
+# 설치
 pip install git+https://github.com/wooshikwon/modern-ml-pipeline.git
 ```
 
