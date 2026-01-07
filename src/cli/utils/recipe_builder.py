@@ -26,7 +26,7 @@ class RecipeBuilder:
         self.ui = InteractiveUI()
 
     def get_available_tasks(self) -> Set[str]:
-        """src/models/catalog 기반 동적 Task 목록"""
+        """models/catalog 기반 동적 Task 목록"""
         return self.catalog_validator.get_available_tasks()
 
     def get_available_models_for_task(self, task_type: str) -> Dict[str, Dict]:
@@ -67,7 +67,7 @@ class RecipeBuilder:
         available_tasks = self.get_available_tasks()
         if not available_tasks:
             raise ValueError(
-                "사용 가능한 Task가 없습니다. src/models/catalog 디렉토리를 확인해주세요."
+                "사용 가능한 Task가 없습니다. models/catalog 디렉토리를 확인해주세요."
             )
 
         task_choice = self.ui.select_from_list(

@@ -1,19 +1,22 @@
-"""src/models/catalog 기반 동적 모델/하이퍼파라미터 검증"""
+"""models/catalog 기반 동적 모델/하이퍼파라미터 검증"""
 
 from pathlib import Path
-from typing import Dict, Set
+from typing import Dict, Optional, Set
 
 import yaml
 
 from ..recipe import Model
 from .common import ValidationResult
 
+# 패키지 내부 catalog 경로 (설치 환경에서도 작동)
+_DEFAULT_CATALOG_PATH = Path(__file__).parent.parent.parent / "models" / "catalog"
+
 
 class CatalogValidator:
     """Models Catalog 기반 동적 검증 시스템"""
 
-    def __init__(self, catalog_path: str = "src/models/catalog"):
-        self.catalog_path = Path(catalog_path)
+    def __init__(self, catalog_path: Optional[Path] = None):
+        self.catalog_path = catalog_path or _DEFAULT_CATALOG_PATH
         self._task_models_cache = {}  # 성능 최적화용 캐시
 
     def get_available_tasks(self) -> Set[str]:

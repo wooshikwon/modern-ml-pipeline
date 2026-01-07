@@ -176,7 +176,7 @@ def list_models() -> None:
         model_catalog = {}
 
     if not model_catalog:
-        sys.stdout.write("  [ERROR] src/models/catalog/ directory not found or empty\n")
+        sys.stdout.write("  [ERROR] models/catalog/ directory not found or empty\n")
         raise typer.Exit(1)
 
     total_models = 0
