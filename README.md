@@ -21,12 +21,14 @@ YAML 설정 기반의 머신러닝 파이프라인 CLI 도구입니다.
 **요구사항**: Python 3.11 또는 3.12
 
 ```bash
-# Python 버전 확인
-python --version  # Python 3.11.x 또는 3.12.x 필요
+# pipx 설치 (권장 - 독립 환경으로 의존성 충돌 방지)
+pipx install git+https://github.com/wooshikwon/modern-ml-pipeline.git
 
-# 설치
+# 또는 pip 설치 (기존 환경에 직접 설치)
 pip install git+https://github.com/wooshikwon/modern-ml-pipeline.git
 ```
+
+> pipx가 없다면: `pip install pipx && pipx ensurepath`
 
 상세 설치 옵션은 [환경 설정 가이드](./docs/user/ENVIRONMENT_SETUP.md)를 참고하세요.
 
