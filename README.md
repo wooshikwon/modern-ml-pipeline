@@ -21,15 +21,14 @@ YAML 설정 기반의 머신러닝 파이프라인 CLI 도구입니다.
 **요구사항**: Python 3.11 또는 3.12
 
 ```bash
-pip install modern-ml-pipeline
+# pipx 설치 (독립 환경으로 의존성 충돌 방지)
+pipx install modern-ml-pipeline
+
+# extras 포함 설치
+pipx install "modern-ml-pipeline[all]"           # 전체 기능
 ```
 
-extras 포함 설치:
-```bash
-pip install "modern-ml-pipeline[ml-extras]"      # XGBoost, LightGBM, CatBoost
-pip install "modern-ml-pipeline[cloud-extras]"   # GCS, S3, BigQuery
-pip install "modern-ml-pipeline[all]"            # 전체 기능
-```
+> pipx가 없다면: `brew install pipx && pipx ensurepath` (macOS) 또는 `pip install pipx && pipx ensurepath`
 
 상세 설치 옵션은 [환경 설정 가이드](./docs/user/ENVIRONMENT_SETUP.md)를 참고하세요.
 

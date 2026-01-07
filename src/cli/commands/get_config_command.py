@@ -124,7 +124,7 @@ def _show_completion_message(
     if extras_needed:
         extras_str = ",".join(extras_needed)
         sys.stdout.write(f"  {step_num}. 추가 의존성 설치:\n")
-        sys.stdout.write(f'     pip install "modern-ml-pipeline[{extras_str}]"\n')
+        sys.stdout.write(f'     pipx install --force "modern-ml-pipeline[{extras_str}]"\n')
         step_num += 1
 
     sys.stdout.write(f"  {step_num}. 환경 파일 준비: cp {env_template_path} .env.{env_name}\n")
