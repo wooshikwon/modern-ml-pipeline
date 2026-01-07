@@ -21,16 +21,16 @@ YAML 설정 기반의 머신러닝 파이프라인 CLI 도구입니다.
 **요구사항**: Python 3.11 또는 3.12
 
 ```bash
-# pipx 설치 (독립 환경으로 의존성 충돌 방지)
+# Homebrew Python 사용 시
 pipx install --python python3.11 modern-ml-pipeline
 
-# extras 포함 설치
-pipx install --python python3.11 "modern-ml-pipeline[all]"
+# pyenv 사용 시
+pipx install --python ~/.pyenv/versions/3.11.10/bin/python modern-ml-pipeline
 ```
 
 > **설치 전 준비**
-> - Python 3.11 설치: `brew install python@3.11` (macOS)
-> - pipx 설치: `brew install pipx && pipx ensurepath` (macOS) 또는 `pip install pipx && pipx ensurepath`
+> - Python 3.11: `brew install python@3.11` (Homebrew) 또는 `pyenv install 3.11.10` (pyenv)
+> - pipx: `brew install pipx && pipx ensurepath` (macOS) 또는 `pip install pipx && pipx ensurepath`
 
 상세 설치 옵션은 [환경 설정 가이드](./docs/user/ENVIRONMENT_SETUP.md)를 참고하세요.
 
