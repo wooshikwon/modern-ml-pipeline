@@ -1885,6 +1885,7 @@ dependencies = [
     { name = "sqlalchemy" },
     { name = "typer" },
     { name = "uvicorn", extra = ["standard"] },
+    { name = "xgboost" },
 ]
 
 [package.optional-dependencies]
@@ -1903,7 +1904,6 @@ all = [
     { name = "shap" },
     { name = "sqlalchemy-bigquery" },
     { name = "torch" },
-    { name = "xgboost" },
 ]
 cloud-extras = [
     { name = "db-dtypes" },
@@ -1937,7 +1937,6 @@ ml-extras = [
     { name = "numba" },
     { name = "optuna" },
     { name = "shap" },
-    { name = "xgboost" },
 ]
 torch-extras = [
     { name = "torch" },
@@ -2015,7 +2014,7 @@ requires-dist = [
     { name = "torch", marker = "extra == 'torch-extras'", specifier = ">=2.0.0" },
     { name = "typer" },
     { name = "uvicorn", extras = ["standard"] },
-    { name = "xgboost", marker = "extra == 'ml-extras'", specifier = ">=1.7.0" },
+    { name = "xgboost", specifier = ">=1.7.0" },
 ]
 provides-extras = ["dev", "ml-extras", "torch-extras", "cloud-extras", "feature-store", "all"]
 

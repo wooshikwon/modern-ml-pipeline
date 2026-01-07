@@ -340,12 +340,12 @@ class TestShowSuccessMessage:
         assert "mmp train" in captured.out
 
     def test_show_success_message_ml_extras_hint(self, capsys):
-        """ml-extras 힌트 표시 테스트"""
-        recipe_path = Path("recipes/xgb_model.yaml")
+        """ml-extras 힌트 표시 테스트 (xgboost는 core이므로 lightgbm 사용)"""
+        recipe_path = Path("recipes/lgb_model.yaml")
         recipe_data = {
-            "name": "xgb_model",
+            "name": "lgb_model",
             "task_choice": "classification",
-            "model": {"class_path": "XGBClassifier", "library": "xgboost"},
+            "model": {"class_path": "LGBMClassifier", "library": "lightgbm"},
         }
 
         _show_success_message(recipe_path, recipe_data)

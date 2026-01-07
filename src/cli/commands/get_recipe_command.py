@@ -100,7 +100,7 @@ def get_recipe_command() -> None:
 def _show_success_message(recipe_path: Path, recipe_data: dict) -> None:
     """성공 메시지 표시"""
     library = recipe_data.get("model", {}).get("library", "")
-    ml_extras_libraries = ["xgboost", "lightgbm", "catboost"]
+    ml_extras_libraries = ["lightgbm", "catboost"]  # xgboost는 core에 포함
     torch_extras_libraries = ["torch", "pytorch"]
 
     extras_needed = []

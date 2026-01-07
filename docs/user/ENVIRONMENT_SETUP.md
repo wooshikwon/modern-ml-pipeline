@@ -25,7 +25,7 @@ pipx install git+https://github.com/wooshikwon/modern-ml-pipeline.git
 **Extras와 함께 설치**
 
 ```bash
-# XGBoost, LightGBM 등 추가 모델 사용 시
+# LightGBM, CatBoost 등 추가 모델 사용 시
 pipx install "git+https://github.com/wooshikwon/modern-ml-pipeline.git#egg=modern-ml-pipeline[ml-extras]"
 
 # BigQuery, S3, GCS 사용 시
@@ -56,7 +56,7 @@ uv sync --all-extras  # 전체 의존성 설치
 
 | Extras 이름 | 언제 필요한가요? | 포함된 주요 라이브러리 |
 |-------------|-------------------|----------------------|
-| `ml-extras` | XGBoost, LightGBM, CatBoost 모델 사용 시 | `xgboost`, `lightgbm`, `catboost` |
+| `ml-extras` | LightGBM, CatBoost 모델 사용 시 | `lightgbm`, `catboost` |
 | `torch-extras` | 딥러닝 모델(LSTM, TabNet 등) 사용 시 | `torch` |
 | `cloud-extras` | BigQuery, S3, GCS 사용 시 | `sqlalchemy-bigquery`, `gcsfs`, `s3fs` |
 | `feature-store` | Feast Feature Store 연동 시 | `feast` |

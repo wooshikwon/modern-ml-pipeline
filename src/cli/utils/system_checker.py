@@ -771,8 +771,8 @@ class SystemChecker:
             model_config = self.recipe.get("model", {})
             library = model_config.get("library", "").lower()
 
-            # ml-extras: XGBoost, LightGBM, CatBoost
-            ml_extras_libs = ["xgboost", "lightgbm", "catboost"]
+            # ml-extras: LightGBM, CatBoost (XGBoost는 core에 포함)
+            ml_extras_libs = ["lightgbm", "catboost"]
             for lib in ml_extras_libs:
                 if library == lib:
                     checked_packages.append(lib)

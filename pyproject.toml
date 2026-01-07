@@ -28,6 +28,7 @@ dependencies = [
     # Data Processing
     "pandas",
     "scikit-learn",
+    "xgboost>=1.7.0",
     "pyarrow",
     # ML Experiment Tracking
     "mlflow>=3,<4",
@@ -72,10 +73,9 @@ dev = [
     "import-linter>=2.3.0",
 ]
 
-# Extended ML libraries for advanced use cases (XGBoost, LightGBM, CatBoost)
+# Extended ML libraries for advanced use cases (LightGBM, CatBoost)
 ml-extras = [
     # Advanced ML Models
-    "xgboost>=1.7.0",
     "catboost>=1.2.0",
     "lightgbm>=4.1.0",
     # Model Interpretation
