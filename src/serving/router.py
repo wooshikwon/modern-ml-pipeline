@@ -1,7 +1,6 @@
 import asyncio
-import tomllib
 import uuid
-from pathlib import Path
+from importlib.metadata import version as get_pkg_version
 from typing import Any, Dict
 
 import uvicorn
@@ -27,12 +26,9 @@ from src.utils.core.logger import logger
 
 
 def _get_version() -> str:
-    """pyproject.toml에서 버전 정보를 읽어옵니다."""
+    """패키지 메타데이터에서 버전 정보를 가져옵니다."""
     try:
-        pyproject_path = Path(__file__).parent.parent.parent / "pyproject.toml"
-        with open(pyproject_path, "rb") as f:
-            data = tomllib.load(f)
-        return data.get("project", {}).get("version", "0.0.0")
+        return get_pkg_version("modern-ml-pipeline")
     except Exception:
         return "0.0.0"
 

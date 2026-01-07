@@ -125,8 +125,12 @@ __all__ = [
     # "create_recipe_file",
 ]
 
-# 버전 정보
-__version__ = "1.0.0"
+# 버전 정보 (패키지 메타데이터에서 동적으로 가져옴)
+try:
+    from importlib.metadata import version as _get_version
+    __version__ = _get_version("modern-ml-pipeline")
+except Exception:
+    __version__ = "unknown"
 
 # 패키지 메타데이터
 __author__ = "Modern ML Pipeline Team"
