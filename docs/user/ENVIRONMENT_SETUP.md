@@ -8,27 +8,47 @@ Modern ML Pipeline을 사용하기 위한 설치와 환경 설정 방법을 안�
 
 ### 기본 요구사항
 
-- **Python 3.11** (필수)
-- **uv** 또는 **pip**
+- **Python 3.11 또는 3.12**
+- **pipx** (CLI 도구 설치용)
+
+> pipx가 없다면: `brew install pipx && pipx ensurepath` (macOS) 또는 `pip install pipx && pipx ensurepath`
 
 ### 패키지 설치
 
-**방법 1: Git URL로 설치 (권장)**
+**기본 설치**
 
 ```bash
-# 기본 설치 (Scikit-learn 모델만 사용 시)
-pip install git+https://github.com/wooshikwon/modern-ml-pipeline.git
-
-# 기능별 추가 설치
-pip install "git+https://github.com/wooshikwon/modern-ml-pipeline.git#egg=modern-ml-pipeline[ml-extras,cloud-extras]"
+# Scikit-learn 모델만 사용 시
+pipx install git+https://github.com/wooshikwon/modern-ml-pipeline.git
 ```
 
-**방법 2: 소스 코드에서 설치**
+**Extras와 함께 설치**
+
+```bash
+# XGBoost, LightGBM 등 추가 모델 사용 시
+pipx install "git+https://github.com/wooshikwon/modern-ml-pipeline.git#egg=modern-ml-pipeline[ml-extras]"
+
+# 클라우드 스토리지(BigQuery, S3, GCS) 사용 시
+pipx install "git+https://github.com/wooshikwon/modern-ml-pipeline.git#egg=modern-ml-pipeline[cloud-extras]"
+
+# 모든 기능 사용 시
+pipx install "git+https://github.com/wooshikwon/modern-ml-pipeline.git#egg=modern-ml-pipeline[all]"
+```
+
+**기존 설치에 Extras 추가**
+
+이미 설치된 환경에 extras를 추가하려면 `--force` 옵션으로 재설치합니다:
+
+```bash
+pipx install --force "git+https://github.com/wooshikwon/modern-ml-pipeline.git#egg=modern-ml-pipeline[ml-extras,cloud-extras]"
+```
+
+**개발 환경 설치 (소스 코드)**
 
 ```bash
 git clone https://github.com/wooshikwon/modern-ml-pipeline.git
 cd modern-ml-pipeline
-uv sync  # 또는 pip install -e .
+uv sync --all-extras  # 전체 의존성 설치
 ```
 
 ### 추가 패키지 (Extras) 선택 가이드

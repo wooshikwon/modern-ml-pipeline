@@ -21,14 +21,10 @@ YAML 설정 기반의 머신러닝 파이프라인 CLI 도구입니다.
 **요구사항**: Python 3.11 또는 3.12
 
 ```bash
-# pipx 설치 (권장 - 독립 환경으로 의존성 충돌 방지)
 pipx install git+https://github.com/wooshikwon/modern-ml-pipeline.git
-
-# 또는 pip 설치 (기존 환경에 직접 설치)
-pip install git+https://github.com/wooshikwon/modern-ml-pipeline.git
 ```
 
-> pipx가 없다면: `pip install pipx && pipx ensurepath`
+> pipx가 없다면: `brew install pipx && pipx ensurepath` (macOS) 또는 `pip install pipx && pipx ensurepath`
 
 상세 설치 옵션은 [환경 설정 가이드](./docs/user/ENVIRONMENT_SETUP.md)를 참고하세요.
 
@@ -300,10 +296,10 @@ mmp --help
 # 특정 명령어 사용법
 mmp train --help
 
-# 상세 로그 출력 (디버깅)
-mmp train -c configs/dev.yaml -r recipes/model.yaml -d data/train.csv -v
+# 간략 출력 (진행 상태만)
+mmp train -c configs/dev.yaml -r recipes/model.yaml -d data/train.csv -q
 ```
 
 ---
 
-**Version**: 1.0.0 | **License**: MIT | **Python**: 3.11+
+**Version**: 1.0.0 | **License**: Apache 2.0 | **Python**: 3.11+

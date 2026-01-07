@@ -120,7 +120,7 @@ def _show_success_message(recipe_path: Path, recipe_data: dict) -> None:
     step_num = 1
     if extras_needed:
         extras_str = ",".join(extras_needed)
-        sys.stdout.write(f'  {step_num}. 의존성 설치: pip install "modern-ml-pipeline[{extras_str}]"\n')
+        sys.stdout.write(f"  {step_num}. 추가 의존성 필요: [{extras_str}] - 환경 설정 가이드 참고\n")
         step_num += 1
 
     sys.stdout.write(f"  {step_num}. Recipe 확인: cat {recipe_path}\n")
