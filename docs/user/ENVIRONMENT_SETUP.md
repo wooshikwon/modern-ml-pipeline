@@ -11,14 +11,17 @@ Modern ML Pipeline을 사용하기 위한 설치와 환경 설정 방법을 안�
 - **Python 3.11 또는 3.12**
 - **pipx** (권장)
 
-### pipx 설치 (권장)
-
-pipx는 CLI 도구를 독립된 가상환경에 설치하여 기존 환경과의 의존성 충돌을 방지합니다.
+### 설치 전 준비
 
 ```bash
-# pipx 설치
-brew install pipx && pipx ensurepath   # macOS
-pip install pipx && pipx ensurepath    # Linux/Windows
+# 1. Python 3.11 설치
+brew install python@3.11              # macOS (Homebrew)
+# sudo apt install python3.11         # Ubuntu/Debian
+# pyenv install 3.11.10               # pyenv 사용 시
+
+# 2. pipx 설치
+brew install pipx && pipx ensurepath  # macOS
+pip install pipx && pipx ensurepath   # Linux/Windows
 ```
 
 ### 패키지 설치
@@ -26,23 +29,28 @@ pip install pipx && pipx ensurepath    # Linux/Windows
 **기본 설치 (pipx 권장)**
 
 ```bash
-pipx install modern-ml-pipeline
+# Homebrew Python 사용 시
+pipx install --python python3.11 modern-ml-pipeline
+
+# pyenv 사용 시
+pyenv shell 3.11.10 && pipx install modern-ml-pipeline
+# 또는: pipx install --python ~/.pyenv/versions/3.11.10/bin/python modern-ml-pipeline
 ```
 
 **Extras와 함께 설치**
 
 ```bash
 # XGBoost, LightGBM, CatBoost 모델 사용 시
-pipx install "modern-ml-pipeline[ml-extras]"
+pipx install --python python3.11 "modern-ml-pipeline[ml-extras]"
 
 # BigQuery, S3, GCS 사용 시
-pipx install "modern-ml-pipeline[cloud-extras]"
+pipx install --python python3.11 "modern-ml-pipeline[cloud-extras]"
 
 # 딥러닝 모델(LSTM, TabNet 등) 사용 시
-pipx install "modern-ml-pipeline[torch-extras]"
+pipx install --python python3.11 "modern-ml-pipeline[torch-extras]"
 
 # 모든 기능 사용 시 (권장)
-pipx install "modern-ml-pipeline[all]"
+pipx install --python python3.11 "modern-ml-pipeline[all]"
 ```
 
 **Extras 변경 (재설치)**
@@ -50,7 +58,7 @@ pipx install "modern-ml-pipeline[all]"
 설치 후 extras를 변경하려면 `--force` 옵션으로 재설치합니다:
 
 ```bash
-pipx install --force "modern-ml-pipeline[ml-extras,cloud-extras]"
+pipx install --force --python python3.11 "modern-ml-pipeline[ml-extras,cloud-extras]"
 ```
 
 **pip 설치 (대체 방법)**
