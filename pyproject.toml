@@ -51,7 +51,6 @@ dependencies = [
     "sqlalchemy>=2.0.0",
     "psycopg[binary]>=3.2.9",
     "redis>=6.2.0",
-    "s3fs>=2025.5.1",
 ]
 
 [project.optional-dependencies]
@@ -92,13 +91,13 @@ torch-extras = [
     "torch>=2.0.0",
 ]
 
-# Extended cloud integrations (filesystem abstractions)
+# Extended cloud integrations (filesystem abstractions for GCS/S3)
 cloud-extras = [
-    "gcsfs>=2023.0.0",
-    "s3fs>=2023.0.0",
+    "gcsfs>=2025.5.1",
+    "s3fs>=2025.5.1",
+    "fsspec>=2024.0.0",
     "google-cloud-bigquery-storage>=2.24.0",
     "db-dtypes>=1.0.0",
-    "fsspec>=2023.0.0",
     "sqlalchemy-bigquery>=1.9.0",
 ]
 

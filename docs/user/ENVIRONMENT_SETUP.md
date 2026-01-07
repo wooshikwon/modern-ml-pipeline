@@ -35,11 +35,12 @@ pipx install "git+https://github.com/wooshikwon/modern-ml-pipeline.git#egg=moder
 pipx install "git+https://github.com/wooshikwon/modern-ml-pipeline.git#egg=modern-ml-pipeline[all]"
 ```
 
-**기존 설치에 Extras 추가**
+**Extras 변경 (재설치)**
 
-이미 설치된 환경에 extras를 추가하려면 `--force` 옵션으로 재설치합니다:
+설치 후 extras를 변경하려면 `--force` 옵션으로 재설치합니다:
 
 ```bash
+# 기존 설치를 ml-extras, cloud-extras 포함 버전으로 교체
 pipx install --force "git+https://github.com/wooshikwon/modern-ml-pipeline.git#egg=modern-ml-pipeline[ml-extras,cloud-extras]"
 ```
 
