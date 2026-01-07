@@ -3,78 +3,80 @@
 
 environment:
   name: {{ env_name }}
-  # Environment-specific settings are defined in each adapter/store config
 
 {% if use_mlflow %}
+# MLflow 설정
 mlflow:
-  tracking_uri: "${MLFLOW_TRACKING_URI:./mlruns}"
-  experiment_name: "${MLFLOW_EXPERIMENT_NAME:mmp-{{ env_name }}}"
+  tracking_uri: {{ mlflow_tracking_uri }}
+  experiment_name: {{ mlflow_experiment_name }}
 {% endif %}
 
+# 데이터 소스 설정
 data_source:
   name: {{ data_source }}
 {% if data_source == "PostgreSQL" %}
   adapter_type: sql
   config:
-    connection_uri: "postgresql://${DB_USER:postgres}:${DB_PASSWORD:postgres}@${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:mmp_db}"
-    query_timeout: ${DB_TIMEOUT:300}
+    connection_uri: "postgresql://${DB_USER:postgres}:${DB_PASSWORD:}@{{ db_host }}:{{ db_port }}/{{ db_name }}"
+    query_timeout: 300
 {% elif data_source == "BigQuery" %}
   adapter_type: sql
   config:
-    connection_uri: "bigquery://${GCP_PROJECT_ID:}"
-    project_id: "${GCP_PROJECT_ID:}"
-    credentials_path: "${GOOGLE_APPLICATION_CREDENTIALS:}"
-    location: "${BQ_LOCATION:US}"
+    connection_uri: bigquery://{{ gcp_project_id }}
+    project_id: {{ gcp_project_id }}
+    credentials_path: "${GOOGLE_APPLICATION_CREDENTIALS}"
+    location: {{ bq_location }}
     use_pandas_gbq: true
 {% elif data_source == "Local Files" %}
   adapter_type: storage
   config:
-    base_path: "."
+    base_path: {{ local_data_path }}
     storage_options: {}
 {% elif data_source == "S3" %}
   adapter_type: storage
   config:
-    base_path: "s3://${S3_BUCKET:mmp-data}/${S3_PREFIX:{{ env_name }}}"
+    base_path: s3://{{ s3_data_bucket }}/{{ s3_data_prefix }}
     storage_options:
-      aws_access_key_id: "${AWS_ACCESS_KEY_ID:}"
-      aws_secret_access_key: "${AWS_SECRET_ACCESS_KEY:}"
-      region_name: "${AWS_REGION:us-east-1}"
+      aws_access_key_id: "${AWS_ACCESS_KEY_ID}"
+      aws_secret_access_key: "${AWS_SECRET_ACCESS_KEY}"
+      region_name: {{ aws_region }}
 {% elif data_source == "GCS" %}
   adapter_type: storage
   config:
-    base_path: "gs://${GCS_BUCKET:mmp-data}/${GCS_PREFIX:{{ env_name }}}"
+    base_path: gs://{{ gcs_data_bucket }}/{{ gcs_data_prefix }}
     storage_options:
-      project: "${GCP_PROJECT_ID:{{ gcp_project|default('') }}}"
-      token: "${GOOGLE_APPLICATION_CREDENTIALS:}"
+      project: {{ gcp_project_id }}
+      token: "${GOOGLE_APPLICATION_CREDENTIALS}"
 {% endif %}
 
+# Feature Store 설정
 {% if use_feast %}
 feature_store:
   provider: feast
   feast_config:
-    project: "${FEAST_PROJECT:feast_{{ env_name }}}"
-    registry: "${FEAST_REGISTRY_PATH:./feast_repo/registry.db}"
+    project: {{ feast_project }}
+    registry: {{ feast_registry_path }}
     online_store:
 {% if feast_online_store == "Redis" %}
       type: redis
-      connection_string: "${REDIS_HOST:localhost}:${REDIS_PORT:6379}"
+      connection_string: "{{ redis_host }}:{{ redis_port }}"
       password: "${REDIS_PASSWORD:}"
 {% elif feast_online_store == "DynamoDB" %}
       type: dynamodb
-      region: "${DYNAMODB_REGION:us-east-1}"
-      table_name: "${DYNAMODB_TABLE_NAME:feast-online-store}"
+      region: {{ dynamodb_region }}
+      table_name: {{ dynamodb_table }}
 {% else %}
       type: sqlite
-      path: "${FEAST_ONLINE_STORE_PATH:./feast_repo/online_store.db}"
+      path: {{ feast_online_store_path }}
 {% endif %}
     offline_store:
 {% if data_source == "BigQuery" %}
       type: bigquery
-      project_id: "${GCP_PROJECT_ID:{{ gcp_project|default('') }}}"
-      dataset_id: "${BQ_DATASET_ID:mmp_dataset}"
+      project_id: {{ gcp_project_id }}
+      dataset_id: {{ bq_dataset_id|default('mmp_dataset') }}
 {% elif data_source in ["S3", "GCS", "Local Files", "PostgreSQL"] %}
       type: file
-      path: "${FEAST_OFFLINE_PATH:./feast_repo/data}"
+      path: {{ feast_offline_path }}
 {% endif %}
     entity_key_serialization_version: 2
 {% else %}
@@ -82,65 +84,53 @@ feature_store:
   provider: none
 {% endif %}
 
-{%- if enable_serving %}
-
-serving:
-  enabled: true
-  host: "${API_HOST:0.0.0.0}"
-  port: ${API_PORT:8000}
-  workers: ${API_WORKERS:{{ serving_workers|default(1) }}}
-  model_stage: "{{ model_stage|default('None') }}"
-  request_timeout_seconds: 30
-  metrics_enabled: true
-  # cors:
-  #   enabled: false
-  #   allow_origins: ["*"]
-  {%- if enable_auth %}
-  auth:
-    enabled: true
-    type: "${AUTH_TYPE:jwt}"
-    secret_key: "${AUTH_SECRET_KEY:}"
-  {%- endif %}
-{%- else %}
-
+# 서빙 설정
 serving:
   enabled: true
   model_stage: "None"
   request_timeout_seconds: 30
   metrics_enabled: true
-  # cors:
-  #   enabled: false
-  #   allow_origins: ["*"]
-{%- endif %}
 
-# Output targets configuration
+# 로깅 설정
+logging:
+  base_path: {{ log_path }}
+  level: {{ log_level }}
+  retention_days: {{ log_retention_days }}
+  upload_to_mlflow: true
+
+# 배치 추론 결과 저장 설정
 output:
   inference:
     name: InferenceOutput
-    enabled: ${INFER_OUTPUT_ENABLED:true}
-{% if inference_output_source in ["Local Files", "S3", "GCS"] %}
+{% if not inference_output_enabled %}
+    enabled: false
+{% else %}
+    enabled: true
+{% if inference_output_source == "Local Files" %}
     adapter_type: storage
     config:
-{% if inference_output_source == "Local Files" %}
-      base_path: "${INFER_OUTPUT_BASE_PATH:./artifacts/predictions}"
+      base_path: {{ infer_local_path }}
 {% elif inference_output_source == "S3" %}
-      base_path: "s3://${INFER_OUTPUT_S3_BUCKET:mmp-out}/${INFER_OUTPUT_S3_PREFIX:{{ env_name }}/preds}"
+    adapter_type: storage
+    config:
+      base_path: s3://{{ infer_s3_bucket }}/{{ infer_s3_prefix }}
 {% elif inference_output_source == "GCS" %}
-      base_path: "gs://${INFER_OUTPUT_GCS_BUCKET:mmp-out}/${INFER_OUTPUT_GCS_PREFIX:{{ env_name }}/preds}"
-{% endif %}
+    adapter_type: storage
+    config:
+      base_path: gs://{{ infer_gcs_bucket }}/{{ infer_gcs_prefix }}
 {% elif inference_output_source == "PostgreSQL" %}
     adapter_type: sql
     config:
-      connection_uri: "postgresql://${DB_USER:postgres}:${DB_PASSWORD:postgres}@${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:mmp_db}"
-      table: "${INFER_OUTPUT_PG_TABLE:predictions_{{ env_name }}}"
+      connection_uri: "postgresql://${DB_USER:postgres}:${DB_PASSWORD:}@{{ db_host }}:{{ db_port }}/{{ db_name }}"
+      table: {{ infer_pg_table }}
 {% elif inference_output_source == "BigQuery" %}
     adapter_type: sql
     config:
-      connection_uri: "bigquery://${GCP_PROJECT_ID:{{ gcp_project|default('') }}}/${INFER_OUTPUT_BQ_DATASET:analytics}"
-      project_id: "${GCP_PROJECT_ID:{{ gcp_project|default('') }}}"
-      dataset_id: "${INFER_OUTPUT_BQ_DATASET:analytics}"
-      table: "${INFER_OUTPUT_BQ_TABLE:predictions_{{ env_name }}}"
-      location: "${BQ_LOCATION:US}"
+      connection_uri: bigquery://{{ gcp_project_id }}/{{ infer_bq_dataset }}
+      project_id: {{ gcp_project_id }}
+      dataset_id: {{ infer_bq_dataset }}
+      table: {{ infer_bq_table }}
+      location: {{ bq_location }}
       use_pandas_gbq: true
 {% endif %}
-
+{% endif %}
