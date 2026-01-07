@@ -11,9 +11,8 @@ os.environ["MLFLOW_ENABLE_ARTIFACTS_PROGRESS_BAR"] = "false"
 os.environ["MLFLOW_LOGGING_LEVEL"] = "ERROR"
 
 import logging
-import tomllib
 import warnings
-from pathlib import Path
+from importlib.metadata import version as get_pkg_version
 
 import typer
 from rich.console import Console
@@ -71,20 +70,13 @@ def show_banner():
 
 def _get_version() -> str:
     """
-    Read version from pyproject.toml file.
+    패키지 메타데이터에서 버전 정보를 가져옴.
 
     Returns:
-        str: Version string from pyproject.toml, defaults to "unknown" if not found
+        str: 설치된 패키지 버전, 실패 시 "unknown"
     """
     try:
-        pyproject_path = Path(__file__).parent.parent.parent / "pyproject.toml"
-        with open(pyproject_path, "rb") as f:
-            pyproject_data = tomllib.load(f)
-        project_data = pyproject_data.get("project")
-        if project_data is not None and isinstance(project_data, dict):
-            version = project_data.get("version")
-            return str(version) if version is not None else "unknown"
-        return "unknown"
+        return get_pkg_version("modern-ml-pipeline")
     except Exception:
         return "unknown"
 
