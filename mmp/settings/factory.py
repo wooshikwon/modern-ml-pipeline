@@ -389,32 +389,26 @@ class SettingsFactory:
     ) -> None:
         """학습용 데이터 경로 처리 (Jinja 템플릿 렌더링)"""
         if not data_path:
-            logger.debug("data_path가 없어서 건너뜁니다")
             return
 
-        # Jinja 템플릿 처리
+        original_path = data_path
         if data_path.endswith(".sql.j2") or (data_path.endswith(".sql") and context_params):
-            data_path = self._render_jinja_template(data_path, context_params)
+            data_path = self._render_jinja_template(original_path, context_params)
 
-        # data_path를 recipe.data.loader.source_uri에 주입
         recipe.data.loader.source_uri = data_path
-        logger.debug(f"학습 데이터 경로 설정: {data_path}")
 
     def _process_inference_data_path(
         self, recipe: Recipe, data_path: str, context_params: Optional[Dict]
     ) -> None:
         """추론용 데이터 경로 처리 (Jinja 템플릿 렌더링)"""
         if not data_path:
-            logger.debug("data_path가 없어서 건너뜁니다")
             return
 
-        # Jinja 템플릿 처리
+        original_path = data_path
         if data_path.endswith(".sql.j2") or (data_path.endswith(".sql") and context_params):
-            data_path = self._render_jinja_template(data_path, context_params)
+            data_path = self._render_jinja_template(original_path, context_params)
 
-        # data_path를 recipe.data.loader.source_uri에 주입
         recipe.data.loader.source_uri = data_path
-        logger.debug(f"추론 데이터 경로 설정: {data_path}")
 
     def _add_training_computed_fields(
         self, settings: Settings, recipe_path: str, context_params: Optional[Dict]
@@ -526,10 +520,10 @@ class SettingsFactory:
 
         try:
             rendered_content = render_template_from_string(template_content, context_params)
-            logger.info(f"Jinja 템플릿 렌더링 성공: {data_path}")
+            logger.debug(f"[FACTORY] 템플릿 렌더링 완료: {data_path}")
             return rendered_content
         except ValueError as e:
-            logger.error(f"Jinja 렌더링 실패: {e}")
+            logger.error(f"[FACTORY] 템플릿 렌더링 실패: {e}")
             raise ValueError(f"템플릿 렌더링 실패: {e}")
 
 

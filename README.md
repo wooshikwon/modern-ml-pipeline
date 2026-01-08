@@ -20,14 +20,36 @@ YAML 설정 기반의 머신러닝 파이프라인 CLI 도구입니다.
 
 **요구사항**: Python 3.11, 3.12, 또는 3.13
 
-```bash
-# Homebrew Python 사용 시
-pipx install --python python3.11 modern-ml-pipeline
+#### 기본 설치 (XGBoost, scikit-learn)
 
-# pyenv 사용 시
-pipx install --python $(pyenv prefix 3.11)/bin/python modern-ml-pipeline
-# 또는 특정 버전 지정
-pipx install --python $(pyenv prefix 3.11.10)/bin/python modern-ml-pipeline
+```bash
+pip install modern-ml-pipeline
+```
+
+#### 사용 시나리오별 설치
+
+| 시나리오 | 설치 명령 |
+|----------|-----------|
+| BigQuery/GCS/S3 사용 | `pip install 'modern-ml-pipeline[cloud-extras]'` |
+| LightGBM, CatBoost, Optuna | `pip install 'modern-ml-pipeline[ml-extras]'` |
+| PyTorch 모델 (LSTM, FT-Transformer) | `pip install 'modern-ml-pipeline[torch-extras]'` |
+| Feature Store (Feast) | `pip install 'modern-ml-pipeline[feature-store]'` |
+| 전체 기능 | `pip install 'modern-ml-pipeline[all]'` |
+
+#### pipx로 CLI 전역 설치 (권장)
+
+```bash
+# 기본 설치
+pipx install modern-ml-pipeline
+
+# extras 포함 설치 (BigQuery/GCS/S3)
+pipx install 'modern-ml-pipeline[cloud-extras]'
+
+# 전체 기능 설치
+pipx install 'modern-ml-pipeline[all]'
+
+# pyenv 사용 시 Python 버전 지정
+pipx install --python $(pyenv prefix 3.11)/bin/python 'modern-ml-pipeline[cloud-extras]'
 ```
 
 > **설치 전 준비**
@@ -37,9 +59,7 @@ pipx install --python $(pyenv prefix 3.11.10)/bin/python modern-ml-pipeline
 > **pyenv 트러블슈팅**
 > `python3.11: command not found` 오류 시:
 > ```bash
-> # 설치된 버전 확인
-> pyenv versions
-> # 전체 경로로 설치
+> pyenv versions  # 설치된 버전 확인
 > pipx install --python $(pyenv prefix 3.11.10)/bin/python modern-ml-pipeline
 > ```
 
@@ -323,4 +343,4 @@ mmp train -c configs/dev.yaml -r recipes/model.yaml -d data/train.csv -q
 
 ---
 
-**Version**: 1.1.12 | **License**: Apache 2.0 | **Python**: 3.11 - 3.13
+**Version**: 1.1.13 | **License**: Apache 2.0 | **Python**: 3.11 - 3.13

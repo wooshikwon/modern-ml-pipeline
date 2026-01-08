@@ -221,17 +221,34 @@ class SqlAdapter(BaseAdapter):
 
             return result
 
-        except ImportError:
-            # google-cloud-bigquery 미설치 시 기존 방식 폴백
-            logger.warning("[DATA:SqlAdapter] google-cloud-bigquery 미설치, SQLAlchemy 폴백")
-            log_data_debug("BigQuery 쿼리 실행 중... (진행 상황 표시 불가)", "SqlAdapter")
-            return pd.read_sql_query(sql_query, self.engine, **kwargs)
+        except ImportError as e:
+            # google-cloud-bigquery 미설치 시 에러
+            missing_pkg = str(e)
+            logger.error(f"[DATA:SqlAdapter] BigQuery 필수 패키지 미설치: {missing_pkg}")
+            raise ImportError(
+                f"BigQuery 실행에 필요한 패키지가 설치되지 않았습니다.\n"
+                f"오류: {missing_pkg}\n\n"
+                f"해결 방법:\n"
+                f"  pip install 'modern-ml-pipeline[cloud-extras]'\n"
+                f"  또는: pip install google-cloud-bigquery db-dtypes"
+            ) from e
 
         except Exception as e:
-            # BigQuery 직접 실행 실패 시 SQLAlchemy 폴백
-            logger.warning(f"[DATA:SqlAdapter] BigQuery 직접 실행 실패, SQLAlchemy 폴백: {e}")
-            log_data_debug("BigQuery 쿼리 실행 중... (진행 상황 표시 불가)", "SqlAdapter")
-            return pd.read_sql_query(sql_query, self.engine, **kwargs)
+            # BigQuery 직접 실행 실패 시 에러 (db-dtypes 등)
+            error_msg = str(e)
+            logger.error(f"[DATA:SqlAdapter] BigQuery 실행 실패: {error_msg}")
+
+            # db-dtypes 관련 에러인 경우 명확한 안내
+            if "db-dtypes" in error_msg or "db_dtypes" in error_msg:
+                raise RuntimeError(
+                    f"BigQuery 결과 변환에 필요한 패키지가 설치되지 않았습니다.\n"
+                    f"오류: {error_msg}\n\n"
+                    f"해결 방법:\n"
+                    f"  pip install 'modern-ml-pipeline[cloud-extras]'\n"
+                    f"  또는: pip install db-dtypes"
+                ) from e
+            else:
+                raise RuntimeError(f"BigQuery 쿼리 실행 실패: {error_msg}") from e
 
     def _enforce_sql_guards(self, sql_query: str) -> None:
         """보안/신뢰성 가드 적용: DDL/DML 금칙어 차단, LIMIT 가드(옵션)."""

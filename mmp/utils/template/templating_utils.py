@@ -6,8 +6,6 @@ from typing import TYPE_CHECKING, Any, Dict
 import jinja2
 import pandas as pd
 
-from mmp.utils.core.logger import logger
-
 if TYPE_CHECKING:
     pass
 
@@ -18,19 +16,15 @@ def render_template_from_file(template_path: str, context: Dict[str, Any]) -> st
     - Context 파라미터 화이트리스트 검증
     - 렌더링된 SQL의 Injection 패턴 검증
     """
-    logger.info(f"보안 강화 파일 템플릿 렌더링 시작: {template_path}")
-
-    # 1. Context 파라미터 검증
     safe_context = _validate_context_params(context)
 
-    # 2. 템플릿 렌더링
     template_file = Path(template_path)
     if not template_file.exists():
         raise FileNotFoundError(f"Template file not found at: {template_path}")
 
     env = jinja2.Environment(
         loader=jinja2.FileSystemLoader(searchpath=template_file.parent),
-        undefined=jinja2.StrictUndefined,  # 정의되지 않은 변수 사용 시 에러 발생
+        undefined=jinja2.StrictUndefined,
         trim_blocks=True,
         lstrip_blocks=True,
     )
@@ -38,10 +32,7 @@ def render_template_from_file(template_path: str, context: Dict[str, Any]) -> st
     template = env.get_template(template_file.name)
     rendered_sql = template.render(safe_context)
 
-    # 3. 렌더링 결과 SQL 보안 검증
     _validate_sql_safety(rendered_sql)
-
-    logger.info(f"보안 강화 파일 템플릿 렌더링 완료: {template_path}")
     return rendered_sql
 
 
@@ -51,12 +42,8 @@ def render_template_from_string(sql_template: str, context: Dict[str, Any]) -> s
     - Context 파라미터 화이트리스트 검증
     - 렌더링된 SQL의 Injection 패턴 검증
     """
-    logger.info("문자열 기반 SQL 템플릿 보안 렌더링 시작")
-
-    # 1. Context 파라미터 검증
     safe_context = _validate_context_params(context)
 
-    # 2. 템플릿 렌더링
     env = jinja2.Environment(
         undefined=jinja2.StrictUndefined,
         trim_blocks=True,
@@ -65,10 +52,7 @@ def render_template_from_string(sql_template: str, context: Dict[str, Any]) -> s
     template = env.from_string(sql_template)
     rendered_sql = template.render(safe_context)
 
-    # 3. 렌더링 결과 SQL 보안 검증
     _validate_sql_safety(rendered_sql)
-
-    logger.info("문자열 기반 SQL 템플릿 보안 렌더링 완료")
     return rendered_sql
 
 
@@ -102,7 +86,6 @@ def _validate_context_params(context_params: dict) -> dict:
         else:
             safe_context[key] = value
 
-    logger.info(f"Context Params 검증 통과: {list(safe_context.keys())}")
     return safe_context
 
 
@@ -115,12 +98,9 @@ def _validate_sql_safety(sql: str) -> None:
     """
     import re
 
-    # 명백한 DDL만 차단 (문장 시작 기준)
     ddl_pattern = r"^\s*(DROP|TRUNCATE|ALTER)\s+"
     if re.search(ddl_pattern, sql.upper(), re.MULTILINE):
         raise ValueError("DDL 명령어(DROP/TRUNCATE/ALTER)는 허용되지 않습니다.")
-
-    logger.debug("SQL 검증 통과")
 
 
 def is_jinja_template(text: str) -> bool:
