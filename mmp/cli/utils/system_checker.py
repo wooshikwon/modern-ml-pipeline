@@ -848,12 +848,17 @@ class SystemChecker:
         # 결과 반환
         if missing_packages:
             extras_str = ",".join(sorted(set(extras_needed)))
+            packages_str = " ".join(missing_packages)
+            solution = (
+                f"pip 환경: pip install \"{packages_str}\"\n"
+                f"pipx 환경: pipx inject modern-ml-pipeline {packages_str}"
+            )
             return CheckResult(
                 service="PackageDependencies",
                 status=CheckStatus.FAILED,
                 message=f"필요한 패키지 미설치: {', '.join(missing_packages)}",
                 details={"missing": missing_packages, "extras": list(set(extras_needed))},
-                solution=f'pip install "modern-ml-pipeline[{extras_str}]"',
+                solution=solution,
             )
         else:
             return CheckResult(

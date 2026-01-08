@@ -517,7 +517,10 @@ class SettingsFactory:
 
         if not context_params:
             if data_path.endswith(".sql.j2"):
-                raise ValueError(f"Jinja 템플릿 파일({data_path})에는 context_params가 필요합니다")
+                raise ValueError(
+                    f"Jinja 템플릿 파일({data_path})에는 context_params가 필요합니다. "
+                    f"예시: --params '{{\"start_date\": \"2024-01-01\", \"end_date\": \"2024-12-31\"}}'"
+                )
             # .sql 파일에 params 없으면 그대로 반환
             return template_content
 

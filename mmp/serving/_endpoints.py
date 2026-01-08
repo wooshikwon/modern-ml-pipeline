@@ -17,6 +17,7 @@ from mmp.serving.schemas import (
     ReadyCheckResponse,
     TrainingMethodologyInfo,
 )
+from mmp.utils.core.logger import log_warn
 from mmp.utils.data.data_io import format_predictions
 
 logger = logging.getLogger(__name__)
@@ -80,7 +81,7 @@ def _convert_to_signature_types(df: pd.DataFrame, model: Any) -> pd.DataFrame:
                     logger.debug(f"[TYPE] '{col_name}': {current_dtype} → int64")
 
     except Exception as e:
-        logger.warning(f"[TYPE] Signature 기반 타입 변환 실패: {e}")
+        log_warn(f"Signature 기반 타입 변환 실패: {e}", "API:TYPE")
 
     return df
 

@@ -14,7 +14,7 @@ from mmp.cli.utils import CLIProgress
 from mmp.cli.utils.system_checker import CheckStatus, SystemChecker
 from mmp.pipelines.train_pipeline import run_train_pipeline
 from mmp.settings import SettingsFactory, __version__
-from mmp.utils.core.logger import get_current_log_file, log_config, log_sys, setup_logging
+from mmp.utils.core.logger import get_current_log_file, log_config, log_error, log_sys, setup_logging
 
 logger = logging.getLogger(__name__)
 
@@ -90,9 +90,9 @@ def train_command(
         if dep_result.status == CheckStatus.FAILED:
             progress.step_fail()
             missing = dep_result.details.get("missing", []) if dep_result.details else []
-            logger.error(f"  {dep_result.message}")
-            logger.error(f"  Missing: {', '.join(missing)}")
-            logger.error(f"  Solution: {dep_result.solution}")
+            log_error(dep_result.message, "Dependencies")
+            log_error(f"Missing: {', '.join(missing)}", "Dependencies")
+            log_error(f"Solution: {dep_result.solution}", "Dependencies")
             raise typer.Exit(code=1)
         log_sys("모든 패키지 확인 완료")
         progress.step_done()
@@ -134,27 +134,27 @@ def train_command(
         raise
     except KeyboardInterrupt:
         progress.step_fail()
-        logger.info("  Training cancelled by user")
+        log_sys("Training cancelled by user")
         raise typer.Exit(code=0)
     except FileNotFoundError as e:
         progress.step_fail()
-        logger.error(f"  File not found: {e}")
-        logger.error("  Run 'mmp get-config' or 'mmp get-recipe' to create files")
+        log_error(f"File not found: {e}", "CLI")
+        log_sys("Run 'mmp get-config' or 'mmp get-recipe' to create files")
         log_file = get_current_log_file()
         if log_file:
-            logger.error(f"  See: {log_file}")
+            log_sys(f"See: {log_file}")
         raise typer.Exit(code=1)
     except ValueError as e:
         progress.step_fail()
-        logger.error(f"  Configuration error: {e}")
+        log_error(f"Configuration error: {e}", "CLI")
         log_file = get_current_log_file()
         if log_file:
-            logger.error(f"  See: {log_file}")
+            log_sys(f"See: {log_file}")
         raise typer.Exit(code=1)
     except Exception as e:
         progress.step_fail()
-        logger.error(f"  {e}")
+        log_error(str(e), "CLI")
         log_file = get_current_log_file()
         if log_file:
-            logger.error(f"  See: {log_file}")
+            log_sys(f"See: {log_file}")
         raise typer.Exit(code=1)

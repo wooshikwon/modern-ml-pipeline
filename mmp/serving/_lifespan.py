@@ -13,7 +13,7 @@ from mmp.serving.schemas import (
     create_dynamic_prediction_request,
 )
 from mmp.settings import Settings
-from mmp.utils.core.logger import logger
+from mmp.utils.core.logger import log_api, log_api_debug, log_error, log_warn
 from mmp.utils.database.sql_utils import parse_select_columns
 
 
@@ -29,20 +29,19 @@ def setup_api_context(run_id: str, settings: Settings):
 
         wrapped_model = app_context.model.unwrap_python_model()
 
-        # 🆕 Phase 5.5: DataInterface 기반 API 스키마 생성 (우선순위)
+        # DataInterface 기반 API 스키마 생성 (우선순위)
         data_interface_schema = getattr(wrapped_model, "data_interface_schema", None)
         if data_interface_schema:
             # DataInterface 스키마를 사용하여 API 스키마 생성 (가장 정확함)
-            # V2 버전 사용: target_column 자동 제외
-            logger.info("DataInterface 스키마 기반 API 스키마 생성 (target_column 자동 제외)")
+            log_api_debug("DataInterface 스키마 기반 API 스키마 생성 (target_column 자동 제외)")
             app_context.PredictionRequest = create_datainterface_based_prediction_request_v2(
                 model_name="DataInterfacePredictionRequest",
                 data_interface_schema=data_interface_schema,
-                exclude_target=True,  # target_column 자동 제외
+                exclude_target=True,
             )
         else:
             # 폴백: 기존 방식 (data_schema 또는 SQL 파싱)
-            logger.warning("⚠️ DataInterface 스키마 없음 - 기존 방식으로 폴백")
+            log_warn("DataInterface 스키마 없음 - 기존 방식으로 폴백", "API")
             data_schema = getattr(wrapped_model, "data_schema", None)
             if isinstance(data_schema, dict) and data_schema.get("entity_columns"):
                 pk_fields = list(data_schema.get("entity_columns") or [])
@@ -58,18 +57,15 @@ def setup_api_context(run_id: str, settings: Settings):
         app_context.BatchPredictionRequest = create_batch_prediction_request(
             app_context.PredictionRequest
         )
-        logger.info(f"API 컨텍스트 설정 완료: {model_uri}")
+        log_api(f"API 컨텍스트 설정 완료: {model_uri}")
     except Exception as e:
-        logger.error(f"API 컨텍스트 설정 실패: {e}", exc_info=True)
+        log_error(f"API 컨텍스트 설정 실패: {e}", "API")
         raise
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """FastAPI 앱의 생명주기(시작/종료)를 관리합니다."""
-    logger.info("Modern ML Pipeline API 서버 시작...")
-    # 여기에 서버 시작 시 필요한 로직을 추가할 수 있습니다.
-    # 예를 들어, run_id와 settings를 환경 변수나 설정 파일에서 읽어와
-    # setup_api_context를 호출할 수 있습니다.
+    log_api("Modern ML Pipeline API 서버 시작")
     yield
-    logger.info("Modern ML Pipeline API 서버 종료.")
+    log_api("Modern ML Pipeline API 서버 종료")

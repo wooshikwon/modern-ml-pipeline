@@ -8,35 +8,8 @@ from typing import Optional
 
 import typer
 
-VERSION = "1.0.0"
-
-
-def _print_header() -> None:
-    """헤더 출력"""
-    sys.stdout.write(f"\nmmp v{VERSION}\n\n")
-    sys.stdout.write("Get Config: Interactive configuration generator\n\n")
-    sys.stdout.flush()
-
-
-def _print_step(step: str, detail: str = "") -> None:
-    """단계 완료 출력"""
-    if detail:
-        sys.stdout.write(f"  {step}: {detail}\n")
-    else:
-        sys.stdout.write(f"  {step}\n")
-    sys.stdout.flush()
-
-
-def _print_error(step: str, error: str) -> None:
-    """에러 출력"""
-    sys.stdout.write(f"  [FAIL] {step}: {error}\n")
-    sys.stdout.flush()
-
-
-def _print_info(message: str) -> None:
-    """정보 출력"""
-    sys.stdout.write(f"  {message}\n")
-    sys.stdout.flush()
+from mmp.cli.utils.header import print_command_header
+from mmp.utils.core.logger import log_error
 
 
 def get_config_command(
@@ -63,7 +36,7 @@ def get_config_command(
     ui = InteractiveUI()
 
     try:
-        _print_header()
+        print_command_header("⚙️ Get Config", "Interactive configuration generator")
 
         ui.show_panel(
             """환경별 설정 파일 생성을 시작합니다.
@@ -77,13 +50,8 @@ def get_config_command(
         builder = InteractiveConfigBuilder()
 
         selections = builder.run_interactive_flow(env_name)
-        _print_step("설정 완료", f"환경 '{selections['env_name']}'")
-
         config_path = builder.generate_config_file(selections["env_name"], selections)
         env_template_path = builder.generate_env_template(selections["env_name"], selections)
-
-        _print_step("Config 파일 생성", str(config_path))
-        _print_step("Env 템플릿 생성", str(env_template_path))
 
         _show_completion_message(selections["env_name"], config_path, env_template_path, selections)
 
@@ -91,13 +59,13 @@ def get_config_command(
         sys.stdout.write("\n  [취소] 사용자에 의해 취소됨\n")
         raise typer.Exit(0)
     except FileNotFoundError as e:
-        _print_error("파일 없음", str(e))
+        log_error(f"파일 없음: {e}", "CLI")
         raise typer.Exit(1)
     except ValueError as e:
-        _print_error("잘못된 값", str(e))
+        log_error(f"잘못된 값: {e}", "CLI")
         raise typer.Exit(1)
     except Exception as e:
-        _print_error("Config 생성 실패", str(e))
+        log_error(f"Config 생성 실패: {e}", "CLI")
         raise typer.Exit(1)
 
 
@@ -105,6 +73,8 @@ def _show_completion_message(
     env_name: str, config_path: Path, env_template_path: Path, selections: dict = None
 ) -> None:
     """완료 메시지 표시"""
+    from mmp.cli.utils.header import print_divider, print_item, print_section
+
     extras_needed = []
     if selections:
         data_source = selections.get("data_source", "")
@@ -118,18 +88,34 @@ def _show_completion_message(
         if feature_store == "Feast":
             extras_needed.append("feature-store")
 
-    sys.stdout.write("\n다음 단계:\n")
+    # 구분선 + 결과 섹션
+    print_divider()
+    print_section("OK", "Config 생성 완료", style="green", newline=False)
+    print_item("ENV", env_name)
+    print_item("CONFIG", str(config_path))
+    print_item("TEMPLATE", str(env_template_path))
+
+    # 다음 단계 섹션
+    print_section("NEXT", "다음 단계", style="blue")
 
     step_num = 1
     if extras_needed:
         extras_str = ",".join(extras_needed)
-        sys.stdout.write(f"  {step_num}. 추가 의존성 설치:\n")
+        sys.stdout.write(f"  {step_num}. 추가 의존성 설치\n")
         sys.stdout.write(f'     pipx install --force "modern-ml-pipeline[{extras_str}]"\n')
         step_num += 1
 
-    sys.stdout.write(f"  {step_num}. 환경 파일 준비: cp {env_template_path} .env.{env_name}\n")
-    sys.stdout.write(f"  {step_num + 1}. 인증 정보 입력: .env.{env_name} 파일 편집\n")
-    sys.stdout.write(f"  {step_num + 2}. 연결 테스트: mmp system-check -c {config_path}\n")
-    sys.stdout.write(f"  {step_num + 3}. Recipe 생성: mmp get-recipe\n")
-    sys.stdout.write(f"  {step_num + 4}. 모델 학습: mmp train -r recipes/<recipe>.yaml -c {config_path} -d <data>\n")
+    sys.stdout.write(f"  {step_num}. 환경 파일 준비\n")
+    sys.stdout.write(f"     cp {env_template_path} .env.{env_name}\n")
+    sys.stdout.write(f"  {step_num + 1}. 인증 정보 입력\n")
+    sys.stdout.write(f"     .env.{env_name} 파일 편집\n")
+    sys.stdout.write(f"  {step_num + 2}. 연결 테스트\n")
+    sys.stdout.write(f"     mmp system-check -c {config_path}\n")
+    sys.stdout.write(f"  {step_num + 3}. Recipe 생성\n")
+    sys.stdout.write(f"     mmp get-recipe\n")
+    sys.stdout.write(f"  {step_num + 4}. 모델 학습\n")
+    sys.stdout.write(f"     mmp train -r recipes/<recipe>.yaml -c {config_path} -d <data>\n")
     sys.stdout.flush()
+
+    # 마무리 구분선
+    print_divider()

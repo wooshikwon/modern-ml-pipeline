@@ -59,7 +59,7 @@ class RecipeBuilder:
 
     def build_recipe_interactively(self) -> Dict[str, Any]:
         """사용자 대화형 Recipe 생성 - 모든 옵션이 동적"""
-        total_steps = 5
+        total_steps = 6
 
         # Step 1: Task 선택
         self.ui.show_step(1, total_steps, "Task 선택")
@@ -162,7 +162,10 @@ class RecipeBuilder:
             },
         }
 
-        self._show_required_user_inputs(recipe_data, task_choice, preprocessor_steps)
+        # Step 6: 설정 확인
+        self.ui.show_step(6, total_steps, "설정 확인")
+        if not self._show_manual_summary_and_confirm(recipe_data, task_choice, preprocessor_steps):
+            raise ValueError("사용자가 설정을 취소했습니다.")
 
         return recipe_data
 
@@ -170,7 +173,7 @@ class RecipeBuilder:
         self, task_choice: str, selected_model: Dict, model_name: str
     ) -> Dict[str, Any]:
         """권장 설정으로 자동 Recipe 생성 (Cheat Sheet 모드)"""
-        self.ui.show_step(4, 5, "Cheat Sheet 적용")
+        self.ui.show_step(4, 6, "Cheat Sheet 적용")
 
         # 1. 카탈로그에서 권장 전처리기 로드
         preprocessor_steps = self._get_recommended_preprocessor(selected_model)
@@ -202,7 +205,6 @@ class RecipeBuilder:
         available_metrics = self.get_available_metrics_for_task(task_choice)
 
         # 6. Recipe 조립
-        self.ui.show_step(5, 5, "Recipe 생성")
         recipe_data = {
             "name": f"{task_choice}_{model_name}_{datetime.now().strftime('%Y%m%d')}",
             "task_choice": task_choice,
@@ -222,7 +224,13 @@ class RecipeBuilder:
             },
         }
 
-        self._show_cheat_sheet_summary(recipe_data, task_choice, preprocessor_steps)
+        # Step 5: 설정 요약 및 확인
+        self.ui.show_step(5, 6, "설정 확인")
+        if not self._show_cheat_sheet_summary_and_confirm(recipe_data, task_choice, preprocessor_steps):
+            raise ValueError("사용자가 설정을 취소했습니다.")
+
+        # Step 6: Recipe 생성
+        self.ui.show_step(6, 6, "Recipe 생성")
 
         return recipe_data
 
@@ -273,39 +281,71 @@ class RecipeBuilder:
 
         return model_config
 
-    def _show_cheat_sheet_summary(
+    def _show_cheat_sheet_summary_and_confirm(
         self, recipe_data: Dict, task_choice: str, preprocessor_steps: List[Dict]
-    ) -> None:
-        """Cheat Sheet 적용 결과 요약"""
-        self.ui.print_divider()
-        self.ui.show_info("[Cheat Sheet 적용 요약]", newline_before=False)
-
-        # Optuna
+    ) -> bool:
+        """Cheat Sheet 적용 결과 요약 및 확인"""
         hp = recipe_data["model"]["hyperparameters"]
-        self.ui.show_info(
-            f"  Optuna: n_trials={hp['n_trials']}, timeout={hp['timeout']}s, "
-            f"metric={hp['optimization_metric']}",
-            newline_before=False,
-        )
+
+        # 요약 데이터 구성
+        summary_data = {
+            "Optuna": f"n_trials={hp['n_trials']}, timeout={hp['timeout']}s, metric={hp['optimization_metric']}",
+        }
 
         # Calibration
         if task_choice.lower() == "classification":
             cal = recipe_data["model"].get("calibration", {})
             if cal.get("enabled"):
-                self.ui.show_info(f"  Calibration: {cal['method']}", newline_before=False)
+                summary_data["Calibration"] = cal["method"]
 
         # Preprocessor
         if preprocessor_steps:
             step_types = [s["type"] for s in preprocessor_steps]
-            self.ui.show_info(f"  Preprocessor: {' → '.join(step_types)}", newline_before=False)
+            summary_data["Preprocessor"] = " -> ".join(step_types)
 
         # Data Split
         split = recipe_data["data"]["split"]
         split_str = ", ".join(f"{k}={int(v*100)}%" for k, v in split.items())
-        self.ui.show_info(f"  Data Split: {split_str}", newline_before=False)
+        summary_data["Data Split"] = split_str
 
-        self.ui.print_divider()
-        self._show_required_user_inputs(recipe_data, task_choice, preprocessor_steps)
+        return self.ui.show_summary_and_confirm(summary_data, title="Cheat Sheet 설정 요약")
+
+    def _show_manual_summary_and_confirm(
+        self, recipe_data: Dict, task_choice: str, preprocessor_steps: List[Dict]
+    ) -> bool:
+        """Manual 모드 설정 요약 및 확인"""
+        hp = recipe_data["model"]["hyperparameters"]
+
+        # 요약 데이터 구성
+        summary_data = {}
+
+        # HPO 설정
+        if hp.get("tuning_enabled"):
+            summary_data["HPO"] = f"n_trials={hp.get('n_trials', 10)}, timeout={hp.get('timeout', 300)}s, metric={hp.get('optimization_metric', 'N/A')}"
+        else:
+            summary_data["HPO"] = "비활성화"
+
+        # Calibration
+        if task_choice.lower() == "classification":
+            cal = recipe_data["model"].get("calibration", {})
+            if cal.get("enabled"):
+                summary_data["Calibration"] = cal["method"]
+            else:
+                summary_data["Calibration"] = "비활성화"
+
+        # Preprocessor
+        if preprocessor_steps:
+            step_types = [s["type"] for s in preprocessor_steps]
+            summary_data["Preprocessor"] = " -> ".join(step_types)
+        else:
+            summary_data["Preprocessor"] = "없음"
+
+        # Data Split
+        split = recipe_data["data"]["split"]
+        split_str = ", ".join(f"{k}={int(v*100)}%" for k, v in split.items())
+        summary_data["Data Split"] = split_str
+
+        return self.ui.show_summary_and_confirm(summary_data, title="Manual 설정 요약")
 
     def _build_model_config(self, selected_model: Dict, task_choice: str) -> Dict:
         """모델 설정 구성"""
@@ -745,35 +785,6 @@ class RecipeBuilder:
 
         return "Other"
 
-    def _show_required_user_inputs(
-        self, recipe_data: Dict, task_choice: str, preprocessor_steps: List[Dict]
-    ) -> None:
-        """Recipe 생성 후 사용자가 반드시 입력해야 할 항목 안내"""
-        self.ui.print_divider()
-        self.ui.show_warning("[필수 수정 항목] Recipe 파일에서 직접 지정이 필요합니다:")
-
-        items = [
-            "  - data.loader.source_uri: SQL 파일 또는 데이터 경로",
-            "  - data.data_interface.entity_columns: 엔티티 식별 컬럼",
-        ]
-
-        task_lower = task_choice.lower()
-        if task_lower != "clustering":
-            items.append("  - data.data_interface.target_column: 예측 대상 컬럼")
-        if task_lower == "causal":
-            items.append("  - data.data_interface.treatment_column: Treatment 컬럼")
-        if task_lower == "timeseries":
-            items.append("  - data.data_interface.timestamp_column: 시간 컬럼")
-
-        has_encoder = any(s.get("type", "").endswith("_encoder") for s in preprocessor_steps)
-        if has_encoder:
-            items.append("  - preprocessor.steps[encoder].columns: 인코딩할 범주형 컬럼")
-
-        for item in items:
-            self.ui.show_info(item)
-
-        self.ui.print_divider()
-
     def generate_template_variables(
         self, recipe_data: Dict, config_template_vars: Dict = None
     ) -> Dict:
@@ -860,7 +871,7 @@ class RecipeBuilder:
         with open(output_path, "w", encoding="utf-8") as f:
             yaml.dump(recipe_data, f, default_flow_style=False, allow_unicode=True)
 
-        logger.info(f"Recipe 파일 생성 완료: {output_path}")
+        logger.debug(f"Recipe 파일 저장됨: {output_path}")
         return output_path
 
 

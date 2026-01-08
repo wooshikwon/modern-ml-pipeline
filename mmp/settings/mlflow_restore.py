@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional, Tuple
 import mlflow
 import yaml
 
-from mmp.utils.core.logger import logger
+from mmp.utils.core.logger import log_error, log_mlflow, log_mlflow_debug, log_warn
 
 from .config import Config
 from .recipe import Recipe
@@ -22,7 +22,7 @@ class MLflowArtifactRestorer:
     def restore_recipe(self) -> Recipe:
         """Recipe 복원"""
         try:
-            logger.debug(f"[MLFLOW] Recipe 복원 시작: run_id={self.run_id[:8]}...")
+            log_mlflow_debug(f"Recipe 복원 시작: run_id={self.run_id[:8]}...")
 
             recipe_path = mlflow.artifacts.download_artifacts(
                 run_id=self.run_id, artifact_path="training_artifacts/recipe_snapshot.yaml"
@@ -33,20 +33,20 @@ class MLflowArtifactRestorer:
 
             recipe_data = self._resolve_env_variables(recipe_data)
             recipe = Recipe(**recipe_data)
-            logger.info(f"[MLFLOW] Recipe 복원 완료: {recipe.name}")
+            log_mlflow(f"Recipe 복원 완료: {recipe.name}")
             return recipe
 
         except FileNotFoundError:
-            logger.error(f"[MLFLOW] Recipe snapshot 없음: run_id={self.run_id}")
+            log_error(f"Recipe snapshot 없음: run_id={self.run_id}", "MLFLOW")
             raise ValueError(f"Recipe를 찾을 수 없습니다. run_id={self.run_id}")
         except Exception as e:
-            logger.error(f"[MLFLOW] Recipe 복원 실패: {str(e)}")
+            log_error(f"Recipe 복원 실패: {str(e)}", "MLFLOW")
             raise ValueError(f"Recipe 복원 실패 (run_id: {self.run_id}): {str(e)}")
 
     def restore_config(self) -> Config:
         """Config 복원"""
         try:
-            logger.debug(f"[MLFLOW] Config 복원 시작: run_id={self.run_id[:8]}...")
+            log_mlflow_debug(f"Config 복원 시작: run_id={self.run_id[:8]}...")
 
             config_path = mlflow.artifacts.download_artifacts(
                 run_id=self.run_id, artifact_path="training_artifacts/config_snapshot.yaml"
@@ -57,14 +57,14 @@ class MLflowArtifactRestorer:
 
             config_data = self._resolve_env_variables(config_data)
             config = Config(**config_data)
-            logger.info(f"[MLFLOW] Config 복원 완료: env={config.environment.name}")
+            log_mlflow(f"Config 복원 완료: env={config.environment.name}")
             return config
 
         except FileNotFoundError:
-            logger.error(f"[MLFLOW] Config snapshot 없음: run_id={self.run_id}")
+            log_error(f"Config snapshot 없음: run_id={self.run_id}", "MLFLOW")
             raise ValueError(f"Config를 찾을 수 없습니다. run_id={self.run_id}")
         except Exception as e:
-            logger.error(f"[MLFLOW] Config 복원 실패: {str(e)}")
+            log_error(f"Config 복원 실패: {str(e)}", "MLFLOW")
             raise ValueError(f"Config 복원 실패 (run_id: {self.run_id}): {str(e)}")
 
     def restore_sql(self) -> Optional[str]:
@@ -76,10 +76,10 @@ class MLflowArtifactRestorer:
 
             if not sql_exists:
                 # CSV 등 SQL이 아닌 데이터로 학습한 경우 - 정상 케이스
-                logger.debug(f"[MLFLOW] SQL artifact 없음 (CSV 데이터로 학습): run_id={self.run_id[:8]}...")
+                log_mlflow_debug(f"SQL artifact 없음 (CSV 데이터로 학습): run_id={self.run_id[:8]}...")
                 return None
 
-            logger.debug(f"[MLFLOW] SQL 복원 시작: run_id={self.run_id[:8]}...")
+            log_mlflow_debug(f"SQL 복원 시작: run_id={self.run_id[:8]}...")
 
             sql_path = mlflow.artifacts.download_artifacts(
                 run_id=self.run_id, artifact_path="training_artifacts/source_query.sql"
@@ -88,11 +88,11 @@ class MLflowArtifactRestorer:
             with open(sql_path, "r", encoding="utf-8") as f:
                 sql_content = f.read()
 
-            logger.info(f"[MLFLOW] SQL 복원 완료: {len(sql_content)} bytes")
+            log_mlflow(f"SQL 복원 완료: {len(sql_content)} bytes")
             return sql_content
 
         except Exception as e:
-            logger.warning(f"[MLFLOW] SQL 복원 실패: {str(e)}")
+            log_warn(f"SQL 복원 실패: {str(e)}", "MLFLOW")
             return None
 
     def restore_all(self) -> Tuple[Recipe, Config, Optional[str]]:
@@ -114,7 +114,7 @@ class MLflowArtifactRestorer:
                 "tags": run.data.tags,
             }
         except Exception as e:
-            logger.warning(f"[MLFLOW] 모델 정보 복원 실패: {str(e)}")
+            log_warn(f"모델 정보 복원 실패: {str(e)}", "MLFLOW")
             return {}
 
     def _resolve_env_variables(self, data: Any) -> Any:
@@ -163,7 +163,7 @@ class MLflowArtifactSaver:
             with open(recipe_file, "w", encoding="utf-8") as f:
                 f.write(recipe_yaml)
             mlflow.log_artifact(str(recipe_file), "training_artifacts")
-            logger.info("[MLFLOW] Recipe snapshot 저장 완료")
+            log_mlflow("Recipe snapshot 저장 완료")
 
             # 2. Config 저장
             config_data = config.model_dump()
@@ -172,7 +172,7 @@ class MLflowArtifactSaver:
             with open(config_file, "w", encoding="utf-8") as f:
                 f.write(config_yaml)
             mlflow.log_artifact(str(config_file), "training_artifacts")
-            logger.info("[MLFLOW] Config snapshot 저장 완료")
+            log_mlflow("Config snapshot 저장 완료")
 
             # 3. SQL 파일 내용 저장 (source_uri가 파일 경로인 경우)
             if source_uri:
@@ -182,7 +182,7 @@ class MLflowArtifactSaver:
                     with open(sql_file, "w", encoding="utf-8") as f:
                         f.write(sql_content)
                     mlflow.log_artifact(str(sql_file), "training_artifacts")
-                    logger.info(f"[MLFLOW] SQL snapshot 저장 완료: {len(sql_content)} bytes")
+                    log_mlflow(f"SQL snapshot 저장 완료: {len(sql_content)} bytes")
 
             # 임시 파일 정리
             for f in temp_dir.iterdir():
@@ -190,7 +190,7 @@ class MLflowArtifactSaver:
             temp_dir.rmdir()
 
         except Exception as e:
-            logger.error(f"[MLFLOW] Training artifacts 저장 실패: {str(e)}")
+            log_error(f"Training artifacts 저장 실패: {str(e)}", "MLFLOW")
 
     @staticmethod
     def _read_sql_content(source_uri: str) -> Optional[str]:
@@ -202,10 +202,10 @@ class MLflowArtifactSaver:
                 if path.exists():
                     return path.read_text(encoding="utf-8")
                 else:
-                    logger.warning(f"[MLFLOW] SQL 파일을 찾을 수 없습니다: {source_uri}")
+                    log_warn(f"SQL 파일을 찾을 수 없습니다: {source_uri}", "MLFLOW")
             return None
         except Exception as e:
-            logger.warning(f"[MLFLOW] SQL 파일 읽기 실패: {str(e)}")
+            log_warn(f"SQL 파일 읽기 실패: {str(e)}", "MLFLOW")
             return None
 
 

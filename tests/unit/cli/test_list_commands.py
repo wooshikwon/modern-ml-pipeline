@@ -40,7 +40,7 @@ class TestListCommandsArgumentParsing:
 
         # Verify success and output
         assert result.exit_code == 0
-        assert "Adapters:" in result.output
+        assert "Adapters" in result.output
         assert "storage" in result.output
         assert "sql" in result.output
 
@@ -58,7 +58,7 @@ class TestListCommandsArgumentParsing:
 
         # Verify success and output
         assert result.exit_code == 0
-        assert "Evaluators:" in result.output
+        assert "Evaluators" in result.output
         assert "classification" in result.output
         assert "regression" in result.output
 
@@ -84,7 +84,7 @@ class TestListCommandsArgumentParsing:
 
         # Verify success and output
         assert result.exit_code == 0
-        assert "Models:" in result.output
+        assert "Models by Task" in result.output
         assert "Classification" in result.output
         assert "RandomForestClassifier" in result.output
 
@@ -102,7 +102,7 @@ class TestListCommandsArgumentParsing:
 
         # Verify success and output
         assert result.exit_code == 0
-        assert "Preprocessor Steps:" in result.output
+        assert "Preprocessor Steps" in result.output
         assert "standard_scaler" in result.output
         assert "simple_imputer" in result.output
 
@@ -120,7 +120,7 @@ class TestListCommandsArgumentParsing:
 
         # Verify success and shows empty message
         assert result.exit_code == 0
-        assert "Adapters:" in result.output
+        assert "Adapters" in result.output
         assert "(no adapters available)" in result.output
 
     def test_list_commands_help_messages(self):

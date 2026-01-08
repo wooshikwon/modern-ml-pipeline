@@ -2,6 +2,10 @@
 
 Modern ML Pipeline은 설정을 **인프라(Config)**와 **실험(Recipe)** 두 가지로 분리하여 관리합니다.
 
+> **경로 규칙**
+>
+> 설정 파일 내 모든 상대 경로는 **현재 작업 디렉토리 기준**으로 해석됩니다. mmp 명령어는 프로젝트 루트 디렉토리에서 실행해야 합니다.
+
 
 ## 1. 설정 구조 개요
 
@@ -73,9 +77,9 @@ mlflow:
 data_source:
   adapter_type: "storage"
   config:
-    base_path: "data/"           # 로컬 경로
-    # base_path: "s3://bucket/"  # S3
-    # base_path: "gs://bucket/"  # GCS
+    base_path: "data/"           # 현재 디렉토리 기준 상대 경로 (./data/)
+    # base_path: "s3://bucket/"  # S3 (절대 경로)
+    # base_path: "gs://bucket/"  # GCS (절대 경로)
 ```
 
 **SQL 예시:**

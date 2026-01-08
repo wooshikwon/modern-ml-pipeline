@@ -7,29 +7,8 @@ from pathlib import Path
 
 import typer
 
-VERSION = "1.0.0"
-
-
-def _print_header() -> None:
-    """헤더 출력"""
-    sys.stdout.write(f"\nmmp v{VERSION}\n\n")
-    sys.stdout.write("Get Recipe: Interactive recipe generator\n\n")
-    sys.stdout.flush()
-
-
-def _print_step(step: str, detail: str = "") -> None:
-    """단계 완료 출력"""
-    if detail:
-        sys.stdout.write(f"  {step}: {detail}\n")
-    else:
-        sys.stdout.write(f"  {step}\n")
-    sys.stdout.flush()
-
-
-def _print_error(step: str, error: str) -> None:
-    """에러 출력"""
-    sys.stdout.write(f"  [FAIL] {step}: {error}\n")
-    sys.stdout.flush()
+from mmp.cli.utils.header import print_command_header
+from mmp.utils.core.logger import log_error
 
 
 def get_recipe_command() -> None:
@@ -59,7 +38,7 @@ def get_recipe_command() -> None:
     ui = InteractiveUI()
 
     try:
-        _print_header()
+        print_command_header("📋 Get Recipe", "Interactive recipe generator")
 
         ui.show_panel(
             """환경 독립적인 Recipe 생성을 시작합니다.
@@ -80,18 +59,20 @@ def get_recipe_command() -> None:
         sys.stdout.write("\n  [취소] 사용자에 의해 취소됨\n")
         raise typer.Exit(0)
     except FileNotFoundError as e:
-        _print_error("파일 없음", str(e))
+        log_error(f"파일 없음: {e}", "CLI")
         raise typer.Exit(1)
     except ValueError as e:
-        _print_error("잘못된 값", str(e))
+        log_error(f"잘못된 값: {e}", "CLI")
         raise typer.Exit(1)
     except Exception as e:
-        _print_error("Recipe 생성 실패", str(e))
+        log_error(f"Recipe 생성 실패: {e}", "CLI")
         raise typer.Exit(1)
 
 
 def _show_success_message(recipe_path: Path, recipe_data: dict) -> None:
     """성공 메시지 표시"""
+    from mmp.cli.utils.header import print_divider, print_item, print_section
+
     library = recipe_data.get("model", {}).get("library", "")
     ml_extras_libraries = ["lightgbm", "catboost"]  # xgboost는 core에 포함
     torch_extras_libraries = ["torch", "pytorch"]
@@ -103,21 +84,53 @@ def _show_success_message(recipe_path: Path, recipe_data: dict) -> None:
         extras_needed.append("torch-extras")
 
     task = recipe_data["task_choice"]
-    model = recipe_data["model"]["class_path"]
+    preprocessor_steps = recipe_data.get("preprocessor", {})
+    if preprocessor_steps:
+        preprocessor_steps = preprocessor_steps.get("steps", [])
+    else:
+        preprocessor_steps = []
 
-    sys.stdout.write(f"\nRecipe 생성 완료: {recipe_path}\n")
-    sys.stdout.write(f"  Task: {task}\n")
-    sys.stdout.write(f"  모델: {model}\n")
+    # 구분선
+    print_divider()
 
-    sys.stdout.write("\n다음 단계:\n")
+    # 결과 섹션
+    print_section("OK", "Recipe 생성 완료", style="green", newline=False)
+    print_item("FILE", str(recipe_path))
+    print_item("TASK", task)
+    print_item("MODEL", recipe_data["model"]["class_path"])
 
-    step_num = 1
+    # 필수 수정 항목 (TODO)
+    print_section("TODO", "필수 수정 항목", style="yellow")
+
+    items = [
+        "data.loader.source_uri: SQL 파일 또는 데이터 경로",
+        "data.data_interface.entity_columns: 엔티티 식별 컬럼",
+    ]
+
+    task_lower = task.lower()
+    if task_lower != "clustering":
+        items.append("data.data_interface.target_column: 예측 대상 컬럼")
+    if task_lower == "causal":
+        items.append("data.data_interface.treatment_column: Treatment 컬럼")
+    if task_lower == "timeseries":
+        items.append("data.data_interface.timestamp_column: 시간 컬럼")
+
+    has_encoder = any(s.get("type", "").endswith("_encoder") for s in preprocessor_steps)
+    if has_encoder:
+        items.append("preprocessor.steps[encoder].columns: 인코딩할 범주형 컬럼")
+
+    # 추가 의존성이 필요한 경우
     if extras_needed:
         extras_str = ",".join(extras_needed)
-        sys.stdout.write(f"  {step_num}. 추가 의존성 설치:\n")
-        sys.stdout.write(f'     pipx install --force "modern-ml-pipeline[{extras_str}]"\n')
-        step_num += 1
+        items.append(f'추가 의존성 설치: pipx install --force "modern-ml-pipeline[{extras_str}]"')
 
-    sys.stdout.write(f"  {step_num}. Recipe 수정: entity_columns, target_column 지정\n")
-    sys.stdout.write(f"  {step_num + 1}. 모델 학습: mmp train -r {recipe_path} -c configs/<env>.yaml -d <data>\n")
+    for item in items:
+        sys.stdout.write(f"  - {item}\n")
+
+    # 모델 학습 명령어 안내
+    sys.stdout.write(f"\n  학습 명령어:\n")
+    sys.stdout.write(f"  mmp train -r {recipe_path} -c configs/<env>.yaml -d <data>\n")
     sys.stdout.flush()
+
+    # 마무리 구분선
+    print_divider()

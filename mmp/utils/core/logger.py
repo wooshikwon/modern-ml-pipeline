@@ -88,10 +88,41 @@ def setup_log_level(level: int) -> None:
         for handler in root_logger.handlers:
             handler.setLevel(level)
 
-    # 외부 라이브러리 로그 억제 (Popen 등 불필요한 출력 방지)
+    # 외부 라이브러리 로그 억제
+    suppress_external_loggers()
+
+
+def suppress_external_loggers() -> None:
+    """외부 라이브러리 로그 억제.
+
+    Google Cloud, urllib3, requests 등 외부 라이브러리의
+    상세 로그를 억제하여 CLI 출력을 깔끔하게 유지합니다.
+    """
+    # Git 관련 로그 (Popen 출력 방지)
     logging.getLogger("git").setLevel(logging.WARNING)
     logging.getLogger("git.cmd").setLevel(logging.WARNING)
     logging.getLogger("git.util").setLevel(logging.WARNING)
+
+    # Google Cloud / BigQuery 관련 로그 억제
+    logging.getLogger("google").setLevel(logging.WARNING)
+    logging.getLogger("google.cloud").setLevel(logging.WARNING)
+    logging.getLogger("google.cloud.bigquery").setLevel(logging.WARNING)
+    logging.getLogger("google.auth").setLevel(logging.WARNING)
+    logging.getLogger("google.auth.transport").setLevel(logging.WARNING)
+    logging.getLogger("google.auth.transport.requests").setLevel(logging.WARNING)
+    logging.getLogger("google.api_core").setLevel(logging.WARNING)
+
+    # HTTP 클라이언트 로그 억제
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+    logging.getLogger("urllib3.connectionpool").setLevel(logging.WARNING)
+    logging.getLogger("requests").setLevel(logging.WARNING)
+
+    # MLflow 내부 로그 억제
+    logging.getLogger("mlflow").setLevel(logging.ERROR)
+    logging.getLogger("mlflow.tracking").setLevel(logging.ERROR)
+
+    # Optuna 내부 로그 억제
+    logging.getLogger("optuna").setLevel(logging.WARNING)
 
 
 # 표준화된 카테고리별 로깅 함수
@@ -167,9 +198,24 @@ def log_eval_debug(message: str) -> None:
     logger.debug(f"[EVAL] {message}")
 
 
+def log_api(message: str) -> None:
+    """API 서버 관련 로그"""
+    logger.info(f"[API] {message}")
+
+
+def log_api_debug(message: str) -> None:
+    """API 서버 관련 상세 로그 (DEBUG)"""
+    logger.debug(f"[API] {message}")
+
+
 def log_mlflow(message: str) -> None:
     """MLflow 관련 로그"""
     logger.info(f"[MLFLOW] {message}")
+
+
+def log_mlflow_debug(message: str) -> None:
+    """MLflow 관련 상세 로그 (DEBUG)"""
+    logger.debug(f"[MLFLOW] {message}")
 
 
 def log_sys(message: str) -> None:
@@ -180,6 +226,22 @@ def log_sys(message: str) -> None:
 def log_sys_debug(message: str) -> None:
     """시스템/환경 상세 로그 (DEBUG)"""
     logger.debug(f"[SYS] {message}")
+
+
+def log_error(message: str, component: str = None) -> None:
+    """에러 로그 (CLI/컴포넌트 공통)"""
+    if component:
+        logger.error(f"[ERROR:{component}] {message}")
+    else:
+        logger.error(f"[ERROR] {message}")
+
+
+def log_warn(message: str, component: str = None) -> None:
+    """경고 로그 (CLI/컴포넌트 공통)"""
+    if component:
+        logger.warning(f"[WARN:{component}] {message}")
+    else:
+        logger.warning(f"[WARN] {message}")
 
 
 def log_config(message: str) -> None:
@@ -304,14 +366,9 @@ def setup_logging(settings: "Settings", verbose: bool = None):
     root_logger.addHandler(console_handler)
 
     # 외부 라이브러리 로그 억제
-    # Git 관련 로그 (Popen 출력 방지)
-    logging.getLogger("git").setLevel(logging.WARNING)
-    logging.getLogger("git.cmd").setLevel(logging.WARNING)
-    logging.getLogger("git.util").setLevel(logging.WARNING)
+    suppress_external_loggers()
 
-    # MLflow 내부 경고 억제 (verbose 여부와 무관하게 ERROR 이상만)
-    logging.getLogger("mlflow").setLevel(logging.ERROR)
-    logging.getLogger("mlflow.tracking").setLevel(logging.ERROR)
+    # MLflow 추가 로거 억제 (파이프라인 실행 시 더 상세한 억제 필요)
     logging.getLogger("mlflow.utils").setLevel(logging.ERROR)
     logging.getLogger("mlflow.utils.environment").setLevel(logging.ERROR)
     logging.getLogger("mlflow.models").setLevel(logging.ERROR)
@@ -319,20 +376,8 @@ def setup_logging(settings: "Settings", verbose: bool = None):
     logging.getLogger("mlflow.models.utils").setLevel(logging.ERROR)
     logging.getLogger("mlflow.pyfunc").setLevel(logging.ERROR)
 
-    # Optuna 내부 로그 억제 (우리 형식으로 대체)
-    logging.getLogger("optuna").setLevel(logging.WARNING)
+    # Optuna trial 로거 억제
     logging.getLogger("optuna.trial").setLevel(logging.WARNING)
-
-    # Google Cloud / BigQuery 관련 로그 억제
-    logging.getLogger("google.cloud.bigquery").setLevel(logging.WARNING)
-    logging.getLogger("google.auth").setLevel(logging.WARNING)
-    logging.getLogger("google.auth.transport").setLevel(logging.WARNING)
-    logging.getLogger("google.auth.transport.requests").setLevel(logging.WARNING)
-
-    # HTTP 클라이언트 로그 억제
-    logging.getLogger("urllib3").setLevel(logging.WARNING)
-    logging.getLogger("urllib3.connectionpool").setLevel(logging.WARNING)
-    logging.getLogger("requests").setLevel(logging.WARNING)
 
     # 오래된 로그 파일 정리
     _cleanup_old_logs(log_dir, retention_days)

@@ -63,17 +63,22 @@ my-project/
 
 **경로 규칙**
 
-모든 파일 경로는 **프로젝트 루트 기준 상대 경로**로 지정합니다:
+모든 mmp 명령어는 **프로젝트 루트 디렉토리에서 실행**해야 합니다. 파일 경로는 현재 작업 디렉토리 기준 상대 경로로 해석됩니다:
 
 ```bash
-# 로컬 파일 (프로젝트 루트 기준)
-mmp train ... -d data/train.csv        # data/ 디렉토리의 파일
-mmp train ... -d sql/query.sql         # sql/ 디렉토리의 파일
+# 프로젝트 디렉토리로 이동 후 명령어 실행
+cd my-project
+
+# 로컬 파일 (현재 디렉토리 기준 상대 경로)
+mmp train ... -d data/train.csv        # ./data/train.csv
+mmp train ... -d sql/query.sql         # ./sql/query.sql
 
 # 클라우드 스토리지 (전체 경로 지정)
 mmp train ... -d s3://bucket/data/train.csv
 mmp train ... -d gs://bucket/data/train.csv
 ```
+
+> **참고**: mmp는 pipx로 전역 설치되지만, 명령어 실행 시 현재 디렉토리를 기준으로 설정 파일과 데이터를 찾습니다.
 
 클라우드 스토리지 상세 설정은 [환경 설정 가이드](./docs/user/ENVIRONMENT_SETUP.md#클라우드-스토리지-설정)를 참고하세요.
 

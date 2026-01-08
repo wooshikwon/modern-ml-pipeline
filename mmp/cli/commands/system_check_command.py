@@ -12,6 +12,8 @@ from typing_extensions import Annotated
 
 from mmp.cli.utils.cli_progress import CLIProgress
 from mmp.cli.utils.system_checker import CheckResult, CheckStatus, SystemChecker
+from mmp.settings import __version__
+from mmp.utils.core.logger import log_error, log_sys, log_warn, suppress_external_loggers
 
 logger = logging.getLogger(__name__)
 
@@ -61,20 +63,23 @@ def system_check_command(
         # 해결책 포함
         mmp system-check --config configs/dev.yaml --actionable
     """
+    # 외부 라이브러리 로그 억제 (BigQuery, urllib3 등)
+    suppress_external_loggers()
+
     try:
         # 1. Config 파일 경로 검증
         config_file_path = Path(config_path)
         env_name = config_file_path.stem
 
         progress = CLIProgress(total_steps=5)
-        progress.header("1.0.0")
+        progress.header(__version__)
 
         # Step 1: Loading configuration
         progress.step_start("Loading configuration")
         if not config_file_path.exists():
             progress.step_fail()
-            logger.error(f"      [FAIL] Config file not found: {config_file_path}")
-            logger.error("      Run 'mmp get-config' to create a config file")
+            log_error(f"Config file not found: {config_file_path}", "CLI")
+            log_sys("Run 'mmp get-config' to create a config file")
             raise typer.Exit(1)
 
         # 환경 변수 로드
@@ -83,7 +88,7 @@ def system_check_command(
             try:
                 load_environment(env_name)
             except Exception as e:
-                logger.warning(f"      [WARN] Environment failed ({e})")
+                log_warn(f"Environment loading failed: {e}", "CLI")
         
         with open(config_file_path, "r", encoding="utf-8") as f:
             config = yaml.safe_load(f)
@@ -181,19 +186,36 @@ def system_check_command(
         summary_text = f"{success_count} passed, {failed_count} failed, {warning_count} warnings"
         if failed_count == 0:
             if warning_count == 0:
-                logger.info(f"\nAll system checks passed! ({summary_text})")
+                log_sys(f"All system checks passed! ({summary_text})")
             else:
-                logger.info(f"\nSystem is working with warnings. ({summary_text})")
+                log_sys(f"System is working with warnings. ({summary_text})")
         else:
-            logger.error(f"\n[ERROR] {failed_count} check(s) failed. ({summary_text})")
+            log_error(f"{failed_count} check(s) failed ({summary_text})", "CLI")
 
-        # 해결책(Solutions) 출력
-        if actionable and (failed_count > 0 or warning_count > 0):
+        # 해결책(Solutions) 출력: FAIL은 항상 출력, WARNING은 --actionable 옵션 필요
+        failed_with_solution = [
+            (s, r) for s, r in results.items()
+            if r.status == CheckStatus.FAILED and r.solution
+        ]
+        warning_with_solution = [
+            (s, r) for s, r in results.items()
+            if r.status == CheckStatus.WARNING and r.solution
+        ]
+
+        if failed_with_solution:
             logger.info("\nSolutions:")
-            for service, res in results.items():
-                if res.status in [CheckStatus.FAILED, CheckStatus.WARNING] and res.solution:
-                    indented_sol = res.solution.replace("\n", "\n" + " " * 21)
-                    logger.info(f"      {service:<15}: {indented_sol}")
+            for service, res in failed_with_solution:
+                indented_sol = res.solution.replace("\n", "\n" + " " * 21)
+                logger.info(f"      {service:<15}: {indented_sol}")
+
+        if actionable and warning_with_solution:
+            if not failed_with_solution:
+                logger.info("\nSolutions:")
+            for service, res in warning_with_solution:
+                indented_sol = res.solution.replace("\n", "\n" + " " * 21)
+                logger.info(f"      {service:<15}: {indented_sol}")
+        elif warning_with_solution and not actionable:
+            logger.info("\n      Tip: 경고에 대한 해결 방법을 보려면 --actionable 옵션을 추가하세요.")
 
         if failed_count > 0:
             raise typer.Exit(1)
@@ -201,18 +223,18 @@ def system_check_command(
     except typer.Exit:
         raise
     except KeyboardInterrupt:
-        logger.info("\nSystem check cancelled by user")
+        log_sys("System check cancelled by user")
         raise typer.Exit(0)
     except FileNotFoundError as e:
         progress.step_fail()
-        logger.error(f"  File not found: {e}")
-        logger.error("  Run 'mmp get-config' to create a config file")
+        log_error(f"File not found: {e}", "CLI")
+        log_sys("Run 'mmp get-config' to create a config file")
         raise typer.Exit(1)
     except ValueError as e:
         progress.step_fail()
-        logger.error(f"  Configuration error: {e}")
+        log_error(f"Configuration error: {e}", "CLI")
         raise typer.Exit(1)
     except Exception as e:
         progress.step_fail()
-        logger.error(f"  {e}")
+        log_error(str(e), "CLI")
         raise typer.Exit(1)

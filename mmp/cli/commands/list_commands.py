@@ -12,20 +12,12 @@ from typing import Any, Dict
 import typer
 import yaml
 
+from mmp.cli.utils.header import print_simple_header
 from mmp.components.adapter import AdapterRegistry
 from mmp.components.evaluator import EvaluatorRegistry
 from mmp.components.preprocessor.registry import PreprocessorStepRegistry
 
 logger = logging.getLogger(__name__)
-
-VERSION = "1.0.0"
-
-
-def _print_header(title: str) -> None:
-    """헤더 출력"""
-    sys.stdout.write(f"\nmmp v{VERSION}\n\n")
-    sys.stdout.write(f"{title}\n")
-    sys.stdout.flush()
 
 
 def _print_section(name: str, items: list, show_library: bool = False, wide: bool = False) -> None:
@@ -56,7 +48,7 @@ def list_adapters() -> None:
     데이터 어댑터는 다양한 데이터 소스(DB, 파일, 클라우드 등)에서
     데이터를 로드하는 컴포넌트입니다.
     """
-    _print_header("Adapters")
+    print_simple_header("📝 Adapters")
 
     available_items = sorted(AdapterRegistry.list_keys())
     for item in available_items:
@@ -75,7 +67,7 @@ def list_evaluators() -> None:
     평가자는 모델의 성능을 측정하는 메트릭을 제공하는 컴포넌트입니다.
     Task별로 적절한 평가 메트릭이 제공됩니다.
     """
-    _print_header("Evaluators")
+    print_simple_header("📝 Evaluators")
 
     available_items = sorted(EvaluatorRegistry.list_keys())
     for item in available_items:
@@ -94,7 +86,7 @@ def list_metrics() -> None:
     각 Task(classification, regression 등)에서 사용할 수 있는
     optimization_metric 값들을 확인할 수 있습니다.
     """
-    _print_header("Metrics by Task")
+    print_simple_header("📝 Metrics by Task")
 
     available_tasks = sorted(EvaluatorRegistry.list_keys())
 
@@ -118,7 +110,7 @@ def list_preprocessors() -> None:
     전처리기는 데이터 변환 및 피처 엔지니어링을 수행하는 컴포넌트입니다.
     StandardScaler, OneHotEncoder 등이 포함됩니다.
     """
-    _print_header("Preprocessor Steps")
+    print_simple_header("📝 Preprocessor Steps")
 
     available_items = sorted(PreprocessorStepRegistry.list_keys())
     for item in available_items:
@@ -167,7 +159,7 @@ def list_models() -> None:
 
     모델은 Task별로 그룹화되어 표시되며, 각 모델의 라이브러리 정보도 함께 표시됩니다.
     """
-    _print_header("Models by Task")
+    print_simple_header("📝 Models by Task")
 
     catalog_dir = Path(__file__).parent.parent.parent / "models" / "catalog"
     if catalog_dir.exists():

@@ -8,6 +8,7 @@ from typing import Optional
 
 import typer
 
+from mmp.cli.utils.header import print_command_header
 from mmp.cli.utils.interactive_ui import InteractiveUI
 from mmp.cli.utils.template_engine import TemplateEngine
 
@@ -31,6 +32,17 @@ def init_command(project_name: Optional[str] = typer.Argument(None, help="프로
     total_steps = 2
 
     try:
+        print_command_header("📦 Init Project", "Interactive project initializer")
+
+        ui.show_panel(
+            """새로운 ML 프로젝트를 초기화합니다.
+
+        기본 디렉토리 구조(data, configs, recipes, sql)와
+        Docker, pyproject 설정 파일을 생성합니다.""",
+            title="Project Initializer",
+            style="green",
+        )
+
         # Step 1: 프로젝트명 입력
         ui.show_step(1, total_steps, "프로젝트명 입력")
         if not project_name:

@@ -22,7 +22,7 @@ from mmp.serving.schemas import (
     ReadyCheckResponse,
 )
 from mmp.settings import Settings
-from mmp.utils.core.logger import logger
+from mmp.utils.core.logger import log_api, log_error, log_warn
 
 
 def _get_version() -> str:
@@ -73,9 +73,9 @@ class TimeoutMiddleware(BaseHTTPMiddleware):
                 call_next(request), timeout=self.timeout_seconds
             )
         except asyncio.TimeoutError:
-            logger.warning(
-                f"Request timeout: {request.method} {request.url.path} "
-                f"exceeded {self.timeout_seconds}s"
+            log_warn(
+                f"Request timeout: {request.method} {request.url.path} exceeded {self.timeout_seconds}s",
+                "API",
             )
             return JSONResponse(
                 status_code=504,
@@ -128,7 +128,7 @@ def ready_check() -> ReadyCheckResponse:
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Ready check 중 오류 발생: {e}", exc_info=True)
+        log_error(f"Ready check 중 오류 발생: {e}", "API")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -162,7 +162,7 @@ def predict_generic(request: Dict[str, Any]) -> MinimalPredictionResponse:
             ]
         ):
             raise HTTPException(status_code=422, detail=msg)
-        logger.error(f"단일 예측 중 오류 발생: {e}", exc_info=True)
+        log_error(f"단일 예측 중 오류 발생: {e}", "API")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -190,7 +190,7 @@ def predict_batch(request: Dict[str, Any]) -> BatchPredictionResponse:
             ]
         ):
             raise HTTPException(status_code=422, detail=msg)
-        logger.error(f"배치 예측 중 오류 발생: {e}", exc_info=True)
+        log_error(f"배치 예측 중 오류 발생: {e}", "API")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -205,7 +205,7 @@ def get_model_metadata() -> ModelMetadataResponse:
     try:
         return handlers.get_model_metadata()
     except Exception as e:
-        logger.error(f"모델 메타데이터 조회 중 오류 발생: {e}", exc_info=True)
+        log_error(f"모델 메타데이터 조회 중 오류 발생: {e}", "API")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -217,7 +217,7 @@ def get_optimization_history() -> OptimizationHistoryResponse:
     try:
         return handlers.get_optimization_history()
     except Exception as e:
-        logger.error(f"최적화 히스토리 조회 중 오류 발생: {e}", exc_info=True)
+        log_error(f"최적화 히스토리 조회 중 오류 발생: {e}", "API")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -229,7 +229,7 @@ def get_api_schema() -> Dict[str, Any]:
     try:
         return handlers.get_api_schema()
     except Exception as e:
-        logger.error(f"API 스키마 조회 중 오류 발생: {e}", exc_info=True)
+        log_error(f"API 스키마 조회 중 오류 발생: {e}", "API")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -258,19 +258,19 @@ def _configure_middlewares(settings: Settings) -> None:
             allow_methods=cors_config.allow_methods,
             allow_headers=cors_config.allow_headers,
         )
-        logger.info(f"CORS 미들웨어 활성화: origins={cors_config.allow_origins}")
+        log_api(f"CORS 미들웨어 활성화: origins={cors_config.allow_origins}")
 
     # Timeout 미들웨어
     timeout_seconds = getattr(serving, "request_timeout_seconds", 30)
     if timeout_seconds > 0:
         app.add_middleware(TimeoutMiddleware, timeout_seconds=timeout_seconds)
-        logger.info(f"Timeout 미들웨어 활성화: {timeout_seconds}초")
+        log_api(f"Timeout 미들웨어 활성화: {timeout_seconds}초")
 
     # Prometheus 메트릭 엔드포인트 노출
     metrics_enabled = getattr(serving, "metrics_enabled", True)
     if metrics_enabled:
         _instrumentator.expose(app, endpoint="/metrics", tags=["Monitoring"])
-        logger.info("Prometheus 메트릭 엔드포인트 활성화: /metrics")
+        log_api("Prometheus 메트릭 엔드포인트 활성화: /metrics")
 
 
 def run_api_server(settings: Settings, run_id: str, host: str = "0.0.0.0", port: int = 8000):
@@ -288,8 +288,9 @@ def run_api_server(settings: Settings, run_id: str, host: str = "0.0.0.0", port:
             if hasattr(settings.config, "environment")
             else "unknown"
         )
-        logger.error(
-            f"'{env_name}' 환경에서는 API 서빙이 비활성화되어 있습니다. (serving.enabled=false)"
+        log_error(
+            f"'{env_name}' 환경에서는 API 서빙이 비활성화되어 있습니다 (serving.enabled=false)",
+            "API",
         )
         return
 

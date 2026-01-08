@@ -322,7 +322,6 @@ class TestShowSuccessMessage:
         captured = capsys.readouterr()
         assert "regression" in captured.out
         assert "XGBRegressor" in captured.out
-        assert "xgboost" in captured.out
 
     def test_show_success_message_includes_next_steps(self, capsys):
         """다음 단계 안내 포함 테스트"""

@@ -16,7 +16,7 @@ from mmp.pipelines.inference_pipeline import run_inference_pipeline
 from mmp.settings import __version__
 from mmp.settings.factory import SettingsFactory
 from mmp.settings.mlflow_restore import restore_all_from_mlflow
-from mmp.utils.core.logger import get_current_log_file, log_config, log_sys
+from mmp.utils.core.logger import get_current_log_file, log_config, log_error, log_sys
 
 logger = logging.getLogger(__name__)
 
@@ -113,8 +113,8 @@ def batch_inference_command(
 
         if dep_result.status == CheckStatus.FAILED:
             progress.step_fail()
-            logger.error(f"  {dep_result.message}")
-            logger.error(f"  Solution: {dep_result.solution}")
+            log_error(dep_result.message, "Dependencies")
+            log_error(f"Solution: {dep_result.solution}", "Dependencies")
             raise typer.Exit(code=1)
         log_sys("모든 패키지 확인 완료")
         progress.step_done("verified")
@@ -141,27 +141,27 @@ def batch_inference_command(
         raise
     except KeyboardInterrupt:
         progress.step_fail()
-        logger.info("  Inference cancelled by user")
+        log_sys("Inference cancelled by user")
         raise typer.Exit(code=0)
     except FileNotFoundError as e:
         progress.step_fail()
-        logger.error(f"  File not found: {e}")
-        logger.error("  Check the file path or use a valid Run ID")
+        log_error(f"File not found: {e}", "CLI")
+        log_sys("Check the file path or use a valid Run ID")
         log_file = get_current_log_file()
         if log_file:
-            logger.error(f"  See: {log_file}")
+            log_sys(f"See: {log_file}")
         raise typer.Exit(code=1)
     except ValueError as e:
         progress.step_fail()
-        logger.error(f"  Configuration error: {e}")
+        log_error(f"Configuration error: {e}", "CLI")
         log_file = get_current_log_file()
         if log_file:
-            logger.error(f"  See: {log_file}")
+            log_sys(f"See: {log_file}")
         raise typer.Exit(code=1)
     except Exception as e:
         progress.step_fail()
-        logger.error(f"  {e}")
+        log_error(str(e), "CLI")
         log_file = get_current_log_file()
         if log_file:
-            logger.error(f"  See: {log_file}")
+            log_sys(f"See: {log_file}")
         raise typer.Exit(code=1)

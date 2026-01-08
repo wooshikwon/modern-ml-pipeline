@@ -12,7 +12,7 @@ from mmp.cli.utils import CLIProgress
 from mmp.cli.utils.system_checker import CheckStatus, SystemChecker
 from mmp.serving import run_api_server
 from mmp.settings import SettingsFactory, __version__
-from mmp.utils.core.logger import get_current_log_file
+from mmp.utils.core.logger import get_current_log_file, log_error, log_sys
 
 logger = logging.getLogger(__name__)
 
@@ -73,8 +73,8 @@ def serve_api_command(
 
         if dep_result.status == CheckStatus.FAILED:
             progress.step_fail()
-            logger.error(f"  {dep_result.message}")
-            logger.error(f"  Solution: {dep_result.solution}")
+            log_error(dep_result.message, "Dependencies")
+            log_error(f"Solution: {dep_result.solution}", "Dependencies")
             raise typer.Exit(code=1)
         progress.step_done("verified")
 
@@ -83,9 +83,9 @@ def serve_api_command(
         progress.step_done()
 
         # 서버 정보 출력
-        logger.info(f"\n      API Server:   http://{host}:{port}")
-        logger.info(f"      API Docs:     http://{host}:{port}/docs")
-        logger.info(f"      Health Check: http://{host}:{port}/health\n")
+        log_sys(f"API Server:   http://{host}:{port}")
+        log_sys(f"API Docs:     http://{host}:{port}/docs")
+        log_sys(f"Health Check: http://{host}:{port}/health")
 
         # API 서버 실행 (블로킹)
         run_api_server(settings=settings, run_id=run_id, host=host, port=port)
@@ -93,27 +93,27 @@ def serve_api_command(
     except typer.Exit:
         raise
     except KeyboardInterrupt:
-        logger.info("\n  Server stopped by user")
+        log_sys("Server stopped by user")
         raise typer.Exit(code=0)
     except FileNotFoundError as e:
         progress.step_fail()
-        logger.error(f"  File not found: {e}")
-        logger.error("  Check the file path or use a valid Run ID")
+        log_error(f"File not found: {e}", "CLI")
+        log_sys("Check the file path or use a valid Run ID")
         log_file = get_current_log_file()
         if log_file:
-            logger.error(f"  See: {log_file}")
+            log_sys(f"See: {log_file}")
         raise typer.Exit(code=1)
     except ValueError as e:
         progress.step_fail()
-        logger.error(f"  Configuration error: {e}")
+        log_error(f"Configuration error: {e}", "CLI")
         log_file = get_current_log_file()
         if log_file:
-            logger.error(f"  See: {log_file}")
+            log_sys(f"See: {log_file}")
         raise typer.Exit(code=1)
     except Exception as e:
         progress.step_fail()
-        logger.error(f"  {e}")
+        log_error(str(e), "CLI")
         log_file = get_current_log_file()
         if log_file:
-            logger.error(f"  See: {log_file}")
+            log_sys(f"See: {log_file}")
         raise typer.Exit(code=1)

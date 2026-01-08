@@ -160,8 +160,18 @@ app.command("serve-api", help="API 서버 실행")(serve_api_command)
 
 list_app = typer.Typer(
     help="컴포넌트 목록 조회 (models, adapters, preprocessors 등)",
-    no_args_is_help=True,
+    invoke_without_command=True,
 )
+
+
+@list_app.callback()
+def list_callback(ctx: typer.Context) -> None:
+    """서브커맨드 없이 호출 시 도움말 표시"""
+    if ctx.invoked_subcommand is None:
+        console = Console()
+        console.print(ctx.get_help())
+        raise typer.Exit(0)
+
 
 list_app.command("adapters", help="사용 가능한 데이터 어댑터 목록")(list_adapters)
 list_app.command("evaluators", help="사용 가능한 평가자 목록")(list_evaluators)
