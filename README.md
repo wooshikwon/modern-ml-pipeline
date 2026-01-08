@@ -318,4 +318,4 @@ mmp train -c configs/dev.yaml -r recipes/model.yaml -d data/train.csv -q
 
 ---
 
-**Version**: 1.1.17 | **License**: Apache 2.0 | **Python**: 3.10 - 3.13
+**Version**: 1.1.18 | **License**: Apache 2.0 | **Python**: 3.10 - 3.13

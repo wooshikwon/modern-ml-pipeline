@@ -39,7 +39,6 @@ def cached(cache_key_fn: Callable[..., str]):
         def wrapper(self, *args, **kwargs) -> Any:
             key = cache_key_fn(*args, **kwargs)
             if key in self._component_cache:
-                logger.debug(f"캐시된 컴포넌트 반환: {key}")
                 return self._component_cache[key]
 
             result = method(self, *args, **kwargs)
