@@ -23,13 +23,22 @@ class DropMissingWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
         """
         Args:
             axis: 'rows' to drop rows, 'columns' to drop columns
-            threshold: Fraction of non-missing values required to keep (0.0 = any missing drops, 1.0 = all missing drops)
+            threshold: 결측 비율 기준 (0.0 = 결측 있으면 삭제, 1.0 = 전부 결측일 때만 삭제)
             columns: Specific columns to consider (None = all columns)
         """
         self.axis = axis
         self.threshold = threshold
         self.columns = columns
         self._dropped_columns = []  # Track dropped columns for consistency
+
+    def _should_drop(self, missing_fraction: float) -> bool:
+        """threshold 기준으로 삭제 여부 판단"""
+        if self.threshold >= 1.0:
+            # threshold=1.0: 전부 결측일 때만 삭제
+            return missing_fraction >= 1.0
+        else:
+            # threshold=0.0: 결측 있으면 삭제, 0.5: 50% 초과 시 삭제
+            return missing_fraction > self.threshold
 
     def fit(self, X: pd.DataFrame, y=None):
         """Learn which rows/columns to drop based on missing patterns"""
@@ -45,9 +54,10 @@ class DropMissingWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
             # Calculate missing fraction for each column
             missing_fractions = X[target_cols].isnull().mean()
             # Drop columns that exceed missing threshold
-            self._dropped_columns = missing_fractions[
-                missing_fractions > self.threshold
-            ].index.tolist()
+            self._dropped_columns = [
+                col for col in missing_fractions.index
+                if self._should_drop(missing_fractions[col])
+            ]
         else:
             # For row dropping, no pre-computation needed
             self._dropped_columns = []
@@ -72,12 +82,12 @@ class DropMissingWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
                     # Calculate missing fraction per row for target columns
                     missing_per_row = result[target_cols].isnull().mean(axis=1)
                     # Drop rows that exceed the threshold
-                    rows_to_drop = missing_per_row > self.threshold
+                    rows_to_drop = missing_per_row.apply(self._should_drop)
                     result = result[~rows_to_drop]
             else:
                 # Consider all columns
                 missing_per_row = result.isnull().mean(axis=1)
-                rows_to_drop = missing_per_row > self.threshold
+                rows_to_drop = missing_per_row.apply(self._should_drop)
                 result = result[~rows_to_drop]
 
         return result
