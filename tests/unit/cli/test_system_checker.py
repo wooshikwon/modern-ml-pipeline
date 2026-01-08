@@ -79,7 +79,7 @@ class TestSystemChecker:
             result = checker.check_mlflow()
 
         assert result.status == CheckStatus.FAILED
-        assert "MLflow connection failed" in result.message
+        assert "MLflow 연결 실패" in result.message
 
     def test_check_data_source_storage(self, basic_config, tmp_path):
         """Storage 데이터 소스 체크 테스트."""

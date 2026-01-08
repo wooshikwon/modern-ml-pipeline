@@ -299,8 +299,10 @@ class TestCLIProgressVerboseMode:
         progress.step_start("Test")
 
         captured = capsys.readouterr()
-        # 기본 모드: 줄바꿈 없이 대기
-        assert captured.out.endswith("[1/1] Test" + " " * (30 - len("[1/1] Test")))
+        # 기본 모드: 줄바꿈 없이 대기 (폭은 min(터미널폭, 80) * 0.5 = 40)
+        expected_width = 40  # UI_MAX_WIDTH(80) * UI_STEP_TEXT_RATIO(0.5)
+        expected_text = "[1/1] Test"
+        assert captured.out.endswith(expected_text + " " * (expected_width - len(expected_text)))
         assert is_cli_line_active() is True
 
 

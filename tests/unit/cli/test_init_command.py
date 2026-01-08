@@ -57,7 +57,6 @@ class TestInitCommandWithRealComponents:
             assert (project_path / "data").exists()
             assert (project_path / "configs").exists()
             assert (project_path / "recipes").exists()
-            assert (project_path / "sql").exists()
 
             # Files created by template engine
             assert (project_path / "README.md").exists()

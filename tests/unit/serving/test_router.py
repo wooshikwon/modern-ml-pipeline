@@ -372,12 +372,13 @@ class TestRunAPIServer:
     def test_run_api_server_disabled_serving(self, component_test_context):
         """서빙 비활성화된 환경에서 API 서버 실행 테스트"""
         with component_test_context.classification_stack() as ctx:
-            # Mock settings with serving disabled
+            # Mock settings with serving disabled (settings.config.serving 구조)
             mock_settings = Mock()
-            mock_settings.serving = Mock()
-            mock_settings.serving.enabled = False
-            mock_settings.environment = Mock()
-            mock_settings.environment.env_name = "production"
+            mock_settings.config = Mock()
+            mock_settings.config.serving = Mock()
+            mock_settings.config.serving.enabled = False
+            mock_settings.config.environment = Mock()
+            mock_settings.config.environment.name = "production"
 
             # Mock setup_api_context and uvicorn
             with (

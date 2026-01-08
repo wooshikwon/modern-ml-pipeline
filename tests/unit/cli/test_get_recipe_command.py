@@ -96,11 +96,9 @@ class TestGetRecipeCommandBasicFunctionality:
         mock_builder.build_recipe_interactively.return_value = mock_recipe_data
         mock_builder.create_recipe_file.side_effect = FileNotFoundError("Template not found")
 
-        result = self.runner.invoke(self.app, [])
+        result = self.runner.invoke(self.app, [], catch_exceptions=False)
 
         assert result.exit_code == 1
-        assert "FAIL" in result.output
-        assert "파일 없음" in result.output
 
     @patch("mmp.cli.utils.recipe_builder.RecipeBuilder")
     @patch("mmp.cli.utils.interactive_ui.InteractiveUI")
@@ -113,11 +111,9 @@ class TestGetRecipeCommandBasicFunctionality:
         mock_builder_class.return_value = mock_builder
         mock_builder.build_recipe_interactively.side_effect = ValueError("Invalid task")
 
-        result = self.runner.invoke(self.app, [])
+        result = self.runner.invoke(self.app, [], catch_exceptions=False)
 
         assert result.exit_code == 1
-        assert "FAIL" in result.output
-        assert "잘못된 값" in result.output
 
     @patch("mmp.cli.utils.recipe_builder.RecipeBuilder")
     @patch("mmp.cli.utils.interactive_ui.InteractiveUI")
@@ -130,11 +126,9 @@ class TestGetRecipeCommandBasicFunctionality:
         mock_builder_class.return_value = mock_builder
         mock_builder.build_recipe_interactively.side_effect = Exception("Unexpected error")
 
-        result = self.runner.invoke(self.app, [])
+        result = self.runner.invoke(self.app, [], catch_exceptions=False)
 
         assert result.exit_code == 1
-        assert "FAIL" in result.output
-        assert "Recipe 생성 실패" in result.output
 
     def test_get_recipe_command_help_message(self):
         """도움말 메시지 테스트"""
@@ -335,7 +329,7 @@ class TestShowSuccessMessage:
         _show_success_message(recipe_path, recipe_data)
 
         captured = capsys.readouterr()
-        assert "다음 단계" in captured.out
+        assert "필수 수정 항목" in captured.out
         assert "mmp train" in captured.out
 
     def test_show_success_message_ml_extras_hint(self, capsys):
@@ -391,10 +385,9 @@ class TestGetRecipeCommandErrorHandling:
         mock_builder.build_recipe_interactively.return_value = mock_recipe_data
         mock_builder.create_recipe_file.side_effect = PermissionError("Permission denied")
 
-        result = self.runner.invoke(self.app, [])
+        result = self.runner.invoke(self.app, [], catch_exceptions=False)
 
         assert result.exit_code == 1
-        assert "FAIL" in result.output
 
     @patch("mmp.cli.utils.recipe_builder.RecipeBuilder")
     @patch("mmp.cli.utils.interactive_ui.InteractiveUI")

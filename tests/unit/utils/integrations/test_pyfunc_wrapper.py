@@ -358,7 +358,7 @@ class TestPyfuncWrapperIntegration:
                     "training_methodology": {"cv_folds": 5},
                 },
                 data_interface_schema={
-                    "feature_columns": ["feature_0", "feature_1", "feature_2"],
+                    "model_feature_columns": ["feature_0", "feature_1", "feature_2"],
                     "target_column": "target",
                 },
             )

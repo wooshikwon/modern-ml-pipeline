@@ -316,12 +316,6 @@ class SqlAdapter(BaseAdapter):
         is_jinja_template = sql_query.endswith(".sql.j2")
         is_sql_file = sql_query.endswith(".sql") or is_jinja_template
 
-        # 이미 렌더링된 SQL 문자열이 전달된 경우 params 무시
-        # (factory에서 Jinja 렌더링 후 SQL 문자열을 직접 전달)
-        if not is_sql_file and params:
-            log_data_debug("이미 렌더링된 SQL - params 무시", "SqlAdapter")
-            params = None
-
         if is_sql_file:
             sql_file_path = Path(sql_query)
             if not sql_file_path.is_absolute():
