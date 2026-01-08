@@ -109,11 +109,11 @@ def _show_success_message(recipe_path: Path, recipe_data: dict) -> None:
     if library.lower() in torch_extras_libraries:
         extras_needed.append("torch-extras")
 
-    sys.stdout.write("\nRecipe 생성 완료!\n\n")
-    sys.stdout.write(f"  파일: {recipe_path}\n")
-    sys.stdout.write(f"  Task: {recipe_data['task_choice']}\n")
-    sys.stdout.write(f"  모델: {recipe_data['model']['class_path']}\n")
-    sys.stdout.write(f"  라이브러리: {recipe_data['model']['library']}\n")
+    task = recipe_data["task_choice"]
+    model = recipe_data["model"]["class_path"]
+
+    sys.stdout.write(f"  [OK] Recipe 생성: {recipe_path}\n")
+    sys.stdout.write(f"  [OK] Task: {task}, 모델: {model}\n")
 
     sys.stdout.write("\n다음 단계:\n")
 
@@ -124,9 +124,6 @@ def _show_success_message(recipe_path: Path, recipe_data: dict) -> None:
         sys.stdout.write(f'     pipx install --force "modern-ml-pipeline[{extras_str}]"\n')
         step_num += 1
 
-    sys.stdout.write(f"  {step_num}. Recipe 확인: cat {recipe_path}\n")
-    sys.stdout.write(f"  {step_num + 1}. 컬럼명 수정:\n")
-    sys.stdout.write("     - target_column: 실제 타겟 컬럼명\n")
-    sys.stdout.write("     - entity_columns: 실제 엔티티 컬럼명\n")
-    sys.stdout.write(f"  {step_num + 2}. 모델 학습: mmp train -r {recipe_path} -c configs/<env>.yaml -d <data>\n")
+    sys.stdout.write(f"  {step_num}. Recipe 수정: entity_columns, target_column 지정\n")
+    sys.stdout.write(f"  {step_num + 1}. 모델 학습: mmp train -r {recipe_path} -c configs/<env>.yaml -d <data>\n")
     sys.stdout.flush()
