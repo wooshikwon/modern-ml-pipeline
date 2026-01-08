@@ -66,11 +66,15 @@ my-project/
 
 ### 3. 학습 전 준비
 
-#### 데이터 준비
+#### 3-1. 데이터 준비
 
-학습 데이터를 `data/` 디렉토리에 CSV 또는 SQL 파일로 준비합니다. Task별 데이터 형식은 [Task 가이드](./docs/user/TASK_GUIDE.md)를 참고하세요.
+학습 데이터를 `data/` 디렉토리에 CSV 또는 SQL 파일로 준비합니다.
 
-#### Config 파일 생성 (인프라 설정)
+> Task별 데이터 형식은 [Task 가이드](./docs/user/TASK_GUIDE.md)를 참고하세요.
+
+---
+
+#### 3-2. Config 파일 생성 (인프라 설정)
 
 ```bash
 mmp get-config
@@ -78,7 +82,9 @@ mmp get-config
 
 대화형 인터페이스를 통해 MLflow, 스토리지, DB 연결 등을 설정하고 `configs/{env}.yaml` 파일을 생성합니다.
 
-#### Recipe 파일 생성 (실험 설정)
+---
+
+#### 3-3. Recipe 파일 생성 (실험 설정)
 
 ```bash
 mmp get-recipe
@@ -99,9 +105,11 @@ model:
   class_path: xgboost.XGBClassifier
 ```
 
-상세 옵션은 [Task 가이드](./docs/user/TASK_GUIDE.md), [설정 스키마](./docs/user/SETTINGS_SCHEMA.md)를 참고하세요.
+> 상세 옵션은 [Task 가이드](./docs/user/TASK_GUIDE.md), [설정 스키마](./docs/user/SETTINGS_SCHEMA.md)를 참고하세요.
 
-#### 환경변수 (.env)
+---
+
+#### 3-4. 환경변수 (.env)
 
 인증 정보 및 런타임 설정을 `.env` 파일에 설정합니다:
 
@@ -198,7 +206,7 @@ docker build -t gcr.io/my-project/mmp:v1 .
 docker push gcr.io/my-project/mmp:v1
 ```
 
-> **MMP 프로젝트 디렉토리의 범위**: 프로젝트 생성 → 실험 → 이미지 빌드
+> **MMP의 범위**: 프로젝트 생성 → 실험 → 이미지 빌드
 >
 > **MMP 범위 외**: CI/CD, k8s 매니페스트, ConfigMap은 각 조직에서 별도 구성
 
