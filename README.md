@@ -179,7 +179,7 @@ API 엔드포인트 상세는 [API 서빙 가이드](./docs/user/API_SERVING_GUI
 #### 배포 흐름
 
 ```text
-mmp init → 실험 → docker build → CI/CD로 GCR/ECR 푸시 → k8s에서 실행
+mmp init → 실험 → docker build → (( CI/CD로 GCR/ECR 푸시 → k8s에서 실행 ))
 ```
 
 ```bash
@@ -188,22 +188,7 @@ docker build -t gcr.io/my-project/mmp:v1 .
 docker push gcr.io/my-project/mmp:v1
 ```
 
-#### 운영: 설정 파일 교체
-
-이미지 배포 후 `configs/`나 `recipes/`만 변경하고 싶을 때, k8s ConfigMap으로 마운트합니다:
-
-```yaml
-# 플랫폼팀이 관리하는 k8s 매니페스트 예시
-volumeMounts:
-  - name: config
-    mountPath: /app/configs    # 이미지 내 설정을 덮어씀
-volumes:
-  - name: config
-    configMap:
-      name: my-config          # ConfigMap으로 새 설정 주입
-```
-
-> **MMP의 범위**: 프로젝트 생성 → 실험 → 이미지 빌드 → GCR/ECR 푸시
+> **MMP 프로젝트 디렉토리의 범위**: 프로젝트 생성 → 실험 → 이미지 빌드
 >
 > **MMP 범위 외**: CI/CD, k8s 매니페스트, ConfigMap은 각 조직에서 별도 구성
 
