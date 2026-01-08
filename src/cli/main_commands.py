@@ -158,7 +158,10 @@ app.command("serve-api", help="API 서버 실행")(serve_api_command)
 # List Commands Group
 # ═══════════════════════════════════════════════════
 
-list_app = typer.Typer(help="사용 가능한 컴포넌트들의 목록을 확인합니다.")
+list_app = typer.Typer(
+    help="컴포넌트 목록 조회 (models, adapters, preprocessors 등)",
+    no_args_is_help=True,
+)
 
 list_app.command("adapters", help="사용 가능한 데이터 어댑터 목록")(list_adapters)
 list_app.command("evaluators", help="사용 가능한 평가자 목록")(list_evaluators)
