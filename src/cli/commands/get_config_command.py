@@ -21,9 +21,9 @@ def _print_header() -> None:
 def _print_step(step: str, detail: str = "") -> None:
     """단계 완료 출력"""
     if detail:
-        sys.stdout.write(f"  [OK] {step}: {detail}\n")
+        sys.stdout.write(f"  {step}: {detail}\n")
     else:
-        sys.stdout.write(f"  [OK] {step}\n")
+        sys.stdout.write(f"  {step}\n")
     sys.stdout.flush()
 
 

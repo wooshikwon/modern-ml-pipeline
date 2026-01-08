@@ -112,8 +112,9 @@ def _show_success_message(recipe_path: Path, recipe_data: dict) -> None:
     task = recipe_data["task_choice"]
     model = recipe_data["model"]["class_path"]
 
-    sys.stdout.write(f"  [OK] Recipe 생성: {recipe_path}\n")
-    sys.stdout.write(f"  [OK] Task: {task}, 모델: {model}\n")
+    sys.stdout.write(f"\nRecipe 생성 완료: {recipe_path}\n")
+    sys.stdout.write(f"  Task: {task}\n")
+    sys.stdout.write(f"  모델: {model}\n")
 
     sys.stdout.write("\n다음 단계:\n")
 
