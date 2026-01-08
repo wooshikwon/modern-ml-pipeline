@@ -22,7 +22,10 @@ MMP는 **프로젝트 생성부터 컨테이너 레지스트리 푸시까지** �
 
 ### MMP 범위 외
 
-Kubernetes 매니페스트(Deployment, CronJob, ConfigMap 등)는 **MMP에서 제공하지 않습니다**. 조직의 GitOps 레포지토리에서 플랫폼팀/SRE가 별도 관리합니다.
+다음은 **MMP에서 제공하지 않으며**, 각 조직에서 별도 구성합니다:
+
+- **CI/CD 파이프라인**: GitHub Actions, GitLab CI 등으로 `docker build/push` 자동화
+- **Kubernetes 매니페스트**: GitOps 레포지토리에서 플랫폼팀/SRE가 관리
 
 ```text
 [MMP 프로젝트]                          [GitOps 레포 - 별도 관리]

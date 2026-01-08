@@ -179,7 +179,7 @@ mmp train -r recipes/model.yaml -d gs://bucket/train.csv       # 학습
 
 > **MMP의 범위**: 프로젝트 생성 → 실험 → 이미지 빌드 → GCR/ECR 푸시
 >
-> **MMP 범위 외**: Kubernetes 매니페스트(Deployment, CronJob, ConfigMap 등)는 조직의 GitOps 레포지토리에서 플랫폼팀이 별도 관리합니다.
+> **MMP 범위 외**: CI/CD 파이프라인(GitHub Actions 등)과 Kubernetes 매니페스트는 각 조직에서 별도 구성합니다.
 
 상세 배포 가이드는 [배포 가이드](./docs/user/DEPLOYMENT_GUIDE.md)를 참고하세요.
 
