@@ -118,21 +118,15 @@ preprocessor:
   steps:
     {% for step in preprocessor_steps %}
     - type: {{ step.type }}
-      {% if step.columns is defined %}
-      columns: {{ step.columns }}  # null이면 모든 해당 타입 컬럼에 적용
+      {% for key, value in step.items() if key != 'type' %}
+      {% if value is sameas true or value is sameas false %}
+      {{ key }}: {{ value | lower }}
+      {% elif value is none %}
+      {{ key }}: null
+      {% else %}
+      {{ key }}: {{ value }}
       {% endif %}
-      {% if step.strategy is defined %}
-      strategy: {{ step.strategy }}
-      {% endif %}
-      {% if step.degree is defined %}
-      degree: {{ step.degree }}
-      {% endif %}
-      {% if step.n_bins is defined %}
-      n_bins: {{ step.n_bins }}
-      {% endif %}
-      {% if step.create_missing_indicators is defined %}
-      create_missing_indicators: {{ step.create_missing_indicators | lower }}
-      {% endif %}
+      {% endfor %}
     {% endfor %}
 {% else %}
 # 전처리 없음 (모델이 결측치/스케일링 자동 처리하는 경우)
