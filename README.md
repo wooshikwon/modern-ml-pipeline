@@ -122,7 +122,7 @@ mmp train -c configs/dev.yaml -r recipes/my-recipe.yaml -d data/train.csv
 mmp train -c configs/dev.yaml -r recipes/my-recipe.yaml -d data/query.sql
 
 # SQL에 Jinja 변수 사용 시
-mmp train -c configs/dev.yaml -r recipes/my-recipe.yaml -d data/query.sql -p start_date=2024-01-01 -p end_date=2024-12-31
+mmp train -c configs/dev.yaml -r recipes/my-recipe.yaml -d data/query.sql -p '{"start_date": "2024-01-01", "end_date": "2024-12-31"}'
 ```
 
 #### Docker 실행
