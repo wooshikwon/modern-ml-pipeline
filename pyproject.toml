@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "modern-ml-pipeline"
-version = "1.1.16"
+version = "1.1.17"
 description = "A modern, yaml-driven ML pipeline for multiple models."
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -32,6 +32,12 @@ dependencies = [
     "pyarrow",
     # ML Experiment Tracking
     "mlflow>=3,<4",
+    # Hyperparameter Tuning
+    "optuna>=3.0.0",
+    # Calibration (scipy for beta calibration)
+    "scipy>=1.10.0",
+    # Model Interpretation
+    "shap>=0.41.0",
     # API Serving
     "fastapi",
     "uvicorn[standard]",
@@ -78,9 +84,6 @@ ml-extras = [
     # Advanced ML Models
     "catboost>=1.2.0",
     "lightgbm>=4.1.0",
-    # Model Interpretation
-    "shap>=0.41.0",
-    "optuna>=3.0.0",
     # Performance optimization
     "numba>=0.58.1",
     "llvmlite>=0.41.1",

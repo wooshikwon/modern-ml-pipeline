@@ -33,10 +33,10 @@ pipx install modern-ml-pipeline       # pipx (CLI 전역 설치, 권장)
 
 | 시나리오 | pip | pipx inject |
 |----------|-----|-------------|
-| BigQuery/GCS/S3 | `pip install 'modern-ml-pipeline[cloud-extras]'` | `pipx inject modern-ml-pipeline 'modern-ml-pipeline[cloud-extras]'` |
-| LightGBM, CatBoost | `pip install 'modern-ml-pipeline[ml-extras]'` | `pipx inject modern-ml-pipeline 'modern-ml-pipeline[ml-extras]'` |
-| PyTorch (LSTM 등) | `pip install 'modern-ml-pipeline[torch-extras]'` | `pipx inject modern-ml-pipeline 'modern-ml-pipeline[torch-extras]'` |
-| 전체 기능 | `pip install 'modern-ml-pipeline[all]'` | `pipx inject modern-ml-pipeline 'modern-ml-pipeline[all]'` |
+| BigQuery/GCS/S3 | `pip install 'modern-ml-pipeline[cloud-extras]'` | `pipx inject modern-ml-pipeline 'modern-ml-pipeline[cloud-extras]' --force` |
+| LightGBM, CatBoost | `pip install 'modern-ml-pipeline[ml-extras]'` | `pipx inject modern-ml-pipeline 'modern-ml-pipeline[ml-extras]' --force` |
+| PyTorch (LSTM 등) | `pip install 'modern-ml-pipeline[torch-extras]'` | `pipx inject modern-ml-pipeline 'modern-ml-pipeline[torch-extras]' --force` |
+| 전체 기능 | `pip install 'modern-ml-pipeline[all]'` | `pipx inject modern-ml-pipeline 'modern-ml-pipeline[all]' --force` |
 
 상세 설치 옵션은 [환경 설정 가이드](./docs/user/ENVIRONMENT_SETUP.md)를 참고하세요.
 
@@ -318,4 +318,4 @@ mmp train -c configs/dev.yaml -r recipes/model.yaml -d data/train.csv -q
 
 ---
 
-**Version**: 1.1.16 | **License**: Apache 2.0 | **Python**: 3.10 - 3.13
+**Version**: 1.1.17 | **License**: Apache 2.0 | **Python**: 3.10 - 3.13
