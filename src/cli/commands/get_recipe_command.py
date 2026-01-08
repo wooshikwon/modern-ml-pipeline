@@ -20,9 +20,9 @@ def _print_header() -> None:
 def _print_step(step: str, detail: str = "") -> None:
     """단계 완료 출력"""
     if detail:
-        sys.stdout.write(f"  [OK] {step}: {detail}\n")
+        sys.stdout.write(f"  {step}: {detail}\n")
     else:
-        sys.stdout.write(f"  [OK] {step}\n")
+        sys.stdout.write(f"  {step}\n")
     sys.stdout.flush()
 
 
@@ -73,14 +73,7 @@ def get_recipe_command() -> None:
         builder = RecipeBuilder()
 
         recipe_data = builder.build_recipe_interactively()
-
-        task = recipe_data.get("task_choice", "N/A")
-        model = recipe_data["model"].get("class_path", "N/A")
-        _print_step("설정 완료", f"Task: {task}, Model: {model}")
-
         recipe_path = builder.create_recipe_file(recipe_data)
-        _print_step("Recipe 파일 생성", str(recipe_path))
-
         _show_success_message(recipe_path, recipe_data)
 
     except KeyboardInterrupt:
