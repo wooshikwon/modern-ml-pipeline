@@ -45,3 +45,8 @@ feature_requirements:
   sequence: true
 requires_gpu: false
 data_handler: sequence
+
+# Cheat Sheet 권장 설정
+recommended_preprocessor:
+  - type: forward_fill
+  - type: standard_scaler

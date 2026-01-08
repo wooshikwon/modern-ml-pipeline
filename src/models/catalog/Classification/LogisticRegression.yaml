@@ -34,3 +34,12 @@ feature_requirements:
   categorical: true
   text: false
 data_handler: tabular
+
+# Cheat Sheet 권장 설정
+recommended_preprocessor:
+  - type: simple_imputer
+    strategy: median
+  - type: one_hot_encoder
+    handle_unknown: ignore
+  - type: standard_scaler
+recommended_calibration: isotonic

@@ -65,3 +65,12 @@ feature_requirements:
   categorical: true
   text: false
 data_handler: tabular
+
+# Cheat Sheet 권장 설정
+recommended_preprocessor:
+  - type: simple_imputer
+    strategy: median
+  - type: ordinal_encoder
+    handle_unknown: use_encoded_value
+    unknown_value: -1
+  - type: standard_scaler

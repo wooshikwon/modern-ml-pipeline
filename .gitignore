@@ -124,6 +124,9 @@ tests/fixtures/output/
 # Claude
 .claude/
 
+# Development docs (internal planning, not for distribution)
+docs/dev/
+
 # Development directory (excluded from PyPI builds)
 # Note: dev/ contains development-specific files and should not be packaged
 dev/docker-compose.override.yml

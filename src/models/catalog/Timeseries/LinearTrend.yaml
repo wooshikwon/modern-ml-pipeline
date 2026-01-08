@@ -22,3 +22,8 @@ preprocessing_notes: TimeseriesDataHandler에서 시간 기반 특성(year, mont
 model_type: linear_trend
 forecasting_type: point_forecast
 data_handler: timeseries
+
+# Cheat Sheet 권장 설정
+recommended_preprocessor:
+  - type: forward_fill
+  - type: standard_scaler

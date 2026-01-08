@@ -3,9 +3,20 @@ CLI 진행 상태 표시기
 터미널에 깔끔한 인라인 진행 상태를 표시합니다.
 """
 
-import sys
 import os
+import shutil
+import sys
 from typing import Optional
+
+# UI 폭 설정 (interactive_ui.py와 동일)
+UI_MAX_WIDTH = 80
+UI_STEP_TEXT_RATIO = 0.5  # 단계 텍스트는 라인 폭의 50%
+
+
+def _get_line_width() -> int:
+    """터미널 폭 기반 라인 폭 계산 (최대값 제한)."""
+    terminal_width = shutil.get_terminal_size().columns
+    return min(terminal_width, UI_MAX_WIDTH)
 
 # [중요] 로거와의 순환 참조를 피하기 위해 환경 변수로 플래그 공유
 # MMP_CLI_LINE_ACTIVE: 로그 출력 시 들여쓰기 필요 여부
@@ -49,7 +60,11 @@ class CLIProgress:
         self.current_step = 0
         self.show_version = show_version
         self.verbose = verbose
-        self._step_width = 30
+
+    @property
+    def _step_width(self) -> int:
+        """단계 텍스트 폭 (동적 계산)."""
+        return int(_get_line_width() * UI_STEP_TEXT_RATIO)
 
     def header(self, version: str) -> None:
         """버전 헤더 출력"""

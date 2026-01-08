@@ -35,13 +35,16 @@ class InteractiveConfigBuilder:
             사용자 선택 사항을 담은 딕셔너리
         """
         selections: Dict[str, Any] = {}
-        total_steps = 6
+        total_steps = 5
 
         # Step 1: 환경 이름 입력
         self.ui.show_step(1, total_steps, "환경 이름")
+        self.ui.show_info(
+            "환경 이름은 Config 파일명과 MLflow Experiment 구분에 사용됩니다."
+        )
         if not env_name:
             env_name = self.ui.text_input(
-                "환경 이름을 입력하세요 (예: local, dev, prod)",
+                "환경 이름 (local, dev, staging, prod 등)",
                 default="local",
                 validator=lambda x: len(x) > 0 and x.replace("-", "").replace("_", "").isalnum(),
             )
@@ -49,10 +52,16 @@ class InteractiveConfigBuilder:
 
         # Step 2: MLflow 설정
         self.ui.show_step(2, total_steps, "MLflow 설정")
+        self.ui.show_info(
+            "MLflow: 실험 추적, 모델 버전 관리, Artifact 저장을 담당합니다."
+        )
         use_mlflow = self.ui.confirm("MLflow를 사용하시겠습니까?", default=True)
         selections["use_mlflow"] = use_mlflow
 
         if use_mlflow:
+            self.ui.show_info(
+                "Tracking URI: 로컬 저장(./mlruns) 또는 원격 서버(http://...) 지정"
+            )
             mlflow_tracking = self.ui.text_input(
                 "MLflow Tracking URI",
                 default="./mlruns" if env_name == "local" else "http://mlflow-server:5000",
@@ -67,10 +76,16 @@ class InteractiveConfigBuilder:
 
         # Step 3: 데이터 소스 선택
         self.ui.show_step(3, total_steps, "데이터 소스")
+        self.ui.show_info(
+            "학습/추론에 사용할 데이터를 가져올 소스를 선택합니다."
+        )
+        self.ui.show_info(
+            "BigQuery, S3, GCS 사용 시 cloud-extras 설치 필요"
+        )
         data_sources = ["PostgreSQL", "BigQuery", "Local Files", "S3", "GCS"]
 
         data_source = self.ui.select_from_list(
-            "데이터를 로드할 소스를 선택하세요", data_sources, allow_cancel=False
+            "Data Source:", data_sources, allow_cancel=False
         )
         selections["data_source"] = data_source
 
@@ -113,19 +128,28 @@ class InteractiveConfigBuilder:
 
         # Step 4: Feature Store 선택
         self.ui.show_step(4, total_steps, "Feature Store")
+        self.ui.show_info(
+            "Feature Store: 피처 관리 및 실시간 서빙용 (선택사항)"
+        )
+        self.ui.show_info(
+            "CSV/SQL 직접 로드, 동일 피처 사용 시에는 불필요합니다."
+        )
         feature_stores = ["없음", "Feast"]
 
         feature_store = self.ui.select_from_list(
-            "Feature Store를 선택하세요", feature_stores, allow_cancel=False
+            "Feature Store:", feature_stores, allow_cancel=False
         )
         selections["feature_store"] = feature_store
 
         if feature_store == "Feast":
+            self.ui.show_info(
+                "Feast: 실시간 서빙, Point-in-Time Join으로 Data Leakage 방지에 유용"
+            )
             selections["feast_project"] = self.ui.text_input(
                 "Feast Project 이름", default=f"feast_{env_name}"
             )
             registry_location = self.ui.select_from_list(
-                "Feast Registry 저장 위치", ["로컬", "S3", "GCS"], allow_cancel=False
+                "Feast Registry 저장 위치:", ["로컬", "S3", "GCS"], allow_cancel=False
             )
             selections["feast_registry_location"] = registry_location
 
@@ -152,13 +176,16 @@ class InteractiveConfigBuilder:
                     "Offline Store 경로", default="./feast_repo/data"
                 )
 
+            self.ui.show_info(
+                "Online Store: 실시간 서빙 시 피처를 빠르게 조회하기 위한 저장소"
+            )
             use_online_store = self.ui.confirm(
-                "Online Store를 사용하시겠습니까? (실시간 서빙용)", default=False
+                "Online Store를 사용하시겠습니까?", default=False
             )
 
             if use_online_store:
                 online_store_type = self.ui.select_from_list(
-                    "Online Store 타입", ["Redis", "SQLite", "DynamoDB"], allow_cancel=False
+                    "Online Store 타입:", ["Redis", "SQLite", "DynamoDB"], allow_cancel=False
                 )
                 selections["feast_online_store"] = online_store_type
 
@@ -184,25 +211,25 @@ class InteractiveConfigBuilder:
                 selections["feast_online_store"] = "SQLite"
                 selections["feast_online_store_path"] = "./feast_repo/online_store.db"
 
-        # Step 5: 로깅 설정
-        self.ui.show_step(5, total_steps, "로깅 설정")
-        selections["log_path"] = self.ui.text_input("로그 저장 경로", default="./logs")
-        log_levels = ["DEBUG", "INFO", "WARNING", "ERROR"]
-        selections["log_level"] = self.ui.select_from_list(
-            "로그 레벨", log_levels, allow_cancel=False
-        )
-        selections["log_retention_days"] = self.ui.text_input(
-            "로그 보관 기간 (일)", default="30"
-        )
+        # 로깅 설정 (기본값 사용)
+        selections["log_path"] = "./logs"
+        selections["log_level"] = "INFO"
+        selections["log_retention_days"] = "30"
 
-        # Step 6: 배치 추론 결과 저장 설정
-        self.ui.show_step(6, total_steps, "배치 추론 출력")
+        # Step 5: 배치 추론 결과 저장 설정
+        self.ui.show_step(5, total_steps, "배치 추론 출력")
+        self.ui.show_info(
+            "Inference Output: 배치 추론(mmp inference) 결과를 저장할 위치"
+        )
         infer_enabled = self.ui.confirm("배치 추론 결과를 저장하시겠습니까?", default=True)
         selections["inference_output_enabled"] = infer_enabled
 
         if infer_enabled:
+            self.ui.show_info(
+                "S3, GCS 사용 시 cloud-extras 설치 필요"
+            )
             infer_source = self.ui.select_from_list(
-                "추론 결과 저장 위치를 선택하세요",
+                "Inference Output 저장 위치:",
                 ["PostgreSQL", "BigQuery", "Local Files", "S3", "GCS"],
                 allow_cancel=False,
             )
@@ -257,7 +284,6 @@ class InteractiveConfigBuilder:
             "MLflow": self._format_mlflow_display(selections),
             "데이터 소스": self._format_data_source_display(selections),
             "Feature Store": selections.get("feature_store", "없음"),
-            "로깅": f"{selections.get('log_path', './logs')} ({selections.get('log_level', 'INFO')})",
             "추론 출력": infer_output_display,
         }
 

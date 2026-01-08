@@ -104,3 +104,11 @@ feature_requirements:
   categorical: true
   text: false
 data_handler: tabular
+
+# Cheat Sheet 권장 설정
+recommended_preprocessor:
+  - type: simple_imputer
+    strategy: median
+  - type: catboost_encoder
+    handle_unknown: use_encoded_value
+recommended_calibration: isotonic

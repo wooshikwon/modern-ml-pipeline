@@ -34,3 +34,7 @@ forecasting_type: point_forecast
 handles_seasonality: true
 handles_trend: true
 data_handler: timeseries
+
+# Cheat Sheet 권장 설정
+recommended_preprocessor:
+  - type: forward_fill

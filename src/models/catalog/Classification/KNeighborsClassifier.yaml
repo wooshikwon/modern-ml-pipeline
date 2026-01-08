@@ -48,3 +48,10 @@ feature_requirements:
   categorical: false
   text: false
 data_handler: tabular
+
+# Cheat Sheet 권장 설정
+recommended_preprocessor:
+  - type: simple_imputer
+    strategy: median
+  - type: standard_scaler
+recommended_calibration: isotonic

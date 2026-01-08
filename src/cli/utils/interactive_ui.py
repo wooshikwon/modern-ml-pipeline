@@ -14,6 +14,11 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.prompt import Confirm, IntPrompt, Prompt
 from rich.table import Table
 
+# UI 폭 설정: 터미널 폭 기반 + 최대값 제한
+UI_MAX_WIDTH = 80
+UI_STEP_PREFIX_LEN = 12  # "Step 1/5 " + 여유 공간
+UI_STEP_TITLE_LEN = 20  # 제목 공간 (한글 기준)
+
 
 class InteractiveUI:
     """Rich 라이브러리 기반 대화형 UI 컴포넌트.
@@ -24,6 +29,10 @@ class InteractiveUI:
     def __init__(self):
         """InteractiveUI 초기화."""
         self.console = Console()
+
+    def _get_line_width(self) -> int:
+        """터미널 폭 기반 라인 폭 계산 (최대값 제한)."""
+        return min(self.console.width, UI_MAX_WIDTH)
 
     def select_from_list(
         self, title: str, options: List[str], show_numbers: bool = True, allow_cancel: bool = True
@@ -290,7 +299,8 @@ class InteractiveUI:
         Args:
             style: 구분선 스타일
         """
-        self.console.print(f"[{style}]{'─' * 50}[/{style}]")
+        line_width = self._get_line_width()
+        self.console.print(f"[{style}]{'─' * line_width}[/{style}]")
 
     # ===== Validation Helpers =====
     def non_empty_validator(self):
@@ -353,8 +363,9 @@ class InteractiveUI:
             total: 전체 단계 수
             title: 현재 단계 제목
         """
-        # 진행 바 계산
-        bar_width = 30
+        # 진행 바 계산: 라인 폭에서 prefix/title 공간 제외
+        line_width = self._get_line_width()
+        bar_width = max(10, line_width - UI_STEP_PREFIX_LEN - UI_STEP_TITLE_LEN)
         filled = int((current / total) * bar_width)
         bar = f"[cyan]{'━' * filled}[/cyan][dim]{'━' * (bar_width - filled)}[/dim]"
 
