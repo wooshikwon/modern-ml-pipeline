@@ -6,71 +6,86 @@ Modern ML Pipeline을 사용하기 위한 설치와 환경 설정 방법을 안�
 
 ## 1. 설치하기
 
-### 기본 요구사항
+### 요구사항
 
 - **Python 3.10, 3.11, 3.12, 또는 3.13**
-- **pipx** (권장)
 
 ### 설치 전 준비
 
 ```bash
-# 1. Python 3.10+ 설치
+# Python 3.10+ 설치
 brew install python@3.10              # macOS (Homebrew)
-# sudo apt install python3.10         # Ubuntu/Debian
-# pyenv install 3.10.14               # pyenv 사용 시
+sudo apt install python3.10           # Ubuntu/Debian
+pyenv install 3.10.14                 # pyenv 사용 시
 
-# 2. pipx 설치
-brew install pipx && pipx ensurepath  # macOS
+# pipx 설치 (CLI 전역 설치 도구, 권장)
+brew install pipx && pipx ensurepath  # macOS (Homebrew)
 pip install pipx && pipx ensurepath   # Linux/Windows
 ```
 
-### 패키지 설치
+---
 
-**기본 설치 (pipx 권장)**
+### 기본 설치
 
-```bash
-# Homebrew Python 사용 시
-pipx install --python python3.10 modern-ml-pipeline
-
-# pyenv 사용 시
-pyenv shell 3.10.14 && pipx install modern-ml-pipeline
-# 또는: pipx install --python ~/.pyenv/versions/3.10.14/bin/python modern-ml-pipeline
-```
-
-**Extras와 함께 설치**
+MMP 코어 기능(XGBoost, scikit-learn, Optuna, SHAP 등)만 설치합니다.
 
 ```bash
-# XGBoost, LightGBM, CatBoost 모델 사용 시
-pipx install --python python3.10 "modern-ml-pipeline[ml-extras]"
-
-# BigQuery, S3, GCS 사용 시
-pipx install --python python3.10 "modern-ml-pipeline[cloud-extras]"
-
-# 딥러닝 모델(LSTM, TabNet 등) 사용 시
-pipx install --python python3.10 "modern-ml-pipeline[torch-extras]"
-
-# 모든 기능 사용 시 (권장)
-pipx install --python python3.10 "modern-ml-pipeline[all]"
-```
-
-**Extras 변경 (재설치)**
-
-설치 후 extras를 변경하려면 `--force` 옵션으로 재설치합니다:
-
-```bash
-pipx install --force --python python3.10 "modern-ml-pipeline[ml-extras,cloud-extras]"
-```
-
-**pip 설치 (대체 방법)**
-
-기존 환경에 직접 설치하려면 pip을 사용합니다:
-
-```bash
+# pip
 pip install modern-ml-pipeline
-pip install "modern-ml-pipeline[all]"
+
+# pipx (권장)
+pipx install modern-ml-pipeline
 ```
 
-**개발 환경 설치 (소스 코드)**
+> **Note**: pipx는 CLI 도구를 격리된 환경에 전역 설치합니다. Python 버전을 명시하려면:
+> ```bash
+> pipx install --python python3.10 modern-ml-pipeline
+> ```
+
+---
+
+### 시나리오별 추가 설치 (Extras)
+
+기본 설치 후 필요한 extras를 추가합니다.
+
+| 시나리오 | pip | pipx inject |
+|----------|-----|-------------|
+| **LightGBM, CatBoost** | `pip install 'modern-ml-pipeline[ml-extras]'` | `pipx inject modern-ml-pipeline 'modern-ml-pipeline[ml-extras]' --force` |
+| **BigQuery, GCS, S3** | `pip install 'modern-ml-pipeline[cloud-extras]'` | `pipx inject modern-ml-pipeline 'modern-ml-pipeline[cloud-extras]' --force` |
+| **PyTorch (LSTM, TabNet)** | `pip install 'modern-ml-pipeline[torch-extras]'` | `pipx inject modern-ml-pipeline 'modern-ml-pipeline[torch-extras]' --force` |
+| **Feast Feature Store** | `pip install 'modern-ml-pipeline[feature-store]'` | `pipx inject modern-ml-pipeline 'modern-ml-pipeline[feature-store]' --force` |
+| **전체 기능** | `pip install 'modern-ml-pipeline[all]'` | `pipx inject modern-ml-pipeline 'modern-ml-pipeline[all]' --force` |
+
+**여러 extras 동시 추가:**
+
+```bash
+# pip
+pip install 'modern-ml-pipeline[ml-extras,cloud-extras]'
+
+# pipx inject
+pipx inject modern-ml-pipeline 'modern-ml-pipeline[ml-extras,cloud-extras]' --force
+```
+
+---
+
+### Extras와 함께 처음부터 설치
+
+처음 설치할 때 extras를 함께 지정할 수도 있습니다.
+
+```bash
+# pip
+pip install 'modern-ml-pipeline[all]'
+
+# pipx
+pipx install 'modern-ml-pipeline[all]'
+pipx install --python python3.10 'modern-ml-pipeline[ml-extras,cloud-extras]'
+```
+
+---
+
+### 개발 환경 설치 (소스 코드)
+
+MMP를 직접 개발하거나 수정하려면 소스 코드에서 설치합니다.
 
 ```bash
 git clone https://github.com/wooshikwon/modern-ml-pipeline.git
@@ -78,15 +93,43 @@ cd modern-ml-pipeline
 uv sync --all-extras  # 전체 의존성 설치
 ```
 
-### 추가 패키지 (Extras) 선택 가이드
+---
+
+### Extras 상세 가이드
 
 | Extras 이름 | 언제 필요한가요? | 포함된 주요 라이브러리 |
-|-------------|-------------------|----------------------|
+|-------------|-----------------|----------------------|
 | `ml-extras` | LightGBM, CatBoost 모델 사용 시 | `lightgbm`, `catboost` |
-| `torch-extras` | 딥러닝 모델(LSTM, TabNet 등) 사용 시 | `torch` |
-| `cloud-extras` | BigQuery, S3, GCS 사용 시 | `sqlalchemy-bigquery`, `gcsfs`, `s3fs` |
+| `torch-extras` | 딥러닝 모델 (LSTM, TabNet, FT-Transformer) 사용 시 | `torch`, `pytorch-tabnet`, `rtdl-revisiting-models` |
+| `cloud-extras` | BigQuery, S3, GCS 연동 시 | `sqlalchemy-bigquery`, `gcsfs`, `s3fs` |
 | `feature-store` | Feast Feature Store 연동 시 | `feast` |
+| `causal` | CausalML 인과추론 모델 사용 시 | `causalml` |
 | `all` | 모든 기능 사용 시 | 위 전체 포함 |
+
+**모델별 필요 extras:**
+
+| 모델 | 필요한 extras |
+|------|--------------|
+| XGBoost, RandomForest, LogisticRegression | (기본 설치에 포함) |
+| LightGBM, CatBoost | `ml-extras` |
+| LSTM, TabNet, FT-Transformer | `torch-extras` |
+| ARIMA, ExponentialSmoothing | (기본 설치에 포함) |
+| T-Learner, S-Learner | `causal` |
+
+---
+
+### 설치 확인
+
+```bash
+# 버전 확인
+mmp --version
+
+# 사용 가능한 모델 목록
+mmp list models
+
+# 시스템 점검 (의존성 확인)
+mmp system-check -c configs/dev.yaml --actionable
+```
 
 ---
 
