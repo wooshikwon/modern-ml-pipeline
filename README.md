@@ -20,48 +20,23 @@ YAML 설정 기반의 머신러닝 파이프라인 CLI 도구입니다.
 
 **요구사항**: Python 3.10, 3.11, 3.12, 또는 3.13
 
-#### 기본 설치 (XGBoost, scikit-learn)
+#### 기본 설치
 
 ```bash
-pip install modern-ml-pipeline
+pip install modern-ml-pipeline        # pip
+pipx install modern-ml-pipeline       # pipx (CLI 전역 설치, 권장)
 ```
 
-#### 사용 시나리오별 설치
+#### 시나리오별 추가 설치
 
-| 시나리오 | 설치 명령 |
-|----------|-----------|
-| BigQuery/GCS/S3 사용 | `pip install 'modern-ml-pipeline[cloud-extras]'` |
-| LightGBM, CatBoost, Optuna | `pip install 'modern-ml-pipeline[ml-extras]'` |
-| PyTorch 모델 (LSTM, FT-Transformer) | `pip install 'modern-ml-pipeline[torch-extras]'` |
-| Feature Store (Feast) | `pip install 'modern-ml-pipeline[feature-store]'` |
-| 전체 기능 | `pip install 'modern-ml-pipeline[all]'` |
+기본 설치 후 필요한 extras를 추가합니다:
 
-#### pipx로 CLI 전역 설치 (권장)
-
-```bash
-# 기본 설치
-pipx install modern-ml-pipeline
-
-# extras 포함 설치 (BigQuery/GCS/S3)
-pipx install 'modern-ml-pipeline[cloud-extras]'
-
-# 전체 기능 설치
-pipx install 'modern-ml-pipeline[all]'
-
-# pyenv 사용 시 Python 버전 지정
-pipx install --python $(pyenv prefix 3.11)/bin/python 'modern-ml-pipeline[cloud-extras]'
-```
-
-> **설치 전 준비**
-> - Python 3.10+: `brew install python@3.10` (Homebrew) 또는 `pyenv install 3.10.14` (pyenv)
-> - pipx: `brew install pipx && pipx ensurepath` (macOS) 또는 `pip install pipx && pipx ensurepath`
-
-> **pyenv 트러블슈팅**
-> `python3.11: command not found` 오류 시:
-> ```bash
-> pyenv versions  # 설치된 버전 확인
-> pipx install --python $(pyenv prefix 3.11.10)/bin/python modern-ml-pipeline
-> ```
+| 시나리오 | pip | pipx inject |
+|----------|-----|-------------|
+| BigQuery/GCS/S3 | `pip install 'modern-ml-pipeline[cloud-extras]'` | `pipx inject modern-ml-pipeline 'modern-ml-pipeline[cloud-extras]'` |
+| LightGBM, CatBoost | `pip install 'modern-ml-pipeline[ml-extras]'` | `pipx inject modern-ml-pipeline 'modern-ml-pipeline[ml-extras]'` |
+| PyTorch (LSTM 등) | `pip install 'modern-ml-pipeline[torch-extras]'` | `pipx inject modern-ml-pipeline 'modern-ml-pipeline[torch-extras]'` |
+| 전체 기능 | `pip install 'modern-ml-pipeline[all]'` | `pipx inject modern-ml-pipeline 'modern-ml-pipeline[all]'` |
 
 상세 설치 옵션은 [환경 설정 가이드](./docs/user/ENVIRONMENT_SETUP.md)를 참고하세요.
 
@@ -343,4 +318,4 @@ mmp train -c configs/dev.yaml -r recipes/model.yaml -d data/train.csv -q
 
 ---
 
-**Version**: 1.1.14 | **License**: Apache 2.0 | **Python**: 3.10 - 3.13
+**Version**: 1.1.15 | **License**: Apache 2.0 | **Python**: 3.10 - 3.13
