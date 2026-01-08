@@ -230,3 +230,44 @@ class BusinessValidator:
             )
 
         return ValidationResult(is_valid=True)
+
+    def validate_data_interface(self, recipe: Recipe) -> ValidationResult:
+        """Task별 data_interface 필수 필드 검증"""
+        task = recipe.task_choice.lower()
+        di = recipe.data.data_interface
+
+        # 1. target_column 검증 (Clustering 제외 필수)
+        if task != "clustering":
+            if not di.target_column:
+                return ValidationResult(
+                    is_valid=False,
+                    error_message=(
+                        f"'{task}' 태스크는 target_column이 필수입니다.\n"
+                        "  → Recipe의 data.data_interface.target_column에 예측 대상 컬럼명을 입력하세요."
+                    ),
+                )
+
+        # 2. treatment_column 검증 (Causal 필수)
+        if task == "causal":
+            if not di.treatment_column:
+                return ValidationResult(
+                    is_valid=False,
+                    error_message=(
+                        "causal 태스크는 treatment_column이 필수입니다.\n"
+                        "  → Recipe의 data.data_interface.treatment_column에 처치 변수 컬럼명을 입력하세요.\n"
+                        "  → 예: A/B 테스트의 실험군/대조군 구분 컬럼 (0 또는 1)"
+                    ),
+                )
+
+        # 3. timestamp_column 검증 (TimeSeries 필수)
+        if task == "timeseries":
+            if not di.timestamp_column:
+                return ValidationResult(
+                    is_valid=False,
+                    error_message=(
+                        "timeseries 태스크는 timestamp_column이 필수입니다.\n"
+                        "  → Recipe의 data.data_interface.timestamp_column에 시간 컬럼명을 입력하세요."
+                    ),
+                )
+
+        return ValidationResult(is_valid=True)

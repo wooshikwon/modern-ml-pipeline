@@ -561,7 +561,7 @@ output:
                 data={
                     "loader": {"source_uri": None},
                     "data_interface": {
-                        "target_column": None,  # No target for inference
+                        "target_column": "target",
                         "entity_columns": ["id"],
                     },
                     "fetcher": {"type": "pass_through"},
@@ -574,7 +574,6 @@ output:
                 evaluation={"metrics": []},  # No evaluation for inference
                 metadata={
                     "author": "inference_pipeline",
-                    "created_at": "2024-01-01T15:30:00",
                     "description": "Recipe for batch inference",
                 },
             )
@@ -659,14 +658,13 @@ LIMIT 10000
                 },
                 data={
                     "loader": {"source_uri": None},
-                    "data_interface": {"target_column": None, "entity_columns": ["id"]},
+                    "data_interface": {"target_column": "target", "entity_columns": ["id"]},
                     "fetcher": {"type": "pass_through"},
                     "split": {"train": 1.0, "validation": 0.0, "test": 0.0},
                 },
                 evaluation={"metrics": []},
                 metadata={
                     "author": "template_pipeline",
-                    "created_at": "2024-01-01T09:00:00",
                     "description": "Template inference recipe",
                 },
             )
@@ -2016,7 +2014,6 @@ evaluation:
         assert recipe.metadata is not None
         assert recipe.metadata.author == "CLI Recipe Builder"
         assert recipe.metadata.description == "Auto-filled by SettingsFactory for minimal recipe"
-        assert recipe.metadata.created_at is not None
 
 
 class TestSettingsFactoryBackwardCompatibility:

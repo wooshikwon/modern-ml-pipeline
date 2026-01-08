@@ -799,9 +799,13 @@ class TestErrorScenariosAndRobustness:
             root_data = root_response.json()
             assert root_data["status"] == "error"
 
-            # Health should indicate service unavailable
+            # Health (liveness probe) should always return 200
             health_response = client.get("/health")
-            assert health_response.status_code in [500, 503]
+            assert health_response.status_code == 200
+
+            # Ready (readiness probe) should indicate service unavailable
+            ready_response = client.get("/ready")
+            assert ready_response.status_code in [500, 503]
 
             # Predict should fail gracefully
             test_input = {"feature_0": 1.0}

@@ -47,6 +47,10 @@ class UIStub:
         # We avoid feature store path to focus on timeseries timestamp validator
         return False
 
+    def show_summary_and_confirm(self, summary_data, title=None):
+        # 요약 화면 표시 후 확인 - 항상 True 반환
+        return True
+
     def number_input(self, prompt, default=None, min_value=None, max_value=None):
         return default if default is not None else (min_value or 0)
 

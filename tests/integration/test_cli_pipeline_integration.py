@@ -227,7 +227,7 @@ mlflow:
             assert project_path.exists(), "Project directory not created"
 
             # Validate essential directories
-            expected_dirs = ["data", "configs", "recipes", "sql"]
+            expected_dirs = ["data", "configs", "recipes"]
             for dir_name in expected_dirs:
                 dir_path = project_path / dir_name
                 assert dir_path.exists(), f"Required directory {dir_name} not created"

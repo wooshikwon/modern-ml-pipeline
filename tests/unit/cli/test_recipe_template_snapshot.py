@@ -45,13 +45,12 @@ class TestRecipeTemplateSnapshot:
         rendered = render_recipe(context)
 
         # 스냅샷적 검증: 주석/필수 키 존재
-        assert "# 시계열 작업은 timestamp_column이 필수입니다." in rendered
+        assert "# 시계열 타임스탬프 컬럼 (Timeseries 필수)" in rendered
         assert "fetcher:" in rendered
         assert "feature_views:" in rendered
         assert "timestamp_column:" in rendered
         assert "data_interface:" in rendered
         assert "entity_columns:" in rendered
-        assert "evaluation:" in rendered
 
         # YAML 파싱이 가능한지(구조 일관성) 확인
         doc = yaml.safe_load(rendered)

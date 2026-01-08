@@ -55,6 +55,12 @@ class ValidationOrchestrator:
             return optuna_result
         all_warnings.extend(optuna_result.warnings)
 
+        # 5. Task별 data_interface 필수 필드 검증
+        data_interface_result = self.business_validator.validate_data_interface(recipe)
+        if not data_interface_result.is_valid:
+            return data_interface_result
+        all_warnings.extend(data_interface_result.warnings)
+
         return ValidationResult(is_valid=True, warnings=all_warnings)
 
     def validate_for_serving(self, config: Config, recipe: Recipe) -> ValidationResult:
