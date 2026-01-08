@@ -94,9 +94,6 @@ class InteractiveConfigBuilder:
             selections["gcp_project_id"] = self.ui.text_input(
                 "GCP Project ID", default="my-project"
             )
-            selections["bq_location"] = self.ui.text_input(
-                "BigQuery Location", default="US"
-            )
         elif data_source == "GCS":
             selections["gcp_project_id"] = self.ui.text_input(
                 "GCP Project ID", default="my-project"
@@ -113,9 +110,6 @@ class InteractiveConfigBuilder:
             )
             selections["s3_data_prefix"] = self.ui.text_input(
                 "S3 Prefix (경로)", default=env_name
-            )
-            selections["aws_region"] = self.ui.text_input(
-                "AWS Region", default="us-east-1"
             )
         elif data_source == "PostgreSQL":
             selections["db_host"] = self.ui.text_input("DB Host", default="localhost")
@@ -260,10 +254,6 @@ class InteractiveConfigBuilder:
                 selections["infer_bq_table"] = self.ui.text_input(
                     "BigQuery Table", default=f"predictions_{env_name}"
                 )
-                if "bq_location" not in selections:
-                    selections["bq_location"] = self.ui.text_input(
-                        "BigQuery Location", default="US"
-                    )
             elif infer_source == "PostgreSQL":
                 if "db_host" not in selections:
                     selections["db_host"] = self.ui.text_input("DB Host", default="localhost")
