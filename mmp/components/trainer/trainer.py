@@ -201,52 +201,5 @@ class Trainer(BaseTrainer):
             logger.error(f"[TRAIN] 모델 학습 에러: {str(e)}")
             raise
 
-    def _get_training_methodology(self):
-        """학습 방법론 메타데이터를 반환합니다."""
-        validation_config = self.settings.recipe.evaluation.validation
-        hyperparams_config = self.settings.recipe.model.hyperparameters
-        task_choice = self.settings.recipe.task_choice
-
-        # stratification 여부 결정
-        stratify_col = self._get_stratify_col()
-        split_method = "stratified" if stratify_col else "simple"
-
-        # validation strategy 결정
-        if hyperparams_config.tuning_enabled:
-            validation_strategy = "train_validation_split"  # Optuna 시 train에서 validation 분할
-            note = f"Optuna 사용 시 Train({1-validation_config.test_size:.0%})을 다시 Train(80%)/Val(20%)로 분할"
-        else:
-            validation_strategy = validation_config.method
-            note = f"Hyperparameter tuning 비활성화, {validation_config.method} 사용"
-
-        return {
-            "train_test_split_method": split_method,
-            "train_ratio": 1 - validation_config.test_size,
-            "test_ratio": validation_config.test_size,
-            "validation_strategy": validation_strategy,
-            "random_state": validation_config.random_state,
-            "stratify_column": stratify_col,
-            "task_choice": task_choice,
-            "preprocessing_fit_scope": "train_only",
-            "hyperparameter_optimization": hyperparams_config.tuning_enabled,
-            "n_trials": hyperparams_config.n_trials if hyperparams_config.tuning_enabled else None,
-            "optimization_metric": (
-                hyperparams_config.optimization_metric
-                if hyperparams_config.tuning_enabled
-                else None
-            ),
-            "note": note,
-        }
-
-    def _get_stratify_col(self):
-        di = self.settings.recipe.data.data_interface
-        task_choice = self.settings.recipe.task_choice
-        return (
-            di.target_column
-            if task_choice == "classification"
-            else di.treatment_column if task_choice == "causal" else None
-        )
-
-
 # Self-registration
 TrainerRegistry.register("default", Trainer)

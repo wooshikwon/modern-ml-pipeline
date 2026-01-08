@@ -281,7 +281,7 @@ def _infer_pandas_dtype_to_mlflow_type(pandas_dtype) -> str:
     """
     dtype_str = str(pandas_dtype)
 
-    # 정수형
+    # 정수형 (numpy 타입 + pandas nullable 타입)
     if pandas_dtype.name in [
         "int8",
         "int16",
@@ -291,15 +291,23 @@ def _infer_pandas_dtype_to_mlflow_type(pandas_dtype) -> str:
         "uint16",
         "uint32",
         "uint64",
+        "Int8",
+        "Int16",
+        "Int32",
+        "Int64",
+        "UInt8",
+        "UInt16",
+        "UInt32",
+        "UInt64",
     ]:
         return "long"
 
-    # 실수형
-    elif pandas_dtype.name in ["float16", "float32", "float64"]:
+    # 실수형 (numpy 타입 + pandas nullable 타입)
+    elif pandas_dtype.name in ["float16", "float32", "float64", "Float32", "Float64"]:
         return "double"
 
-    # 불린형
-    elif pandas_dtype.name == "bool":
+    # 불린형 (numpy bool + pandas nullable boolean)
+    elif pandas_dtype.name in ["bool", "boolean"]:
         return "boolean"
 
     # 문자열형

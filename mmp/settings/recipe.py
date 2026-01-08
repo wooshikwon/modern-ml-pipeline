@@ -103,5 +103,5 @@ class Recipe(BaseModel):
     model: Model
     data: Data
     preprocessor: Optional[Preprocessor] = None
-    evaluation: Evaluation
+    evaluation: Optional[Evaluation] = None
     metadata: Metadata

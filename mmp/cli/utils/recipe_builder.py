@@ -136,11 +136,6 @@ class RecipeBuilder:
         self.ui.show_info(
             "Hyperparameter, Calibration, 데이터 분할 비율을 설정합니다."
         )
-        available_metrics = self.get_available_metrics_for_task(task_choice)
-        if not available_metrics:
-            raise ValueError(f"{task_choice}에 사용 가능한 메트릭이 없습니다.")
-
-        selected_metrics = available_metrics
         model_config = self._build_model_config(selected_model, task_choice)
         data_interface_config = self._build_data_interface_config(task_choice, selected_model)
         data_split_config = self._build_data_split_config(
@@ -159,7 +154,6 @@ class RecipeBuilder:
                 "split": data_split_config,
             },
             "preprocessor": {"steps": preprocessor_steps} if preprocessor_steps else None,
-            "evaluation": {"metrics": selected_metrics, "random_state": 42},
             "metadata": {
                 "author": "CLI Recipe Builder",
                 "created_at": datetime.now().isoformat(),
@@ -206,10 +200,7 @@ class RecipeBuilder:
         else:
             data_split_config = {"train": 0.7, "validation": 0.15, "test": 0.15}
 
-        # 5. 평가 메트릭
-        available_metrics = self.get_available_metrics_for_task(task_choice)
-
-        # 6. Recipe 조립
+        # 5. Recipe 조립
         recipe_data = {
             "name": f"{task_choice}_{model_name}_{datetime.now().strftime('%Y%m%d')}",
             "task_choice": task_choice,
@@ -221,7 +212,6 @@ class RecipeBuilder:
                 "split": data_split_config,
             },
             "preprocessor": {"steps": preprocessor_steps} if preprocessor_steps else None,
-            "evaluation": {"metrics": available_metrics, "random_state": 42},
             "metadata": {
                 "author": "CLI Recipe Builder (Cheat Sheet)",
                 "created_at": datetime.now().isoformat(),
@@ -801,7 +791,6 @@ class RecipeBuilder:
             "model_library": recipe_data["model"]["library"],
             "timestamp": recipe_data["metadata"]["created_at"],
             "author": recipe_data["metadata"]["author"],
-            "metrics": recipe_data["evaluation"]["metrics"],
             "target_column": recipe_data["data"]["data_interface"].get("target_column"),
             "entity_columns": recipe_data["data"]["data_interface"]["entity_columns"],
             "train_ratio": recipe_data["data"]["split"]["train"],
