@@ -97,6 +97,14 @@ model:
 
 상세 옵션은 [Task 가이드](./docs/user/TASK_GUIDE.md), [설정 스키마](./docs/user/SETTINGS_SCHEMA.md)를 참고하세요.
 
+#### 환경변수 (.env)
+
+Docker 실행 시 필요한 환경변수를 `.env` 파일에 설정합니다:
+
+```bash
+MODEL_RUN_ID=<mlflow_run_id>    # 서빙/추론 시 필수
+```
+
 
 ### 4. 학습
 
