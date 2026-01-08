@@ -8,12 +8,12 @@ comprehensive testing strategy - No Mock Hell approach with real components.
 
 import pytest
 
-from src.components.adapter.registry import AdapterRegistry
-from src.components.datahandler.registry import DataHandlerRegistry
-from src.components.evaluator.registry import EvaluatorRegistry
-from src.components.fetcher.registry import FetcherRegistry
-from src.components.trainer.registry import TrainerRegistry
-from src.factory import Factory
+from mmp.components.adapter.registry import AdapterRegistry
+from mmp.components.datahandler.registry import DataHandlerRegistry
+from mmp.components.evaluator.registry import EvaluatorRegistry
+from mmp.components.fetcher.registry import FetcherRegistry
+from mmp.components.trainer.registry import TrainerRegistry
+from mmp.factory import Factory
 
 
 class TestFactoryInitialization:
@@ -168,7 +168,7 @@ class TestFactoryInitialization:
         adapter2 = factory2.create_data_adapter("storage")
 
         # Both should get real StorageAdapter instances
-        from src.components.adapter.modules.storage_adapter import StorageAdapter
+        from mmp.components.adapter.modules.storage_adapter import StorageAdapter
 
         assert isinstance(adapter1, StorageAdapter)
         assert isinstance(adapter2, StorageAdapter)
@@ -226,11 +226,11 @@ class TestComponentRegistrySetup:
         assert hasattr(cls_evaluator_class, "evaluate")
 
         # Verify classes can be instantiated (basic smoke test)
-        from src.components.adapter.modules.storage_adapter import StorageAdapter
+        from mmp.components.adapter.modules.storage_adapter import StorageAdapter
 
         assert storage_adapter_class is StorageAdapter
 
-        from src.components.evaluator.modules.classification_evaluator import (
+        from mmp.components.evaluator.modules.classification_evaluator import (
             ClassificationEvaluator,
         )
 
@@ -304,7 +304,7 @@ class TestFactoryCalibrationMethods:
 
         # Then: Should return BetaCalibration instance
         assert calibrator is not None
-        from src.components.calibration.modules.beta_calibration import BetaCalibration
+        from mmp.components.calibration.modules.beta_calibration import BetaCalibration
 
         assert isinstance(calibrator, BetaCalibration)
         assert hasattr(calibrator, "fit")
@@ -326,7 +326,7 @@ class TestFactoryCalibrationMethods:
 
         # Then: Should return IsotonicCalibration instance
         assert calibrator is not None
-        from src.components.calibration.modules.isotonic_regression import IsotonicCalibration
+        from mmp.components.calibration.modules.isotonic_regression import IsotonicCalibration
 
         assert isinstance(calibrator, IsotonicCalibration)
         assert hasattr(calibrator, "fit")
@@ -407,7 +407,7 @@ class TestFactoryCalibrationMethods:
 
         # Then: Should return CalibrationEvaluatorWrapper
         assert evaluator is not None
-        from src.factory import CalibrationEvaluatorWrapper
+        from mmp.factory import CalibrationEvaluatorWrapper
 
         assert isinstance(evaluator, CalibrationEvaluatorWrapper)
         assert hasattr(evaluator, "evaluate")
@@ -487,7 +487,7 @@ class TestFactoryCalibrationMethods:
             AdapterRegistry.create("nonexistent_adapter", settings)
 
         # Test CalibrationRegistry error handling
-        from src.components.calibration import CalibrationRegistry
+        from mmp.components.calibration import CalibrationRegistry
 
         with pytest.raises(KeyError, match="알 수 없는 키"):
             CalibrationRegistry.create("nonexistent_method")
@@ -517,6 +517,6 @@ class TestFactoryCalibrationMethods:
         assert hasattr(calibrator, "transform")
 
         # And: Should be real calibrator component, not mock
-        from src.components.calibration.base import BaseCalibrator
+        from mmp.components.calibration.base import BaseCalibrator
 
         assert isinstance(calibrator, BaseCalibrator)

@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
-from src.settings.factory import SettingsFactory
+from mmp.settings.factory import SettingsFactory
 
 
 class TestAdvancedEnvironmentResolution:

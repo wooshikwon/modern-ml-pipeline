@@ -12,7 +12,7 @@ import pytest
 import typer
 from typer.testing import CliRunner
 
-from src.cli.commands.get_recipe_command import _show_success_message, get_recipe_command
+from mmp.cli.commands.get_recipe_command import _show_success_message, get_recipe_command
 
 
 class TestGetRecipeCommandBasicFunctionality:
@@ -23,8 +23,8 @@ class TestGetRecipeCommandBasicFunctionality:
         self.app = typer.Typer()
         self.app.command()(get_recipe_command)
 
-    @patch("src.cli.utils.recipe_builder.RecipeBuilder")
-    @patch("src.cli.utils.interactive_ui.InteractiveUI")
+    @patch("mmp.cli.utils.recipe_builder.RecipeBuilder")
+    @patch("mmp.cli.utils.interactive_ui.InteractiveUI")
     def test_get_recipe_command_successful_flow(self, mock_ui_class, mock_builder_class):
         """성공적인 Recipe 생성 플로우 테스트"""
         mock_ui = MagicMock()
@@ -63,8 +63,8 @@ class TestGetRecipeCommandBasicFunctionality:
         mock_builder.build_recipe_interactively.assert_called_once()
         mock_builder.create_recipe_file.assert_called_once_with(mock_recipe_data)
 
-    @patch("src.cli.utils.recipe_builder.RecipeBuilder")
-    @patch("src.cli.utils.interactive_ui.InteractiveUI")
+    @patch("mmp.cli.utils.recipe_builder.RecipeBuilder")
+    @patch("mmp.cli.utils.interactive_ui.InteractiveUI")
     def test_get_recipe_command_keyboard_interrupt(self, mock_ui_class, mock_builder_class):
         """KeyboardInterrupt 처리 테스트 (사용자 취소)"""
         mock_ui = MagicMock()
@@ -79,8 +79,8 @@ class TestGetRecipeCommandBasicFunctionality:
         assert result.exit_code == 0
         assert "취소" in result.output
 
-    @patch("src.cli.utils.recipe_builder.RecipeBuilder")
-    @patch("src.cli.utils.interactive_ui.InteractiveUI")
+    @patch("mmp.cli.utils.recipe_builder.RecipeBuilder")
+    @patch("mmp.cli.utils.interactive_ui.InteractiveUI")
     def test_get_recipe_command_file_not_found_error(self, mock_ui_class, mock_builder_class):
         """FileNotFoundError 처리 테스트"""
         mock_ui = MagicMock()
@@ -102,8 +102,8 @@ class TestGetRecipeCommandBasicFunctionality:
         assert "FAIL" in result.output
         assert "파일 없음" in result.output
 
-    @patch("src.cli.utils.recipe_builder.RecipeBuilder")
-    @patch("src.cli.utils.interactive_ui.InteractiveUI")
+    @patch("mmp.cli.utils.recipe_builder.RecipeBuilder")
+    @patch("mmp.cli.utils.interactive_ui.InteractiveUI")
     def test_get_recipe_command_value_error(self, mock_ui_class, mock_builder_class):
         """ValueError 처리 테스트"""
         mock_ui = MagicMock()
@@ -119,8 +119,8 @@ class TestGetRecipeCommandBasicFunctionality:
         assert "FAIL" in result.output
         assert "잘못된 값" in result.output
 
-    @patch("src.cli.utils.recipe_builder.RecipeBuilder")
-    @patch("src.cli.utils.interactive_ui.InteractiveUI")
+    @patch("mmp.cli.utils.recipe_builder.RecipeBuilder")
+    @patch("mmp.cli.utils.interactive_ui.InteractiveUI")
     def test_get_recipe_command_general_exception(self, mock_ui_class, mock_builder_class):
         """일반 예외 처리 테스트"""
         mock_ui = MagicMock()
@@ -152,8 +152,8 @@ class TestGetRecipeCommandInteractiveFlow:
         self.app = typer.Typer()
         self.app.command()(get_recipe_command)
 
-    @patch("src.cli.utils.recipe_builder.RecipeBuilder")
-    @patch("src.cli.utils.interactive_ui.InteractiveUI")
+    @patch("mmp.cli.utils.recipe_builder.RecipeBuilder")
+    @patch("mmp.cli.utils.interactive_ui.InteractiveUI")
     def test_get_recipe_command_with_regression_task(self, mock_ui_class, mock_builder_class):
         """Regression task Recipe 생성 테스트"""
         mock_ui = MagicMock()
@@ -189,8 +189,8 @@ class TestGetRecipeCommandInteractiveFlow:
         assert "regression" in result.output
         assert "XGBRegressor" in result.output
 
-    @patch("src.cli.utils.recipe_builder.RecipeBuilder")
-    @patch("src.cli.utils.interactive_ui.InteractiveUI")
+    @patch("mmp.cli.utils.recipe_builder.RecipeBuilder")
+    @patch("mmp.cli.utils.interactive_ui.InteractiveUI")
     def test_get_recipe_command_clustering_task(self, mock_ui_class, mock_builder_class):
         """Clustering task Recipe 생성 테스트"""
         mock_ui = MagicMock()
@@ -223,8 +223,8 @@ class TestGetRecipeCommandInteractiveFlow:
         assert "clustering" in result.output
         assert "KMeans" in result.output
 
-    @patch("src.cli.utils.recipe_builder.RecipeBuilder")
-    @patch("src.cli.utils.interactive_ui.InteractiveUI")
+    @patch("mmp.cli.utils.recipe_builder.RecipeBuilder")
+    @patch("mmp.cli.utils.interactive_ui.InteractiveUI")
     def test_get_recipe_command_recipe_builder_integration(self, mock_ui_class, mock_builder_class):
         """RecipeBuilder 통합 테스트"""
         mock_ui = MagicMock()
@@ -261,8 +261,8 @@ class TestGetRecipeCommandInteractiveFlow:
         mock_builder.build_recipe_interactively.assert_called_once()
         mock_builder.create_recipe_file.assert_called_once_with(mock_recipe_data)
 
-    @patch("src.cli.utils.recipe_builder.RecipeBuilder")
-    @patch("src.cli.utils.interactive_ui.InteractiveUI")
+    @patch("mmp.cli.utils.recipe_builder.RecipeBuilder")
+    @patch("mmp.cli.utils.interactive_ui.InteractiveUI")
     def test_get_recipe_command_ui_panel_display(self, mock_ui_class, mock_builder_class):
         """UI 패널 표시 테스트"""
         mock_ui = MagicMock()
@@ -376,8 +376,8 @@ class TestGetRecipeCommandErrorHandling:
         self.app = typer.Typer()
         self.app.command()(get_recipe_command)
 
-    @patch("src.cli.utils.recipe_builder.RecipeBuilder")
-    @patch("src.cli.utils.interactive_ui.InteractiveUI")
+    @patch("mmp.cli.utils.recipe_builder.RecipeBuilder")
+    @patch("mmp.cli.utils.interactive_ui.InteractiveUI")
     def test_get_recipe_command_permission_error(self, mock_ui_class, mock_builder_class):
         """권한 오류 처리 테스트"""
         mock_ui = MagicMock()
@@ -397,8 +397,8 @@ class TestGetRecipeCommandErrorHandling:
         assert result.exit_code == 1
         assert "FAIL" in result.output
 
-    @patch("src.cli.utils.recipe_builder.RecipeBuilder")
-    @patch("src.cli.utils.interactive_ui.InteractiveUI")
+    @patch("mmp.cli.utils.recipe_builder.RecipeBuilder")
+    @patch("mmp.cli.utils.interactive_ui.InteractiveUI")
     def test_get_recipe_command_empty_selections(self, mock_ui_class, mock_builder_class):
         """최소 선택 처리 테스트"""
         mock_ui = MagicMock()

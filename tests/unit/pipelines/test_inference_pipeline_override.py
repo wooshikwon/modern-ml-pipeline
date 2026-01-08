@@ -8,8 +8,8 @@ import mlflow
 import pytest
 import yaml
 
-from src.settings import Config, Recipe, Settings
-from src.settings.mlflow_restore import (
+from mmp.settings import Config, Recipe, Settings
+from mmp.settings.mlflow_restore import (
     restore_all_from_mlflow,
     save_training_artifacts_to_mlflow,
 )

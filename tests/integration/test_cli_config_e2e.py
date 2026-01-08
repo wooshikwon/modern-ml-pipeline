@@ -19,8 +19,8 @@ from unittest.mock import patch
 import pytest
 import yaml
 
-from src.cli.utils.config_builder import InteractiveConfigBuilder
-from src.cli.utils.template_engine import TemplateEngine
+from mmp.cli.utils.config_builder import InteractiveConfigBuilder
+from mmp.cli.utils.template_engine import TemplateEngine
 
 # ============================================================
 # 1. 템플릿 렌더링 + YAML 파싱 테스트 (가장 중요)
@@ -32,7 +32,7 @@ class TestConfigTemplateYamlValidity:
 
     @pytest.fixture
     def template_engine(self):
-        templates_dir = Path(__file__).parents[2] / "src" / "cli" / "templates"
+        templates_dir = Path(__file__).parents[2] / "mmp" / "cli" / "templates"
         return TemplateEngine(templates_dir)
 
     # 모든 설정 조합 정의
@@ -127,9 +127,9 @@ class TestNoWarningsOnImport:
             # CLI 모듈 reimport (캐시 무시)
             import importlib
 
-            import src.cli.main_commands
+            import mmp.cli.main_commands
 
-            importlib.reload(src.cli.main_commands)
+            importlib.reload(mmp.cli.main_commands)
 
             # Pydantic 관련 경고 필터링
             pydantic_warnings = [
@@ -146,7 +146,7 @@ class TestNoWarningsOnImport:
     def test_no_runtime_warnings_on_cli_execution(self):
         """CLI 실행 시 RuntimeWarning이 없어야 함"""
         result = subprocess.run(
-            [sys.executable, "-m", "src.cli", "--help"],
+            [sys.executable, "-m", "mmp.cli", "--help"],
             capture_output=True,
             text=True,
             cwd=str(Path(__file__).parents[2]),
@@ -220,7 +220,7 @@ class TestCLISubprocess:
     def test_cli_help_no_errors(self, project_root):
         """CLI --help 실행 시 에러 없음"""
         result = subprocess.run(
-            [sys.executable, "-m", "src.cli", "--help"],
+            [sys.executable, "-m", "mmp.cli", "--help"],
             capture_output=True,
             text=True,
             cwd=str(project_root),
@@ -235,7 +235,7 @@ class TestCLISubprocess:
         """list 명령어들이 에러 없이 실행됨"""
         for cmd in ["models", "preprocessors", "adapters", "evaluators"]:
             result = subprocess.run(
-                [sys.executable, "-m", "src.cli", "list", cmd],
+                [sys.executable, "-m", "mmp.cli", "list", cmd],
                 capture_output=True,
                 text=True,
                 cwd=str(project_root),
@@ -248,7 +248,7 @@ class TestCLISubprocess:
     def test_system_check_shows_correct_options(self, project_root):
         """system-check --help가 올바른 옵션을 표시"""
         result = subprocess.run(
-            [sys.executable, "-m", "src.cli", "system-check", "--help"],
+            [sys.executable, "-m", "mmp.cli", "system-check", "--help"],
             capture_output=True,
             text=True,
             cwd=str(project_root),
@@ -262,7 +262,7 @@ class TestCLISubprocess:
     def test_train_shows_correct_options(self, project_root):
         """train --help가 올바른 옵션을 표시"""
         result = subprocess.run(
-            [sys.executable, "-m", "src.cli", "train", "--help"],
+            [sys.executable, "-m", "mmp.cli", "train", "--help"],
             capture_output=True,
             text=True,
             cwd=str(project_root),
@@ -286,9 +286,9 @@ class TestGuideMessagesConsistency:
         """get-config 완료 후 안내 메시지가 올바른 옵션 사용"""
         # 안내 메시지 생성
 
-        from src.cli.commands.get_config_command import _show_completion_message
+        from mmp.cli.commands.get_config_command import _show_completion_message
 
-        with patch("src.cli.commands.get_config_command.cli_success_panel") as mock_panel:
+        with patch("mmp.cli.commands.get_config_command.cli_success_panel") as mock_panel:
             _show_completion_message(
                 "local", Path("configs/local.yaml"), Path(".env.local.template")
             )
@@ -306,9 +306,9 @@ class TestGuideMessagesConsistency:
 
     def test_get_recipe_guide_uses_correct_options(self):
         """get-recipe 완료 후 안내 메시지가 올바른 옵션 사용"""
-        from src.cli.commands.get_recipe_command import _show_success_message
+        from mmp.cli.commands.get_recipe_command import _show_success_message
 
-        with patch("src.cli.commands.get_recipe_command.cli_success_panel") as mock_panel:
+        with patch("mmp.cli.commands.get_recipe_command.cli_success_panel") as mock_panel:
             selections = {
                 "task_choice": "classification",
                 "model": {
@@ -346,7 +346,7 @@ class TestConfigCombinationMatrix:
     @pytest.mark.parametrize("use_mlflow", MLFLOW_OPTIONS)
     def test_data_source_mlflow_combinations(self, data_source, use_mlflow, tmp_path):
         """데이터 소스 × MLflow 조합 테스트"""
-        templates_dir = Path(__file__).parents[2] / "src" / "cli" / "templates"
+        templates_dir = Path(__file__).parents[2] / "mmp" / "cli" / "templates"
         engine = TemplateEngine(templates_dir)
 
         context = {

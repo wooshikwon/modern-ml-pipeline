@@ -11,7 +11,7 @@ import pandas as pd
 import pytest
 from typer.testing import CliRunner
 
-from src.cli.main_commands import app
+from mmp.cli.main_commands import app
 
 
 class TestCLIPipelineIntegration:
@@ -134,7 +134,7 @@ metadata:
                 # Given: Train a model first to create inference target
                 import mlflow
 
-                from src.pipelines.train_pipeline import run_train_pipeline
+                from mmp.pipelines.train_pipeline import run_train_pipeline
 
                 mlflow.set_tracking_uri(mlflow_ctx.mlflow_uri)
                 train_result = run_train_pipeline(mlflow_ctx.settings)

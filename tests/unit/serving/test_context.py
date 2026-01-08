@@ -1,7 +1,7 @@
 """
 Serving context management comprehensive testing
 Follows tests/README.md philosophy with Context classes
-Tests for src/serving/_context.py
+Tests for mmp/serving/_context.py
 
 Author: Phase 2B Development
 Date: 2025-09-13
@@ -12,7 +12,7 @@ from unittest.mock import Mock
 import mlflow
 from pydantic import BaseModel
 
-from src.serving._context import AppContext, app_context
+from mmp.serving._context import AppContext, app_context
 
 
 class TestAppContextInitialization:
@@ -268,8 +268,8 @@ class TestGlobalAppContextInstance:
         """전역 app_context 싱글톤 동작 테스트"""
         with component_test_context.classification_stack() as ctx:
             # Import app_context multiple times should return same instance
-            from src.serving._context import app_context as app_context_1
-            from src.serving._context import app_context as app_context_2
+            from mmp.serving._context import app_context as app_context_1
+            from mmp.serving._context import app_context as app_context_2
 
             assert app_context_1 is app_context_2
             assert app_context_1 is app_context
@@ -283,7 +283,7 @@ class TestGlobalAppContextInstance:
             app_context.model_uri = test_uri
 
             # State should persist across imports
-            from src.serving._context import app_context as imported_context
+            from mmp.serving._context import app_context as imported_context
 
             assert imported_context.model_uri == test_uri
 

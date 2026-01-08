@@ -6,7 +6,7 @@ Following test philosophy: Real components, minimal mocking
 import typer
 from typer.testing import CliRunner
 
-from src.cli.commands.init_command import init_command
+from mmp.cli.commands.init_command import init_command
 
 
 class TestInitCommandWithRealComponents:

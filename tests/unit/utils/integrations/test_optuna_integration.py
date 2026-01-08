@@ -1,7 +1,7 @@
 """
 Optuna integration utilities comprehensive testing
 Follows tests/README.md philosophy with Context classes
-Tests for src/utils/integrations/optuna_integration.py
+Tests for mmp/utils/integrations/optuna_integration.py
 
 Author: Phase 2A Development
 Date: 2025-09-13
@@ -12,7 +12,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from src.utils.integrations.optuna_integration import (
+from mmp.utils.integrations.optuna_integration import (
     OptunaIntegration,
     _require_optuna,
     logging_callback,
@@ -22,7 +22,7 @@ from src.utils.integrations.optuna_integration import (
 class TestOptunaRequirement:
     """Optuna 패키지 요구사항 테스트"""
 
-    @patch("src.utils.integrations.optuna_integration.optuna", create=True)
+    @patch("mmp.utils.integrations.optuna_integration.optuna", create=True)
     def test_require_optuna_success(self, mock_optuna):
         """Optuna 성공적으로 import 되는 경우 테스트"""
         mock_optuna_module = Mock()
@@ -64,7 +64,7 @@ class TestOptunaLoggingCallback:
             mock_trial.value = 0.87654
             mock_trial.number = 5
 
-            with patch("src.utils.integrations.optuna_integration.logger") as mock_logger:
+            with patch("mmp.utils.integrations.optuna_integration.logger") as mock_logger:
                 logging_callback(mock_study, mock_trial)
 
                 # Verify logging call
@@ -85,7 +85,7 @@ class TestOptunaLoggingCallback:
             mock_trial.value = None
             mock_trial.number = 3
 
-            with patch("src.utils.integrations.optuna_integration.logger") as mock_logger:
+            with patch("mmp.utils.integrations.optuna_integration.logger") as mock_logger:
                 logging_callback(mock_study, mock_trial)
 
                 call_args = str(mock_logger.info.call_args)
@@ -103,7 +103,7 @@ class TestOptunaLoggingCallback:
             mock_trial.value = 0.75000
             mock_trial.number = 1
 
-            with patch("src.utils.integrations.optuna_integration.logger") as mock_logger:
+            with patch("mmp.utils.integrations.optuna_integration.logger") as mock_logger:
                 logging_callback(mock_study, mock_trial)
 
                 call_args = str(mock_logger.info.call_args)
@@ -121,7 +121,7 @@ class TestOptunaLoggingCallback:
             mock_trial = Mock()
             mock_trial.value = Mock(side_effect=Exception("Broken"))
 
-            with patch("src.utils.integrations.optuna_integration.logger") as mock_logger:
+            with patch("mmp.utils.integrations.optuna_integration.logger") as mock_logger:
                 # Should not raise exception
                 logging_callback(mock_study, mock_trial)
 
@@ -154,7 +154,7 @@ class TestOptunaIntegrationClass:
 
             assert optuna_integration.pruning == {}
 
-    @patch("src.utils.integrations.optuna_integration._require_optuna")
+    @patch("mmp.utils.integrations.optuna_integration._require_optuna")
     def test_create_study_with_seed(self, mock_require_optuna, component_test_context):
         """Seed가 있는 study 생성 테스트"""
         with component_test_context.classification_stack() as ctx:
@@ -180,7 +180,7 @@ class TestOptunaIntegrationClass:
                 direction="maximize", study_name="test_study", sampler=mock_sampler, pruner=None
             )
 
-    @patch("src.utils.integrations.optuna_integration._require_optuna")
+    @patch("mmp.utils.integrations.optuna_integration._require_optuna")
     def test_create_study_without_seed(self, mock_require_optuna, component_test_context):
         """Seed가 없는 study 생성 테스트"""
         with component_test_context.classification_stack() as ctx:
@@ -205,7 +205,7 @@ class TestOptunaIntegrationClass:
 class TestOptunaHyperparameterSuggestion:
     """하이퍼파라미터 제안 기능 테스트"""
 
-    @patch("src.utils.integrations.optuna_integration._require_optuna")
+    @patch("mmp.utils.integrations.optuna_integration._require_optuna")
     def test_suggest_hyperparameters_int_type(self, mock_require_optuna, component_test_context):
         """Integer 타입 하이퍼파라미터 제안 테스트"""
         with component_test_context.classification_stack() as ctx:
@@ -228,7 +228,7 @@ class TestOptunaHyperparameterSuggestion:
             assert result["n_estimators"] == 100
             assert result["fixed_param"] == "fixed_value"
 
-    @patch("src.utils.integrations.optuna_integration._require_optuna")
+    @patch("mmp.utils.integrations.optuna_integration._require_optuna")
     def test_suggest_hyperparameters_float_type(self, mock_require_optuna, component_test_context):
         """Float 타입 하이퍼파라미터 제안 테스트"""
         with component_test_context.classification_stack() as ctx:
@@ -248,7 +248,7 @@ class TestOptunaHyperparameterSuggestion:
             mock_trial.suggest_float.assert_called_once_with("learning_rate", 0.001, 0.1, log=True)
             assert result["learning_rate"] == 0.01
 
-    @patch("src.utils.integrations.optuna_integration._require_optuna")
+    @patch("mmp.utils.integrations.optuna_integration._require_optuna")
     def test_suggest_hyperparameters_categorical_type(
         self, mock_require_optuna, component_test_context
     ):
@@ -272,7 +272,7 @@ class TestOptunaHyperparameterSuggestion:
             )
             assert result["criterion"] == "gini"
 
-    @patch("src.utils.integrations.optuna_integration._require_optuna")
+    @patch("mmp.utils.integrations.optuna_integration._require_optuna")
     def test_suggest_hyperparameters_unknown_type(
         self, mock_require_optuna, component_test_context
     ):
@@ -290,7 +290,7 @@ class TestOptunaHyperparameterSuggestion:
             # Should return the entire dict as is
             assert result["unknown_type_param"] == {"type": "unknown_type", "value": "some_value"}
 
-    @patch("src.utils.integrations.optuna_integration._require_optuna")
+    @patch("mmp.utils.integrations.optuna_integration._require_optuna")
     def test_suggest_hyperparameters_mixed_params(
         self, mock_require_optuna, component_test_context
     ):
@@ -326,7 +326,7 @@ class TestOptunaHyperparameterSuggestion:
 class TestOptunaIntegrationIntegration:
     """OptunaIntegration 통합 시나리오 테스트"""
 
-    @patch("src.utils.integrations.optuna_integration._require_optuna")
+    @patch("mmp.utils.integrations.optuna_integration._require_optuna")
     def test_complete_hyperparameter_tuning_workflow(
         self, mock_require_optuna, component_test_context
     ):

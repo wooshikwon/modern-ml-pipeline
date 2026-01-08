@@ -11,11 +11,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.components.datahandler.modules.tabular_handler import TabularDataHandler
-from src.components.datahandler.modules.timeseries_handler import TimeseriesDataHandler
-from src.components.evaluator.modules.classification_evaluator import ClassificationEvaluator
-from src.components.evaluator.modules.regression_evaluator import RegressionEvaluator
-from src.factory import Factory
+from mmp.components.datahandler.modules.tabular_handler import TabularDataHandler
+from mmp.components.datahandler.modules.timeseries_handler import TimeseriesDataHandler
+from mmp.components.evaluator.modules.classification_evaluator import ClassificationEvaluator
+from mmp.components.evaluator.modules.regression_evaluator import RegressionEvaluator
+from mmp.factory import Factory
 
 
 class TestComponentDataFlowValidation:
@@ -269,7 +269,7 @@ class TestComponentDataFlowValidation:
         factory = Factory(settings)
         fetcher = factory.create_fetcher()
         # 단순 타입 확인으로 증강 경로 선택 검증
-        from src.components.fetcher.modules.feature_store_fetcher import FeatureStoreFetcher
+        from mmp.components.fetcher.modules.feature_store_fetcher import FeatureStoreFetcher
 
         assert isinstance(fetcher, FeatureStoreFetcher)
 
@@ -975,7 +975,7 @@ class TestComponentDataFlowValidation:
             import mlflow
             from mlflow.tracking import MlflowClient
 
-            from src.pipelines.train_pipeline import run_train_pipeline
+            from mmp.pipelines.train_pipeline import run_train_pipeline
 
             settings = (
                 settings_builder.with_task("classification")

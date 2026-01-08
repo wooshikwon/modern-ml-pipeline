@@ -19,7 +19,7 @@ Modern ML Pipeline의 기능을 확장하고 싶으신가요?
 
 기존 라이브러리(Scikit-learn 등) 호환 모델이 아니라, 커스텀 로직이 필요한 모델을 추가하는 예시입니다.
 
-**파일 생성**: `src/models/custom/my_model.py`
+**파일 생성**: `mmp/models/custom/my_model.py`
 
 ```python
 from ..base import BaseModel
@@ -45,7 +45,7 @@ class MyCustomModel(BaseModel):
 **사용법 (Recipe YAML)**:
 ```yaml
 model:
-  class_path: src.models.custom.my_model.MyCustomModel
+  class_path: mmp.models.custom.my_model.MyCustomModel
   hyperparameters:
     values:
       param1: 50
@@ -62,10 +62,10 @@ PyTorch-TabNet, FTTransformer 등 외부 라이브러리 모델을 사용할 때
 - Trainer, Evaluator 등 컴포넌트에서 모델별 분기 로직 제거
 - 모델 특성(numpy 변환 등)을 모델 레이어에 캡슐화
 
-**예시: TabNet Wrapper** (`src/models/custom/tabnet_wrapper.py`)
+**예시: TabNet Wrapper** (`mmp/models/custom/tabnet_wrapper.py`)
 
 ```python
-from src.models.base import BaseModel
+from mmp.models.base import BaseModel
 import pandas as pd
 import numpy as np
 
@@ -95,10 +95,10 @@ class TabNetClassifierWrapper(BaseModel):
         return self.model.predict_proba(X_np)
 ```
 
-**Catalog 등록** (`src/models/catalog/Classification/TabNetClassifier.yaml`)
+**Catalog 등록** (`mmp/models/catalog/Classification/TabNetClassifier.yaml`)
 
 ```yaml
-class_path: src.models.custom.tabnet_wrapper.TabNetClassifierWrapper
+class_path: mmp.models.custom.tabnet_wrapper.TabNetClassifierWrapper
 description: TabNet Classifier (BaseModel wrapper)
 library: pytorch-tabnet
 hyperparameters:
@@ -116,11 +116,11 @@ hyperparameters:
 **현재 제공되는 Wrapper 모델:**
 | 모델 | Wrapper 경로 |
 |------|-------------|
-| TabNetClassifier | `src.models.custom.tabnet_wrapper.TabNetClassifierWrapper` |
-| TabNetRegressor | `src.models.custom.tabnet_wrapper.TabNetRegressorWrapper` |
-| FTTransformerClassifier | `src.models.custom.ft_transformer.FTTransformerClassifier` |
-| FTTransformerRegressor | `src.models.custom.ft_transformer.FTTransformerRegressor` |
-| LSTMTimeSeries | `src.models.custom.lstm_timeseries.LSTMTimeSeries` |
+| TabNetClassifier | `mmp.models.custom.tabnet_wrapper.TabNetClassifierWrapper` |
+| TabNetRegressor | `mmp.models.custom.tabnet_wrapper.TabNetRegressorWrapper` |
+| FTTransformerClassifier | `mmp.models.custom.ft_transformer.FTTransformerClassifier` |
+| FTTransformerRegressor | `mmp.models.custom.ft_transformer.FTTransformerRegressor` |
+| LSTMTimeSeries | `mmp.models.custom.lstm_timeseries.LSTMTimeSeries` |
 
 ---
 
@@ -128,11 +128,11 @@ hyperparameters:
 
 특정 컬럼의 값을 변환하는 새로운 전처리 로직을 추가해봅니다.
 
-**파일 생성**: `src/components/preprocessor/modules/my_scaler.py`
+**파일 생성**: `mmp/components/preprocessor/modules/my_scaler.py`
 
 ```python
-from src.components.preprocessor.base import BasePreprocessor
-from src.components.preprocessor.registry import PreprocessorStepRegistry
+from mmp.components.preprocessor.base import BasePreprocessor
+from mmp.components.preprocessor.registry import PreprocessorStepRegistry
 
 # 1. 상속
 class MyScaler(BasePreprocessor):
@@ -167,11 +167,11 @@ preprocessor:
 
 새로운 데이터 소스(예: MongoDB, Kafka)를 연결하고 싶을 때 사용합니다.
 
-**파일 생성**: `src/components/adapter/modules/mongo_adapter.py`
+**파일 생성**: `mmp/components/adapter/modules/mongo_adapter.py`
 
 ```python
-from src.components.adapter.base import BaseAdapter
-from src.components.adapter.registry import AdapterRegistry
+from mmp.components.adapter.base import BaseAdapter
+from mmp.components.adapter.registry import AdapterRegistry
 
 class MongoAdapter(BaseAdapter):
     def read(self, source, **kwargs):
@@ -202,7 +202,7 @@ data_source:
 
 | 컴포넌트 | 역할 | Base 클래스 위치 | Registry 위치 |
 |----------|------|-----------------|---------------|
-| **Adapter** | 데이터 I/O | `src.components.adapter.base` | `src.components.adapter.registry` |
-| **Fetcher** | 피처 추가 조회 | `src.components.fetcher.base` | `src.components.fetcher.registry` |
-| **Evaluator** | 성능 평가 | `src.components.evaluator.base` | `src.components.evaluator.registry` |
-| **Calibrator** | 확률 보정 | `src.components.calibration.base` | `src.components.calibration.registry` |
+| **Adapter** | 데이터 I/O | `mmp.components.adapter.base` | `mmp.components.adapter.registry` |
+| **Fetcher** | 피처 추가 조회 | `mmp.components.fetcher.base` | `mmp.components.fetcher.registry` |
+| **Evaluator** | 성능 평가 | `mmp.components.evaluator.base` | `mmp.components.evaluator.registry` |
+| **Calibrator** | 확률 보정 | `mmp.components.calibration.base` | `mmp.components.calibration.registry` |

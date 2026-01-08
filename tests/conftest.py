@@ -17,7 +17,7 @@ import pytest
 from sklearn.datasets import make_classification, make_regression
 
 # Import Settings system
-from src.settings import (
+from mmp.settings import (
     Config,
     Data,
     DataInterface,
@@ -34,10 +34,10 @@ from src.settings import (
     Recipe,
     Settings,
 )
-from src.settings.config import Output, OutputTarget
-from src.settings.recipe import Metadata
+from mmp.settings.config import Output, OutputTarget
+from mmp.settings.recipe import Metadata
 
-# from src.settings.factory import RecipeFactory, ConfigFactory  # deprecated
+# from mmp.settings.factory import RecipeFactory, ConfigFactory  # deprecated
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -345,11 +345,11 @@ class SettingsBuilder:
         if config is None:
             # Provide default configs based on adapter_type
             if adapter_type == "storage":
-                from src.settings.config import LocalFilesConfig
+                from mmp.settings.config import LocalFilesConfig
 
                 config = LocalFilesConfig(base_path="tests/fixtures/data", storage_options={})
             elif adapter_type == "sql":
-                from src.settings.config import PostgreSQLConfig
+                from mmp.settings.config import PostgreSQLConfig
 
                 config = PostgreSQLConfig(
                     connection_uri="postgresql://test:test@localhost:5432/test", query_timeout=300
@@ -475,7 +475,7 @@ class SettingsBuilder:
     def with_calibration(self, enabled: bool = True, method: str = "beta") -> "SettingsBuilder":
         """Set calibration configuration."""
         if enabled:
-            from src.settings import Calibration
+            from mmp.settings import Calibration
 
             self._model.calibration = Calibration(enabled=True, method=method)
         else:
@@ -498,7 +498,7 @@ class SettingsBuilder:
         """Enable/disable feature store."""
         if enabled:
             # Provide minimal feast_config to satisfy validation
-            from src.settings.config import FeastConfig
+            from mmp.settings.config import FeastConfig
 
             self._feature_store = FeatureStore(
                 provider="feast",
@@ -809,7 +809,7 @@ def small_real_models_cache():
 @pytest.fixture(scope="function")
 def factory_with_real_storage_adapter(settings_builder, real_dataset_files):
     """Create Factory with real StorageAdapter and real CSV data."""
-    from src.factory import Factory
+    from mmp.factory import Factory
 
     # Use real CSV file
     cls_info = real_dataset_files["classification_csv"]
@@ -832,7 +832,7 @@ def factory_with_real_storage_adapter(settings_builder, real_dataset_files):
 @pytest.fixture(scope="function")
 def factory_with_real_sql_adapter(settings_builder, real_dataset_files):
     """Create Factory with real SQLAdapter and real SQLite database."""
-    from src.factory import Factory
+    from mmp.factory import Factory
 
     sql_info = real_dataset_files["sql"]
 
@@ -857,7 +857,7 @@ def factory_with_real_sql_adapter(settings_builder, real_dataset_files):
 @pytest.fixture(scope="function")
 def fast_factory_setup(settings_builder, small_real_models_cache):
     """Factory setup optimized for speed with small real components."""
-    from src.factory import Factory
+    from mmp.factory import Factory
 
     models, data = small_real_models_cache
 

@@ -5,7 +5,7 @@ Testing core pipeline functionality with minimal dependencies.
 
 from unittest.mock import patch
 
-from src.pipelines.train_pipeline import run_train_pipeline
+from mmp.pipelines.train_pipeline import run_train_pipeline
 
 
 class TestTrainPipelineCore:
@@ -30,7 +30,7 @@ class TestTrainPipelineCore:
                 # Basic assertion - pipeline should complete
                 assert result is not None
 
-    @patch("src.pipelines.train_pipeline.log_enhanced_model_with_schema")
+    @patch("mmp.pipelines.train_pipeline.log_enhanced_model_with_schema")
     def test_train_model_logging(self, mock_log_model, mlflow_test_context):
         """Test that models are logged correctly to MLflow"""
         # Only mock the final model logging to avoid MLflow storage

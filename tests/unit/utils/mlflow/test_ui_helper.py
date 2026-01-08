@@ -4,7 +4,7 @@ Unit tests for MLflow UI helper utilities.
 
 from unittest.mock import MagicMock, Mock, patch
 
-from src.utils.integrations.ui_helper import (
+from mmp.utils.integrations.ui_helper import (
     MLflowRunSummary,
     MLflowUIHelper,
     setup_mlflow_ui_config,
@@ -125,7 +125,7 @@ class TestMLflowUIHelper:
         assert helper.mlflow_process is None
 
     @patch("subprocess.Popen")
-    @patch("src.utils.integrations.ui_helper.logger")
+    @patch("mmp.utils.integrations.ui_helper.logger")
     def test_start_mlflow_server_already_running(self, mock_logger, mock_popen):
         """Test handling when server already running"""
         helper = MLflowUIHelper("./mlruns")
@@ -138,7 +138,7 @@ class TestMLflowUIHelper:
             mock_popen.assert_not_called()
             mock_logger.warning.assert_called_with("MLflow server already running on port 5000")
 
-    @patch("src.utils.integrations.ui_helper.logger")
+    @patch("mmp.utils.integrations.ui_helper.logger")
     def test_stop_mlflow_server(self, mock_logger):
         """Test stopping MLflow server"""
         helper = MLflowUIHelper("./mlruns")

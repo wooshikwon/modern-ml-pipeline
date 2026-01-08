@@ -21,9 +21,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.components.preprocessor.preprocessor import Preprocessor
-from src.settings.recipe import Preprocessor as PreprocessorConfig
-from src.settings.recipe import PreprocessorStep
+from mmp.components.preprocessor.preprocessor import Preprocessor
+from mmp.settings.recipe import Preprocessor as PreprocessorConfig
+from mmp.settings.recipe import PreprocessorStep
 
 
 class TestMultiComponentPreprocessingPipelines:

@@ -8,8 +8,8 @@ import numpy as np
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error
 
-from src.components.evaluator.modules.timeseries_evaluator import TimeSeriesEvaluator
-from src.components.evaluator.base import BaseEvaluator
+from mmp.components.evaluator.modules.timeseries_evaluator import TimeSeriesEvaluator
+from mmp.components.evaluator.base import BaseEvaluator
 
 
 class TestTimeSeriesEvaluator:

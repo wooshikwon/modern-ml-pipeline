@@ -11,8 +11,8 @@ import numpy as np
 import pandas as pd
 from sqlalchemy import Column, Float, Integer, MetaData, String, Table, create_engine, text
 
-from src.components.adapter.modules.sql_adapter import SqlAdapter
-from src.factory import Factory
+from mmp.components.adapter.modules.sql_adapter import SqlAdapter
+from mmp.factory import Factory
 
 
 class TestDatabaseIntegration:
@@ -400,7 +400,7 @@ class TestDatabaseIntegration:
                 .build()
             )
 
-            from src.factory import Factory
+            from mmp.factory import Factory
 
             factory = Factory(settings)
             sql_adapter = factory.create_data_adapter()
@@ -436,7 +436,7 @@ class TestDatabaseIntegration:
                 .build()
             )
 
-            from src.factory import Factory
+            from mmp.factory import Factory
 
             sql_adapter = Factory(settings).create_data_adapter()
 

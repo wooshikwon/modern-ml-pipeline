@@ -8,11 +8,11 @@ comprehensive testing strategy - No Mock Hell approach with real error scenarios
 
 import pytest
 
-from src.components.adapter.registry import AdapterRegistry
-from src.components.evaluator.registry import EvaluatorRegistry
-from src.components.fetcher.registry import FetcherRegistry
-from src.components.trainer.registry import TrainerRegistry
-from src.factory import Factory
+from mmp.components.adapter.registry import AdapterRegistry
+from mmp.components.evaluator.registry import EvaluatorRegistry
+from mmp.components.fetcher.registry import FetcherRegistry
+from mmp.components.trainer.registry import TrainerRegistry
+from mmp.factory import Factory
 
 
 class TestRegistryErrorHandling:

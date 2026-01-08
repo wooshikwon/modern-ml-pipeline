@@ -111,7 +111,7 @@ with patch('mlflow.start_run'):
 # CLI는 인터페이스만 테스트
 def test_train_command_parsing():
     # Pipeline 실행은 Mock 허용 (CLI 범위 밖)
-    with patch('src.pipelines.run_train_pipeline'):
+    with patch('mmp.pipelines.run_train_pipeline'):
         result = runner.invoke(app, ['--recipe', 'r.yaml'])
         # CLI 인자 파싱만 검증
 ```
@@ -345,7 +345,7 @@ pytest tests/integration -n 4
 pytest tests/e2e
 
 # 전체 테스트 with 커버리지
-pytest tests/ --cov=src --cov-report=html --cov-fail-under=90
+pytest tests/ --cov=mmp --cov-report=html --cov-fail-under=90
 ```
 
 ### 성능 기준

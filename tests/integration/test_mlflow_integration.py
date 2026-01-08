@@ -16,8 +16,8 @@ from mlflow.tracking import MlflowClient
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LinearRegression
 
-from src.pipelines.inference_pipeline import run_inference_pipeline
-from src.pipelines.train_pipeline import run_train_pipeline
+from mmp.pipelines.inference_pipeline import run_inference_pipeline
+from mmp.pipelines.train_pipeline import run_train_pipeline
 
 
 class TestMLflowIntegration:
@@ -571,15 +571,15 @@ class TestMLflowIntegration:
         test_data.to_csv(data_path, index=False)
 
         # When: Running complete pipeline with MLflow tracking
-        from src.settings import Settings
-        from src.settings.config import (
+        from mmp.settings import Settings
+        from mmp.settings.config import (
             Config,
             DataSource,
             Environment,
             FeatureStore,
         )
-        from src.settings.config import MLflow as MLflowConfig
-        from src.settings.recipe import Data, DataInterface, Evaluation, Loader, Model, Recipe
+        from mmp.settings.config import MLflow as MLflowConfig
+        from mmp.settings.recipe import Data, DataInterface, Evaluation, Loader, Model, Recipe
 
         try:
             # Create settings with MLflow configuration
@@ -1127,7 +1127,7 @@ class TestEnhancedMLflowLogging:
             import mlflow
             import pandas as pd
 
-            from src.utils.integrations.mlflow_integration import (
+            from mmp.utils.integrations.mlflow_integration import (
                 create_enhanced_model_signature_with_schema,
             )
 
@@ -1217,7 +1217,7 @@ class TestEnhancedMLflowLogging:
             import mlflow
             import pandas as pd
 
-            from src.utils.integrations.mlflow_integration import create_model_signature
+            from mmp.utils.integrations.mlflow_integration import create_model_signature
 
             mlflow.set_tracking_uri(ctx.mlflow_uri)
 
@@ -1248,7 +1248,7 @@ class TestEnhancedMLflowLogging:
         """Test pandas dtype to MLflow type inference works correctly."""
         import pandas as pd
 
-        from src.utils.integrations.mlflow_integration import _infer_pandas_dtype_to_mlflow_type
+        from mmp.utils.integrations.mlflow_integration import _infer_pandas_dtype_to_mlflow_type
 
         # Given: Various pandas dtypes
         test_cases = [

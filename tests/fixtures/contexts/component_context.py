@@ -4,7 +4,7 @@ from contextlib import contextmanager
 
 import pandas as pd
 
-from src.factory import Factory
+from mmp.factory import Factory
 
 
 class ComponentTestContext:

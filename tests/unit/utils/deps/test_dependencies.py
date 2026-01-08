@@ -1,7 +1,7 @@
 """
 Dependencies validation comprehensive testing
 Follows tests/README.md philosophy with Context classes
-Tests for src/utils/deps/dependencies.py
+Tests for mmp/utils/deps/dependencies.py
 
 Author: Phase 2A Development
 Date: 2025-09-13
@@ -11,7 +11,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from src.utils.deps.dependencies import _requires_pyarrow, validate_dependencies
+from mmp.utils.deps.dependencies import _requires_pyarrow, validate_dependencies
 
 
 class TestDependencyValidation:
@@ -54,7 +54,7 @@ class TestDependencyValidation:
             # Context uses storage adapter with CSV by default
             # Should not require additional dependencies
 
-            with patch("src.utils.deps.dependencies.__import__") as mock_import:
+            with patch("mmp.utils.deps.dependencies.__import__") as mock_import:
                 # Test validation - should not fail
                 validate_dependencies(ctx.settings)
                 # __import__ should not be called for CSV files
@@ -68,7 +68,7 @@ class TestDependencyValidation:
                 "/data/test.PARQUET"  # Test case insensitive
             )
 
-            with patch("src.utils.deps.dependencies.__import__") as mock_import:
+            with patch("mmp.utils.deps.dependencies.__import__") as mock_import:
                 mock_import.return_value = Mock()  # Simulate successful import
 
                 validate_dependencies(ctx.settings)
@@ -80,7 +80,7 @@ class TestDependencyValidation:
             # Modify settings to use SQL adapter via config
             ctx.settings.config.data_source.adapter_type = "sql"
 
-            with patch("src.utils.deps.dependencies.__import__") as mock_import:
+            with patch("mmp.utils.deps.dependencies.__import__") as mock_import:
                 mock_import.return_value = Mock()
 
                 validate_dependencies(ctx.settings)
@@ -94,7 +94,7 @@ class TestDependencyValidation:
             mock_feature_store.provider = "feast"
             ctx.settings.feature_store = mock_feature_store
 
-            with patch("src.utils.deps.dependencies.__import__") as mock_import:
+            with patch("mmp.utils.deps.dependencies.__import__") as mock_import:
                 mock_import.return_value = Mock()
 
                 validate_dependencies(ctx.settings)
@@ -111,7 +111,7 @@ class TestDependencyValidation:
             # New schema toggles live under model.hyperparameters.tuning_enabled
             ctx.settings.recipe.model.hyperparameters.tuning_enabled = True
 
-            with patch("src.utils.deps.dependencies.__import__") as mock_import:
+            with patch("mmp.utils.deps.dependencies.__import__") as mock_import:
                 mock_import.return_value = Mock()
 
                 validate_dependencies(ctx.settings)
@@ -128,7 +128,7 @@ class TestDependencyValidation:
             # Recipe-level toggle disabled in new schema
             ctx.settings.recipe.model.hyperparameters.tuning_enabled = False
 
-            with patch("src.utils.deps.dependencies.__import__") as mock_import:
+            with patch("mmp.utils.deps.dependencies.__import__") as mock_import:
                 validate_dependencies(ctx.settings)
 
                 # optuna should not be required
@@ -143,7 +143,7 @@ class TestDependencyValidation:
             mock_serving.enabled = True
             ctx.settings.serving = mock_serving
 
-            with patch("src.utils.deps.dependencies.__import__") as mock_import:
+            with patch("mmp.utils.deps.dependencies.__import__") as mock_import:
                 mock_import.return_value = Mock()
 
                 validate_dependencies(ctx.settings)
@@ -163,7 +163,7 @@ class TestDependencyValidationErrorHandling:
             # Configure to require pyarrow
             ctx.settings.recipe.data.loader.source_uri = "/data/test.parquet"
 
-            with patch("src.utils.deps.dependencies.__import__") as mock_import:
+            with patch("mmp.utils.deps.dependencies.__import__") as mock_import:
                 mock_import.side_effect = ImportError("No module named 'pyarrow'")
 
                 # Should raise ImportError with Korean message
@@ -180,7 +180,7 @@ class TestDependencyValidationErrorHandling:
             ctx.settings.config.data_source.adapter_type = "sql"
             ctx.settings.recipe.data.loader.source_uri = "/data/test.parquet"
 
-            with patch("src.utils.deps.dependencies.__import__") as mock_import:
+            with patch("mmp.utils.deps.dependencies.__import__") as mock_import:
                 mock_import.side_effect = ImportError("Missing package")
 
                 with pytest.raises(ImportError) as exc_info:
@@ -199,7 +199,7 @@ class TestDependencyValidationErrorHandling:
                 delattr(ctx.settings, "feature_store")
 
             # Should not raise exception
-            with patch("src.utils.deps.dependencies.__import__"):
+            with patch("mmp.utils.deps.dependencies.__import__"):
                 validate_dependencies(ctx.settings)
 
 
@@ -231,7 +231,7 @@ class TestDependencyValidationIntegration:
             mock_serving.enabled = True
             ctx.settings.serving = mock_serving
 
-            with patch("src.utils.deps.dependencies.__import__") as mock_import:
+            with patch("mmp.utils.deps.dependencies.__import__") as mock_import:
                 mock_import.return_value = Mock()
 
                 validate_dependencies(ctx.settings)
@@ -260,7 +260,7 @@ class TestDependencyValidationIntegration:
             if hasattr(ctx.settings, "serving"):
                 delattr(ctx.settings, "serving")
 
-            with patch("src.utils.deps.dependencies.__import__") as mock_import:
+            with patch("mmp.utils.deps.dependencies.__import__") as mock_import:
                 validate_dependencies(ctx.settings)
 
                 # No packages should be required

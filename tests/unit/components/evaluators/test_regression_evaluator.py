@@ -9,8 +9,8 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error, r2_score
 
-from src.components.evaluator.modules.regression_evaluator import RegressionEvaluator
-from src.components.evaluator.base import BaseEvaluator
+from mmp.components.evaluator.modules.regression_evaluator import RegressionEvaluator
+from mmp.components.evaluator.base import BaseEvaluator
 
 
 class TestRegressionEvaluator:

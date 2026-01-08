@@ -6,9 +6,9 @@ Tests Registry lookup mechanisms and Factory caching behavior following
 comprehensive testing strategy - No Mock Hell approach with real components.
 """
 
-from src.components.adapter.registry import AdapterRegistry
-from src.components.evaluator.registry import EvaluatorRegistry
-from src.factory import Factory
+from mmp.components.adapter.registry import AdapterRegistry
+from mmp.components.evaluator.registry import EvaluatorRegistry
+from mmp.factory import Factory
 
 
 class TestRegistryLookupMechanisms:
@@ -31,8 +31,8 @@ class TestRegistryLookupMechanisms:
         sql_class = AdapterRegistry.get_class("sql")
 
         # Validate these are actual classes
-        from src.components.adapter.modules.sql_adapter import SqlAdapter
-        from src.components.adapter.modules.storage_adapter import StorageAdapter
+        from mmp.components.adapter.modules.sql_adapter import SqlAdapter
+        from mmp.components.adapter.modules.storage_adapter import StorageAdapter
 
         assert storage_class is StorageAdapter
         assert sql_class is SqlAdapter
@@ -60,10 +60,10 @@ class TestRegistryLookupMechanisms:
         reg_evaluator_class = EvaluatorRegistry.get_class("regression")
 
         # Validate these are actual classes
-        from src.components.evaluator.modules.classification_evaluator import (
+        from mmp.components.evaluator.modules.classification_evaluator import (
             ClassificationEvaluator,
         )
-        from src.components.evaluator.modules.regression_evaluator import RegressionEvaluator
+        from mmp.components.evaluator.modules.regression_evaluator import RegressionEvaluator
 
         assert cls_evaluator_class is ClassificationEvaluator
         assert reg_evaluator_class is RegressionEvaluator
@@ -182,7 +182,7 @@ class TestRegistryCacheInteraction:
         adapter2 = factory2.create_data_adapter("storage")
 
         # Both should be StorageAdapter but different instances (separate caches)
-        from src.components.adapter.modules.storage_adapter import StorageAdapter
+        from mmp.components.adapter.modules.storage_adapter import StorageAdapter
 
         assert isinstance(adapter1, StorageAdapter)
         assert isinstance(adapter2, StorageAdapter)

@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from src.cli.utils.system_checker import CheckStatus, SystemChecker
+from mmp.cli.utils.system_checker import CheckStatus, SystemChecker
 
 
 class TestSystemChecker:

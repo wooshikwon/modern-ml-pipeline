@@ -9,8 +9,8 @@ import pandas as pd
 import pytest
 import sqlalchemy
 
-from src.components.adapter.modules.sql_adapter import SqlAdapter
-from src.components.adapter.base import BaseAdapter
+from mmp.components.adapter.modules.sql_adapter import SqlAdapter
+from mmp.components.adapter.base import BaseAdapter
 
 
 class TestSqlAdapterWithRealDatabase:

@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
-from src.utils.deps.dependencies import validate_dependencies
+from mmp.utils.deps.dependencies import validate_dependencies
 
 
 class TestDependenciesValidation:

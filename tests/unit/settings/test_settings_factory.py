@@ -22,9 +22,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.settings.config import Config
-from src.settings.factory import Settings, SettingsFactory
-from src.settings.recipe import Recipe
+from mmp.settings.config import Config
+from mmp.settings.factory import Settings, SettingsFactory
+from mmp.settings.recipe import Recipe
 
 
 class TestSettingsFactoryForTraining:
@@ -391,7 +391,7 @@ output:
         run_id = "test_serving_run_123"
 
         # Mock MLflow recipe restoration (external service - mocking allowed)
-        with patch("src.settings.factory.MLflowArtifactRestorer") as mock_restorer_class:
+        with patch("mmp.settings.factory.MLflowArtifactRestorer") as mock_restorer_class:
             mock_restorer = MagicMock()
             mock_restorer_class.return_value = mock_restorer
 
@@ -475,7 +475,7 @@ output:
         run_id = "staging_run_456"
 
         # Mock successful MLflow restoration and validation
-        with patch("src.settings.factory.MLflowArtifactRestorer") as mock_restorer_class:
+        with patch("mmp.settings.factory.MLflowArtifactRestorer") as mock_restorer_class:
             mock_restorer = MagicMock()
             mock_restorer_class.return_value = mock_restorer
 
@@ -545,7 +545,7 @@ output:
         run_id = "inference_run_789"
 
         # Mock MLflow recipe restoration
-        with patch("src.settings.factory.MLflowArtifactRestorer") as mock_restorer_class:
+        with patch("mmp.settings.factory.MLflowArtifactRestorer") as mock_restorer_class:
             mock_restorer = MagicMock()
             mock_restorer_class.return_value = mock_restorer
 
@@ -645,7 +645,7 @@ LIMIT 10000
         context_params = {"start_date": "2024-01-15", "end_date": "2024-01-15"}
 
         # Mock MLflow recipe restoration
-        with patch("src.settings.factory.MLflowArtifactRestorer") as mock_restorer_class:
+        with patch("mmp.settings.factory.MLflowArtifactRestorer") as mock_restorer_class:
             mock_restorer = MagicMock()
             mock_restorer_class.return_value = mock_restorer
 
@@ -1367,7 +1367,7 @@ output:
         run_id = "invalid_inference_run"
 
         # Mock MLflow restoration but validation will fail
-        with patch("src.settings.factory.MLflowArtifactRestorer") as mock_restorer_class:
+        with patch("mmp.settings.factory.MLflowArtifactRestorer") as mock_restorer_class:
             mock_restorer = MagicMock()
             mock_restorer_class.return_value = mock_restorer
 
@@ -1396,7 +1396,7 @@ output:
             mock_restorer.restore_recipe.return_value = mock_recipe
 
             # Mock validation to return failure
-            with patch("src.settings.factory.ValidationOrchestrator") as mock_orchestrator_class:
+            with patch("mmp.settings.factory.ValidationOrchestrator") as mock_orchestrator_class:
                 mock_validator = MagicMock()
                 mock_orchestrator_class.return_value = mock_validator
 
@@ -1596,7 +1596,7 @@ class TestSettingsFactoryJinjaTemplateHandling:
 
         # Mock the render function to raise error
         with patch(
-            "src.utils.template.templating_utils.render_template_from_string"
+            "mmp.utils.template.templating_utils.render_template_from_string"
         ) as mock_render:
             mock_render.side_effect = ValueError("Undefined variable: undefined_variable")
 
@@ -2076,7 +2076,7 @@ metadata:
         data_path.write_text("id,feature,target\n1,0.5,1\n")
 
         # When: Using backward compatibility function
-        from src.settings.factory import load_settings
+        from mmp.settings.factory import load_settings
 
         settings = load_settings(
             recipe_path=str(recipe_path), config_path=str(config_path), data_path=str(data_path)

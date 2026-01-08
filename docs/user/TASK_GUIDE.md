@@ -41,7 +41,7 @@ Modern ML Pipeline에서 수행할 수 있는 작업(Task)의 종류와, 각 작
 | **LightGBM** | `lightgbm.LGBMClassifier` | 대용량 데이터에서 학습 속도가 매우 빠름 |
 | **CatBoost** | `catboost.CatBoostClassifier` | 범주형 변수가 많을 때 별도 전처리 없이 강력함 |
 | **Scikit-learn** | `sklearn.ensemble.RandomForestClassifier` | 튜닝 없이도 준수한 성능, 과적합에 강함 |
-| **TabNet** | `src.models.custom.tabnet_wrapper.TabNetClassifierWrapper` | 딥러닝 기반, 피처 중요도 해석 가능 |
+| **TabNet** | `mmp.models.custom.tabnet_wrapper.TabNetClassifierWrapper` | 딥러닝 기반, 피처 중요도 해석 가능 |
 
 ### 평가 지표 (Metrics)
 
@@ -87,7 +87,7 @@ model:
 | **XGBoost** | `xgboost.XGBRegressor` | 강력한 성능, 결측치 자동 처리 |
 | **LightGBM** | `lightgbm.LGBMRegressor` | 대규모 데이터셋에 효율적 |
 | **Scikit-learn** | `sklearn.linear_model.LinearRegression` | 결과 해석이 중요할 때 (기본 모델) |
-| **TabNet** | `src.models.custom.tabnet_wrapper.TabNetRegressorWrapper` | 딥러닝 기반 회귀 |
+| **TabNet** | `mmp.models.custom.tabnet_wrapper.TabNetRegressorWrapper` | 딥러닝 기반 회귀 |
 
 ### 평가 지표 (Metrics)
 
@@ -155,7 +155,7 @@ data:
     target_column: daily_sales
     feature_columns: null  # ARIMA는 target만 사용
 model:
-  class_path: src.models.custom.timeseries_wrappers.ARIMA
+  class_path: mmp.models.custom.timeseries_wrappers.ARIMA
   hyperparameters:
     values:
       order_p: 1
@@ -178,7 +178,7 @@ data:
     feature_columns: [temperature, is_holiday, promotion]
     sequence_length: 14  # 14일치 시퀀스로 학습
 model:
-  class_path: src.models.custom.lstm_timeseries.LSTMTimeSeries
+  class_path: mmp.models.custom.lstm_timeseries.LSTMTimeSeries
   hyperparameters:
     values:
       hidden_dim: 64

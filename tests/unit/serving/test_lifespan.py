@@ -8,17 +8,17 @@ from unittest.mock import Mock, patch
 import pytest
 from pydantic import BaseModel
 
-from src.serving._context import app_context
-from src.serving._lifespan import lifespan, setup_api_context
+from mmp.serving._context import app_context
+from mmp.serving._lifespan import lifespan, setup_api_context
 
 
 class TestAPIContextSetup:
     """Test setup_api_context interface contract and call sequence"""
 
-    @patch("src.serving._lifespan.create_batch_prediction_request")
-    @patch("src.serving._lifespan.create_datainterface_based_prediction_request_v2")
-    @patch("src.serving._lifespan.bootstrap")
-    @patch("src.serving._lifespan.mlflow")
+    @patch("mmp.serving._lifespan.create_batch_prediction_request")
+    @patch("mmp.serving._lifespan.create_datainterface_based_prediction_request_v2")
+    @patch("mmp.serving._lifespan.bootstrap")
+    @patch("mmp.serving._lifespan.mlflow")
     def test_setup_with_datainterface_v2(
         self, mock_mlflow, mock_bootstrap, mock_create_v2, mock_create_batch
     ):
@@ -62,11 +62,11 @@ class TestAPIContextSetup:
         assert app_context.PredictionRequest == mock_prediction_request
         assert app_context.BatchPredictionRequest == mock_batch_request
 
-    @patch("src.serving._lifespan.parse_select_columns")
-    @patch("src.serving._lifespan.create_batch_prediction_request")
-    @patch("src.serving._lifespan.create_dynamic_prediction_request")
-    @patch("src.serving._lifespan.bootstrap")
-    @patch("src.serving._lifespan.mlflow")
+    @patch("mmp.serving._lifespan.parse_select_columns")
+    @patch("mmp.serving._lifespan.create_batch_prediction_request")
+    @patch("mmp.serving._lifespan.create_dynamic_prediction_request")
+    @patch("mmp.serving._lifespan.bootstrap")
+    @patch("mmp.serving._lifespan.mlflow")
     def test_fallback_to_legacy_without_datainterface(
         self,
         mock_mlflow,
@@ -114,10 +114,10 @@ class TestAPIContextSetup:
         assert app_context.PredictionRequest == mock_legacy_request
         assert app_context.BatchPredictionRequest == mock_batch_request
 
-    @patch("src.serving._lifespan.create_batch_prediction_request")
-    @patch("src.serving._lifespan.create_dynamic_prediction_request")
-    @patch("src.serving._lifespan.bootstrap")
-    @patch("src.serving._lifespan.mlflow")
+    @patch("mmp.serving._lifespan.create_batch_prediction_request")
+    @patch("mmp.serving._lifespan.create_dynamic_prediction_request")
+    @patch("mmp.serving._lifespan.bootstrap")
+    @patch("mmp.serving._lifespan.mlflow")
     def test_fallback_with_data_schema_entity_columns(
         self, mock_mlflow, mock_bootstrap, mock_create_dynamic, mock_create_batch
     ):
@@ -154,8 +154,8 @@ class TestAPIContextSetup:
         assert app_context.PredictionRequest == mock_entity_request
         assert app_context.BatchPredictionRequest == mock_batch_request
 
-    @patch("src.serving._lifespan.bootstrap")
-    @patch("src.serving._lifespan.mlflow")
+    @patch("mmp.serving._lifespan.bootstrap")
+    @patch("mmp.serving._lifespan.mlflow")
     def test_error_handling_in_setup(self, mock_mlflow, mock_bootstrap):
         """Test error handling during context setup"""
         # Given: Mock MLflow to fail
@@ -215,10 +215,10 @@ class TestLifespanEvents:
 class TestSchemaGenerationPriority:
     """Test schema generation priority order using real components"""
 
-    @patch("src.serving._lifespan.create_batch_prediction_request")
-    @patch("src.serving._lifespan.create_datainterface_based_prediction_request_v2")
-    @patch("src.serving._lifespan.bootstrap")
-    @patch("src.serving._lifespan.mlflow")
+    @patch("mmp.serving._lifespan.create_batch_prediction_request")
+    @patch("mmp.serving._lifespan.create_datainterface_based_prediction_request_v2")
+    @patch("mmp.serving._lifespan.bootstrap")
+    @patch("mmp.serving._lifespan.mlflow")
     def test_datainterface_priority_over_legacy(
         self, mock_mlflow, mock_bootstrap, mock_create_v2, mock_create_batch
     ):
@@ -262,11 +262,11 @@ class TestSchemaGenerationPriority:
         assert app_context.PredictionRequest == mock_prediction_request
         assert app_context.BatchPredictionRequest == mock_batch_request
 
-    @patch("src.serving._lifespan.parse_select_columns")
-    @patch("src.serving._lifespan.create_batch_prediction_request")
-    @patch("src.serving._lifespan.create_dynamic_prediction_request")
-    @patch("src.serving._lifespan.bootstrap")
-    @patch("src.serving._lifespan.mlflow")
+    @patch("mmp.serving._lifespan.parse_select_columns")
+    @patch("mmp.serving._lifespan.create_batch_prediction_request")
+    @patch("mmp.serving._lifespan.create_dynamic_prediction_request")
+    @patch("mmp.serving._lifespan.bootstrap")
+    @patch("mmp.serving._lifespan.mlflow")
     def test_fallback_when_no_datainterface(
         self,
         mock_mlflow,

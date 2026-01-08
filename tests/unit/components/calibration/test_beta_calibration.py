@@ -9,7 +9,7 @@ from sklearn.datasets import make_classification
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 
-from src.components.calibration.modules.beta_calibration import BetaCalibration
+from mmp.components.calibration.modules.beta_calibration import BetaCalibration
 
 
 class TestBetaCalibration:

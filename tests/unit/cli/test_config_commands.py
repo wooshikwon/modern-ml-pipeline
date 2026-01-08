@@ -8,7 +8,7 @@ from unittest.mock import patch
 import typer
 from typer.testing import CliRunner
 
-from src.cli.commands.get_config_command import get_config_command
+from mmp.cli.commands.get_config_command import get_config_command
 
 
 class TestGetConfigCommandArgumentParsing:

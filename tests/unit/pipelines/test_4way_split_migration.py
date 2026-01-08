@@ -19,8 +19,8 @@ import pandas as pd
 import pytest
 
 # Test 대상 imports
-from src.components.datahandler.modules.tabular_handler import TabularDataHandler
-from src.components.datahandler.base import BaseDataHandler
+from mmp.components.datahandler.modules.tabular_handler import TabularDataHandler
+from mmp.components.datahandler.base import BaseDataHandler
 
 
 class TestStandardized4WaySplitInterface:

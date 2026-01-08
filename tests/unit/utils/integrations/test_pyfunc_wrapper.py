@@ -1,7 +1,7 @@
 """
 MLflow PyFunc wrapper comprehensive testing
 Follows tests/README.md philosophy with Context classes
-Tests for src/utils/integrations/pyfunc_wrapper.py
+Tests for mmp/utils/integrations/pyfunc_wrapper.py
 
 Author: Phase 2A Development
 Date: 2025-09-13
@@ -14,7 +14,7 @@ import pandas as pd
 import pytest
 import yaml
 
-from src.utils.integrations.pyfunc_wrapper import PyfuncWrapper
+from mmp.utils.integrations.pyfunc_wrapper import PyfuncWrapper
 
 
 class TestPyfuncWrapperInitialization:

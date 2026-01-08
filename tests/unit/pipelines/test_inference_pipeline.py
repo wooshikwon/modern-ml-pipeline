@@ -5,7 +5,7 @@ Unit tests for inference pipeline format_predictions function.
 import numpy as np
 import pandas as pd
 
-from src.utils.data.data_io import format_predictions
+from mmp.utils.data.data_io import format_predictions
 
 
 class TestFormatPredictions:

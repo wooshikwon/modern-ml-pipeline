@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 import typer
 from typer.testing import CliRunner
 
-from src.cli.commands.serve_command import serve_api_command
+from mmp.cli.commands.serve_command import serve_api_command
 
 
 class TestServeCommandWithRealComponents:
@@ -22,8 +22,8 @@ class TestServeCommandWithRealComponents:
         self.app = typer.Typer()
         self.app.command()(serve_api_command)
 
-    @patch("src.cli.commands.serve_command.run_api_server")
-    @patch("src.cli.commands.serve_command.SettingsFactory")
+    @patch("mmp.cli.commands.serve_command.run_api_server")
+    @patch("mmp.cli.commands.serve_command.SettingsFactory")
     def test_serve_command_with_required_arguments(
         self, mock_settings_factory, mock_run_server, cli_test_environment
     ):
@@ -53,8 +53,8 @@ class TestServeCommandWithRealComponents:
         # Command should succeed
         assert result.exit_code == 0
 
-    @patch("src.cli.commands.serve_command.run_api_server")
-    @patch("src.cli.commands.serve_command.SettingsFactory")
+    @patch("mmp.cli.commands.serve_command.run_api_server")
+    @patch("mmp.cli.commands.serve_command.SettingsFactory")
     def test_serve_command_with_custom_host_port(
         self, mock_settings_factory, mock_run_server, cli_test_environment
     ):
@@ -94,7 +94,7 @@ class TestServeCommandWithRealComponents:
 
         assert result.exit_code == 0
 
-    @patch("src.cli.commands.serve_command.run_api_server")
+    @patch("mmp.cli.commands.serve_command.run_api_server")
     def test_serve_command_port_validation(self, mock_run_server, cli_test_environment):
         """Test serve command validates port range with real components"""
         mock_run_server.return_value = None
@@ -118,7 +118,7 @@ class TestServeCommandWithRealComponents:
         assert "--host" in result.output
         assert "--port" in result.output
 
-    @patch("src.cli.commands.serve_command.run_api_server")
+    @patch("mmp.cli.commands.serve_command.run_api_server")
     def test_serve_command_missing_required_args(self, mock_run_server):
         """Test serve command fails gracefully when required args missing"""
         # Execute without required arguments
@@ -132,8 +132,8 @@ class TestServeCommandWithRealComponents:
 class TestServeCommandIntegration:
     """Integration tests for serve command with real MLflow context"""
 
-    @patch("src.cli.commands.serve_command.run_api_server")
-    @patch("src.cli.commands.serve_command.SettingsFactory")
+    @patch("mmp.cli.commands.serve_command.run_api_server")
+    @patch("mmp.cli.commands.serve_command.SettingsFactory")
     def test_serve_command_error_handling_settings_failure(
         self, mock_settings_factory, mock_run_server, cli_test_environment
     ):
@@ -157,8 +157,8 @@ class TestServeCommandIntegration:
         # Verify SettingsFactory was called
         mock_settings_factory.for_serving.assert_called_once()
 
-    @patch("src.cli.commands.serve_command.run_api_server")
-    @patch("src.cli.commands.serve_command.SettingsFactory")
+    @patch("mmp.cli.commands.serve_command.run_api_server")
+    @patch("mmp.cli.commands.serve_command.SettingsFactory")
     def test_serve_command_error_handling_missing_config(
         self, mock_settings_factory, mock_run_server
     ):
@@ -185,8 +185,8 @@ class TestServeCommandIntegration:
             run_id="test_run", config_path="/non/existent/config.yaml"
         )
 
-    @patch("src.cli.commands.serve_command.run_api_server")
-    @patch("src.cli.commands.serve_command.SettingsFactory")
+    @patch("mmp.cli.commands.serve_command.run_api_server")
+    @patch("mmp.cli.commands.serve_command.SettingsFactory")
     def test_serve_command_console_integration(
         self, mock_settings_factory, mock_run_server, cli_test_environment
     ):
@@ -228,8 +228,8 @@ class TestServeCommandIntegration:
             settings=mock_settings, run_id=test_run_id, host="127.0.0.1", port=9000
         )
 
-    @patch("src.cli.commands.serve_command.run_api_server")
-    @patch("src.cli.commands.serve_command.SettingsFactory")
+    @patch("mmp.cli.commands.serve_command.run_api_server")
+    @patch("mmp.cli.commands.serve_command.SettingsFactory")
     def test_serve_command_value_error_handling(
         self, mock_settings_factory, mock_run_server, cli_test_environment, caplog
     ):
@@ -261,8 +261,8 @@ class TestServeCommandIntegration:
             keyword in caplog.text.lower() for keyword in ["error", "invalid", "configuration"]
         )
 
-    @patch("src.cli.commands.serve_command.run_api_server")
-    @patch("src.cli.commands.serve_command.SettingsFactory")
+    @patch("mmp.cli.commands.serve_command.run_api_server")
+    @patch("mmp.cli.commands.serve_command.SettingsFactory")
     def test_serve_command_generic_exception_handling(
         self, mock_settings_factory, mock_run_server, cli_test_environment
     ):
@@ -283,8 +283,8 @@ class TestServeCommandIntegration:
         assert result.exit_code != 0
         assert mock_run_server.call_count == 0
 
-    @patch("src.cli.commands.serve_command.run_api_server")
-    @patch("src.cli.commands.serve_command.SettingsFactory")
+    @patch("mmp.cli.commands.serve_command.run_api_server")
+    @patch("mmp.cli.commands.serve_command.SettingsFactory")
     def test_serve_command_with_progress_tracking(
         self, mock_settings_factory, mock_run_server, cli_test_environment
     ):

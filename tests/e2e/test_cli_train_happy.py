@@ -2,7 +2,7 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from src.cli.main_commands import app
+from mmp.cli.main_commands import app
 
 
 class TestCLITrainHappy:

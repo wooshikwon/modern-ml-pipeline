@@ -9,9 +9,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from src.factory import Factory
-from src.pipelines.train_pipeline import run_train_pipeline
-from src.settings import load_settings
+from mmp.factory import Factory
+from mmp.pipelines.train_pipeline import run_train_pipeline
+from mmp.settings import load_settings
 
 
 class TestPipelineOrchestration:
@@ -621,9 +621,9 @@ evaluation:
         ]:
             try:
                 # Create settings from config data
-                from src.settings import Settings
-                from src.settings.config import Config
-                from src.settings.recipe import Recipe
+                from mmp.settings import Settings
+                from mmp.settings.config import Config
+                from mmp.settings.recipe import Recipe
 
                 # Create minimal recipe
                 recipe_data = {
@@ -800,14 +800,14 @@ class TestPipelineCalibrationIntegration:
         )
 
         # When: Creating Factory and calibrator
-        from src.factory import Factory
+        from mmp.factory import Factory
 
         factory = Factory(settings)
         calibrator = factory.create_calibrator()
 
         # Then: Calibrator is created successfully
         assert calibrator is not None
-        from src.components.calibration.modules.beta_calibration import BetaCalibration
+        from mmp.components.calibration.modules.beta_calibration import BetaCalibration
 
         assert isinstance(calibrator, BetaCalibration)
 
@@ -856,7 +856,7 @@ class TestPipelineCalibrationIntegration:
                 return y_prob
 
         # When: Creating Factory and calibration evaluator
-        from src.factory import Factory
+        from mmp.factory import Factory
 
         factory = Factory(settings)
 
@@ -867,7 +867,7 @@ class TestPipelineCalibrationIntegration:
 
         # Then: Calibration evaluator is created successfully
         assert evaluator is not None
-        from src.factory import CalibrationEvaluatorWrapper
+        from mmp.factory import CalibrationEvaluatorWrapper
 
         assert isinstance(evaluator, CalibrationEvaluatorWrapper)
         assert hasattr(evaluator, "evaluate")
@@ -905,7 +905,7 @@ class TestPipelineCalibrationIntegration:
         )
 
         # When: Testing integration with datahandler
-        from src.factory import Factory
+        from mmp.factory import Factory
 
         factory = Factory(settings)
 

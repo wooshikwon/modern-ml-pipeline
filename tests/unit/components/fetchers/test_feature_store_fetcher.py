@@ -10,8 +10,8 @@ from datetime import datetime, timedelta
 import pandas as pd
 import pytest
 
-from src.components.fetcher.modules.feature_store_fetcher import FeatureStoreFetcher
-from src.components.fetcher.base import BaseFetcher
+from mmp.components.fetcher.modules.feature_store_fetcher import FeatureStoreFetcher
+from mmp.components.fetcher.base import BaseFetcher
 
 # Skip all tests in this module if feast is not installed
 try:
@@ -140,7 +140,7 @@ class TestFeatureStoreFetcherWithRealStore:
         settings = settings_builder.with_feature_store(enabled=True).build()
 
         # When: Creating FeatureStoreFetcher with real factory
-        from src.factory import Factory
+        from mmp.factory import Factory
 
         factory = Factory(settings)
 
@@ -184,7 +184,7 @@ class TestFeatureStoreFetcherWithRealStore:
         )
 
         # When: Testing interface behavior
-        from src.factory import Factory
+        from mmp.factory import Factory
 
         factory = Factory(settings)
 
@@ -222,7 +222,7 @@ class TestFeatureStoreFetcherWithRealStore:
         # Test data for different modes
         input_df = pd.DataFrame({"user_id": [1, 2, 3], "event_timestamp": [datetime.now()] * 3})
 
-        from src.factory import Factory
+        from mmp.factory import Factory
 
         factory = Factory(settings)
 
@@ -263,7 +263,7 @@ class TestFeatureStoreFetcherWithRealStore:
         # Test 2: Feature store disabled
         settings_disabled = settings_builder.with_feature_store(enabled=False).build()
 
-        from src.factory import Factory
+        from mmp.factory import Factory
 
         # When: Testing configuration validation
         for settings, description in [
@@ -306,7 +306,7 @@ class TestFeatureStoreFetcherWithRealStore:
             pd.DataFrame({"user_id": [1, 2, 3], "event_timestamp": [datetime.now()] * 3}),
         ]
 
-        from src.factory import Factory
+        from mmp.factory import Factory
 
         factory = Factory(settings)
 
@@ -342,7 +342,7 @@ class TestFeatureStoreFetcherWithRealStore:
         # Given: Settings that might cause various types of errors
         settings = settings_builder.with_feature_store(enabled=True).build()
 
-        from src.factory import Factory
+        from mmp.factory import Factory
 
         factory = Factory(settings)
 

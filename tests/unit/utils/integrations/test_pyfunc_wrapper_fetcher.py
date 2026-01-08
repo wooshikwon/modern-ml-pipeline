@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.utils.integrations.pyfunc_wrapper import PyfuncWrapper
+from mmp.utils.integrations.pyfunc_wrapper import PyfuncWrapper
 
 
 class TestPyfuncWrapperFetcherIntegration:

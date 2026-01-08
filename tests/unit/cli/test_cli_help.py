@@ -1,6 +1,6 @@
 from typer.testing import CliRunner
 
-from src.cli.main_commands import app
+from mmp.cli.main_commands import app
 
 
 def test_cli_help_shows_commands():

@@ -4,10 +4,10 @@ from typing import Optional
 
 from fastapi.testclient import TestClient
 
-from src.pipelines.train_pipeline import run_train_pipeline
-from src.serving._context import app_context
-from src.serving._lifespan import setup_api_context
-from src.serving.router import app
+from mmp.pipelines.train_pipeline import run_train_pipeline
+from mmp.serving._context import app_context
+from mmp.serving._lifespan import setup_api_context
+from mmp.serving.router import app
 
 
 class ServingTestContext:

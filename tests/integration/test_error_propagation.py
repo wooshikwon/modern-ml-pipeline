@@ -7,10 +7,10 @@ Following comprehensive testing strategy document principles
 import numpy as np
 import pandas as pd
 
-from src.factory import Factory
-from src.pipelines.inference_pipeline import run_inference_pipeline
-from src.pipelines.train_pipeline import run_train_pipeline
-from src.settings import load_settings
+from mmp.factory import Factory
+from mmp.pipelines.inference_pipeline import run_inference_pipeline
+from mmp.pipelines.train_pipeline import run_train_pipeline
+from mmp.settings import load_settings
 
 
 class TestErrorPropagationAcrossLayers:

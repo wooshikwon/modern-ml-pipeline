@@ -7,10 +7,10 @@ from unittest.mock import patch
 
 import pytest
 
-from src.settings import Settings
-from src.settings.config import Config
-from src.settings.factory import SettingsFactory
-from src.settings.recipe import Recipe
+from mmp.settings import Settings
+from mmp.settings.config import Config
+from mmp.settings.factory import SettingsFactory
+from mmp.settings.recipe import Recipe
 
 
 class TestEnvironmentVariableResolution:
@@ -201,7 +201,7 @@ model:
       max_depth: 5
 data:
   loader:
-    class_path: src.components.datahandler.DataHandler
+    class_path: mmp.components.datahandler.DataHandler
   fetcher:
     type: pass_through
   data_interface:
@@ -323,7 +323,7 @@ model:
       n_estimators: 100
 data:
   loader:
-    class_path: src.components.datahandler.DataHandler
+    class_path: mmp.components.datahandler.DataHandler
   fetcher:
     type: pass_through
   data_interface:

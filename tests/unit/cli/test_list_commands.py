@@ -8,7 +8,7 @@ from unittest.mock import patch
 import typer
 from typer.testing import CliRunner
 
-from src.cli.commands.list_commands import (
+from mmp.cli.commands.list_commands import (
     list_adapters,
     list_evaluators,
     list_models,
@@ -29,7 +29,7 @@ class TestListCommandsArgumentParsing:
         self.app.command("models")(list_models)
         self.app.command("preprocessors")(list_preprocessors)
 
-    @patch("src.cli.commands.list_commands.AdapterRegistry.list_keys")
+    @patch("mmp.cli.commands.list_commands.AdapterRegistry.list_keys")
     def test_list_adapters_command(self, mock_list_keys):
         """Test list adapters command execution"""
         # Setup mock
@@ -47,7 +47,7 @@ class TestListCommandsArgumentParsing:
         # Verify registry was called
         mock_list_keys.assert_called_once()
 
-    @patch("src.cli.commands.list_commands.EvaluatorRegistry.list_keys")
+    @patch("mmp.cli.commands.list_commands.EvaluatorRegistry.list_keys")
     def test_list_evaluators_command(self, mock_list_keys):
         """Test list evaluators command execution"""
         # Setup mock
@@ -65,7 +65,7 @@ class TestListCommandsArgumentParsing:
         # Verify registry was called
         mock_list_keys.assert_called_once()
 
-    @patch("src.cli.commands.list_commands._load_catalog_from_directory")
+    @patch("mmp.cli.commands.list_commands._load_catalog_from_directory")
     @patch("pathlib.Path.exists")
     def test_list_models_command(self, mock_path_exists, mock_load_catalog):
         """Test list models command execution"""
@@ -91,7 +91,7 @@ class TestListCommandsArgumentParsing:
         # Verify catalog loader was called
         mock_load_catalog.assert_called_once()
 
-    @patch("src.cli.commands.list_commands.PreprocessorStepRegistry.list_keys")
+    @patch("mmp.cli.commands.list_commands.PreprocessorStepRegistry.list_keys")
     def test_list_preprocessors_command(self, mock_list_keys):
         """Test list preprocessors command execution"""
         # Setup mock
@@ -109,7 +109,7 @@ class TestListCommandsArgumentParsing:
         # Verify registry was called
         mock_list_keys.assert_called_once()
 
-    @patch("src.cli.commands.list_commands.AdapterRegistry.list_keys")
+    @patch("mmp.cli.commands.list_commands.AdapterRegistry.list_keys")
     def test_list_adapters_empty_registry(self, mock_list_keys):
         """Test list adapters when no adapters are available"""
         # Setup mock to return empty
@@ -133,7 +133,7 @@ class TestListCommandsArgumentParsing:
             assert result.exit_code == 0
             assert cmd in result.output.lower()
 
-    @patch("src.cli.commands.list_commands._load_catalog_from_directory")
+    @patch("mmp.cli.commands.list_commands._load_catalog_from_directory")
     @patch("pathlib.Path.exists")
     def test_list_models_handles_catalog_error(self, mock_path_exists, mock_fallback_catalog):
         """Test list models handles catalog loading errors gracefully"""

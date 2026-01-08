@@ -8,15 +8,15 @@ comprehensive testing strategy - No Mock Hell approach with real components.
 
 import pandas as pd
 
-from src.components.adapter.modules.storage_adapter import StorageAdapter
-from src.components.evaluator.modules.classification_evaluator import ClassificationEvaluator
-from src.components.evaluator.modules.regression_evaluator import RegressionEvaluator
-from src.factory import Factory
-from src.components.adapter.base import BaseAdapter
-from src.components.datahandler.base import BaseDataHandler
-from src.components.evaluator.base import BaseEvaluator
-from src.components.fetcher.base import BaseFetcher
-from src.components.trainer.base import BaseTrainer
+from mmp.components.adapter.modules.storage_adapter import StorageAdapter
+from mmp.components.evaluator.modules.classification_evaluator import ClassificationEvaluator
+from mmp.components.evaluator.modules.regression_evaluator import RegressionEvaluator
+from mmp.factory import Factory
+from mmp.components.adapter.base import BaseAdapter
+from mmp.components.datahandler.base import BaseDataHandler
+from mmp.components.evaluator.base import BaseEvaluator
+from mmp.components.fetcher.base import BaseFetcher
+from mmp.components.trainer.base import BaseTrainer
 
 
 class TestFactoryDataAdapterCreation:
@@ -56,7 +56,7 @@ class TestFactoryDataAdapterCreation:
         adapter = factory.create_data_adapter("sql")  # Explicit type
 
         # Validate correct adapter type
-        from src.components.adapter.modules.sql_adapter import SqlAdapter
+        from mmp.components.adapter.modules.sql_adapter import SqlAdapter
 
         assert isinstance(adapter, SqlAdapter)
         assert isinstance(adapter, BaseAdapter)
@@ -424,7 +424,7 @@ class TestFactoryPyfuncWrapperCreation:
         )
 
         # Validate wrapper
-        from src.utils.integrations.pyfunc_wrapper import PyfuncWrapper
+        from mmp.utils.integrations.pyfunc_wrapper import PyfuncWrapper
 
         assert isinstance(pyfunc_wrapper, PyfuncWrapper)
         assert pyfunc_wrapper.trained_model is model
@@ -461,7 +461,7 @@ class TestFactoryPyfuncWrapperCreation:
         )
 
         # Validate wrapper with all components
-        from src.utils.integrations.pyfunc_wrapper import PyfuncWrapper
+        from mmp.utils.integrations.pyfunc_wrapper import PyfuncWrapper
 
         assert isinstance(pyfunc_wrapper, PyfuncWrapper)
         assert pyfunc_wrapper.trained_model is model

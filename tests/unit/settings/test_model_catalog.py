@@ -1,15 +1,15 @@
 """
 Model catalog validation comprehensive testing
 Follows tests/README.md philosophy with Context classes and Real Object Testing
-Tests for src/settings/validation catalog validation components
+Tests for mmp/settings/validation catalog validation components
 
 Author: Phase 3 Refactoring
 Date: 2025-09-14
 """
 
-from src.settings.recipe import HyperparametersTuning, Model
-from src.settings.validation.catalog_validator import CatalogValidator
-from src.settings.validation.common import ValidationResult
+from mmp.settings.recipe import HyperparametersTuning, Model
+from mmp.settings.validation.catalog_validator import CatalogValidator
+from mmp.settings.validation.common import ValidationResult
 
 
 class TestCatalogValidatorTaskValidation:

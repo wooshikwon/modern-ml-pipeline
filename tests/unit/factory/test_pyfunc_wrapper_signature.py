@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from src.factory import Factory
+from mmp.factory import Factory
 
 
 class TestPyfuncWrapperSignature:

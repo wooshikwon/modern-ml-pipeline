@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.models.custom.timeseries_wrappers import ARIMA, ExponentialSmoothing
+from mmp.models.custom.timeseries_wrappers import ARIMA, ExponentialSmoothing
 
 
 class TestARIMA:
@@ -197,7 +197,7 @@ class TestTimeseriesWrappersIntegration:
         assert hasattr(exp_smooth, "predict")
 
         # BaseModel 상속 확인
-        from src.models.base import BaseModel
+        from mmp.models.base import BaseModel
 
         assert isinstance(arima, BaseModel)
         assert isinstance(exp_smooth, BaseModel)
@@ -205,7 +205,7 @@ class TestTimeseriesWrappersIntegration:
     def test_timeseries_wrappers_module_exports(self):
         """모듈 export 확인"""
         # Given: timeseries_wrappers 모듈
-        from src.models.custom import timeseries_wrappers
+        from mmp.models.custom import timeseries_wrappers
 
         # When & Then: __all__에 정의된 클래스들이 export되는지 확인
         assert hasattr(timeseries_wrappers, "__all__")

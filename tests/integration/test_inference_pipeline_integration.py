@@ -3,8 +3,8 @@ import pandas as pd
 import pytest
 from mlflow.tracking import MlflowClient
 
-from src.pipelines.inference_pipeline import run_inference_pipeline
-from src.pipelines.train_pipeline import run_train_pipeline
+from mmp.pipelines.inference_pipeline import run_inference_pipeline
+from mmp.pipelines.train_pipeline import run_train_pipeline
 
 
 class TestInferencePipeline:

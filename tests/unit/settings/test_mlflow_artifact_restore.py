@@ -8,8 +8,8 @@ MLflow Artifact 저장/복원 시스템 테스트
 import mlflow
 import pytest
 
-from src.settings import Config, Recipe
-from src.settings.mlflow_restore import (
+from mmp.settings import Config, Recipe
+from mmp.settings.mlflow_restore import (
     MLflowArtifactRestorer,
     MLflowArtifactSaver,
     restore_all_from_mlflow,

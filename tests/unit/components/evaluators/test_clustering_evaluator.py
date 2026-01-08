@@ -8,8 +8,8 @@ import numpy as np
 from sklearn.cluster import Birch, KMeans
 from sklearn.mixture import GaussianMixture
 
-from src.components.evaluator.modules.clustering_evaluator import ClusteringEvaluator
-from src.components.evaluator.base import BaseEvaluator
+from mmp.components.evaluator.modules.clustering_evaluator import ClusteringEvaluator
+from mmp.components.evaluator.base import BaseEvaluator
 
 
 class TestClusteringEvaluator:

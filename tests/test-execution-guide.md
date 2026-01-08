@@ -54,18 +54,18 @@
 
 커버리지 측정 대상은 파일 경로가 아닌 **Python 모듈 경로**로 지정해야 정확히 측정됩니다.
 
-  - ✅ **올바른 방법**: `--cov=src.my_app`
-  - ❌ **잘못된 방법**: `--cov=src/my_app`
+  - ✅ **올바른 방법**: `--cov=mmp.my_app`
+  - ❌ **잘못된 방법**: `--cov=mmp/my_app`
 
 #### **표준 측정 명령어**
 
   - **전체 프로젝트 커버리지 측정**: 터미널에 미실행 라인까지 표시
     ```bash
-    pytest --cov=src --cov-report=term-missing
+    pytest --cov=mmp --cov-report=term-missing
     ```
   - **HTML 리포트 생성**: 시각적으로 커버리지를 분석할 수 있는 `htmlcov/` 디렉토리 생성
     ```bash
-    pytest --cov=src --cov-report=html
+    pytest --cov=mmp --cov-report=html
     ```
 
 -----
@@ -82,7 +82,7 @@ CI/CD 파이프라인에 테스트 실행 및 커버리지 검증을 통합하�
 # pyproject.toml
 [tool.pytest.ini_options]
 addopts = """
-    --cov=src
+    --cov=mmp
     --cov-report=term-missing
     --cov-fail-under=80
 """
@@ -106,7 +106,7 @@ addopts = """
 3.  **최종 검증 (배포 전)**: 전체 테스트를 실행하고 최종 커버리지 리포트를 생성합니다.
     ```bash
     - name: Run All Tests & Check Coverage
-      run: pytest --cov=src --cov-fail-under=80
+      run: pytest --cov=mmp --cov-fail-under=80
     ```
 
 -----
@@ -125,8 +125,8 @@ addopts = """
 
   - **문제: 커버리지가 0%로 측정됩니다.**
 
-      - **원인**: `cov` 경로를 점 표기법이 아닌 슬래시(`/`) 표기법으로 잘못 지정했거나, `src` 폴더가 Python 경로에 포함되지 않은 경우입니다.
-      - **해결**: 측정 명령어가 `--cov=src.my_app`과 같이 **점 표기법**을 올바르게 사용했는지 확인하세요.
+      - **원인**: `cov` 경로를 점 표기법이 아닌 슬래시(`/`) 표기법으로 잘못 지정했거나, `mmp` 폴더가 Python 경로에 포함되지 않은 경우입니다.
+      - **해결**: 측정 명령어가 `--cov=mmp.my_app`과 같이 **점 표기법**을 올바르게 사용했는지 확인하세요.
 
 -----
 

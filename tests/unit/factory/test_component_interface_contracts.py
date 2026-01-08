@@ -9,12 +9,12 @@ following comprehensive testing strategy - No Mock Hell approach with real compo
 import numpy as np
 import pandas as pd
 
-from src.factory import Factory
-from src.components.adapter.base import BaseAdapter
-from src.components.datahandler.base import BaseDataHandler
-from src.components.evaluator.base import BaseEvaluator
-from src.components.fetcher.base import BaseFetcher
-from src.components.trainer.base import BaseTrainer
+from mmp.factory import Factory
+from mmp.components.adapter.base import BaseAdapter
+from mmp.components.datahandler.base import BaseDataHandler
+from mmp.components.evaluator.base import BaseEvaluator
+from mmp.components.fetcher.base import BaseFetcher
+from mmp.components.trainer.base import BaseTrainer
 
 
 class TestBaseAdapterInterfaceContract:

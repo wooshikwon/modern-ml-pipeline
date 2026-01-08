@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "modern-ml-pipeline"
-version = "1.1.5"
+version = "1.1.6"
 description = "A modern, yaml-driven ML pipeline for multiple models."
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -117,12 +117,12 @@ Issues = "https://github.com/wooshikwon/modern-ml-pipeline/issues"
 Repository = "https://github.com/wooshikwon/modern-ml-pipeline"
 
 [project.scripts]
-modern-ml-pipeline = "src.__main__:main"
-ml-pipeline = "src.__main__:main"
-mmp = "src.__main__:main"
+modern-ml-pipeline = "mmp.__main__:main"
+ml-pipeline = "mmp.__main__:main"
+mmp = "mmp.__main__:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src"]
+packages = ["mmp"]
 
 [tool.hatch.build]
 exclude = [
@@ -137,26 +137,26 @@ exclude = [
 ]
 
 [tool.importlinter]
-root_package = "src"
+root_package = "mmp"
 
 [[tool.importlinter.contracts]]
 name = "Components must not import engine (upward dependency forbidden)"
 type = "forbidden"
 source_modules = [
-  "src.components"
+  "mmp.components"
 ]
 forbidden_modules = [
-  "src.factory",
+  "mmp.factory",
 ]
 
 [[tool.importlinter.contracts]]
 name = "Serving must not import pipelines directly"
 type = "forbidden"
 source_modules = [
-  "src.serving"
+  "mmp.serving"
 ]
 forbidden_modules = [
-  "src.pipelines",
+  "mmp.pipelines",
 ]
 
 [tool.ruff]
@@ -177,7 +177,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["F841", "F401", "F821"]  # Test fixtures and mocking patterns
-"src/**/__init__.py" = ["F401"]  # Re-exports in __init__.py
+"mmp/**/__init__.py" = ["F401"]  # Re-exports in __init__.py
 
 [tool.mypy]
 python_version = "3.11"
@@ -190,7 +190,7 @@ no_implicit_optional = true
 
 # Coverage configuration
 [tool.coverage.run]
-source = ["src"]
+source = ["mmp"]
 omit = [
     "*/tests/*",
     "*/__pycache__/*",

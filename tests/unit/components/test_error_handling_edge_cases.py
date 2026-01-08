@@ -19,12 +19,12 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.components.adapter.modules.storage_adapter import StorageAdapter
-from src.components.evaluator.modules.classification_evaluator import ClassificationEvaluator
-from src.components.preprocessor import Preprocessor
-from src.factory import Factory
-from src.settings.recipe import Preprocessor as PreprocessorConfig
-from src.settings.recipe import PreprocessorStep
+from mmp.components.adapter.modules.storage_adapter import StorageAdapter
+from mmp.components.evaluator.modules.classification_evaluator import ClassificationEvaluator
+from mmp.components.preprocessor import Preprocessor
+from mmp.factory import Factory
+from mmp.settings.recipe import Preprocessor as PreprocessorConfig
+from mmp.settings.recipe import PreprocessorStep
 
 
 class TestCriticalExceptionPaths:
@@ -32,7 +32,7 @@ class TestCriticalExceptionPaths:
 
     def test_factory_calibration_wrapper_no_predict_proba(self, settings_builder):
         """Test CalibrationEvaluatorWrapper with model lacking predict_proba."""
-        from src.factory import CalibrationEvaluatorWrapper
+        from mmp.factory import CalibrationEvaluatorWrapper
 
         # Given: Model without predict_proba method
         mock_model = Mock(spec=["predict"])  # No predict_proba

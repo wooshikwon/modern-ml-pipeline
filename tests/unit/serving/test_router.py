@@ -1,7 +1,7 @@
 """
 FastAPI router configuration and endpoint testing
 Follows tests/README.md philosophy with Context classes
-Tests for src/serving/router.py
+Tests for mmp/serving/router.py
 
 Author: Phase 2B Development
 Date: 2025-09-13
@@ -11,9 +11,9 @@ from unittest.mock import Mock, patch
 
 from fastapi.testclient import TestClient
 
-from src.serving._context import app_context
-from src.serving.router import app, run_api_server
-from src.serving.schemas import (
+from mmp.serving._context import app_context
+from mmp.serving.router import app, run_api_server
+from mmp.serving.schemas import (
     HealthCheckResponse,
     HyperparameterOptimizationInfo,
     ModelMetadataResponse,
@@ -150,7 +150,7 @@ class TestStaticEndpoints:
         with component_test_context.classification_stack() as ctx:
             with TestClient(app) as client:
                 # Mock the ready handler to return success
-                with patch("src.serving.router.handlers.ready") as mock_ready:
+                with patch("mmp.serving.router.handlers.ready") as mock_ready:
                     mock_ready.return_value = ReadyCheckResponse(
                         status="ready", model_uri="runs:/test-run/model", model_name="test_model"
                     )
@@ -170,7 +170,7 @@ class TestStaticEndpoints:
                 from fastapi import HTTPException
 
                 # Mock the ready handler to raise HTTPException (model not ready)
-                with patch("src.serving.router.handlers.ready") as mock_ready:
+                with patch("mmp.serving.router.handlers.ready") as mock_ready:
                     mock_ready.side_effect = HTTPException(
                         status_code=503, detail="모델이 준비되지 않았습니다."
                     )
@@ -206,7 +206,7 @@ class TestStaticEndpoints:
     def test_prometheus_instrumentator_initialized(self, component_test_context):
         """Prometheus Instrumentator 초기화 테스트"""
         with component_test_context.classification_stack() as ctx:
-            from src.serving.router import _instrumentator
+            from mmp.serving.router import _instrumentator
 
             # Instrumentator가 app에 연결되어 있는지 확인
             assert _instrumentator is not None
@@ -218,7 +218,7 @@ class TestStaticEndpoints:
         with component_test_context.classification_stack() as ctx:
             with TestClient(app) as client:
                 # Mock the metadata handler
-                with patch("src.serving.router.handlers.get_model_metadata") as mock_metadata:
+                with patch("mmp.serving.router.handlers.get_model_metadata") as mock_metadata:
                     mock_metadata.return_value = ModelMetadataResponse(
                         model_uri="runs:/test-run/model",
                         model_class_path="sklearn.ensemble.RandomForestClassifier",
@@ -245,7 +245,7 @@ class TestStaticEndpoints:
         with component_test_context.classification_stack() as ctx:
             with TestClient(app) as client:
                 # Mock the optimization handler
-                with patch("src.serving.router.handlers.get_optimization_history") as mock_opt:
+                with patch("mmp.serving.router.handlers.get_optimization_history") as mock_opt:
                     mock_opt.return_value = OptimizationHistoryResponse(
                         enabled=True,
                         optimization_history=[{"trial": 1, "value": 0.90}],
@@ -264,7 +264,7 @@ class TestStaticEndpoints:
         with component_test_context.classification_stack() as ctx:
             with TestClient(app) as client:
                 # Mock the schema handler
-                with patch("src.serving.router.handlers.get_api_schema") as mock_schema:
+                with patch("mmp.serving.router.handlers.get_api_schema") as mock_schema:
                     test_schema = {
                         "input_schema": {"feature1": "float", "feature2": "string"},
                         "output_schema": {"prediction": "float", "probability": "float"},
@@ -318,7 +318,7 @@ class TestPredictEndpoint:
 
                 try:
                     # Mock the predict handler
-                    with patch("src.serving.router.handlers.predict") as mock_predict:
+                    with patch("mmp.serving.router.handlers.predict") as mock_predict:
                         mock_predict.return_value = {
                             "prediction": 0.85,
                             "model_uri": "runs:/test-run/model",
@@ -350,7 +350,7 @@ class TestPredictEndpoint:
 
                 try:
                     # Mock the predict handler to raise exception
-                    with patch("src.serving.router.handlers.predict") as mock_predict:
+                    with patch("mmp.serving.router.handlers.predict") as mock_predict:
                         mock_predict.side_effect = Exception("Prediction failed")
 
                         test_request = {"feature1": 1.0}
@@ -381,8 +381,8 @@ class TestRunAPIServer:
 
             # Mock setup_api_context and uvicorn
             with (
-                patch("src.serving.router.setup_api_context") as mock_setup,
-                patch("src.serving.router.uvicorn.run") as mock_run,
+                patch("mmp.serving.router.setup_api_context") as mock_setup,
+                patch("mmp.serving.router.uvicorn.run") as mock_run,
             ):
 
                 # Should return early without starting server
@@ -403,9 +403,9 @@ class TestRunAPIServer:
 
             # Mock setup_api_context, uvicorn, and _configure_middlewares
             with (
-                patch("src.serving.router.setup_api_context") as mock_setup,
-                patch("src.serving.router.uvicorn.run") as mock_run,
-                patch("src.serving.router._configure_middlewares") as mock_configure,
+                patch("mmp.serving.router.setup_api_context") as mock_setup,
+                patch("mmp.serving.router.uvicorn.run") as mock_run,
+                patch("mmp.serving.router._configure_middlewares") as mock_configure,
             ):
 
                 run_api_server(mock_settings, "test-run-id", host="127.0.0.1", port=9000)
@@ -424,9 +424,9 @@ class TestRunAPIServer:
 
             # Mock setup_api_context, uvicorn, and _configure_middlewares
             with (
-                patch("src.serving.router.setup_api_context") as mock_setup,
-                patch("src.serving.router.uvicorn.run") as mock_run,
-                patch("src.serving.router._configure_middlewares") as mock_configure,
+                patch("mmp.serving.router.setup_api_context") as mock_setup,
+                patch("mmp.serving.router.uvicorn.run") as mock_run,
+                patch("mmp.serving.router._configure_middlewares") as mock_configure,
             ):
 
                 run_api_server(mock_settings, "test-run-id")
@@ -443,9 +443,9 @@ class TestRunAPIServer:
             mock_settings.serving = None  # Default enabled
 
             with (
-                patch("src.serving.router.setup_api_context"),
-                patch("src.serving.router.uvicorn.run") as mock_run,
-                patch("src.serving.router._configure_middlewares"),
+                patch("mmp.serving.router.setup_api_context"),
+                patch("mmp.serving.router.uvicorn.run") as mock_run,
+                patch("mmp.serving.router._configure_middlewares"),
             ):
 
                 run_api_server(mock_settings, "test-run", host="192.168.1.100", port=8080)
@@ -488,7 +488,7 @@ class TestRouterIntegration:
                         assert health_data["status"] == "ok"
 
                         # Step 3.5: Test ready endpoint with mocked handler
-                        with patch("src.serving.router.handlers.ready") as mock_ready:
+                        with patch("mmp.serving.router.handlers.ready") as mock_ready:
                             mock_ready.return_value = ReadyCheckResponse(
                                 status="ready",
                                 model_uri="runs:/integration-test/model",
@@ -501,7 +501,7 @@ class TestRouterIntegration:
                             assert ready_data["status"] == "ready"
 
                         # Step 4: Test prediction endpoint with mocked handler
-                        with patch("src.serving.router.handlers.predict") as mock_predict:
+                        with patch("mmp.serving.router.handlers.predict") as mock_predict:
                             mock_predict.return_value = {
                                 "prediction": 0.92,
                                 "model_uri": "runs:/integration-test/model",
@@ -527,14 +527,14 @@ class TestRouterIntegration:
                 # 1. 핸들러 에러 시 적절한 응답 반환 확인
                 with (
                     patch(
-                        "src.serving.router.handlers.ready", side_effect=Exception("Ready failed")
+                        "mmp.serving.router.handlers.ready", side_effect=Exception("Ready failed")
                     ),
                     patch(
-                        "src.serving.router.handlers.get_model_metadata",
+                        "mmp.serving.router.handlers.get_model_metadata",
                         side_effect=Exception("Metadata failed"),
                     ),
                     patch(
-                        "src.serving.router.handlers.get_optimization_history",
+                        "mmp.serving.router.handlers.get_optimization_history",
                         side_effect=Exception("Opt failed"),
                     ),
                 ):
@@ -567,7 +567,7 @@ class TestMiddlewareConfiguration:
     def test_timeout_middleware_class(self, component_test_context):
         """TimeoutMiddleware 클래스 테스트"""
         with component_test_context.classification_stack() as ctx:
-            from src.serving.router import TimeoutMiddleware
+            from mmp.serving.router import TimeoutMiddleware
 
             # 클래스가 올바르게 정의되어 있는지 확인
             assert TimeoutMiddleware is not None
@@ -576,7 +576,7 @@ class TestMiddlewareConfiguration:
     def test_configure_middlewares_with_cors(self, component_test_context):
         """CORS 설정 기반 미들웨어 구성 테스트"""
         with component_test_context.classification_stack() as ctx:
-            from src.serving.router import _configure_middlewares
+            from mmp.serving.router import _configure_middlewares
 
             # Mock settings with CORS enabled
             mock_settings = Mock()
@@ -603,7 +603,7 @@ class TestMiddlewareConfiguration:
     def test_configure_middlewares_without_serving(self, component_test_context):
         """serving 설정 없이 미들웨어 구성 테스트"""
         with component_test_context.classification_stack() as ctx:
-            from src.serving.router import _configure_middlewares
+            from mmp.serving.router import _configure_middlewares
 
             # serving 설정이 없는 settings
             mock_settings = Mock()
@@ -615,7 +615,7 @@ class TestMiddlewareConfiguration:
     def test_timeout_middleware_settings(self, component_test_context):
         """Timeout 미들웨어 설정값 테스트"""
         with component_test_context.classification_stack() as ctx:
-            from src.serving.router import TimeoutMiddleware
+            from mmp.serving.router import TimeoutMiddleware
 
             # 커스텀 타임아웃 값으로 미들웨어 인스턴스 생성
             mock_app = Mock()

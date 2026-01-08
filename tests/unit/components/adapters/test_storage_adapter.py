@@ -10,8 +10,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.components.adapter.modules.storage_adapter import StorageAdapter
-from src.components.adapter.base import BaseAdapter
+from mmp.components.adapter.modules.storage_adapter import StorageAdapter
+from mmp.components.adapter.base import BaseAdapter
 
 
 class TestStorageAdapterWithRealFiles:

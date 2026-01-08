@@ -183,7 +183,7 @@ mmp list models
 Classification:
   - xgboost.XGBClassifier                         (xgboost)
   - sklearn.ensemble.RandomForestClassifier       (scikit-learn)
-  - src.models.custom.ft_transformer.FTTransformerClassifier (rtdl_revisiting_models)
+  - mmp.models.custom.ft_transformer.FTTransformerClassifier (rtdl_revisiting_models)
 ```
 
 #### `preprocessor` (선택)
@@ -306,7 +306,7 @@ data:
     sequence_length: 30
 
 model:
-  class_path: "src.models.custom.lstm_timeseries.LSTMTimeSeries"
+  class_path: "mmp.models.custom.lstm_timeseries.LSTMTimeSeries"
   hyperparameters:
     values:
       hidden_size: 64

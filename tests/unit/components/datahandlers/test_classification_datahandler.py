@@ -7,8 +7,8 @@ Following comprehensive testing strategy document principles
 import numpy as np
 import pandas as pd
 
-from src.components.datahandler.modules.tabular_handler import TabularDataHandler
-from src.components.datahandler.base import BaseDataHandler
+from mmp.components.datahandler.modules.tabular_handler import TabularDataHandler
+from mmp.components.datahandler.base import BaseDataHandler
 
 
 class TestClassificationDataHandler:

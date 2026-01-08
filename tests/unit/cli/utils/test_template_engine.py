@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 from jinja2 import TemplateNotFound
 
-from src.cli.utils.template_engine import TemplateEngine
+from mmp.cli.utils.template_engine import TemplateEngine
 
 
 class TestTemplateEngine:

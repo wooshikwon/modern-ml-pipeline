@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 import typer
 from typer.testing import CliRunner
 
-from src.cli.commands.inference_command import batch_inference_command
+from mmp.cli.commands.inference_command import batch_inference_command
 
 
 class TestInferenceCommandWithRealComponents:
@@ -23,8 +23,8 @@ class TestInferenceCommandWithRealComponents:
         self.app = typer.Typer()
         self.app.command()(batch_inference_command)
 
-    @patch("src.cli.commands.inference_command.restore_all_from_mlflow")
-    @patch("src.cli.commands.inference_command.run_inference_pipeline")
+    @patch("mmp.cli.commands.inference_command.restore_all_from_mlflow")
+    @patch("mmp.cli.commands.inference_command.run_inference_pipeline")
     def test_inference_command_with_required_arguments(
         self, mock_run_pipeline, mock_restore, cli_test_environment
     ):
@@ -58,8 +58,8 @@ class TestInferenceCommandWithRealComponents:
         # Command should succeed
         assert result.exit_code == 0
 
-    @patch("src.cli.commands.inference_command.restore_all_from_mlflow")
-    @patch("src.cli.commands.inference_command.run_inference_pipeline")
+    @patch("mmp.cli.commands.inference_command.restore_all_from_mlflow")
+    @patch("mmp.cli.commands.inference_command.run_inference_pipeline")
     def test_inference_command_with_optional_params(
         self, mock_run_pipeline, mock_restore, cli_test_environment
     ):
@@ -104,8 +104,8 @@ class TestInferenceCommandWithRealComponents:
 
         assert result.exit_code == 0
 
-    @patch("src.cli.commands.inference_command.restore_all_from_mlflow")
-    @patch("src.cli.commands.inference_command.run_inference_pipeline")
+    @patch("mmp.cli.commands.inference_command.restore_all_from_mlflow")
+    @patch("mmp.cli.commands.inference_command.run_inference_pipeline")
     def test_inference_command_handles_invalid_json_params(
         self, mock_run_pipeline, mock_restore, cli_test_environment
     ):
@@ -131,7 +131,7 @@ class TestInferenceCommandWithRealComponents:
         # 새 인터페이스에서는 --recipe와 --config가 선택적
         assert "--recipe" in result.output or "--config" in result.output
 
-    @patch("src.cli.commands.inference_command.run_inference_pipeline")
+    @patch("mmp.cli.commands.inference_command.run_inference_pipeline")
     def test_inference_command_missing_required_args(self, mock_run_pipeline):
         """Test inference command fails when required arguments are missing"""
         # Execute without required arguments
@@ -145,8 +145,8 @@ class TestInferenceCommandWithRealComponents:
 class TestInferenceCommandIntegration:
     """Integration tests for inference command with contexts"""
 
-    @patch("src.cli.commands.inference_command.restore_all_from_mlflow")
-    @patch("src.cli.commands.inference_command.run_inference_pipeline")
+    @patch("mmp.cli.commands.inference_command.restore_all_from_mlflow")
+    @patch("mmp.cli.commands.inference_command.run_inference_pipeline")
     def test_inference_command_error_handling_settings_failure(
         self, mock_run_pipeline, mock_restore, cli_test_environment
     ):
@@ -178,8 +178,8 @@ class TestInferenceCommandIntegration:
         # Verify pipeline was called
         mock_run_pipeline.assert_called_once()
 
-    @patch("src.cli.commands.inference_command.restore_all_from_mlflow")
-    @patch("src.cli.commands.inference_command.run_inference_pipeline")
+    @patch("mmp.cli.commands.inference_command.restore_all_from_mlflow")
+    @patch("mmp.cli.commands.inference_command.run_inference_pipeline")
     def test_inference_command_error_handling_missing_config(self, mock_run_pipeline, mock_restore):
         """Test inference command error handling for missing config file"""
         # Mock pipeline to raise FileNotFoundError for missing config
@@ -205,8 +205,8 @@ class TestInferenceCommandIntegration:
         # Should fail due to config file not found
         assert result.exit_code != 0
 
-    @patch("src.cli.commands.inference_command.restore_all_from_mlflow")
-    @patch("src.cli.commands.inference_command.run_inference_pipeline")
+    @patch("mmp.cli.commands.inference_command.restore_all_from_mlflow")
+    @patch("mmp.cli.commands.inference_command.run_inference_pipeline")
     def test_inference_command_success_message_formatting(
         self, mock_run_pipeline, mock_restore, cli_test_environment
     ):
@@ -242,8 +242,8 @@ class TestInferenceCommandIntegration:
             for keyword in ["Inference", "completed", "Run ID", "Predictions"]
         )
 
-    @patch("src.cli.commands.inference_command.restore_all_from_mlflow")
-    @patch("src.cli.commands.inference_command.run_inference_pipeline")
+    @patch("mmp.cli.commands.inference_command.restore_all_from_mlflow")
+    @patch("mmp.cli.commands.inference_command.run_inference_pipeline")
     def test_inference_command_value_error_handling(
         self, mock_run_pipeline, mock_restore, cli_test_environment, caplog
     ):
@@ -277,8 +277,8 @@ class TestInferenceCommandIntegration:
             keyword in caplog.text.lower() for keyword in ["error", "invalid", "configuration"]
         )
 
-    @patch("src.cli.commands.inference_command.restore_all_from_mlflow")
-    @patch("src.cli.commands.inference_command.run_inference_pipeline")
+    @patch("mmp.cli.commands.inference_command.restore_all_from_mlflow")
+    @patch("mmp.cli.commands.inference_command.run_inference_pipeline")
     def test_inference_command_generic_exception_handling(
         self, mock_run_pipeline, mock_restore, cli_test_environment
     ):
@@ -303,8 +303,8 @@ class TestInferenceCommandIntegration:
         # Should fail due to generic exception
         assert result.exit_code != 0
 
-    @patch("src.cli.commands.inference_command.restore_all_from_mlflow")
-    @patch("src.cli.commands.inference_command.run_inference_pipeline")
+    @patch("mmp.cli.commands.inference_command.restore_all_from_mlflow")
+    @patch("mmp.cli.commands.inference_command.run_inference_pipeline")
     def test_inference_command_console_integration(
         self, mock_run_pipeline, mock_restore, cli_test_environment
     ):
@@ -337,8 +337,8 @@ class TestInferenceCommandIntegration:
         # Check result.output for progress/milestone messages
         assert any(keyword in result.output for keyword in ["inference", "done", "Loading"])
 
-    @patch("src.cli.commands.inference_command.restore_all_from_mlflow")
-    @patch("src.cli.commands.inference_command.run_inference_pipeline")
+    @patch("mmp.cli.commands.inference_command.restore_all_from_mlflow")
+    @patch("mmp.cli.commands.inference_command.run_inference_pipeline")
     def test_inference_with_recipe_override(
         self, mock_run_pipeline, mock_restore, cli_test_environment
     ):
@@ -371,8 +371,8 @@ class TestInferenceCommandIntegration:
         assert call_kwargs["recipe_path"] == str(recipe_path)
         assert result.exit_code == 0
 
-    @patch("src.cli.commands.inference_command.restore_all_from_mlflow")
-    @patch("src.cli.commands.inference_command.run_inference_pipeline")
+    @patch("mmp.cli.commands.inference_command.restore_all_from_mlflow")
+    @patch("mmp.cli.commands.inference_command.run_inference_pipeline")
     def test_inference_with_config_override(
         self, mock_run_pipeline, mock_restore, cli_test_environment
     ):
@@ -405,8 +405,8 @@ class TestInferenceCommandIntegration:
         assert call_kwargs["config_path"] == str(config_path)
         assert result.exit_code == 0
 
-    @patch("src.cli.commands.inference_command.restore_all_from_mlflow")
-    @patch("src.cli.commands.inference_command.run_inference_pipeline")
+    @patch("mmp.cli.commands.inference_command.restore_all_from_mlflow")
+    @patch("mmp.cli.commands.inference_command.run_inference_pipeline")
     def test_inference_with_data_override(
         self, mock_run_pipeline, mock_restore, cli_test_environment
     ):
@@ -439,8 +439,8 @@ class TestInferenceCommandIntegration:
         assert call_kwargs["data_path"] == str(data_path)
         assert result.exit_code == 0
 
-    @patch("src.cli.commands.inference_command.restore_all_from_mlflow")
-    @patch("src.cli.commands.inference_command.run_inference_pipeline")
+    @patch("mmp.cli.commands.inference_command.restore_all_from_mlflow")
+    @patch("mmp.cli.commands.inference_command.run_inference_pipeline")
     def test_inference_with_real_data_files(
         self, mock_run_pipeline, mock_restore, real_dataset_files, cli_test_environment
     ):

@@ -11,8 +11,8 @@ import typer
 import yaml
 from typer.testing import CliRunner
 
-from src.cli.commands.train_command import train_command
-from src.settings import SettingsFactory
+from mmp.cli.commands.train_command import train_command
+from mmp.settings import SettingsFactory
 
 
 class TestTrainCommandArgumentParsing:
@@ -97,7 +97,7 @@ class TestTrainCommandArgumentParsing:
 
         # When: Execute command with real files
         # Mock only the pipeline execution to avoid full training in unit test
-        with patch("src.cli.commands.train_command.run_train_pipeline") as mock_pipeline:
+        with patch("mmp.cli.commands.train_command.run_train_pipeline") as mock_pipeline:
             mock_result = MagicMock()
             mock_result.run_id = "test_run_id"
             mock_result.model_uri = "models:/test_model/1"
@@ -216,7 +216,7 @@ class TestTrainCommandArgumentParsing:
             yaml.dump(config_content, f)
 
         # When: Execute with JSON params
-        with patch("src.cli.commands.train_command.run_train_pipeline") as mock_pipeline:
+        with patch("mmp.cli.commands.train_command.run_train_pipeline") as mock_pipeline:
             mock_result = MagicMock()
             mock_result.run_id = "param_run_id"
             mock_result.model_uri = "models:/param_model/1"
@@ -416,7 +416,7 @@ class TestTrainCommandArgumentParsing:
             yaml.dump(config_content, f)
 
         # When: Execute with --record-reqs flag
-        with patch("src.cli.commands.train_command.run_train_pipeline") as mock_pipeline:
+        with patch("mmp.cli.commands.train_command.run_train_pipeline") as mock_pipeline:
             mock_result = MagicMock()
             mock_result.run_id = "reqs_run_id"
             mock_result.model_uri = "models:/reqs_model/1"

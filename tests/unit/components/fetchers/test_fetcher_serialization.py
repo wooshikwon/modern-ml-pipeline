@@ -12,7 +12,7 @@ from unittest.mock import Mock
 import pandas as pd
 import pytest
 
-from src.components.fetcher.modules.feature_store_fetcher import FeatureStoreFetcher
+from mmp.components.fetcher.modules.feature_store_fetcher import FeatureStoreFetcher
 
 
 class TestFeatureStoreFetcherSerialization:

@@ -5,7 +5,7 @@ from jinja2 import Environment, FileSystemLoader
 
 
 def render_recipe(context: dict) -> str:
-    templates_dir = Path(__file__).parents[3] / "src" / "cli" / "templates"
+    templates_dir = Path(__file__).parents[3] / "mmp" / "cli" / "templates"
     env = Environment(loader=FileSystemLoader(str(templates_dir)))
     tmpl = env.get_template("recipes/recipe.yaml.j2")
     return tmpl.render(**context)

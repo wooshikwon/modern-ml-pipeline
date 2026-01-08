@@ -10,11 +10,11 @@ from typing import Dict
 import numpy as np
 import pandas as pd
 
-from src.components.evaluator.modules.classification_evaluator import ClassificationEvaluator
-from src.components.evaluator.modules.clustering_evaluator import ClusteringEvaluator
-from src.components.evaluator.modules.regression_evaluator import RegressionEvaluator
-from src.components.evaluator.modules.timeseries_evaluator import TimeSeriesEvaluator
-from src.components.evaluator.base import BaseEvaluator
+from mmp.components.evaluator.modules.classification_evaluator import ClassificationEvaluator
+from mmp.components.evaluator.modules.clustering_evaluator import ClusteringEvaluator
+from mmp.components.evaluator.modules.regression_evaluator import RegressionEvaluator
+from mmp.components.evaluator.modules.timeseries_evaluator import TimeSeriesEvaluator
+from mmp.components.evaluator.base import BaseEvaluator
 
 
 class CustomTestEvaluator(BaseEvaluator):

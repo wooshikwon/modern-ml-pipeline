@@ -17,8 +17,8 @@ try:
 except ImportError:
     FEAST_AVAILABLE = False
 
-from src.components.adapter.modules.feast_adapter import FeastAdapter
-from src.components.adapter.base import BaseAdapter
+from mmp.components.adapter.modules.feast_adapter import FeastAdapter
+from mmp.components.adapter.base import BaseAdapter
 
 
 @pytest.mark.skipif(not FEAST_AVAILABLE, reason="Feast is not installed")

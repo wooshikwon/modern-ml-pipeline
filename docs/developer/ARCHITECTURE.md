@@ -24,7 +24,7 @@ Modern ML Pipeline의 설계 철학과 핵심 구조를 설명합니다.
 ## 2. 디렉토리 구조 (Source Layout)
 
 ```
-src/
+mmp/
 ├── cli/                    # 1. 진입점 (Command Line Interface)
 ├── settings/               # 2. 설정 관리 (Config & Recipe 파싱)
 ├── pipelines/              # 3. 파이프라인 (전체 실행 흐름 제어)

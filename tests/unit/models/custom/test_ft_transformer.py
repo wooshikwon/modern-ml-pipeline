@@ -1,7 +1,7 @@
 """
 FT-Transformer model comprehensive testing
 Follows tests/README.md philosophy with Context classes
-Tests for src/models/custom/ft_transformer.py
+Tests for mmp/models/custom/ft_transformer.py
 
 Author: Phase 2A Development
 Date: 2025-09-13
@@ -14,7 +14,7 @@ import pandas as pd
 import pytest
 from sklearn.preprocessing import OrdinalEncoder, StandardScaler
 
-from src.models.custom.ft_transformer import (
+from mmp.models.custom.ft_transformer import (
     FTTransformerClassifier,
     FTTransformerRegressor,
 )
@@ -71,8 +71,8 @@ class TestFTTransformerDataPreprocessing:
         """범주형/수치형 특성 분리 테스트"""
         with component_test_context.classification_stack() as ctx:
             # Mock FTTransformer와 train_pytorch_model 모두 패치
-            with patch("src.models.custom.ft_transformer.FTTransformer") as mock_ft_transformer, \
-                 patch("src.models.custom.ft_transformer.train_pytorch_model") as mock_train:
+            with patch("mmp.models.custom.ft_transformer.FTTransformer") as mock_ft_transformer, \
+                 patch("mmp.models.custom.ft_transformer.train_pytorch_model") as mock_train:
                 mock_model = Mock()
                 mock_ft_transformer.return_value = mock_model
                 mock_train.return_value = {"train_loss": [], "val_loss": [], "best_epoch": 1}
@@ -113,8 +113,8 @@ class TestFTTransformerDataPreprocessing:
     def test_ft_transformer_only_numerical_features(self, component_test_context):
         """수치형 특성만 있는 데이터 테스트"""
         with component_test_context.classification_stack() as ctx:
-            with patch("src.models.custom.ft_transformer.FTTransformer") as mock_ft_transformer, \
-                 patch("src.models.custom.ft_transformer.train_pytorch_model") as mock_train:
+            with patch("mmp.models.custom.ft_transformer.FTTransformer") as mock_ft_transformer, \
+                 patch("mmp.models.custom.ft_transformer.train_pytorch_model") as mock_train:
                 mock_model = Mock()
                 mock_ft_transformer.return_value = mock_model
                 mock_train.return_value = {"train_loss": [], "val_loss": [], "best_epoch": 1}
@@ -135,8 +135,8 @@ class TestFTTransformerDataPreprocessing:
     def test_ft_transformer_only_categorical_features(self, component_test_context):
         """범주형 특성만 있는 데이터 테스트"""
         with component_test_context.classification_stack() as ctx:
-            with patch("src.models.custom.ft_transformer.FTTransformer") as mock_ft_transformer, \
-                 patch("src.models.custom.ft_transformer.train_pytorch_model") as mock_train:
+            with patch("mmp.models.custom.ft_transformer.FTTransformer") as mock_ft_transformer, \
+                 patch("mmp.models.custom.ft_transformer.train_pytorch_model") as mock_train:
                 mock_model = Mock()
                 mock_ft_transformer.return_value = mock_model
                 mock_train.return_value = {"train_loss": [], "val_loss": [], "best_epoch": 1}
@@ -167,8 +167,8 @@ class TestFTTransformerCardinalityCalculation:
     def test_ft_transformer_cardinality_with_unknown_handling(self, component_test_context):
         """Unknown 값 처리를 위한 카디널리티 계산 테스트"""
         with component_test_context.classification_stack() as ctx:
-            with patch("src.models.custom.ft_transformer.FTTransformer") as mock_ft_transformer, \
-                 patch("src.models.custom.ft_transformer.train_pytorch_model") as mock_train:
+            with patch("mmp.models.custom.ft_transformer.FTTransformer") as mock_ft_transformer, \
+                 patch("mmp.models.custom.ft_transformer.train_pytorch_model") as mock_train:
                 mock_model = Mock()
                 mock_ft_transformer.return_value = mock_model
                 mock_train.return_value = {"train_loss": [], "val_loss": [], "best_epoch": 1}
@@ -195,8 +195,8 @@ class TestFTTransformerCardinalityCalculation:
     def test_ft_transformer_ordinal_encoder_configuration(self, component_test_context):
         """OrdinalEncoder 설정 검증 테스트"""
         with component_test_context.classification_stack() as ctx:
-            with patch("src.models.custom.ft_transformer.FTTransformer") as mock_ft_transformer, \
-                 patch("src.models.custom.ft_transformer.train_pytorch_model") as mock_train:
+            with patch("mmp.models.custom.ft_transformer.FTTransformer") as mock_ft_transformer, \
+                 patch("mmp.models.custom.ft_transformer.train_pytorch_model") as mock_train:
                 mock_model = Mock()
                 mock_ft_transformer.return_value = mock_model
                 mock_train.return_value = {"train_loss": [], "val_loss": [], "best_epoch": 1}
@@ -220,8 +220,8 @@ class TestFTTransformerHyperparameterHandling:
     def test_ft_transformer_default_hyperparameters(self, component_test_context):
         """기본 하이퍼파라미터 설정 테스트"""
         with component_test_context.classification_stack() as ctx:
-            with patch("src.models.custom.ft_transformer.FTTransformer") as mock_ft_transformer, \
-                 patch("src.models.custom.ft_transformer.train_pytorch_model") as mock_train:
+            with patch("mmp.models.custom.ft_transformer.FTTransformer") as mock_ft_transformer, \
+                 patch("mmp.models.custom.ft_transformer.train_pytorch_model") as mock_train:
                 mock_model = Mock()
                 mock_ft_transformer.return_value = mock_model
                 mock_train.return_value = {"train_loss": [], "val_loss": [], "best_epoch": 1}
@@ -245,8 +245,8 @@ class TestFTTransformerHyperparameterHandling:
     def test_ft_transformer_custom_hyperparameters(self, component_test_context):
         """커스텀 하이퍼파라미터 적용 테스트"""
         with component_test_context.classification_stack() as ctx:
-            with patch("src.models.custom.ft_transformer.FTTransformer") as mock_ft_transformer, \
-                 patch("src.models.custom.ft_transformer.train_pytorch_model") as mock_train:
+            with patch("mmp.models.custom.ft_transformer.FTTransformer") as mock_ft_transformer, \
+                 patch("mmp.models.custom.ft_transformer.train_pytorch_model") as mock_train:
                 mock_model = Mock()
                 mock_ft_transformer.return_value = mock_model
                 mock_train.return_value = {"train_loss": [], "val_loss": [], "best_epoch": 1}
@@ -277,8 +277,8 @@ class TestFTTransformerHyperparameterHandling:
     def test_ft_transformer_n_heads_alias_handling(self, component_test_context):
         """n_heads는 별칭이 아닌 별도 파라미터로, attention_n_heads를 직접 사용해야 함"""
         with component_test_context.classification_stack() as ctx:
-            with patch("src.models.custom.ft_transformer.FTTransformer") as mock_ft_transformer, \
-                 patch("src.models.custom.ft_transformer.train_pytorch_model") as mock_train:
+            with patch("mmp.models.custom.ft_transformer.FTTransformer") as mock_ft_transformer, \
+                 patch("mmp.models.custom.ft_transformer.train_pytorch_model") as mock_train:
                 mock_model = Mock()
                 mock_ft_transformer.return_value = mock_model
                 mock_train.return_value = {"train_loss": [], "val_loss": [], "best_epoch": 1}
@@ -297,8 +297,8 @@ class TestFTTransformerHyperparameterHandling:
     def test_ft_transformer_parameter_conflict_resolution(self, component_test_context):
         """명시적 파라미터는 kwargs를 통해 전달된 값보다 우선함"""
         with component_test_context.classification_stack() as ctx:
-            with patch("src.models.custom.ft_transformer.FTTransformer") as mock_ft_transformer, \
-                 patch("src.models.custom.ft_transformer.train_pytorch_model") as mock_train:
+            with patch("mmp.models.custom.ft_transformer.FTTransformer") as mock_ft_transformer, \
+                 patch("mmp.models.custom.ft_transformer.train_pytorch_model") as mock_train:
                 mock_model = Mock()
                 mock_ft_transformer.return_value = mock_model
                 mock_train.return_value = {"train_loss": [], "val_loss": [], "best_epoch": 1}
@@ -322,8 +322,8 @@ class TestFTTransformerPrediction:
     def test_ft_transformer_predict_proba_binary_classification(self, component_test_context):
         """이진 분류 predict_proba 테스트"""
         with component_test_context.classification_stack() as ctx:
-            with patch("src.models.custom.ft_transformer.FTTransformer") as mock_ft_transformer, \
-                 patch("src.models.custom.ft_transformer.train_pytorch_model") as mock_train:
+            with patch("mmp.models.custom.ft_transformer.FTTransformer") as mock_ft_transformer, \
+                 patch("mmp.models.custom.ft_transformer.train_pytorch_model") as mock_train:
                 mock_model = Mock()
                 mock_ft_transformer.return_value = mock_model
                 mock_train.return_value = {"train_loss": [], "val_loss": [], "best_epoch": 1}
@@ -344,8 +344,8 @@ class TestFTTransformerPrediction:
     def test_ft_transformer_predict_proba_multiclass_classification(self, component_test_context):
         """다중 분류 predict_proba 테스트"""
         with component_test_context.classification_stack() as ctx:
-            with patch("src.models.custom.ft_transformer.FTTransformer") as mock_ft_transformer, \
-                 patch("src.models.custom.ft_transformer.train_pytorch_model") as mock_train:
+            with patch("mmp.models.custom.ft_transformer.FTTransformer") as mock_ft_transformer, \
+                 patch("mmp.models.custom.ft_transformer.train_pytorch_model") as mock_train:
                 mock_model = Mock()
                 mock_ft_transformer.return_value = mock_model
                 mock_train.return_value = {"train_loss": [], "val_loss": [], "best_epoch": 1}
@@ -366,9 +366,9 @@ class TestFTTransformerPrediction:
     def test_ft_transformer_predict_regression(self, component_test_context):
         """회귀 예측 테스트"""
         with component_test_context.classification_stack() as ctx:
-            with patch("src.models.custom.ft_transformer.FTTransformer") as mock_ft_transformer, \
-                 patch("src.models.custom.ft_transformer.train_pytorch_model") as mock_train, \
-                 patch("src.models.custom.ft_transformer.predict_with_pytorch_model") as mock_predict:
+            with patch("mmp.models.custom.ft_transformer.FTTransformer") as mock_ft_transformer, \
+                 patch("mmp.models.custom.ft_transformer.train_pytorch_model") as mock_train, \
+                 patch("mmp.models.custom.ft_transformer.predict_with_pytorch_model") as mock_predict:
                 mock_model = Mock()
                 mock_ft_transformer.return_value = mock_model
                 mock_train.return_value = {"train_loss": [], "val_loss": [], "best_epoch": 1}
@@ -398,8 +398,8 @@ class TestFTTransformerClassifier:
     def test_ft_transformer_classifier_binary_fit(self, component_test_context):
         """이진 분류 학습 테스트"""
         with component_test_context.classification_stack() as ctx:
-            with patch("src.models.custom.ft_transformer.FTTransformer") as mock_ft_transformer, \
-                 patch("src.models.custom.ft_transformer.train_pytorch_model") as mock_train:
+            with patch("mmp.models.custom.ft_transformer.FTTransformer") as mock_ft_transformer, \
+                 patch("mmp.models.custom.ft_transformer.train_pytorch_model") as mock_train:
                 mock_model = Mock()
                 mock_ft_transformer.return_value = mock_model
                 mock_train.return_value = {"train_loss": [], "val_loss": [], "best_epoch": 1}
@@ -422,8 +422,8 @@ class TestFTTransformerClassifier:
     def test_ft_transformer_classifier_multiclass_fit(self, component_test_context):
         """다중 분류 학습 테스트"""
         with component_test_context.classification_stack() as ctx:
-            with patch("src.models.custom.ft_transformer.FTTransformer") as mock_ft_transformer, \
-                 patch("src.models.custom.ft_transformer.train_pytorch_model") as mock_train:
+            with patch("mmp.models.custom.ft_transformer.FTTransformer") as mock_ft_transformer, \
+                 patch("mmp.models.custom.ft_transformer.train_pytorch_model") as mock_train:
                 mock_model = Mock()
                 mock_ft_transformer.return_value = mock_model
                 mock_train.return_value = {"train_loss": [], "val_loss": [], "best_epoch": 1}
@@ -444,8 +444,8 @@ class TestFTTransformerClassifier:
     def test_ft_transformer_classifier_single_class_fit(self, component_test_context):
         """단일 클래스 학습 테스트"""
         with component_test_context.classification_stack() as ctx:
-            with patch("src.models.custom.ft_transformer.FTTransformer") as mock_ft_transformer, \
-                 patch("src.models.custom.ft_transformer.train_pytorch_model") as mock_train:
+            with patch("mmp.models.custom.ft_transformer.FTTransformer") as mock_ft_transformer, \
+                 patch("mmp.models.custom.ft_transformer.train_pytorch_model") as mock_train:
                 mock_model = Mock()
                 mock_ft_transformer.return_value = mock_model
                 mock_train.return_value = {"train_loss": [], "val_loss": [], "best_epoch": 1}
@@ -467,8 +467,8 @@ class TestFTTransformerRegressor:
     def test_ft_transformer_regressor_fit(self, component_test_context):
         """회귀 모델 학습 테스트"""
         with component_test_context.classification_stack() as ctx:
-            with patch("src.models.custom.ft_transformer.FTTransformer") as mock_ft_transformer, \
-                 patch("src.models.custom.ft_transformer.train_pytorch_model") as mock_train:
+            with patch("mmp.models.custom.ft_transformer.FTTransformer") as mock_ft_transformer, \
+                 patch("mmp.models.custom.ft_transformer.train_pytorch_model") as mock_train:
                 mock_model = Mock()
                 mock_ft_transformer.return_value = mock_model
                 mock_train.return_value = {"train_loss": [], "val_loss": [], "best_epoch": 1}
@@ -491,8 +491,8 @@ class TestFTTransformerRegressor:
     def test_ft_transformer_regressor_with_hyperparams(self, component_test_context):
         """하이퍼파라미터가 있는 회귀 모델 테스트"""
         with component_test_context.classification_stack() as ctx:
-            with patch("src.models.custom.ft_transformer.FTTransformer") as mock_ft_transformer, \
-                 patch("src.models.custom.ft_transformer.train_pytorch_model") as mock_train:
+            with patch("mmp.models.custom.ft_transformer.FTTransformer") as mock_ft_transformer, \
+                 patch("mmp.models.custom.ft_transformer.train_pytorch_model") as mock_train:
                 mock_model = Mock()
                 mock_ft_transformer.return_value = mock_model
                 mock_train.return_value = {"train_loss": [], "val_loss": [], "best_epoch": 1}
@@ -517,8 +517,8 @@ class TestFTTransformerIntegration:
     def test_ft_transformer_complete_workflow_classification(self, component_test_context):
         """분류 모델 완전한 워크플로우 테스트"""
         with component_test_context.classification_stack() as ctx:
-            with patch("src.models.custom.ft_transformer.FTTransformer") as mock_ft_transformer, \
-                 patch("src.models.custom.ft_transformer.train_pytorch_model") as mock_train:
+            with patch("mmp.models.custom.ft_transformer.FTTransformer") as mock_ft_transformer, \
+                 patch("mmp.models.custom.ft_transformer.train_pytorch_model") as mock_train:
                 # Setup mock model
                 mock_model = Mock()
                 mock_ft_transformer.return_value = mock_model
@@ -548,9 +548,9 @@ class TestFTTransformerIntegration:
     def test_ft_transformer_complete_workflow_regression(self, component_test_context):
         """회귀 모델 완전한 워크플로우 테스트"""
         with component_test_context.classification_stack() as ctx:
-            with patch("src.models.custom.ft_transformer.FTTransformer") as mock_ft_transformer, \
-                 patch("src.models.custom.ft_transformer.train_pytorch_model") as mock_train, \
-                 patch("src.models.custom.ft_transformer.predict_with_pytorch_model") as mock_predict:
+            with patch("mmp.models.custom.ft_transformer.FTTransformer") as mock_ft_transformer, \
+                 patch("mmp.models.custom.ft_transformer.train_pytorch_model") as mock_train, \
+                 patch("mmp.models.custom.ft_transformer.predict_with_pytorch_model") as mock_predict:
                 # Setup mock model for regression
                 mock_model = Mock()
                 mock_ft_transformer.return_value = mock_model

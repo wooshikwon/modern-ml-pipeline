@@ -8,13 +8,13 @@ from unittest.mock import Mock, patch
 import pytest
 from pydantic import BaseModel
 
-from src.serving._context import app_context
-from src.serving._lifespan import setup_api_context
-from src.serving.schemas import (
+from mmp.serving._context import app_context
+from mmp.serving._lifespan import setup_api_context
+from mmp.serving.schemas import (
     create_batch_prediction_request,
     create_datainterface_based_prediction_request_v2,
 )
-from src.settings import Settings
+from mmp.settings import Settings
 
 
 class TestDataInterfaceSchemaGeneration:
@@ -168,8 +168,8 @@ class TestDataInterfaceSchemaGeneration:
 class TestAPIContextSetup:
     """Test API context initialization with DataInterface schema"""
 
-    @patch("src.serving._lifespan.mlflow")
-    @patch("src.serving._lifespan.bootstrap")
+    @patch("mmp.serving._lifespan.mlflow")
+    @patch("mmp.serving._lifespan.bootstrap")
     def test_setup_with_datainterface_schema(self, mock_bootstrap, mock_mlflow):
         """Test API context setup prioritizes DataInterface schema"""
         # Given: Mock model with DataInterface schema
@@ -201,8 +201,8 @@ class TestAPIContextSetup:
         assert "f1" in fields
         assert "f2" in fields
 
-    @patch("src.serving._lifespan.mlflow")
-    @patch("src.serving._lifespan.bootstrap")
+    @patch("mmp.serving._lifespan.mlflow")
+    @patch("mmp.serving._lifespan.bootstrap")
     def test_fallback_to_legacy_schema(self, mock_bootstrap, mock_mlflow):
         """Test fallback to legacy schema when DataInterface not available"""
         # Given: Mock model without DataInterface schema
@@ -217,7 +217,7 @@ class TestAPIContextSetup:
         settings = Mock(spec=Settings)
 
         # When: Setup API context
-        with patch("src.serving._lifespan.create_dynamic_prediction_request") as mock_create:
+        with patch("mmp.serving._lifespan.create_dynamic_prediction_request") as mock_create:
             # Use real simple call signature to avoid pydantic internals mocking issues
             class _Dummy(BaseModel):
                 user_id: int

@@ -1,4 +1,4 @@
-from src.cli.utils.recipe_builder import RecipeBuilder
+from mmp.cli.utils.recipe_builder import RecipeBuilder
 
 
 class UIStub:

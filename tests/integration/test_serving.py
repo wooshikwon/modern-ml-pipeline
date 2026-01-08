@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from src.serving.router import app
+from mmp.serving.router import app
 
 
 class TestServing:

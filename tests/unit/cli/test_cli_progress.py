@@ -18,13 +18,13 @@ from io import StringIO
 
 import pytest
 
-from src.cli.utils.cli_progress import (
+from mmp.cli.utils.cli_progress import (
     CLIProgress,
     is_cli_line_active,
     needs_newline_before_log,
     set_cli_line_active,
 )
-from src.utils.core.logger import TerminalFormatter, log_config, log_sys
+from mmp.utils.core.logger import TerminalFormatter, log_config, log_sys
 
 
 class TestTerminalFormatterIndent:
@@ -309,7 +309,7 @@ class TestFormatDuration:
 
     def test_format_duration_seconds(self):
         """60초 미만은 소수점 1자리 초 형식"""
-        from src.pipelines.train_pipeline import _format_duration
+        from mmp.pipelines.train_pipeline import _format_duration
 
         assert _format_duration(0.5) == "0.5s"
         assert _format_duration(30.7) == "30.7s"
@@ -317,7 +317,7 @@ class TestFormatDuration:
 
     def test_format_duration_minutes(self):
         """60초 이상 3600초 미만은 분:초 형식"""
-        from src.pipelines.train_pipeline import _format_duration
+        from mmp.pipelines.train_pipeline import _format_duration
 
         assert _format_duration(60) == "1m 0s"
         assert _format_duration(90) == "1m 30s"
@@ -325,7 +325,7 @@ class TestFormatDuration:
 
     def test_format_duration_hours(self):
         """3600초 이상은 시:분 형식"""
-        from src.pipelines.train_pipeline import _format_duration
+        from mmp.pipelines.train_pipeline import _format_duration
 
         assert _format_duration(3600) == "1h 0m"
         assert _format_duration(3660) == "1h 1m"
@@ -337,7 +337,7 @@ class TestProgressCallback:
 
     def test_progress_callback_type_exported(self):
         """ProgressCallback 타입이 export 됨"""
-        from src.pipelines.train_pipeline import ProgressCallback
+        from mmp.pipelines.train_pipeline import ProgressCallback
 
         assert ProgressCallback is not None
 
@@ -398,24 +398,24 @@ class TestCommandLogIntegration:
 
     def test_log_config_imported_in_train_command(self):
         """train_command에서 log_config가 import 됨"""
-        from src.cli.commands import train_command as tc_module
+        from mmp.cli.commands import train_command as tc_module
 
         assert hasattr(tc_module, "log_config")
 
     def test_log_sys_imported_in_train_command(self):
         """train_command에서 log_sys가 import 됨"""
-        from src.cli.commands import train_command as tc_module
+        from mmp.cli.commands import train_command as tc_module
 
         assert hasattr(tc_module, "log_sys")
 
     def test_log_config_imported_in_inference_command(self):
         """inference_command에서 log_config가 import 됨"""
-        from src.cli.commands import inference_command as ic_module
+        from mmp.cli.commands import inference_command as ic_module
 
         assert hasattr(ic_module, "log_config")
 
     def test_log_sys_imported_in_inference_command(self):
         """inference_command에서 log_sys가 import 됨"""
-        from src.cli.commands import inference_command as ic_module
+        from mmp.cli.commands import inference_command as ic_module
 
         assert hasattr(ic_module, "log_sys")

@@ -5,8 +5,8 @@ Testing calibration method registration and creation
 
 import pytest
 
-from src.components.calibration.registry import CalibrationRegistry
-from src.components.calibration.base import BaseCalibrator
+from mmp.components.calibration.registry import CalibrationRegistry
+from mmp.components.calibration.base import BaseCalibrator
 
 
 class MockCalibrator(BaseCalibrator):
@@ -47,8 +47,8 @@ class TestCalibrationRegistry:
         """Restore registry after each test to prevent pollution"""
         CalibrationRegistry.clear()
         # Re-import to re-register all calibrators
-        from src.components.calibration.modules.beta_calibration import BetaCalibration
-        from src.components.calibration.modules.isotonic_regression import IsotonicCalibration
+        from mmp.components.calibration.modules.beta_calibration import BetaCalibration
+        from mmp.components.calibration.modules.isotonic_regression import IsotonicCalibration
 
         CalibrationRegistry.register("beta", BetaCalibration)
         CalibrationRegistry.register("isotonic", IsotonicCalibration)
@@ -118,7 +118,7 @@ class TestCalibrationRegistry:
     def test_auto_registration_beta_calibration(self):
         """Test that Beta Calibration is auto-registered"""
         # Re-register after setup clearing for this test
-        from src.components.calibration.modules.beta_calibration import BetaCalibration
+        from mmp.components.calibration.modules.beta_calibration import BetaCalibration
 
         CalibrationRegistry.register("beta", BetaCalibration)
 
@@ -133,7 +133,7 @@ class TestCalibrationRegistry:
     def test_auto_registration_isotonic_regression(self):
         """Test that Isotonic Regression is auto-registered"""
         # Re-register after setup clearing for this test
-        from src.components.calibration.modules.isotonic_regression import IsotonicCalibration
+        from mmp.components.calibration.modules.isotonic_regression import IsotonicCalibration
 
         CalibrationRegistry.register("isotonic", IsotonicCalibration)
 

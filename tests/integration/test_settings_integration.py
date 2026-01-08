@@ -7,7 +7,7 @@ Following comprehensive testing strategy document principles
 import os
 from unittest.mock import patch
 
-from src.settings import (
+from mmp.settings import (
     Config,
     SettingsFactory,
     load_settings,
@@ -302,8 +302,8 @@ data:
 
     def test_optimizer_registry_self_registration_v2(self, settings_builder):
         """Factory 초기화 시 TrainerRegistry에 optuna 옵티마이저가 등록되는지 확인."""
-        # Import triggers self-registration via src.components.trainer package
-        from src.factory import Factory
+        # Import triggers self-registration via mmp.components.trainer package
+        from mmp.factory import Factory
 
         settings = (
             settings_builder.with_task("classification")
@@ -314,7 +314,7 @@ data:
         factory = Factory(settings)
         # After factory initialization, optimizer package is imported → self-registration should have happened
         # Optuna is registered to OptimizerRegistry, not TrainerRegistry
-        from src.components.optimizer import OptimizerRegistry
+        from mmp.components.optimizer import OptimizerRegistry
 
         available_opts = OptimizerRegistry.list_keys()
         assert "optuna" in available_opts
@@ -444,7 +444,7 @@ feature_store:
 
                 # Test model catalog validation if available
                 try:
-                    from src.settings.validation import ValidationOrchestrator
+                    from mmp.settings.validation import ValidationOrchestrator
 
                     _vo = ValidationOrchestrator()
                     _ = _vo.validate_for_training(valid_settings.config, valid_settings.recipe)
@@ -724,7 +724,7 @@ evaluation:
 
             if settings is not None:
                 # Then: Settings should be compatible with Factory
-                from src.factory import Factory
+                from mmp.factory import Factory
 
                 try:
                     factory = Factory(settings)
@@ -941,7 +941,7 @@ evaluation:
 
                 # Test that comprehensive settings work with factory
                 try:
-                    from src.factory import Factory
+                    from mmp.factory import Factory
 
                     factory = Factory(settings)
                     assert factory is not None

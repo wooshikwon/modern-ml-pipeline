@@ -1,7 +1,7 @@
 """
 Settings validation comprehensive testing
 Follows tests/README.md philosophy with Context classes
-Tests for src/settings validation components
+Tests for mmp/settings validation components
 
 Author: Phase 3 Refactoring
 Date: 2025-09-14
@@ -10,8 +10,8 @@ Date: 2025-09-14
 import pytest
 from pydantic import ValidationError
 
-from src.settings import ValidationOrchestrator
-from src.settings.validation.common import ValidationResult
+from mmp.settings import ValidationOrchestrator
+from mmp.settings.validation.common import ValidationResult
 
 
 class TestSettingsValidation:

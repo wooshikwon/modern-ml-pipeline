@@ -8,13 +8,13 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.components.adapter.modules.sql_adapter import SqlAdapter
-from src.components.adapter.modules.storage_adapter import StorageAdapter
-from src.components.evaluator.modules.classification_evaluator import ClassificationEvaluator
-from src.components.evaluator.modules.regression_evaluator import RegressionEvaluator
-from src.factory import Factory
-from src.components.adapter.base import BaseAdapter
-from src.components.evaluator.base import BaseEvaluator
+from mmp.components.adapter.modules.sql_adapter import SqlAdapter
+from mmp.components.adapter.modules.storage_adapter import StorageAdapter
+from mmp.components.evaluator.modules.classification_evaluator import ClassificationEvaluator
+from mmp.components.evaluator.modules.regression_evaluator import RegressionEvaluator
+from mmp.factory import Factory
+from mmp.components.adapter.base import BaseAdapter
+from mmp.components.evaluator.base import BaseEvaluator
 
 
 class TestFactoryWithRealComponents:
@@ -639,7 +639,7 @@ class TestFactoryExternalSystemMocking:
         mock_engine.connect.return_value.__exit__ = MagicMock(return_value=None)
 
         with patch(
-            "src.components.adapter.modules.sql_adapter.sqlalchemy.create_engine"
+            "mmp.components.adapter.modules.sql_adapter.sqlalchemy.create_engine"
         ) as mock_create_engine:
             mock_create_engine.return_value = mock_engine
             adapter = factory.create_data_adapter()

@@ -11,7 +11,7 @@ import pandas as pd
 import pytest
 from sklearn.ensemble import RandomForestClassifier
 
-from src.models.base import BaseModel
+from mmp.models.base import BaseModel
 
 
 class CustomTestModel(BaseModel):

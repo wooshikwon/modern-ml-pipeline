@@ -9,8 +9,8 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score
 
-from src.components.evaluator.modules.classification_evaluator import ClassificationEvaluator
-from src.components.evaluator.base import BaseEvaluator
+from mmp.components.evaluator.modules.classification_evaluator import ClassificationEvaluator
+from mmp.components.evaluator.base import BaseEvaluator
 
 
 class TestClassificationEvaluator:

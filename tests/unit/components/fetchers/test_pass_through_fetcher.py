@@ -6,8 +6,8 @@ Following comprehensive testing strategy document principles
 
 import pandas as pd
 
-from src.components.fetcher.modules.pass_through_fetcher import PassThroughFetcher
-from src.components.fetcher.base import BaseFetcher
+from mmp.components.fetcher.modules.pass_through_fetcher import PassThroughFetcher
+from mmp.components.fetcher.base import BaseFetcher
 
 
 class TestPassThroughFetcher:

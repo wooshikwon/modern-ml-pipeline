@@ -13,8 +13,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.components.preprocessor.modules.encoder import OneHotEncoderWrapper
-from src.components.preprocessor.preprocessor import Preprocessor
+from mmp.components.preprocessor.modules.encoder import OneHotEncoderWrapper
+from mmp.components.preprocessor.preprocessor import Preprocessor
 
 
 class TestOneHotEncoderWrapper:
