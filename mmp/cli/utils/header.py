@@ -10,7 +10,12 @@ import sys
 
 from rich.console import Console
 
-from mmp.settings import __version__
+# mmp.settings 전체 로드를 피하기 위해 메타데이터에서 직접 버전 조회
+try:
+    from importlib.metadata import version as _get_version
+    __version__ = _get_version("modern-ml-pipeline")
+except Exception:
+    __version__ = "unknown"
 
 # 공통 콘솔 인스턴스
 _console = Console()

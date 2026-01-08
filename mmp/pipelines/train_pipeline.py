@@ -122,20 +122,24 @@ def run_train_pipeline(
         if preprocessor:
             preprocessor.fit(X_train)
             X_train = preprocessor.transform(X_train, dataset_name="train")
-            # 행이 삭제된 경우 y도 동기화 (drop_missing 등)
-            y_train = y_train.loc[X_train.index]
+            # 행이 삭제된 경우 y도 동기화 (drop_missing 등, 클러스터링은 y=None)
+            if y_train is not None:
+                y_train = y_train.loc[X_train.index]
 
             if not X_val.empty:
                 X_val = preprocessor.transform(X_val, dataset_name="val")
-                y_val = y_val.loc[X_val.index]
+                if y_val is not None:
+                    y_val = y_val.loc[X_val.index]
             if not X_test.empty:
                 X_test = preprocessor.transform(X_test, dataset_name="test")
-                y_test = y_test.loc[X_test.index]
+                if y_test is not None:
+                    y_test = y_test.loc[X_test.index]
 
             if calibration_data is not None:
                 X_calib, y_calib, add_calib = calibration_data
                 X_calib = preprocessor.transform(X_calib, dataset_name="calib")
-                y_calib = y_calib.loc[X_calib.index]
+                if y_calib is not None:
+                    y_calib = y_calib.loc[X_calib.index]
                 calibration_data = (X_calib, y_calib, add_calib)
 
         emit("loading_data_done", f"{len(df):,} rows")

@@ -83,12 +83,10 @@ def serve_api_command(
 
         # 3. 서버 시작
         progress.step_start("Starting API server")
+        log_sys(f"API Server:   http://{host}:{port}")
+        log_sys(f"API Docs:     http://{host}:{port}/docs")
+        log_sys(f"Health Check: http://{host}:{port}/health")
         progress.step_done()
-
-        # 서버 정보 출력 (들여쓰기 + 접두사 적용)
-        progress.detail(f"[SYS] API Server:   http://{host}:{port}")
-        progress.detail(f"[SYS] API Docs:     http://{host}:{port}/docs")
-        progress.detail(f"[SYS] Health Check: http://{host}:{port}/health")
 
         # API 서버 실행 (블로킹)
         run_api_server(settings=settings, run_id=run_id, host=host, port=port)

@@ -146,15 +146,20 @@ class SequenceDataHandler(BaseDataHandler):
 
     def _transform_single(self, df: pd.DataFrame, seq_len: int) -> pd.DataFrame:
         """단일 시계열 시퀀스 변환 (entity 구분 없음)"""
-        # timestamp 정렬
+        # timestamp 정렬 (원본 인덱스 보존)
         if self._timestamp_column in df.columns:
-            df = df.sort_values(self._timestamp_column).reset_index(drop=True)
+            df_sorted = df.sort_values(self._timestamp_column)
+        else:
+            df_sorted = df
 
         X_sequences = []
-        for i in range(seq_len, len(df)):
-            X_seq = df.iloc[i - seq_len : i][self._original_feature_columns].values
+        valid_indices = []
+        for i in range(seq_len, len(df_sorted)):
+            X_seq = df_sorted.iloc[i - seq_len : i][self._original_feature_columns].values
             if not np.isnan(X_seq).any():
                 X_sequences.append(X_seq)
+                # 시퀀스가 예측하는 행의 원본 인덱스 저장
+                valid_indices.append(df_sorted.index[i])
 
         if not X_sequences:
             log_data_debug(
@@ -165,7 +170,9 @@ class SequenceDataHandler(BaseDataHandler):
 
         X_sequences = np.array(X_sequences)
         X_flattened = X_sequences.reshape(len(X_sequences), -1)
-        X_df = pd.DataFrame(X_flattened, columns=self._flattened_feature_columns)
+        X_df = pd.DataFrame(
+            X_flattened, columns=self._flattened_feature_columns, index=valid_indices
+        )
 
         log_data_debug(
             f"transform 완료 - {X_df.shape[0]}개 시퀀스",
@@ -176,17 +183,22 @@ class SequenceDataHandler(BaseDataHandler):
     def _transform_with_entities(self, df: pd.DataFrame, seq_len: int) -> pd.DataFrame:
         """Entity별 시퀀스 변환 (경계 혼합 방지)"""
         all_sequences = []
+        valid_indices = []
 
         for entity_key, group_df in df.groupby(self._entity_columns, sort=False):
-            # Entity 내에서 timestamp 정렬
+            # Entity 내에서 timestamp 정렬 (원본 인덱스 보존)
             if self._timestamp_column in group_df.columns:
-                group_df = group_df.sort_values(self._timestamp_column).reset_index(drop=True)
+                group_sorted = group_df.sort_values(self._timestamp_column)
+            else:
+                group_sorted = group_df
 
             # Entity 내에서 sliding window 적용
-            for i in range(seq_len, len(group_df)):
-                X_seq = group_df.iloc[i - seq_len : i][self._original_feature_columns].values
+            for i in range(seq_len, len(group_sorted)):
+                X_seq = group_sorted.iloc[i - seq_len : i][self._original_feature_columns].values
                 if not np.isnan(X_seq).any():
                     all_sequences.append(X_seq)
+                    # 시퀀스가 예측하는 행의 원본 인덱스 저장
+                    valid_indices.append(group_sorted.index[i])
 
         if not all_sequences:
             log_data_debug(
@@ -197,7 +209,9 @@ class SequenceDataHandler(BaseDataHandler):
 
         X_sequences = np.array(all_sequences)
         X_flattened = X_sequences.reshape(len(X_sequences), -1)
-        X_df = pd.DataFrame(X_flattened, columns=self._flattened_feature_columns)
+        X_df = pd.DataFrame(
+            X_flattened, columns=self._flattened_feature_columns, index=valid_indices
+        )
 
         n_entities = df.groupby(self._entity_columns).ngroups
         log_data_debug(
@@ -263,13 +277,17 @@ class SequenceDataHandler(BaseDataHandler):
         if not self._is_fitted:
             self.fit(df)
 
-        # transform으로 X 추출
+        # transform으로 X 추출 (원본 인덱스 보존됨)
         X_df = self.transform(df)
 
         # y 추출 (시퀀스에 맞게 조정, entity별 처리)
         seq_len = self._effective_sequence_length
         y_values = self._extract_y_values(df, seq_len)
-        y_series = pd.Series(y_values, name="target") if y_values else pd.Series(dtype="float64")
+        # X_df와 동일한 인덱스로 y_series 생성 (train_pipeline의 .loc 호출 호환)
+        if y_values:
+            y_series = pd.Series(y_values, name="target", index=X_df.index)
+        else:
+            y_series = pd.Series(dtype="float64")
 
         # additional_data 생성
         additional_data = {
@@ -295,9 +313,9 @@ class SequenceDataHandler(BaseDataHandler):
             return self._extract_y_single(df, seq_len)
 
     def _extract_y_single(self, df: pd.DataFrame, seq_len: int) -> list:
-        """단일 시계열 y 추출"""
+        """단일 시계열 y 추출 (transform과 동일한 순서 보장)"""
         if self._timestamp_column in df.columns:
-            df_sorted = df.sort_values(self._timestamp_column).reset_index(drop=True)
+            df_sorted = df.sort_values(self._timestamp_column)
         else:
             df_sorted = df
 
@@ -310,16 +328,18 @@ class SequenceDataHandler(BaseDataHandler):
         return y_values
 
     def _extract_y_with_entities(self, df: pd.DataFrame, seq_len: int) -> list:
-        """Entity별 y 추출"""
+        """Entity별 y 추출 (transform과 동일한 순서 보장)"""
         y_values = []
 
-        for entity_key, group_df in df.groupby(self._entity_columns, sort=False):
+        for _, group_df in df.groupby(self._entity_columns, sort=False):
             if self._timestamp_column in group_df.columns:
-                group_df = group_df.sort_values(self._timestamp_column).reset_index(drop=True)
+                group_sorted = group_df.sort_values(self._timestamp_column)
+            else:
+                group_sorted = group_df
 
-            for i in range(seq_len, len(group_df)):
-                y_val = group_df.iloc[i][self._target_column]
-                X_seq = group_df.iloc[i - seq_len : i][self._original_feature_columns].values
+            for i in range(seq_len, len(group_sorted)):
+                y_val = group_sorted.iloc[i][self._target_column]
+                X_seq = group_sorted.iloc[i - seq_len : i][self._original_feature_columns].values
                 if not np.isnan(X_seq).any() and not np.isnan(y_val):
                     y_values.append(y_val)
 

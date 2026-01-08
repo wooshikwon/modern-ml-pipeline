@@ -246,10 +246,11 @@ def create_model_signature(
             ]
         )
 
-        # 파라미터 스키마 생성 (run_mode, return_intermediate 지원)
+        # 파라미터 스키마 생성 (run_mode, return_dataframe, return_intermediate 지원)
         params_schema = ParamSchema(
             [
                 ParamSpec(name="run_mode", dtype="string", default="batch", shape=None),
+                ParamSpec(name="return_dataframe", dtype="boolean", default=False, shape=None),
                 ParamSpec(name="return_intermediate", dtype="boolean", default=False, shape=None),
             ]
         )

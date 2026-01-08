@@ -47,10 +47,12 @@ class TerminalFormatter(logging.Formatter):
 
         # CLI 진행 라인이 활성 상태면 들여쓰기 적용
         if os.environ.get("MMP_CLI_LINE_ACTIVE") == "1":
-            # 기본 모드: 인라인 텍스트 후 줄바꿈 필요
+            # 기본 모드: 인라인 텍스트 후 첫 줄바꿈 필요
             if os.environ.get("MMP_CLI_NEEDS_NEWLINE") == "1":
+                # 첫 줄바꿈 후 플래그 해제 (이후 로그는 들여쓰기만)
+                os.environ["MMP_CLI_NEEDS_NEWLINE"] = "0"
                 return f"\n  {message}"
-            # verbose 모드: 이미 줄바꿈됨, 들여쓰기만
+            # verbose 모드 또는 이미 줄바꿈됨: 들여쓰기만
             return f"  {message}"
 
         return message
