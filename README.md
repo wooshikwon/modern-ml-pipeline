@@ -64,9 +64,13 @@ my-project/
 > **Tip**: `Dockerfile`과 `docker-compose.yml`이 기본 포함되어, 로컬 개발부터 클라우드 배포까지 동일한 환경에서 실행할 수 있습니다.
 
 
-### 3. 설정 파일 생성
+### 3. 학습 전 준비
 
-#### Config 파일 (인프라 설정)
+#### 데이터 준비
+
+학습 데이터를 `data/` 디렉토리에 CSV 또는 SQL 파일로 준비합니다. Task별 데이터 형식은 [Task 가이드](./docs/user/TASK_GUIDE.md)를 참고하세요.
+
+#### Config 파일 생성 (인프라 설정)
 
 ```bash
 mmp get-config
@@ -74,7 +78,7 @@ mmp get-config
 
 대화형 인터페이스를 통해 MLflow, 스토리지, DB 연결 등을 설정하고 `configs/{env}.yaml` 파일을 생성합니다.
 
-#### Recipe 파일 (실험 설정)
+#### Recipe 파일 생성 (실험 설정)
 
 ```bash
 mmp get-recipe
@@ -97,17 +101,13 @@ model:
 
 상세 옵션은 [Task 가이드](./docs/user/TASK_GUIDE.md), [설정 스키마](./docs/user/SETTINGS_SCHEMA.md)를 참고하세요.
 
-#### 환경변수 (.env)
+#### 환경변수 입력 (.env)
 
 Docker 실행 시 필요한 환경변수를 `.env` 파일에 설정합니다:
 
 ```bash
 MODEL_RUN_ID=<mlflow_run_id>    # 서빙/추론 시 필수
 ```
-
-#### 데이터 준비
-
-학습 데이터를 `data/` 디렉토리에 CSV 또는 SQL 파일로 준비합니다. Task별 데이터 형식은 [Task 가이드](./docs/user/TASK_GUIDE.md)를 참고하세요.
 
 
 ### 4. 학습
