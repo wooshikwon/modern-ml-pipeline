@@ -8,16 +8,16 @@ Modern ML Pipeline을 사용하기 위한 설치와 환경 설정 방법을 안�
 
 ### 기본 요구사항
 
-- **Python 3.11 또는 3.12**
+- **Python 3.10, 3.11, 3.12, 또는 3.13**
 - **pipx** (권장)
 
 ### 설치 전 준비
 
 ```bash
-# 1. Python 3.11 설치
-brew install python@3.11              # macOS (Homebrew)
-# sudo apt install python3.11         # Ubuntu/Debian
-# pyenv install 3.11.10               # pyenv 사용 시
+# 1. Python 3.10+ 설치
+brew install python@3.10              # macOS (Homebrew)
+# sudo apt install python3.10         # Ubuntu/Debian
+# pyenv install 3.10.14               # pyenv 사용 시
 
 # 2. pipx 설치
 brew install pipx && pipx ensurepath  # macOS
@@ -30,27 +30,27 @@ pip install pipx && pipx ensurepath   # Linux/Windows
 
 ```bash
 # Homebrew Python 사용 시
-pipx install --python python3.11 modern-ml-pipeline
+pipx install --python python3.10 modern-ml-pipeline
 
 # pyenv 사용 시
-pyenv shell 3.11.10 && pipx install modern-ml-pipeline
-# 또는: pipx install --python ~/.pyenv/versions/3.11.10/bin/python modern-ml-pipeline
+pyenv shell 3.10.14 && pipx install modern-ml-pipeline
+# 또는: pipx install --python ~/.pyenv/versions/3.10.14/bin/python modern-ml-pipeline
 ```
 
 **Extras와 함께 설치**
 
 ```bash
 # XGBoost, LightGBM, CatBoost 모델 사용 시
-pipx install --python python3.11 "modern-ml-pipeline[ml-extras]"
+pipx install --python python3.10 "modern-ml-pipeline[ml-extras]"
 
 # BigQuery, S3, GCS 사용 시
-pipx install --python python3.11 "modern-ml-pipeline[cloud-extras]"
+pipx install --python python3.10 "modern-ml-pipeline[cloud-extras]"
 
 # 딥러닝 모델(LSTM, TabNet 등) 사용 시
-pipx install --python python3.11 "modern-ml-pipeline[torch-extras]"
+pipx install --python python3.10 "modern-ml-pipeline[torch-extras]"
 
 # 모든 기능 사용 시 (권장)
-pipx install --python python3.11 "modern-ml-pipeline[all]"
+pipx install --python python3.10 "modern-ml-pipeline[all]"
 ```
 
 **Extras 변경 (재설치)**
@@ -58,7 +58,7 @@ pipx install --python python3.11 "modern-ml-pipeline[all]"
 설치 후 extras를 변경하려면 `--force` 옵션으로 재설치합니다:
 
 ```bash
-pipx install --force --python python3.11 "modern-ml-pipeline[ml-extras,cloud-extras]"
+pipx install --force --python python3.10 "modern-ml-pipeline[ml-extras,cloud-extras]"
 ```
 
 **pip 설치 (대체 방법)**

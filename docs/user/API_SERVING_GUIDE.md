@@ -484,7 +484,7 @@ docker run -e MLFLOW_TRACKING_URI=./mlruns \
 ```
 
 ```dockerfile
-FROM python:3.11-slim
+FROM python:3.10-slim
 
 RUN pip install modern-ml-pipeline
 
@@ -503,7 +503,7 @@ CMD ["mmp", "serve-api", "--run-id", "${RUN_ID}", "-c", "configs/prod.yaml", "--
 MLflow 서버가 있는 환경에서는 artifact를 이미지에 포함하지 않아도 됩니다:
 
 ```dockerfile
-FROM python:3.11-slim
+FROM python:3.10-slim
 
 RUN pip install modern-ml-pipeline
 

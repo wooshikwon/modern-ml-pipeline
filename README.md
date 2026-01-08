@@ -18,7 +18,7 @@ YAML 설정 기반의 머신러닝 파이프라인 CLI 도구입니다.
 
 ### 1. 설치
 
-**요구사항**: Python 3.11, 3.12, 또는 3.13
+**요구사항**: Python 3.10, 3.11, 3.12, 또는 3.13
 
 #### 기본 설치 (XGBoost, scikit-learn)
 
@@ -53,7 +53,7 @@ pipx install --python $(pyenv prefix 3.11)/bin/python 'modern-ml-pipeline[cloud-
 ```
 
 > **설치 전 준비**
-> - Python 3.11+: `brew install python@3.11` (Homebrew) 또는 `pyenv install 3.11.10` (pyenv)
+> - Python 3.10+: `brew install python@3.10` (Homebrew) 또는 `pyenv install 3.10.14` (pyenv)
 > - pipx: `brew install pipx && pipx ensurepath` (macOS) 또는 `pip install pipx && pipx ensurepath`
 
 > **pyenv 트러블슈팅**
@@ -343,4 +343,4 @@ mmp train -c configs/dev.yaml -r recipes/model.yaml -d data/train.csv -q
 
 ---
 
-**Version**: 1.1.13 | **License**: Apache 2.0 | **Python**: 3.11 - 3.13
+**Version**: 1.1.14 | **License**: Apache 2.0 | **Python**: 3.10 - 3.13
