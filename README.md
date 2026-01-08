@@ -171,29 +171,40 @@ curl -X POST http://localhost:8000/predict \
 API 엔드포인트 상세는 [API 서빙 가이드](./docs/user/API_SERVING_GUIDE.md)를 참고하세요.
 
 
-### 6. 배포
+### 6. 배포 및 운영
 
-MMP는 **프로젝트 생성부터 컨테이너 레지스트리 푸시까지** 지원합니다.
+#### 배포 흐름
+
+```text
+mmp init → 실험 → docker build → CI/CD로 GCR/ECR 푸시 → k8s에서 실행
+```
 
 ```bash
-# 이미지 빌드 및 레지스트리 푸시
+# 이미지 빌드 및 푸시 (CI/CD에서 자동화)
 docker build -t gcr.io/my-project/mmp:v1 .
 docker push gcr.io/my-project/mmp:v1
 ```
 
-빌드된 이미지는 **단일 이미지**로 학습, 추론, API 서빙을 모두 지원합니다. Kubernetes에서 실행 시 command만 다르게 지정합니다:
+#### 운영: 설정 파일 교체
 
-```bash
-mmp serve-api --run-id <run_id> -c configs/prod.yaml           # API 서빙
-mmp batch-inference --run-id <run_id> -d gs://bucket/data.csv  # 배치 추론
-mmp train -r recipes/model.yaml -d gs://bucket/train.csv       # 학습
+이미지 배포 후 `configs/`나 `recipes/`만 변경하고 싶을 때, k8s ConfigMap으로 마운트합니다:
+
+```yaml
+# 플랫폼팀이 관리하는 k8s 매니페스트 예시
+volumeMounts:
+  - name: config
+    mountPath: /app/configs    # 이미지 내 설정을 덮어씀
+volumes:
+  - name: config
+    configMap:
+      name: my-config          # ConfigMap으로 새 설정 주입
 ```
 
 > **MMP의 범위**: 프로젝트 생성 → 실험 → 이미지 빌드 → GCR/ECR 푸시
 >
-> **MMP 범위 외**: CI/CD 파이프라인(GitHub Actions 등)과 Kubernetes 매니페스트는 각 조직에서 별도 구성합니다.
+> **MMP 범위 외**: CI/CD, k8s 매니페스트, ConfigMap은 각 조직에서 별도 구성
 
-상세 배포 가이드는 [배포 가이드](./docs/user/DEPLOYMENT_GUIDE.md)를 참고하세요.
+상세 가이드는 [배포 및 운영 가이드](./docs/user/DEPLOYMENT_GUIDE.md)를 참고하세요.
 
 
 ## 지원 Task
@@ -238,7 +249,7 @@ mmp list metrics  # 사용 가능한 메트릭 목록
 | 3 | [설정 스키마](./docs/user/SETTINGS_SCHEMA.md) | Config/Recipe YAML 작성법 |
 | 4 | [CLI 레퍼런스](./docs/user/CLI_REFERENCE.md) | 명령어 상세 옵션 |
 | 5 | [API 서빙 가이드](./docs/user/API_SERVING_GUIDE.md) | REST API 서버 사용법 |
-| 6 | [배포 가이드](./docs/user/DEPLOYMENT_GUIDE.md) | Docker 이미지 빌드, GCR/ECR 푸시 |
+| 6 | [배포 및 운영 가이드](./docs/user/DEPLOYMENT_GUIDE.md) | 이미지 빌드, CI/CD, 운영 설정 |
 | 7 | [전처리 레퍼런스](./docs/user/PREPROCESSOR_REFERENCE.md) | 전처리 상세 (선택) |
 | 8 | [로컬 개발 환경](./docs/user/LOCAL_DEV_ENVIRONMENT.md) | Docker 기반 로컬 개발 (선택) |
 
