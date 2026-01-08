@@ -809,9 +809,9 @@ class SystemChecker:
                             if "cloud-extras" not in extras_needed:
                                 extras_needed.append("cloud-extras")
 
-        # Feature Store (Feast) 사용 여부 확인
+        # Feature Store (Feast) 사용 여부 확인 (enabled 체크)
         fs_config = self.config.get("feature_store", {})
-        if fs_config.get("provider", "").lower() == "feast":
+        if fs_config.get("enabled", False) and fs_config.get("provider", "").lower() == "feast":
             checked_packages.append("feast")
             try:
                 import feast  # noqa: F401

@@ -176,11 +176,13 @@ class TestConfigFileGeneration:
             "test",  # env_name
             "y",  # use_mlflow
             "./mlruns",  # mlflow_tracking_uri
+            "mmp-test",  # mlflow_experiment_name
             "3",  # data_source (Local Files)
+            "./data",  # data_path (Local Files 경로)
             "1",  # feature_store (없음)
-            "1",  # artifact_storage (Local)
             "y",  # inference_output_enabled
             "3",  # inference_output_source (Local Files)
+            "./predictions",  # inference_output_path (Local Files 경로)
             "y",  # confirm
         ]
 
@@ -282,51 +284,50 @@ class TestCLISubprocess:
 class TestGuideMessagesConsistency:
     """안내 메시지가 실제 명령어 옵션과 일치하는지 확인"""
 
-    def test_get_config_guide_uses_correct_options(self):
+    def test_get_config_guide_uses_correct_options(self, capsys):
         """get-config 완료 후 안내 메시지가 올바른 옵션 사용"""
-        # 안내 메시지 생성
-
         from mmp.cli.commands.get_config_command import _show_completion_message
 
-        with patch("mmp.cli.commands.get_config_command.cli_success_panel") as mock_panel:
-            _show_completion_message(
-                "local", Path("configs/local.yaml"), Path(".env.local.template")
-            )
+        _show_completion_message(
+            "local", Path("configs/local.yaml"), Path(".env.local.template")
+        )
 
-            # 안내 내용 확인
-            call_args = mock_panel.call_args[0][0]
+        # stdout 캡처
+        captured = capsys.readouterr()
+        output = captured.out
 
-            # 올바른 옵션 사용 확인
-            assert (
-                "system-check -c" in call_args or "system-check --config" in call_args
-            ), f"system-check 안내가 잘못됨: {call_args}"
-            assert (
-                "--env-name" not in call_args
-            ), f"잘못된 --env-name 옵션이 안내에 포함됨: {call_args}"
+        # 올바른 옵션 사용 확인
+        assert (
+            "system-check -c" in output or "system-check --config" in output
+        ), f"system-check 안내가 잘못됨: {output}"
+        assert (
+            "--env-name" not in output
+        ), f"잘못된 --env-name 옵션이 안내에 포함됨: {output}"
 
-    def test_get_recipe_guide_uses_correct_options(self):
+    def test_get_recipe_guide_uses_correct_options(self, capsys):
         """get-recipe 완료 후 안내 메시지가 올바른 옵션 사용"""
         from mmp.cli.commands.get_recipe_command import _show_success_message
 
-        with patch("mmp.cli.commands.get_recipe_command.cli_success_panel") as mock_panel:
-            selections = {
-                "task_choice": "classification",
-                "model": {
-                    "class_path": "sklearn.ensemble.RandomForestClassifier",
-                    "library": "scikit-learn",
-                },
-            }
-            _show_success_message(Path("recipes/test.yaml"), selections)
+        selections = {
+            "task_choice": "classification",
+            "model": {
+                "class_path": "sklearn.ensemble.RandomForestClassifier",
+                "library": "scikit-learn",
+            },
+        }
+        _show_success_message(Path("recipes/test.yaml"), selections)
 
-            call_args = mock_panel.call_args[0][0]
+        # stdout 캡처
+        captured = capsys.readouterr()
+        output = captured.out
 
-            # 올바른 옵션 확인
-            assert (
-                "-c configs/" in call_args or "--config" in call_args
-            ), f"train 안내에 config 옵션이 없음: {call_args}"
-            assert (
-                "--env-name" not in call_args
-            ), f"잘못된 --env-name 옵션이 안내에 포함됨: {call_args}"
+        # 올바른 옵션 확인
+        assert (
+            "-c configs/" in output or "--config" in output
+        ), f"train 안내에 config 옵션이 없음: {output}"
+        assert (
+            "--env-name" not in output
+        ), f"잘못된 --env-name 옵션이 안내에 포함됨: {output}"
 
 
 # ============================================================

@@ -296,7 +296,6 @@ class SettingsFactory:
             if "metadata" not in recipe_data or not recipe_data.get("metadata"):
                 recipe_data["metadata"] = {
                     "author": "CLI Recipe Builder",
-                    "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     "description": "Auto-filled by SettingsFactory for minimal recipe",
                 }
         except Exception as _:
@@ -490,7 +489,6 @@ class SettingsFactory:
             evaluation=Evaluation(metrics=["accuracy"], random_state=42),
             metadata=Metadata(
                 author="SettingsFactory",
-                created_at=datetime.now().isoformat(),
                 description="Serving용 최소 Recipe",
             ),
         )

@@ -90,7 +90,6 @@ class Evaluation(BaseModel):
 
 class Metadata(BaseModel):
     author: str = Field(default="CLI Recipe Builder", description="작성자")
-    created_at: Optional[str] = Field(None, description="생성 시간")
     description: str = Field(..., description="Recipe 설명")
     tuning_note: Optional[str] = Field(None, description="튜닝 관련 노트")
 

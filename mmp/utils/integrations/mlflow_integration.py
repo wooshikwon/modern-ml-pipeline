@@ -280,9 +280,23 @@ def _infer_pandas_dtype_to_mlflow_type(pandas_dtype) -> str:
         str: MLflow 호환 타입 문자열
     """
     dtype_str = str(pandas_dtype)
+    dtype_name = pandas_dtype.name
+
+    # PyArrow 타입 처리 (예: int64[pyarrow], string[pyarrow])
+    if "[pyarrow]" in dtype_str:
+        if "int" in dtype_str or "uint" in dtype_str:
+            return "long"
+        elif "float" in dtype_str or "double" in dtype_str:
+            return "double"
+        elif "bool" in dtype_str:
+            return "boolean"
+        elif "timestamp" in dtype_str or "date" in dtype_str:
+            return "datetime"
+        else:
+            return "string"
 
     # 정수형 (numpy 타입 + pandas nullable 타입)
-    if pandas_dtype.name in [
+    if dtype_name in [
         "int8",
         "int16",
         "int32",
@@ -314,9 +328,21 @@ def _infer_pandas_dtype_to_mlflow_type(pandas_dtype) -> str:
     elif pandas_dtype.name == "object" or "string" in dtype_str:
         return "string"
 
-    # 날짜/시간형
-    elif pandas_dtype.name.startswith("datetime"):
+    # 날짜/시간형 (timezone-aware 포함)
+    elif dtype_name.startswith("datetime") or "datetime64" in dtype_str:
         return "datetime"
+
+    # 범주형 (category)
+    elif dtype_name == "category":
+        return "string"
+
+    # 시간 차이 (timedelta)
+    elif dtype_name.startswith("timedelta") or "timedelta64" in dtype_str:
+        return "long"
+
+    # Period 타입
+    elif "period" in dtype_name.lower():
+        return "string"
 
     # 기본값 (알 수 없는 타입)
     else:

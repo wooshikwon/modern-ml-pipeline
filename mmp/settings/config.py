@@ -123,6 +123,7 @@ class FeastConfig(BaseModel):
 
 class FeatureStore(BaseModel):
     provider: str = Field(default="none", description="Feature Store 제공자")
+    enabled: bool = Field(default=False, description="Feature Store 활성화")
     feast_config: Optional[FeastConfig] = Field(None, description="Feast 설정")
 
 

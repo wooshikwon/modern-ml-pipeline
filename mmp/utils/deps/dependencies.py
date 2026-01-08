@@ -43,9 +43,13 @@ def validate_dependencies(settings: Settings) -> None:
     if _requires_pyarrow(settings):
         required.add("pyarrow")
 
-    # Feature store
+    # Feature store (enabled 설정 확인)
     feature_store = getattr(settings, "feature_store", None)
-    if feature_store and getattr(feature_store, "provider", None) == "feast":
+    if (
+        feature_store
+        and getattr(feature_store, "enabled", False)
+        and getattr(feature_store, "provider", None) == "feast"
+    ):
         required.add("feast")
 
     # Hyperparameter tuning

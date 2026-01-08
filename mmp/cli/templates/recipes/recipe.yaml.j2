@@ -1,6 +1,5 @@
 # =============================================================================
 # Recipe: {{ recipe_name }}
-# Generated: {{ timestamp }}
 # Task: {{ task }} | Model: {{ model_class }}
 # =============================================================================
 # Recipe는 "무엇을 학습할지"를 정의합니다 (모델, 데이터 구조, 전처리)
@@ -14,6 +13,82 @@
 
 name: {{ recipe_name }}
 task_choice: {{ task|lower }}
+
+# -----------------------------------------------------------------------------
+# 데이터 설정
+# -----------------------------------------------------------------------------
+data:
+  loader:
+    # 데이터 경로 (Config의 adapter_type과 호환 필요)
+    #   - sql 어댑터: .sql 또는 .sql.j2 파일 (예: queries/train.sql.j2)
+    #   - storage 어댑터: .csv 또는 .parquet 파일 (예: data/train.csv)
+    source_uri: {{ data_source_uri | default('null') }}
+
+  # Fetcher: 데이터 로딩 방식
+  fetcher:
+    type: {{ fetcher_type }}  # 'pass_through' (기본) 또는 'feature_store' (Feast 연동)
+    {% if fetcher_type == "feature_store" and feature_views %}
+    # Feast Feature Store 설정
+    feature_views:
+      {% for view_name, view_config in feature_views.items() %}
+      {{ view_name }}:
+        join_key: {{ view_config.join_key }}
+        features: {{ view_config.features }}
+      {% endfor %}
+    timestamp_column: {{ timestamp_column }}
+    {% endif %}
+
+  # Data Interface: 컬럼 역할 정의 (가장 중요한 설정)
+  data_interface:
+    # 행 식별 컬럼: ID 역할, 학습에서 자동 제외됨 (예: user_id, date)
+    entity_columns:
+      {% for col in entity_columns %}
+      - {{ col }}
+      {% endfor %}
+    # 피처 컬럼: null이면 entity/target 제외한 모든 컬럼 자동 사용 (권장)
+    feature_columns: null
+    # 예측 대상 컬럼 (Clustering 제외 필수)
+    target_column: {{ target_column if task|lower != 'clustering' else 'null' }}
+    {% if task|lower == "causal" %}
+    # 처치 변수: A/B 테스트의 실험군/대조군 구분 컬럼 (Causal 전용)
+    treatment_column: {{ treatment_column }}
+    {% endif %}
+    {% if task|lower == "timeseries" %}
+    # 시계열 타임스탬프 컬럼 (Timeseries 필수)
+    timestamp_column: {{ timeseries_timestamp_column }}
+    {% endif %}
+
+  # 데이터 분할 비율 (합계 = 1.0, Data Leakage 방지)
+  split:
+    train: {{ train_ratio | default(0.7) }}           # 학습용
+    validation: {{ validation_ratio | default(0.15) }} # 조기종료/튜닝용
+    test: {{ test_ratio | default(0.1) }}             # 최종 평가용
+    {% if task|lower == 'classification' and calibration_enabled %}
+    calibration: {{ calibration_ratio | default(0.05) }}  # 확률 보정용 (calibration.enabled=true 시)
+    {% endif %}
+
+# -----------------------------------------------------------------------------
+# 전처리 파이프라인
+# -----------------------------------------------------------------------------
+{% if preprocessor_steps %}
+preprocessor:
+  steps:
+    {% for step in preprocessor_steps %}
+    - type: {{ step.type }}
+      {% for key, value in step.items() if key != 'type' %}
+      {% if value is sameas true or value is sameas false %}
+      {{ key }}: {{ value | lower }}
+      {% elif value is none %}
+      {{ key }}: null
+      {% else %}
+      {{ key }}: {{ value }}
+      {% endif %}
+      {% endfor %}
+    {% endfor %}
+{% else %}
+# 전처리 없음 (모델이 결측치/스케일링 자동 처리하는 경우)
+preprocessor: null
+{% endif %}
 
 # -----------------------------------------------------------------------------
 # 모델 설정
@@ -58,87 +133,10 @@ model:
     {% endif %}
 
 # -----------------------------------------------------------------------------
-# 데이터 설정
-# -----------------------------------------------------------------------------
-data:
-  loader:
-    # 데이터 경로 (Config의 adapter_type과 호환 필요)
-    #   - sql 어댑터: .sql 또는 .sql.j2 파일 (예: queries/train.sql.j2)
-    #   - storage 어댑터: .csv 또는 .parquet 파일 (예: data/train.csv)
-    source_uri: {{ data_source_uri | default('null') }}
-
-  # Fetcher: 데이터 로딩 방식
-  fetcher:
-    type: {{ fetcher_type }}  # 'pass_through' (기본) 또는 'feature_store' (Feast 연동)
-    {% if fetcher_type == "feature_store" and feature_views %}
-    # Feast Feature Store 설정
-    feature_views:
-      {% for view_name, view_config in feature_views.items() %}
-      {{ view_name }}:
-        join_key: {{ view_config.join_key }}
-        features: {{ view_config.features }}
-      {% endfor %}
-    timestamp_column: {{ timestamp_column }}
-    {% endif %}
-
-  # Data Interface: 컬럼 역할 정의 (가장 중요한 설정)
-  data_interface:
-    # 예측 대상 컬럼 (Clustering 제외 필수)
-    target_column: {{ target_column if task|lower != 'clustering' else 'null' }}
-    {% if task|lower == "causal" %}
-    # 처치 변수: A/B 테스트의 실험군/대조군 구분 컬럼 (Causal 전용)
-    treatment_column: {{ treatment_column }}
-    {% endif %}
-    {% if task|lower == "timeseries" %}
-    # 시계열 타임스탬프 컬럼 (Timeseries 필수)
-    timestamp_column: {{ timeseries_timestamp_column }}
-    {% endif %}
-    # 행 식별 컬럼: ID 역할, 학습에서 자동 제외됨 (예: user_id, date)
-    entity_columns:
-      {% for col in entity_columns %}
-      - {{ col }}
-      {% endfor %}
-    # 피처 컬럼: null이면 entity/target 제외한 모든 컬럼 자동 사용 (권장)
-    feature_columns: null
-
-  # 데이터 분할 비율 (합계 = 1.0, Data Leakage 방지)
-  split:
-    train: {{ train_ratio | default(0.7) }}           # 학습용
-    validation: {{ validation_ratio | default(0.15) }} # 조기종료/튜닝용
-    test: {{ test_ratio | default(0.1) }}             # 최종 평가용
-    {% if task|lower == 'classification' and calibration_enabled %}
-    calibration: {{ calibration_ratio | default(0.05) }}  # 확률 보정용 (calibration.enabled=true 시)
-    {% endif %}
-
-# -----------------------------------------------------------------------------
-# 전처리 파이프라인
-# -----------------------------------------------------------------------------
-{% if preprocessor_steps %}
-preprocessor:
-  steps:
-    {% for step in preprocessor_steps %}
-    - type: {{ step.type }}
-      {% for key, value in step.items() if key != 'type' %}
-      {% if value is sameas true or value is sameas false %}
-      {{ key }}: {{ value | lower }}
-      {% elif value is none %}
-      {{ key }}: null
-      {% else %}
-      {{ key }}: {{ value }}
-      {% endif %}
-      {% endfor %}
-    {% endfor %}
-{% else %}
-# 전처리 없음 (모델이 결측치/스케일링 자동 처리하는 경우)
-preprocessor: null
-{% endif %}
-
-# -----------------------------------------------------------------------------
 # 메타데이터
 # -----------------------------------------------------------------------------
 metadata:
   author: {{ author | default('CLI Recipe Builder') }}
-  created_at: {{ timestamp }}
   description: "{{ task }} task using {{ model_library }}"
   {% if enable_tuning %}
   tuning_note: "Optuna 하이퍼파라미터 튜닝 활성화"

@@ -156,7 +156,6 @@ class RecipeBuilder:
             "preprocessor": {"steps": preprocessor_steps} if preprocessor_steps else None,
             "metadata": {
                 "author": "CLI Recipe Builder",
-                "created_at": datetime.now().isoformat(),
                 "description": f"{task_choice} task using {selected_model['library']}",
             },
         }
@@ -214,8 +213,7 @@ class RecipeBuilder:
             "preprocessor": {"steps": preprocessor_steps} if preprocessor_steps else None,
             "metadata": {
                 "author": "CLI Recipe Builder (Cheat Sheet)",
-                "created_at": datetime.now().isoformat(),
-                "description": f"{task_choice} task using {selected_model['library']} with recommended settings",
+                "description": f"{task_choice} task using {selected_model['library']}",
             },
         }
 
@@ -789,7 +787,6 @@ class RecipeBuilder:
             "task": recipe_data["task_choice"].title(),
             "model_class": recipe_data["model"]["class_path"],
             "model_library": recipe_data["model"]["library"],
-            "timestamp": recipe_data["metadata"]["created_at"],
             "author": recipe_data["metadata"]["author"],
             "target_column": recipe_data["data"]["data_interface"].get("target_column"),
             "entity_columns": recipe_data["data"]["data_interface"]["entity_columns"],
