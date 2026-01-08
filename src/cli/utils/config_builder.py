@@ -80,7 +80,7 @@ class InteractiveConfigBuilder:
             "학습/추론에 사용할 데이터를 가져올 소스를 선택합니다."
         )
         self.ui.show_info(
-            "BigQuery, S3, GCS 사용 시 cloud-extras 설치 필요"
+            "BigQuery, S3, GCS 사용 시 cloud-extras 설치 필요", newline_before=False
         )
         data_sources = ["PostgreSQL", "BigQuery", "Local Files", "S3", "GCS"]
 
@@ -126,7 +126,7 @@ class InteractiveConfigBuilder:
             "Feature Store: 피처 관리 및 실시간 서빙용 (선택사항)"
         )
         self.ui.show_info(
-            "CSV/SQL 직접 로드, 동일 피처 사용 시에는 불필요합니다."
+            "CSV/SQL 직접 로드, 동일 피처 사용 시에는 불필요합니다.", newline_before=False
         )
         feature_stores = ["없음", "Feast"]
 
@@ -165,7 +165,7 @@ class InteractiveConfigBuilder:
             self.ui.show_info(f"Offline Store는 {data_source}에 따라 자동 설정됩니다.")
 
             if data_source in ["PostgreSQL", "Local Files", "S3", "GCS"]:
-                self.ui.show_info("Offline Store는 Parquet 파일 형식을 사용합니다.")
+                self.ui.show_info("Offline Store는 Parquet 파일 형식을 사용합니다.", newline_before=False)
                 selections["feast_offline_path"] = self.ui.text_input(
                     "Offline Store 경로", default="./feast_repo/data"
                 )

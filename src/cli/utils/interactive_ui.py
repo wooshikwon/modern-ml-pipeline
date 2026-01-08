@@ -281,13 +281,15 @@ class InteractiveUI:
         """
         self.console.print(f"[yellow]{message}[/yellow]")
 
-    def show_info(self, message: str) -> None:
+    def show_info(self, message: str, newline_before: bool = True) -> None:
         """정보 메시지 표시.
 
         Args:
             message: 정보 메시지
+            newline_before: 메시지 앞에 줄바꿈 추가 여부
         """
-        self.console.print(f"[cyan]{message}[/cyan]")
+        prefix = "\n" if newline_before else ""
+        self.console.print(f"{prefix}[cyan]{message}[/cyan]")
 
     def clear_screen(self) -> None:
         """화면 지우기."""

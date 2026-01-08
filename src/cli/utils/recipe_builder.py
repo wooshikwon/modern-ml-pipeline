@@ -278,30 +278,31 @@ class RecipeBuilder:
     ) -> None:
         """Cheat Sheet 적용 결과 요약"""
         self.ui.print_divider()
-        self.ui.show_info("[Cheat Sheet 적용 요약]")
+        self.ui.show_info("[Cheat Sheet 적용 요약]", newline_before=False)
 
         # Optuna
         hp = recipe_data["model"]["hyperparameters"]
         self.ui.show_info(
             f"  Optuna: n_trials={hp['n_trials']}, timeout={hp['timeout']}s, "
-            f"metric={hp['optimization_metric']}"
+            f"metric={hp['optimization_metric']}",
+            newline_before=False,
         )
 
         # Calibration
         if task_choice.lower() == "classification":
             cal = recipe_data["model"].get("calibration", {})
             if cal.get("enabled"):
-                self.ui.show_info(f"  Calibration: {cal['method']}")
+                self.ui.show_info(f"  Calibration: {cal['method']}", newline_before=False)
 
         # Preprocessor
         if preprocessor_steps:
             step_types = [s["type"] for s in preprocessor_steps]
-            self.ui.show_info(f"  Preprocessor: {' → '.join(step_types)}")
+            self.ui.show_info(f"  Preprocessor: {' → '.join(step_types)}", newline_before=False)
 
         # Data Split
         split = recipe_data["data"]["split"]
         split_str = ", ".join(f"{k}={int(v*100)}%" for k, v in split.items())
-        self.ui.show_info(f"  Data Split: {split_str}")
+        self.ui.show_info(f"  Data Split: {split_str}", newline_before=False)
 
         self.ui.print_divider()
         self._show_required_user_inputs(recipe_data, task_choice, preprocessor_steps)
