@@ -195,12 +195,25 @@ class SystemChecker:
                     raise FileNotFoundError(f"Directory not found: {tracking_uri}")
 
         except Exception as e:
+            if tracking_uri.startswith("http"):
+                solution = (
+                    "MLflow 서버 연결 실패 해결 방법:\n"
+                    f"1. 서버 실행 확인: curl {tracking_uri}/health\n"
+                    "2. 인증이 필요한 경우 환경변수 설정:\n"
+                    "   export MLFLOW_TRACKING_USERNAME=<username>\n"
+                    "   export MLFLOW_TRACKING_PASSWORD=<password>"
+                )
+            else:
+                solution = (
+                    "MLflow 로컬 디렉토리 문제 해결:\n"
+                    f"디렉토리 생성: mkdir -p {tracking_uri}"
+                )
             return CheckResult(
                 service="MLflow",
                 status=CheckStatus.FAILED,
-                message=f"MLflow connection failed: {str(e)}",
+                message=f"MLflow 연결 실패: {str(e)}",
                 details={"tracking_uri": tracking_uri, "error": str(e)},
-                solution="Check if MLflow server is running or tracking directory exists",
+                solution=solution,
             )
 
     def check_data_source(self, data_source: Dict[str, Any]) -> CheckResult:
@@ -332,8 +345,15 @@ class SystemChecker:
             return CheckResult(
                 service=f"PostgreSQL:{source_name}",
                 status=CheckStatus.FAILED,
-                message=f"PostgreSQL connection failed: {str(e)}",
-                solution="Check database credentials and network connectivity",
+                message=f"PostgreSQL 연결 실패: {str(e)}",
+                solution=(
+                    "PostgreSQL 연결 문제 해결:\n"
+                    "1. DB 서버 실행 확인: pg_isready -h <host> -p <port>\n"
+                    "2. 환경변수로 인증 정보 설정:\n"
+                    "   export DB_USER=<username>\n"
+                    "   export DB_PASSWORD=<password>\n"
+                    "3. 방화벽/네트워크 확인 (원격 서버인 경우)"
+                ),
             )
 
     def _check_bigquery(self, source_name: str, config: Dict[str, Any]) -> CheckResult:
@@ -373,8 +393,15 @@ class SystemChecker:
             return CheckResult(
                 service=f"BigQuery:{source_name}",
                 status=CheckStatus.FAILED,
-                message=f"BigQuery connection failed: {str(e)}",
-                solution="Check GCP credentials and permissions",
+                message=f"BigQuery 연결 실패: {str(e)}",
+                solution=(
+                    "BigQuery 연결 문제 해결:\n"
+                    "1. 서비스 계정 키 파일 설정:\n"
+                    "   export GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json\n"
+                    "2. 프로젝트 ID 확인:\n"
+                    "   export GCP_PROJECT_ID=<your-project-id>\n"
+                    "3. 권한 확인: BigQuery Data Viewer 역할 필요"
+                ),
             )
 
     def _check_storage(self, source_name: str, config: Dict[str, Any]) -> CheckResult:
@@ -426,8 +453,16 @@ class SystemChecker:
             return CheckResult(
                 service=f"S3:{source_name}",
                 status=CheckStatus.FAILED,
-                message=f"S3 connection failed: {str(e)}",
-                solution="Check AWS credentials and permissions",
+                message=f"S3 연결 실패: {str(e)}",
+                solution=(
+                    "S3 연결 문제 해결:\n"
+                    "1. AWS 자격 증명 설정:\n"
+                    "   export AWS_ACCESS_KEY_ID=<access-key>\n"
+                    "   export AWS_SECRET_ACCESS_KEY=<secret-key>\n"
+                    "2. 리전 설정 (선택):\n"
+                    "   export AWS_DEFAULT_REGION=ap-northeast-2\n"
+                    "3. 연결 테스트: aws s3 ls"
+                ),
             )
 
     def _check_gcs(self, source_name: str, config: Dict[str, Any]) -> CheckResult:
@@ -459,8 +494,14 @@ class SystemChecker:
             return CheckResult(
                 service=f"GCS:{source_name}",
                 status=CheckStatus.FAILED,
-                message=f"GCS connection failed: {str(e)}",
-                solution="Check GCP credentials and permissions",
+                message=f"GCS 연결 실패: {str(e)}",
+                solution=(
+                    "GCS 연결 문제 해결:\n"
+                    "1. 서비스 계정 키 파일 설정:\n"
+                    "   export GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json\n"
+                    "2. 연결 테스트: gsutil ls\n"
+                    "3. 권한 확인: Storage Object Viewer 역할 필요"
+                ),
             )
 
     def check_output_target(self, output_type: str, output_config: Dict[str, Any]) -> CheckResult:
@@ -585,8 +626,14 @@ class SystemChecker:
             return CheckResult(
                 service="Feast",
                 status=CheckStatus.FAILED,
-                message=f"Feast check failed: {str(e)}",
-                solution="Check Feast configuration and Redis connection",
+                message=f"Feast 체크 실패: {str(e)}",
+                solution=(
+                    "Feast 문제 해결:\n"
+                    "1. Feast 초기화: feast init && feast apply\n"
+                    "2. Redis 연결 확인 (Online Store 사용 시):\n"
+                    "   redis-cli ping\n"
+                    "3. Registry 경로 확인: config의 feature_store.feast_config.registry"
+                ),
             )
 
     def _check_tecton(self, tecton_config: Dict[str, Any]) -> CheckResult:
@@ -626,8 +673,14 @@ class SystemChecker:
             return CheckResult(
                 service="Tecton",
                 status=CheckStatus.FAILED,
-                message=f"Tecton connection failed: {str(e)}",
-                solution="Check Tecton URL and API key",
+                message=f"Tecton 연결 실패: {str(e)}",
+                solution=(
+                    "Tecton 연결 문제 해결:\n"
+                    "1. Tecton URL 설정:\n"
+                    "   export TECTON_URL=https://your-cluster.tecton.ai\n"
+                    "2. API 키 설정:\n"
+                    "   export TECTON_API_KEY=<your-api-key>"
+                ),
             )
 
     def check_serving(self) -> CheckResult:

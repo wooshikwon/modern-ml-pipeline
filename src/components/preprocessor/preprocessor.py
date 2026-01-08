@@ -82,9 +82,11 @@ class Preprocessor(BasePreprocessor):
 
                 # 결과를 현재 데이터에 병합
                 if transformer.preserves_column_names():
+                    # 행이 삭제된 경우 (drop_missing 등): 전체 데이터프레임 동기화
+                    if len(transformed_data) < len(current_data):
+                        # 삭제된 행의 인덱스를 기준으로 전체 데이터 필터링
+                        current_data = current_data.loc[transformed_data.index].copy()
                     # 컬럼명이 보존되는 경우 (Scaler 등): 기존 컬럼 업데이트
-                    # 메모리 조각화 방지를 위해 한꺼번에 업데이트하는 방식 권장되나,
-                    # 순차 적용을 위해 할당 후 copy()로 조각화 해결
                     for col in transformed_data.columns:
                         current_data[col] = transformed_data[col]
                     current_data = current_data.copy() 
@@ -171,6 +173,9 @@ class Preprocessor(BasePreprocessor):
 
             # 결과를 현재 데이터에 병합
             if transformer.preserves_column_names():
+                # 행이 삭제된 경우 (drop_missing 등): 전체 데이터프레임 동기화
+                if len(transformed_data) < len(current_data):
+                    current_data = current_data.loc[transformed_data.index].copy()
                 # 컬럼명이 보존되는 경우: 기존 컬럼 업데이트 및 조각화 방지
                 for col in transformed_data.columns:
                     current_data[col] = transformed_data[col]
