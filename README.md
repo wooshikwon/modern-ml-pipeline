@@ -105,6 +105,10 @@ Docker 실행 시 필요한 환경변수를 `.env` 파일에 설정합니다:
 MODEL_RUN_ID=<mlflow_run_id>    # 서빙/추론 시 필수
 ```
 
+#### 데이터 준비
+
+학습 데이터를 `data/` 디렉토리에 CSV 또는 SQL 파일로 준비합니다. Task별 데이터 형식은 [Task 가이드](./docs/user/TASK_GUIDE.md)를 참고하세요.
+
 
 ### 4. 학습
 
