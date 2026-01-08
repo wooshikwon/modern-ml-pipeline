@@ -130,7 +130,7 @@ MODEL_RUN_ID=<mlflow_run_id>
 
 ### 4. 학습 및 실험
 
-Recipe 파일을 여러 개 만들어 다양한 모델과 하이퍼파라미터를 실험할 수 있습니다. MLflow가 설정되어 있다면 모든 실험 결과가 자동으로 기록되어 성능 비교가 가능합니다.
+Recipe 파일을 여러 개 만들어 다양한 모델과 하이퍼파라미터를 실험할 수 있습니다. MLflow가 설정되어 있다면 모든 실험 결과가 자동으로 기록되어 `mlflow ui` 명령어로 성능 비교가 가능합니다. 상세 설정은 [MLflow 가이드](./docs/user/MLFLOW_GUIDE.md)를 참고하세요.
 
 #### 로컬 실행
 
@@ -256,10 +256,11 @@ mmp list metrics  # 사용 가능한 메트릭 목록
 | 2 | [Task 가이드](./docs/user/TASK_GUIDE.md) | Task별 데이터 형식, 모델, Recipe 설정 |
 | 3 | [설정 스키마](./docs/user/SETTINGS_SCHEMA.md) | Config/Recipe YAML 작성법 |
 | 4 | [CLI 레퍼런스](./docs/user/CLI_REFERENCE.md) | 명령어 상세 옵션 |
-| 5 | [API 서빙 가이드](./docs/user/API_SERVING_GUIDE.md) | REST API 서버 사용법 |
-| 6 | [배포 및 운영 가이드](./docs/user/DEPLOYMENT_GUIDE.md) | 이미지 빌드, CI/CD, 운영 설정 |
-| 7 | [전처리 레퍼런스](./docs/user/PREPROCESSOR_REFERENCE.md) | 전처리 상세 (선택) |
-| 8 | [로컬 개발 환경](./docs/user/LOCAL_DEV_ENVIRONMENT.md) | Docker 기반 로컬 개발 (선택) |
+| 5 | [MLflow 가이드](./docs/user/MLFLOW_GUIDE.md) | 실험 추적, UI 설정 |
+| 6 | [API 서빙 가이드](./docs/user/API_SERVING_GUIDE.md) | REST API 서버 사용법 |
+| 7 | [배포 및 운영 가이드](./docs/user/DEPLOYMENT_GUIDE.md) | 이미지 빌드, CI/CD, 운영 설정 |
+| 8 | [전처리 레퍼런스](./docs/user/PREPROCESSOR_REFERENCE.md) | 전처리 상세 (선택) |
+| 9 | [로컬 개발 환경](./docs/user/LOCAL_DEV_ENVIRONMENT.md) | Docker 기반 로컬 개발 (선택) |
 
 ### 개발자 문서
 
