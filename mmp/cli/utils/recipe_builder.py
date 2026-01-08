@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional, Set
 import yaml
 
 from mmp.cli.utils.interactive_ui import InteractiveUI
+from mmp.cli.utils.template_engine import TemplateEngine
 from mmp.settings.validation.business_validator import BusinessValidator
 from mmp.settings.validation.catalog_validator import CatalogValidator
 from mmp.utils.core.logger import logger
@@ -24,6 +25,10 @@ class RecipeBuilder:
         self.catalog_validator = CatalogValidator()
         self.business_validator = BusinessValidator()
         self.ui = InteractiveUI()
+
+        # 템플릿 엔진 초기화
+        templates_dir = Path(__file__).parent.parent / "templates"
+        self.template_engine = TemplateEngine(templates_dir)
 
     def get_available_tasks(self) -> Set[str]:
         """models/catalog 기반 동적 Task 목록"""
@@ -860,7 +865,17 @@ class RecipeBuilder:
         return template_vars
 
     def create_recipe_file(self, recipe_data: Dict, output_path: Optional[str] = None) -> Path:
-        """Recipe 데이터를 YAML 파일로 저장"""
+        """Recipe 데이터를 Jinja2 템플릿으로 렌더링하여 YAML 파일로 저장.
+
+        템플릿을 사용하여 사용자 친화적인 주석이 포함된 Recipe 파일을 생성합니다.
+
+        Args:
+            recipe_data: build_recipe_interactively()에서 생성된 recipe 딕셔너리
+            output_path: 출력 파일 경로 (기본값: recipes/{name}.yaml)
+
+        Returns:
+            생성된 Recipe 파일 경로
+        """
         if output_path is None:
             recipes_dir = Path("recipes")
             recipes_dir.mkdir(exist_ok=True)
@@ -868,8 +883,11 @@ class RecipeBuilder:
         else:
             output_path = Path(output_path)
 
-        with open(output_path, "w", encoding="utf-8") as f:
-            yaml.dump(recipe_data, f, default_flow_style=False, allow_unicode=True)
+        # 템플릿 변수 생성 및 렌더링
+        template_vars = self.generate_template_variables(recipe_data)
+        self.template_engine.write_rendered_file(
+            "recipes/recipe.yaml.j2", output_path, template_vars
+        )
 
         logger.debug(f"Recipe 파일 저장됨: {output_path}")
         return output_path

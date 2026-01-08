@@ -145,8 +145,8 @@ evaluation:
 data:
   loader:
     source_uri: "data/train.csv"           # CSV 파일
-    # source_uri: "sql/my_query.sql"   # SQL 쿼리 파일
-    # source_uri: "sql/query.sql.j2"   # Jinja2 템플릿
+    # source_uri: "data/my_query.sql"      # SQL 쿼리 파일
+    # source_uri: "data/query.sql.j2"      # Jinja2 템플릿
 
   data_interface:
     target_column: "label"                  # 예측할 컬럼 (필수)

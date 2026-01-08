@@ -24,7 +24,7 @@ def init_command(project_name: Optional[str] = typer.Argument(None, help="프로
         project_name: 프로젝트 이름 (선택사항, 없으면 대화형으로 입력)
 
     생성되는 구조:
-        - data/, configs/, recipes/, sql/ 디렉토리
+        - data/, configs/, recipes/ 디렉토리
         - docker-compose.yml, Dockerfile
         - pyproject.toml, README.md
         - .gitignore
@@ -93,7 +93,7 @@ def create_project_structure(project_path: Path) -> None:
         project_path: 프로젝트 디렉토리 경로
     """
     # 디렉토리 생성
-    directories = ["data", "configs", "recipes", "sql"]
+    directories = ["data", "configs", "recipes"]
     for dir_name in directories:
         (project_path / dir_name).mkdir(parents=True, exist_ok=True)
 

@@ -124,7 +124,7 @@ task_choice: "classification"
 
 data:
   loader:
-    source_uri: "sql/transactions.sql"  # Entity DataFrame (거래 이벤트)
+    source_uri: "data/transactions.sql"  # Entity DataFrame (거래 이벤트)
 
   data_interface:
     target_column: "is_fraud"

@@ -18,19 +18,30 @@ YAML 설정 기반의 머신러닝 파이프라인 CLI 도구입니다.
 
 ### 1. 설치
 
-**요구사항**: Python 3.11 또는 3.12
+**요구사항**: Python 3.11, 3.12, 또는 3.13
 
 ```bash
 # Homebrew Python 사용 시
 pipx install --python python3.11 modern-ml-pipeline
 
 # pyenv 사용 시
-pipx install --python ~/.pyenv/versions/3.11.10/bin/python modern-ml-pipeline
+pipx install --python $(pyenv prefix 3.11)/bin/python modern-ml-pipeline
+# 또는 특정 버전 지정
+pipx install --python $(pyenv prefix 3.11.10)/bin/python modern-ml-pipeline
 ```
 
 > **설치 전 준비**
-> - Python 3.11: `brew install python@3.11` (Homebrew) 또는 `pyenv install 3.11.10` (pyenv)
+> - Python 3.11+: `brew install python@3.11` (Homebrew) 또는 `pyenv install 3.11.10` (pyenv)
 > - pipx: `brew install pipx && pipx ensurepath` (macOS) 또는 `pip install pipx && pipx ensurepath`
+
+> **pyenv 트러블슈팅**
+> `python3.11: command not found` 오류 시:
+> ```bash
+> # 설치된 버전 확인
+> pyenv versions
+> # 전체 경로로 설치
+> pipx install --python $(pyenv prefix 3.11.10)/bin/python modern-ml-pipeline
+> ```
 
 상세 설치 옵션은 [환경 설정 가이드](./docs/user/ENVIRONMENT_SETUP.md)를 참고하세요.
 
@@ -45,10 +56,9 @@ mmp init my-project
 
 ```text
 my-project/
-├── data/           # 학습/추론 데이터 파일
+├── data/           # 학습/추론 데이터 파일 (CSV, SQL, SQL.j2)
 ├── configs/        # 환경 설정 파일 (dev.yaml, prod.yaml 등)
 ├── recipes/        # 실험 레시피 파일
-├── sql/            # SQL 쿼리 파일
 ├── docker-compose.yml
 ├── Dockerfile
 ├── pyproject.toml
@@ -71,7 +81,7 @@ cd my-project
 
 # 로컬 파일 (현재 디렉토리 기준 상대 경로)
 mmp train ... -d data/train.csv        # ./data/train.csv
-mmp train ... -d sql/query.sql         # ./sql/query.sql
+mmp train ... -d data/query.sql        # ./data/query.sql
 
 # 클라우드 스토리지 (전체 경로 지정)
 mmp train ... -d s3://bucket/data/train.csv
@@ -156,13 +166,13 @@ model:
 mmp train --config configs/dev.yaml --recipe recipes/my-recipe.yaml --data data/train.csv
 
 # SQL 파일로 학습 (DB에서 직접 데이터 로드)
-mmp train --config configs/dev.yaml --recipe recipes/my-recipe.yaml --data sql/train_data.sql
+mmp train --config configs/dev.yaml --recipe recipes/my-recipe.yaml --data data/train_data.sql
 ```
 
 SQL 파일 사용 시 Jinja2 템플릿을 지원합니다:
 
 ```sql
--- sql/train_data.sql.j2
+-- data/train_data.sql.j2
 SELECT user_id, feature_1, feature_2, target
 FROM my_table
 WHERE created_at BETWEEN '{{ data_interval_start }}' AND '{{ data_interval_end }}'
@@ -170,7 +180,7 @@ WHERE created_at BETWEEN '{{ data_interval_start }}' AND '{{ data_interval_end }
 
 ```bash
 # 템플릿 파라미터 전달
-mmp train -c configs/dev.yaml -r recipes/model.yaml -d sql/train_data.sql.j2 \
+mmp train -c configs/dev.yaml -r recipes/model.yaml -d data/train_data.sql.j2 \
   --params '{"data_interval_start": "2025-01-01", "data_interval_end": "2025-01-31"}'
 ```
 
@@ -201,7 +211,7 @@ logs/dev_my-recipe_20250107_123456.log
 mmp batch-inference -c configs/dev.yaml --run-id <mlflow_run_id> -d data/test.csv
 
 # SQL 파일로 배치 추론 (Jinja2 템플릿 파라미터 전달)
-mmp batch-inference -c configs/dev.yaml --run-id <mlflow_run_id> -d sql/inference_data.sql.j2 \
+mmp batch-inference -c configs/dev.yaml --run-id <mlflow_run_id> -d data/inference_data.sql.j2 \
   --params '{"data_interval_start": "2025-01-01", "data_interval_end": "2025-01-31"}'
 ```
 
@@ -313,4 +323,4 @@ mmp train -c configs/dev.yaml -r recipes/model.yaml -d data/train.csv -q
 
 ---
 
-**Version**: 1.0.0 | **License**: Apache 2.0 | **Python**: 3.11+
+**Version**: 1.1.11 | **License**: Apache 2.0 | **Python**: 3.11 - 3.13

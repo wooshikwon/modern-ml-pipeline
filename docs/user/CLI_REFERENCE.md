@@ -8,7 +8,7 @@
 
 > **경로 규칙**
 >
-> 모든 mmp 명령어는 **프로젝트 루트 디렉토리에서 실행**해야 합니다. 설정 파일(`configs/`, `recipes/`)과 데이터 파일(`data/`, `sql/`) 경로는 현재 작업 디렉토리 기준 상대 경로로 해석됩니다.
+> 모든 mmp 명령어는 **프로젝트 루트 디렉토리에서 실행**해야 합니다. 설정 파일(`configs/`, `recipes/`)과 데이터 파일(`data/`) 경로는 현재 작업 디렉토리 기준 상대 경로로 해석됩니다.
 
 
 ## 1. 프로젝트 관리 (Setup)
@@ -31,8 +31,7 @@ mmp init [PROJECT_NAME]
 my-project/
 ├── configs/        # Config 파일
 ├── recipes/        # Recipe 파일
-├── data/           # 데이터 파일
-├── sql/            # SQL 쿼리 파일
+├── data/           # 데이터 파일 (CSV, SQL, SQL.j2)
 ├── docker-compose.yml
 ├── Dockerfile
 ├── pyproject.toml
@@ -128,7 +127,7 @@ mmp train -c configs/dev.yaml -r recipes/model.yaml -d data/train.csv
 
 # SQL 템플릿으로 학습 (파라미터 전달)
 mmp train -c configs/dev.yaml -r recipes/model.yaml \
-  -d sql/train_data.sql.j2 \
+  -d data/train_data.sql.j2 \
   --params '{"data_interval_start": "2025-01-01", "data_interval_end": "2025-01-31"}'
 
 # Quiet 모드 (진행 상태만)
@@ -179,7 +178,7 @@ mmp batch-inference --run-id abc123 -c configs/prod.yaml
 
 # 데이터 소스 override + 파라미터 전달
 mmp batch-inference --run-id abc123 \
-  -d sql/inference_data.sql.j2 \
+  -d data/inference_data.sql.j2 \
   --params '{"data_interval_start": "2025-02-01", "data_interval_end": "2025-02-28"}'
 ```
 
@@ -310,12 +309,12 @@ Quiet 모드 출력 예시:
 ```bash
 # 학습
 mmp train -c configs/dev.yaml -r recipes/model.yaml \
-  -d sql/train_data.sql.j2 \
+  -d data/train_data.sql.j2 \
   --params '{"data_interval_start": "2025-01-01", "data_interval_end": "2025-01-31"}'
 
 # 추론
 mmp batch-inference --run-id abc123 \
-  -d sql/inference_data.sql.j2 \
+  -d data/inference_data.sql.j2 \
   --params '{"data_interval_start": "2025-02-01", "data_interval_end": "2025-02-28"}'
 ```
 
@@ -335,5 +334,5 @@ done
 mmp train -c configs/dev.yaml -r recipes/model.yaml -d data/train.csv
 
 # 운영 환경
-mmp train -c configs/prod.yaml -r recipes/model.yaml -d sql/prod_data.sql
+mmp train -c configs/prod.yaml -r recipes/model.yaml -d data/prod_data.sql
 ```

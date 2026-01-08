@@ -81,7 +81,7 @@ data:
 ```yaml
 data:
   loader:
-    source_uri: "sql/transactions.sql"
+    source_uri: "data/transactions.sql"
   data_interface:
     entity_columns: [user_id]
     target_column: is_fraud
