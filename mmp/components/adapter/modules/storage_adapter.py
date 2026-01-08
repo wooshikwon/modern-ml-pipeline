@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 import pandas as pd
@@ -112,46 +113,50 @@ class StorageAdapter(BaseAdapter):
 
     def read(self, uri: str, **kwargs) -> pd.DataFrame:
         """URI로부터 데이터를 읽어 DataFrame으로 반환합니다."""
-        # 상대 경로를 절대 경로로 변환
         uri_str = self._resolve_path(uri)
         file_name = Path(uri_str).name
         file_ext = Path(uri_str).suffix.lower()
 
-        # pandas에서 지원하지 않는 인자 필터링
         pandas_kwargs = {k: v for k, v in kwargs.items() if k != "params"}
 
         log_data_debug(f"파일 읽기 시작: {file_name}", "StorageAdapter")
+        start_time = time.time()
 
         try:
             lower = uri_str.lower()
             if lower.endswith(".csv"):
-                log_data_debug(f"CSV 파싱 - 옵션: {len(pandas_kwargs)}개", "StorageAdapter")
-                result = pd.read_csv(uri_str, storage_options=self.storage_options, **pandas_kwargs)
+                # PyArrow 엔진 사용 (2-3배 빠름)
+                try:
+                    result = pd.read_csv(
+                        uri_str,
+                        storage_options=self.storage_options,
+                        engine="pyarrow",
+                        **pandas_kwargs,
+                    )
+                except Exception:
+                    result = pd.read_csv(
+                        uri_str, storage_options=self.storage_options, **pandas_kwargs
+                    )
 
             elif lower.endswith(".parquet"):
-                log_data_debug(f"Parquet 파싱 - 옵션: {len(pandas_kwargs)}개", "StorageAdapter")
                 result = pd.read_parquet(
                     uri_str, storage_options=self.storage_options, **pandas_kwargs
                 )
 
-            else:
-                # 기타 파일 형식도 지원
-                if lower.endswith(".json"):
-                    result = pd.read_json(uri_str, **pandas_kwargs)
-                else:
-                    raise ValueError(f"지원되지 않는 파일 형식: {file_ext}")
+            elif lower.endswith(".json"):
+                result = pd.read_json(uri_str, **pandas_kwargs)
 
-            # 데이터 크기 및 품질 정보
+            else:
+                raise ValueError(f"지원되지 않는 파일 형식: {file_ext}")
+
+            elapsed = time.time() - start_time
             data_size_mb = result.memory_usage(deep=True).sum() / (1024 * 1024)
-            null_count = result.isnull().sum().sum()
 
             log_data_debug(
-                f"파일 읽기 완료: {file_name}, {len(result)}행 × {len(result.columns)}열, {data_size_mb:.1f}MB",
+                f"파일 읽기 완료 ({elapsed:.1f}초): {len(result):,}행 × {len(result.columns)}열, "
+                f"{data_size_mb:.1f}MB",
                 "StorageAdapter",
             )
-
-            if null_count > 0:
-                log_data_debug(f"결측값 {null_count:,}개 발견", "StorageAdapter")
 
             return result
 

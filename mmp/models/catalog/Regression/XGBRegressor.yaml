@@ -84,4 +84,3 @@ recommended_preprocessor:
   - type: simple_imputer
     strategy: median
   - type: catboost_encoder
-    handle_unknown: use_encoded_value

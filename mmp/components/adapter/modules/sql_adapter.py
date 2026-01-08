@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
 from urllib.parse import urlparse
@@ -165,6 +166,73 @@ class SqlAdapter(BaseAdapter):
             logger.error(f"[DATA:SqlAdapter] 엔진 생성 실패: {e}")
             raise
 
+    def _execute_bigquery_with_progress(self, sql_query: str, **kwargs) -> pd.DataFrame:
+        """BigQuery 쿼리를 실행하며 진행 상황을 표시합니다.
+
+        google-cloud-bigquery를 직접 사용하여 job 상태를 모니터링하고,
+        주기적으로 진행 상황 로그를 출력합니다.
+        """
+        try:
+            from google.cloud import bigquery
+
+            # BigQuery 클라이언트 생성
+            client = bigquery.Client(project=self.project_id, location=self.location)
+
+            log_data_debug("BigQuery 쿼리 실행 시작 (진행 상황 모니터링 활성화)", "SqlAdapter")
+
+            # 쿼리 job 생성 및 실행
+            query_job = client.query(sql_query)
+            job_id = query_job.job_id
+            log_data_debug(f"BigQuery Job 생성됨: {job_id[:20]}...", "SqlAdapter")
+
+            # job 완료 대기 및 진행 상황 로깅
+            start_time = time.time()
+            last_log_time = start_time
+            log_interval = 10  # 10초마다 로그
+
+            while not query_job.done():
+                time.sleep(1)
+                elapsed = time.time() - start_time
+
+                # 주기적 진행 상황 로그
+                if time.time() - last_log_time >= log_interval:
+                    state = query_job.state
+                    log_data_debug(
+                        f"BigQuery 쿼리 실행 중... ({elapsed:.0f}초 경과, 상태: {state})",
+                        "SqlAdapter",
+                    )
+                    last_log_time = time.time()
+
+            # 쿼리 완료 후 결과 조회
+            query_elapsed = time.time() - start_time
+            log_data_debug(
+                f"BigQuery 쿼리 완료 ({query_elapsed:.1f}초 소요), 결과 다운로드 중...", "SqlAdapter"
+            )
+
+            # Storage API로 DataFrame 변환 (REST API 대비 10배 이상 빠름)
+            download_start = time.time()
+            try:
+                result = query_job.to_dataframe(create_bqstorage_client=True)
+            except Exception:
+                result = query_job.to_dataframe()
+
+            download_elapsed = time.time() - download_start
+            log_data_debug(f"결과 다운로드 완료 ({download_elapsed:.1f}초 소요)", "SqlAdapter")
+
+            return result
+
+        except ImportError:
+            # google-cloud-bigquery 미설치 시 기존 방식 폴백
+            logger.warning("[DATA:SqlAdapter] google-cloud-bigquery 미설치, SQLAlchemy 폴백")
+            log_data_debug("BigQuery 쿼리 실행 중... (진행 상황 표시 불가)", "SqlAdapter")
+            return pd.read_sql_query(sql_query, self.engine, **kwargs)
+
+        except Exception as e:
+            # BigQuery 직접 실행 실패 시 SQLAlchemy 폴백
+            logger.warning(f"[DATA:SqlAdapter] BigQuery 직접 실행 실패, SQLAlchemy 폴백: {e}")
+            log_data_debug("BigQuery 쿼리 실행 중... (진행 상황 표시 불가)", "SqlAdapter")
+            return pd.read_sql_query(sql_query, self.engine, **kwargs)
+
     def _enforce_sql_guards(self, sql_query: str) -> None:
         """보안/신뢰성 가드 적용: DDL/DML 금칙어 차단, LIMIT 가드(옵션)."""
         upper = sql_query.upper()
@@ -272,13 +340,18 @@ class SqlAdapter(BaseAdapter):
             log_data_debug(f"파라미터 바인딩: {len(params)}개", "SqlAdapter")
 
         try:
-            # Pandas + SQLAlchemy 2.x 호환: 엔진 객체를 직접 전달
-            result = pd.read_sql_query(sql_query, self.engine, params=params, **kwargs)
+            start_time = time.time()
 
-            # 데이터 크기 및 구조 정보 표시
+            if self.db_type == "bigquery":
+                result = self._execute_bigquery_with_progress(sql_query, **kwargs)
+            else:
+                result = pd.read_sql_query(sql_query, self.engine, params=params, **kwargs)
+
+            elapsed = time.time() - start_time
             data_size_mb = result.memory_usage(deep=True).sum() / (1024 * 1024)
             log_data_debug(
-                f"쿼리 완료: {len(result):,}행 × {len(result.columns)}열, {data_size_mb:.1f}MB",
+                f"쿼리 완료 ({elapsed:.1f}초): {len(result):,}행 × {len(result.columns)}열, "
+                f"{data_size_mb:.1f}MB",
                 "SqlAdapter",
             )
 
