@@ -101,12 +101,22 @@ model:
 
 상세 옵션은 [Task 가이드](./docs/user/TASK_GUIDE.md), [설정 스키마](./docs/user/SETTINGS_SCHEMA.md)를 참고하세요.
 
-#### 환경변수 입력 (.env)
+#### 환경변수 (.env)
 
-Docker 실행 시 필요한 환경변수를 `.env` 파일에 설정합니다:
+인증 정보 및 런타임 설정을 `.env` 파일에 설정합니다:
 
 ```bash
-MODEL_RUN_ID=<mlflow_run_id>    # 서빙/추론 시 필수
+# MLflow 인증 (필요 시)
+MLFLOW_TRACKING_USERNAME=<username>
+MLFLOW_TRACKING_PASSWORD=<password>
+
+# 클라우드 인증 (필요 시)
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json
+AWS_ACCESS_KEY_ID=<access_key>
+AWS_SECRET_ACCESS_KEY=<secret_key>
+
+# 모델 서빙/추론 시
+MODEL_RUN_ID=<mlflow_run_id>
 ```
 
 
