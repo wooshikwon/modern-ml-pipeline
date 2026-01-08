@@ -2,13 +2,14 @@
 
 YAML 설정 기반의 머신러닝 파이프라인 CLI 도구입니다.
 
-코드를 수정하지 않고 **YAML 설정 파일**만으로 모델 학습부터 API 서빙까지 처리합니다.
+코드를 수정하지 않고 **YAML 설정 파일**만으로 모델 학습부터 API 서빙까지 처리합니다. 프로젝트 생성(`mmp init`)부터 실험, Docker 이미지 빌드, 컨테이너 레지스트리(GCR/ECR) 푸시까지 일관된 워크플로우를 제공합니다.
 
 
 ## 주요 특징
 
-- **설정 기반 (Config-driven)**: YAML만으로 실험을 정의
-- **피처 스토어 연동**: Feature Store/Data Lake에 사전 정의된 피처 직접 활용
+- **설정 기반 (Config-driven)**: YAML만으로 실험을 정의하고 환경 간 이식 가능
+- **단일 이미지 배포**: 학습, 추론, API 서빙을 하나의 Docker 이미지로 지원 (GCR/ECR 푸시까지)
+- **클라우드 데이터 연동**: GCS/S3/BigQuery에서 직접 데이터 로드
 - **자동 실험 추적**: MLflow와 연동되어 모든 실험 결과와 모델이 자동 저장
 - **Data Leakage 방지**: Train/Validation/Test/Calibration 4단계 분할 자동 처리
 - **즉시 서빙**: 학습 완료 후 명령어 한 줄로 REST API 서버 기동
@@ -45,59 +46,25 @@ pipx install modern-ml-pipeline       # pipx (CLI 전역 설치, 권장)
 
 ```bash
 mmp init my-project
+cd my-project
 ```
 
 생성되는 디렉토리 구조:
 
 ```text
 my-project/
-├── data/           # 학습/추론 데이터 파일 (CSV, SQL, SQL.j2)
-├── configs/        # 환경 설정 파일 (dev.yaml, prod.yaml 등)
-├── recipes/        # 실험 레시피 파일
-├── docker-compose.yml
-├── Dockerfile
-├── pyproject.toml
-├── README.md
-└── .gitignore
+├── configs/             # 환경별 설정 (dev.yaml, prod.yaml)
+├── recipes/             # 실험 레시피
+├── data/                # 데이터 파일 (CSV, SQL)
+├── Dockerfile           # 프로덕션 배포용 (학습/추론/서빙 통합)
+├── docker-compose.yml   # 로컬 실행 및 테스트
+└── ...
 ```
 
-
-### 3. 데이터 준비
-
-학습에 사용할 데이터를 준비합니다. CSV 파일 또는 SQL 쿼리 파일을 사용할 수 있습니다.
-
-**경로 규칙**
-
-모든 mmp 명령어는 **프로젝트 루트 디렉토리에서 실행**해야 합니다. 파일 경로는 현재 작업 디렉토리 기준 상대 경로로 해석됩니다:
-
-```bash
-# 프로젝트 디렉토리로 이동 후 명령어 실행
-cd my-project
-
-# 로컬 파일 (현재 디렉토리 기준 상대 경로)
-mmp train ... -d data/train.csv        # ./data/train.csv
-mmp train ... -d data/query.sql        # ./data/query.sql
-
-# 클라우드 스토리지 (전체 경로 지정)
-mmp train ... -d s3://bucket/data/train.csv
-mmp train ... -d gs://bucket/data/train.csv
-```
-
-> **참고**: mmp는 pipx로 전역 설치되지만, 명령어 실행 시 현재 디렉토리를 기준으로 설정 파일과 데이터를 찾습니다.
-
-클라우드 스토리지 상세 설정은 [환경 설정 가이드](./docs/user/ENVIRONMENT_SETUP.md#클라우드-스토리지-설정)를 참고하세요.
-
-**데이터 형식 요구사항**
-
-- 각 행은 하나의 샘플을 나타냄
-- `entity_columns`: 행을 식별하는 ID 컬럼 (학습에서 자동 제외)
-- `target_column`: 예측 대상 컬럼
-- 나머지 컬럼: 피처로 사용
-
-Task별 상세 데이터 형식은 [Task 가이드](./docs/user/TASK_GUIDE.md)를 참고하세요.
+> **Tip**: `Dockerfile`과 `docker-compose.yml`이 기본 포함되어, 로컬 개발부터 클라우드 배포까지 동일한 환경에서 실행할 수 있습니다.
 
 
-### 4. 설정 파일 생성
+### 3. 설정 파일 생성
 
 #### Config 파일 (인프라 설정)
 
@@ -105,10 +72,7 @@ Task별 상세 데이터 형식은 [Task 가이드](./docs/user/TASK_GUIDE.md)�
 mmp get-config
 ```
 
-**대화형 인터페이스**를 통해 MLflow, 스토리지, DB 연결 등 인프라 설정을 선택하고 `configs/{env}.yaml` 파일을 생성합니다.
-
-상세 옵션은 [환경 설정 가이드](./docs/user/ENVIRONMENT_SETUP.md)를 참고하세요.
-
+대화형 인터페이스를 통해 MLflow, 스토리지, DB 연결 등을 설정하고 `configs/{env}.yaml` 파일을 생성합니다.
 
 #### Recipe 파일 (실험 설정)
 
@@ -116,7 +80,7 @@ mmp get-config
 mmp get-recipe
 ```
 
-**대화형 인터페이스**를 통해 Task, 모델, 전처리 등을 선택하고 `recipes/{name}.yaml` 파일을 생성합니다. 생성된 Recipe 파일에서 **데이터 컬럼 정보만 직접 수정**하면 됩니다:
+Task, 모델, 전처리 등을 선택하고 `recipes/{name}.yaml` 파일을 생성합니다. 생성된 파일에서 **데이터 컬럼 정보만 수정**하면 됩니다:
 
 ```yaml
 # recipes/my-recipe.yaml
@@ -124,90 +88,53 @@ task_choice: classification
 
 data:
   data_interface:
-    entity_columns: [user_id]      # [필수] 사용자가 직접 지정
-    target_column: is_fraud        # [필수] 사용자가 직접 지정
-    feature_columns: null          # [선택] null이면 자동 선택
+    entity_columns: [user_id]      # [필수] ID 컬럼
+    target_column: is_fraud        # [필수] 예측 대상
 
 model:
-  class_path: xgboost.XGBClassifier  # 대화형에서 선택됨
-
-# preprocessor:                    # [선택] 필요시 추가
-#   steps:
-#     - type: standard_scaler
+  class_path: xgboost.XGBClassifier
 ```
 
-**필수 수정 항목**
-
-- `entity_columns`: 데이터의 ID 컬럼명
-- `target_column`: 예측 대상 컬럼명
-
-**선택 항목** (기본값으로 작동)
-
-- `feature_columns`: 미지정 시 자동 선택
-- `preprocessor`: 미지정 시 전처리 없음
-- `model.hyperparameters`: 미지정 시 모델 기본값
-
-**참고 문서**
-
-- [Task 가이드](./docs/user/TASK_GUIDE.md): Task별 data_interface 설정, 지원 모델
-- [전처리 레퍼런스](./docs/user/PREPROCESSOR_REFERENCE.md): 전처리 옵션 (스케일링, 결측치 처리 등)
-- [설정 스키마](./docs/user/SETTINGS_SCHEMA.md): Config/Recipe YAML 전체 스키마
+상세 옵션은 [Task 가이드](./docs/user/TASK_GUIDE.md), [설정 스키마](./docs/user/SETTINGS_SCHEMA.md)를 참고하세요.
 
 
-### 5. 학습 실행
+### 4. 학습
+
+#### 로컬 실행
 
 ```bash
 # CSV 파일로 학습
-mmp train --config configs/dev.yaml --recipe recipes/my-recipe.yaml --data data/train.csv
+mmp train -c configs/dev.yaml -r recipes/my-recipe.yaml -d data/train.csv
 
-# SQL 파일로 학습 (DB에서 직접 데이터 로드)
-mmp train --config configs/dev.yaml --recipe recipes/my-recipe.yaml --data data/train_data.sql
+# SQL 파일로 학습 (BigQuery/PostgreSQL 등)
+mmp train -c configs/dev.yaml -r recipes/my-recipe.yaml -d data/query.sql
 ```
 
-SQL 파일 사용 시 Jinja2 템플릿을 지원합니다:
-
-```sql
--- data/train_data.sql.j2
-SELECT user_id, feature_1, feature_2, target
-FROM my_table
-WHERE created_at BETWEEN '{{ data_interval_start }}' AND '{{ data_interval_end }}'
-```
+#### Docker 실행
 
 ```bash
-# 템플릿 파라미터 전달
-mmp train -c configs/dev.yaml -r recipes/model.yaml -d data/train_data.sql.j2 \
-  --params '{"data_interval_start": "2025-01-01", "data_interval_end": "2025-01-31"}'
+# 이미지 빌드 (최초 1회)
+docker build -t my-model:latest .
+
+# Docker로 학습 실행
+docker-compose run --rm train
 ```
 
-**로그 파일**
-
-학습 실행 시 상세 로그가 `logs/` 디렉토리에 자동 저장됩니다:
-
-```text
-logs/dev_my-recipe_20250107_123456.log
-```
-
-- 파일명 형식: `{환경}_{레시피명}_{타임스탬프}.log`
-- 30일 이상 된 로그는 자동 삭제됩니다
-
-명령어 상세 옵션은 [CLI 레퍼런스](./docs/user/CLI_REFERENCE.md)를 참고하세요.
+학습 완료 시 출력되는 `run_id`를 추론/서빙에 사용합니다.
 
 
-### 6. 추론
-
-학습된 모델로 예측을 수행합니다. 배치 추론과 실시간 API 서빙 두 가지 방식을 지원합니다.
+### 5. 추론
 
 #### 배치 추론
 
-대량의 데이터를 한 번에 예측할 때 사용합니다.
+대량의 데이터를 한 번에 예측합니다.
 
 ```bash
-# CSV 파일로 배치 추론
-mmp batch-inference -c configs/dev.yaml --run-id <mlflow_run_id> -d data/test.csv
+# 로컬 실행
+mmp batch-inference -c configs/dev.yaml --run-id <run_id> -d data/test.csv
 
-# SQL 파일로 배치 추론 (Jinja2 템플릿 파라미터 전달)
-mmp batch-inference -c configs/dev.yaml --run-id <mlflow_run_id> -d data/inference_data.sql.j2 \
-  --params '{"data_interval_start": "2025-01-01", "data_interval_end": "2025-01-31"}'
+# Docker 실행
+MODEL_RUN_ID=<run_id> INFERENCE_DATA_PATH=data/test.csv docker-compose run --rm inference
 ```
 
 #### 실시간 API 서빙
@@ -215,39 +142,46 @@ mmp batch-inference -c configs/dev.yaml --run-id <mlflow_run_id> -d data/inferen
 REST API 서버를 기동하여 실시간 예측 요청을 처리합니다.
 
 ```bash
-# API 서버 시작
-mmp serve-api --config configs/dev.yaml --run-id <mlflow_run_id>
+# 로컬 실행
+mmp serve-api -c configs/dev.yaml --run-id <run_id>
+
+# Docker 실행
+MODEL_RUN_ID=<run_id> docker-compose up api
 ```
 
 ```bash
-# API 호출 예시
+# API 호출
 curl -X POST http://localhost:8000/predict \
   -H "Content-Type: application/json" \
   -d '{"feature_1": 0.5, "feature_2": 100}'
 ```
 
-#### MLflow 서버 없이 배포
+API 엔드포인트 상세는 [API 서빙 가이드](./docs/user/API_SERVING_GUIDE.md)를 참고하세요.
 
-MLflow 서버 연결 없이 로컬 artifact만으로 Docker 배포가 가능합니다.
 
-Config 파일에서 로컬 저장소를 설정합니다:
+### 6. 배포
 
-```yaml
-# configs/local.yaml
-mlflow:
-  tracking_uri: "./mlruns"
-  experiment_name: "my-experiment"
-```
+MMP는 **프로젝트 생성부터 컨테이너 레지스트리 푸시까지** 지원합니다.
 
 ```bash
-# 학습 및 서빙 (Config 설정 사용)
-mmp train -c configs/local.yaml -r recipes/model.yaml -d data/train.csv
-mmp serve-api -c configs/local.yaml --run-id <run_id>
-
-# Docker 배포 시 mlruns/ 디렉토리 포함
+# 이미지 빌드 및 레지스트리 푸시
+docker build -t gcr.io/my-project/mmp:v1 .
+docker push gcr.io/my-project/mmp:v1
 ```
 
-API 서버 상세 사용법은 [API 서빙 가이드](./docs/user/API_SERVING_GUIDE.md)를 참고하세요.
+빌드된 이미지는 **단일 이미지**로 학습, 추론, API 서빙을 모두 지원합니다. Kubernetes에서 실행 시 command만 다르게 지정합니다:
+
+```bash
+mmp serve-api --run-id <run_id> -c configs/prod.yaml           # API 서빙
+mmp batch-inference --run-id <run_id> -d gs://bucket/data.csv  # 배치 추론
+mmp train -r recipes/model.yaml -d gs://bucket/train.csv       # 학습
+```
+
+> **MMP의 범위**: 프로젝트 생성 → 실험 → 이미지 빌드 → GCR/ECR 푸시
+>
+> **MMP 범위 외**: Kubernetes 매니페스트(Deployment, CronJob, ConfigMap 등)는 조직의 GitOps 레포지토리에서 플랫폼팀이 별도 관리합니다.
+
+상세 배포 가이드는 [배포 가이드](./docs/user/DEPLOYMENT_GUIDE.md)를 참고하세요.
 
 
 ## 지원 Task
@@ -276,11 +210,8 @@ API 서버 상세 사용법은 [API 서빙 가이드](./docs/user/API_SERVING_GU
 | CausalML | T-Learner, S-Learner |
 
 ```bash
-# 사용 가능한 모델 목록 조회
-mmp list models
-
-# 사용 가능한 메트릭 목록 조회
-mmp list metrics
+mmp list models   # 사용 가능한 모델 목록
+mmp list metrics  # 사용 가능한 메트릭 목록
 ```
 
 
@@ -294,9 +225,10 @@ mmp list metrics
 | 2 | [Task 가이드](./docs/user/TASK_GUIDE.md) | Task별 데이터 형식, 모델, Recipe 설정 |
 | 3 | [설정 스키마](./docs/user/SETTINGS_SCHEMA.md) | Config/Recipe YAML 작성법 |
 | 4 | [CLI 레퍼런스](./docs/user/CLI_REFERENCE.md) | 명령어 상세 옵션 |
-| 5 | [API 서빙 가이드](./docs/user/API_SERVING_GUIDE.md) | REST API 서버 배포 |
-| 6 | [전처리 레퍼런스](./docs/user/PREPROCESSOR_REFERENCE.md) | 전처리 상세 (선택) |
-| 7 | [로컬 개발 환경](./docs/user/LOCAL_DEV_ENVIRONMENT.md) | Docker 기반 로컬 개발 (선택) |
+| 5 | [API 서빙 가이드](./docs/user/API_SERVING_GUIDE.md) | REST API 서버 사용법 |
+| 6 | [배포 가이드](./docs/user/DEPLOYMENT_GUIDE.md) | Docker 이미지 빌드, GCR/ECR 푸시 |
+| 7 | [전처리 레퍼런스](./docs/user/PREPROCESSOR_REFERENCE.md) | 전처리 상세 (선택) |
+| 8 | [로컬 개발 환경](./docs/user/LOCAL_DEV_ENVIRONMENT.md) | Docker 기반 로컬 개발 (선택) |
 
 ### 개발자 문서
 
@@ -306,16 +238,10 @@ mmp list metrics
 ## 도움말
 
 ```bash
-# 전체 명령어 도움말
-mmp --help
-
-# 특정 명령어 사용법
-mmp train --help
-
-# 간략 출력 (진행 상태만)
-mmp train -c configs/dev.yaml -r recipes/model.yaml -d data/train.csv -q
+mmp --help              # 전체 명령어 도움말
+mmp train --help        # 특정 명령어 사용법
 ```
 
 ---
 
-**Version**: 1.1.21 | **License**: Apache 2.0 | **Python**: 3.10 - 3.13
+**Version**: 1.1.22 | **License**: Apache 2.0 | **Python**: 3.10 - 3.13
