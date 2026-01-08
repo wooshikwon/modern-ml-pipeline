@@ -50,16 +50,14 @@ environment:
 
 ```yaml
 mlflow:
-  tracking_uri: "http://localhost:5000"  # 또는 "file://./mlruns"
+  tracking_uri: "http://localhost:5000"  # 또는 "./mlruns"
   experiment_name: "my-experiment"
-  s3_endpoint_url: "http://minio:9000"   # MinIO 사용 시
 ```
 
 | 필드 | 필수 | 설명 |
 |------|------|------|
 | `tracking_uri` | O | MLflow 서버 주소 또는 로컬 경로 |
 | `experiment_name` | X | 실험 그룹 이름 |
-| `s3_endpoint_url` | X | S3 호환 스토리지 엔드포인트 |
 
 #### `data_source`
 

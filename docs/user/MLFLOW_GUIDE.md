@@ -57,36 +57,15 @@ MLFLOW_TRACKING_PASSWORD=your-password
 
 ---
 
-### 2-3. S3/MinIO 아티팩트 저장소
-
-대용량 모델 아티팩트를 S3 호환 스토리지에 저장하려면:
-
-```yaml
-# configs/prod.yaml
-mlflow:
-  tracking_uri: http://mlflow.company.com:5000
-  experiment_name: production-models
-  s3_endpoint_url: http://minio.company.com:9000  # MinIO 사용 시
-```
-
-```bash
-# .env (AWS S3 또는 MinIO)
-AWS_ACCESS_KEY_ID=your-access-key
-AWS_SECRET_ACCESS_KEY=your-secret-key
-```
-
----
-
 ## 3. MLflow UI 실행
 
 실험 결과를 웹 브라우저에서 시각적으로 비교하고 분석할 수 있습니다.
 
 ### 3-1. 직접 실행 (권장)
 
-로컬에 MLflow가 설치되어 있다면:
+MMP 설치 시 MLflow가 함께 설치됩니다. 프로젝트 루트에서 실행:
 
 ```bash
-# 프로젝트 루트에서 실행
 mlflow ui --port 5000
 
 # 백그라운드 실행
@@ -99,7 +78,7 @@ mlflow ui --port 5000 &
 
 ### 3-2. Docker Compose로 실행
 
-MLflow 설치 없이 Docker로 UI를 실행합니다.
+격리된 환경에서 UI를 실행합니다.
 
 ```bash
 # MLflow UI 시작

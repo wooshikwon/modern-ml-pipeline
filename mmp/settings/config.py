@@ -15,7 +15,6 @@ class MLflow(BaseModel):
     experiment_name: str = Field(..., description="실험 이름")
     tracking_username: Optional[str] = Field(None, description="MLflow 인증 사용자명")
     tracking_password: Optional[str] = Field(None, description="MLflow 인증 비밀번호")
-    s3_endpoint_url: Optional[str] = Field(None, description="S3 호환 엔드포인트 URL")
 
 
 # DataSource 어댑터별 Config 모델들
