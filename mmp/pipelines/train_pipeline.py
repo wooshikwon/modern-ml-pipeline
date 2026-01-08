@@ -118,9 +118,9 @@ def run_train_pipeline(
             calibration_data,
         ) = datahandler.split_and_prepare(augmented_df)
 
-        # 전처리
+        # 전처리 (y_train 전달: catboost_encoder 등 지도학습 기반 전처리기 지원)
         if preprocessor:
-            preprocessor.fit(X_train)
+            preprocessor.fit(X_train, y_train)
             X_train = preprocessor.transform(X_train, dataset_name="train")
             # 행이 삭제된 경우 y도 동기화 (drop_missing 등, 클러스터링은 y=None)
             if y_train is not None:

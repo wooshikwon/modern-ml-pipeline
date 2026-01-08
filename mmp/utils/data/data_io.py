@@ -38,26 +38,33 @@ def _format_multiclass_probabilities(
         확률 컬럼이 포함된 DataFrame
     """
     n_cols = predictions_array.shape[1]
+    n_rows = predictions_array.shape[0]
+
+    # 인덱스 결정: 길이 일치 시 원본 인덱스, 불일치 시 RangeIndex
+    if n_rows == len(original_df):
+        index = original_df.index
+    else:
+        index = pd.RangeIndex(n_rows)
 
     # Causal 모델: CATE (Conditional Average Treatment Effect) 컬럼명 사용
     if task_type == "causal":
         if n_cols == 1:
-            return pd.DataFrame({"cate": predictions_array[:, 0]}, index=original_df.index)
+            return pd.DataFrame({"cate": predictions_array[:, 0]}, index=index)
         else:
             cate_columns = {f"cate_treatment_{i}": predictions_array[:, i] for i in range(n_cols)}
-            return pd.DataFrame(cate_columns, index=original_df.index)
+            return pd.DataFrame(cate_columns, index=index)
 
     # Classification 모델
     if n_cols == 2:
         # Binary classification - return positive class probability
         prob_df = pd.DataFrame(
             {"prob_positive": predictions_array[:, 1], "prob_negative": predictions_array[:, 0]},
-            index=original_df.index,
+            index=index,
         )
     else:
         # Multiclass - return all class probabilities
         prob_columns = {f"prob_class_{i}": predictions_array[:, i] for i in range(n_cols)}
-        prob_df = pd.DataFrame(prob_columns, index=original_df.index)
+        prob_df = pd.DataFrame(prob_columns, index=index)
 
     return prob_df
 
@@ -365,6 +372,12 @@ def format_predictions(
     if data_interface and "task_type" in data_interface:
         effective_task_type = data_interface.get("task_type")
 
+    # 인덱스 결정 헬퍼: 길이 일치 시 원본 인덱스, 불일치 시 RangeIndex
+    def _resolve_index(n_predictions: int) -> pd.Index:
+        if n_predictions == len(original_df):
+            return original_df.index
+        return pd.RangeIndex(n_predictions)
+
     # 예측 결과를 DataFrame으로 변환
     if isinstance(predictions_result, pd.DataFrame):
         pred_df = predictions_result.copy()
@@ -372,9 +385,10 @@ def format_predictions(
         # 1D array/list - could be class predictions or binary probabilities
         predictions_array = np.array(predictions_result)
         if predictions_array.ndim == 1:
-            # Causal 모델: CATE 컬럼명 사용
             col_name = "cate" if effective_task_type == "causal" else "prediction"
-            pred_df = pd.DataFrame({col_name: predictions_array}, index=original_df.index)
+            pred_df = pd.DataFrame(
+                {col_name: predictions_array}, index=_resolve_index(len(predictions_array))
+            )
         else:
             # 2D array - multiclass probabilities 또는 causal treatment effects
             pred_df = _format_multiclass_probabilities(
@@ -384,7 +398,9 @@ def format_predictions(
         # NumPy array handling
         if predictions_result.ndim == 1:
             col_name = "cate" if effective_task_type == "causal" else "prediction"
-            pred_df = pd.DataFrame({col_name: predictions_result}, index=original_df.index)
+            pred_df = pd.DataFrame(
+                {col_name: predictions_result}, index=_resolve_index(len(predictions_result))
+            )
         elif predictions_result.ndim == 2:
             # 2D array - multiclass probabilities 또는 causal treatment effects
             pred_df = _format_multiclass_probabilities(
@@ -393,9 +409,9 @@ def format_predictions(
         else:
             # Higher dimensional - flatten to 1D
             col_name = "cate" if effective_task_type == "causal" else "prediction"
+            flattened = predictions_result.flatten()
             pred_df = pd.DataFrame(
-                {col_name: predictions_result.flatten()[: len(original_df)]},
-                index=original_df.index,
+                {col_name: flattened}, index=_resolve_index(len(flattened))
             )
     else:
         # 기타 경우 (스칼라 값 등)
@@ -446,10 +462,16 @@ def format_predictions(
         preserve_columns = []
 
     # 보존할 컬럼들을 예측 결과에 추가 (인덱스 기반 정렬)
-    # 전처리 과정에서 일부 행이 삭제될 수 있으므로 .loc으로 인덱스 매칭
-    for col in preserve_columns:
-        if col in original_df.columns and col not in pred_df.columns:
-            pred_df[col] = original_df.loc[pred_df.index, col].values
+    # pred_df.index가 original_df.index의 부분집합인 경우에만 추가
+    if preserve_columns:
+        valid_indices = pred_df.index.intersection(original_df.index)
+        can_preserve = len(valid_indices) == len(pred_df)
+
+        for col in preserve_columns:
+            if col in original_df.columns and col not in pred_df.columns:
+                if can_preserve:
+                    pred_df[col] = original_df.loc[pred_df.index, col].values
+                # 인덱스 불일치 시 컬럼 추가 스킵 (timeseries 등)
 
     return pred_df
 
