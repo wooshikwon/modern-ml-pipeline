@@ -2,13 +2,14 @@
 Init Command Implementation
 """
 
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
 import typer
 
-from mmp.cli.utils.header import print_command_header
+from mmp.cli.utils.header import print_command_header, print_divider, print_item, print_section
 from mmp.cli.utils.interactive_ui import InteractiveUI
 from mmp.cli.utils.template_engine import TemplateEngine
 
@@ -29,22 +30,11 @@ def init_command(project_name: Optional[str] = typer.Argument(None, help="프로
         - .gitignore
     """
     ui = InteractiveUI()
-    total_steps = 2
 
     try:
-        print_command_header("📦 Init Project", "Interactive project initializer")
+        print_command_header("Init Project", "Interactive project initializer")
 
-        ui.show_panel(
-            """새로운 ML 프로젝트를 초기화합니다.
-
-        기본 디렉토리 구조(data, configs, recipes, sql)와
-        Docker, pyproject 설정 파일을 생성합니다.""",
-            title="Project Initializer",
-            style="green",
-        )
-
-        # Step 1: 프로젝트명 입력
-        ui.show_step(1, total_steps, "프로젝트명 입력")
+        # 프로젝트명 입력
         if not project_name:
             project_name = ui.text_input(
                 "프로젝트 이름을 입력하세요",
@@ -60,22 +50,11 @@ def init_command(project_name: Optional[str] = typer.Argument(None, help="프로
                 ui.show_warning("프로젝트 초기화가 취소되었습니다")
                 raise typer.Exit(0)
 
-        # Step 2: 프로젝트 구조 생성
-        ui.show_step(2, total_steps, "프로젝트 구조 생성")
-        ui.show_info(f"프로젝트 '{project_name}'을 생성하는 중...")
+        # 프로젝트 구조 생성
         create_project_structure(project_path)
 
-        # 성공 메시지
-        ui.show_success(f"프로젝트 '{project_name}'이 생성되었습니다!")
-        ui.show_info(f"경로: {project_path.absolute()}")
-
-        # 다음 단계 안내
-        next_steps_content = f"""cd {project_name}
-mmp get-config        # 환경 설정 생성
-mmp get-recipe        # 모델 레시피 생성
-mmp train -r recipes/<recipe>.yaml -e <env>  # 학습 실행"""
-
-        ui.show_panel(next_steps_content, title="다음 단계")
+        # 완료 메시지 출력
+        _show_completion_message(project_name, project_path)
 
     except KeyboardInterrupt:
         ui.show_error("프로젝트 초기화가 취소되었습니다")
@@ -83,6 +62,27 @@ mmp train -r recipes/<recipe>.yaml -e <env>  # 학습 실행"""
     except Exception as e:
         ui.show_error(f"프로젝트 초기화 중 오류 발생: {e}")
         raise typer.Exit(1)
+
+
+def _show_completion_message(project_name: str, project_path: Path) -> None:
+    """완료 메시지 표시"""
+    print_divider()
+    print_section("OK", "프로젝트 생성 완료", style="green", newline=False)
+    print_item("NAME", project_name)
+    print_item("PATH", str(project_path.absolute()))
+
+    print_section("NEXT", "다음 단계", style="blue")
+    sys.stdout.write(f"  1. 프로젝트 디렉토리 이동\n")
+    sys.stdout.write(f"     cd {project_name}\n")
+    sys.stdout.write(f"  2. 환경 설정 생성\n")
+    sys.stdout.write(f"     mmp get-config\n")
+    sys.stdout.write(f"  3. 모델 레시피 생성\n")
+    sys.stdout.write(f"     mmp get-recipe\n")
+    sys.stdout.write(f"  4. 모델 학습\n")
+    sys.stdout.write(f"     mmp train -r recipes/<recipe>.yaml -c configs/<env>.yaml -d <data>\n")
+    sys.stdout.flush()
+
+    print_divider()
 
 
 def create_project_structure(project_path: Path) -> None:

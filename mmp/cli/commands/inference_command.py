@@ -113,7 +113,10 @@ def batch_inference_command(
 
         if dep_result.status == CheckStatus.FAILED:
             progress.step_fail()
+            missing = dep_result.details.get("missing", []) if dep_result.details else []
             log_error(dep_result.message, "Dependencies")
+            if missing:
+                log_error(f"Missing: {', '.join(missing)}", "Dependencies")
             log_error(f"Solution: {dep_result.solution}", "Dependencies")
             raise typer.Exit(code=1)
         log_sys("모든 패키지 확인 완료")

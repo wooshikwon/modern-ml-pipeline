@@ -264,6 +264,9 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
                     if missing:
                         logger.debug(f"[INFER] 일부 모델 피처 누락 (정상일 수 있음): {len(missing)}개")
 
+            # 전처리 후 유효한 인덱스 저장 (행 삭제가 있을 수 있음)
+            valid_index = X.index
+
             # Check if we should return probabilities or classes
             return_probabilities = params and params.get("return_probabilities", False)
 
@@ -308,27 +311,27 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
                                 f"cate_treatment_{i}" for i in range(predictions_array.shape[1])
                             ]
                             predictions_df = pd.DataFrame(
-                                predictions_array, columns=cols, index=model_input.index
+                                predictions_array, columns=cols, index=valid_index
                             )
                         else:
                             predictions_df = pd.DataFrame(
-                                {"cate": predictions_array}, index=model_input.index
+                                {"cate": predictions_array}, index=valid_index
                             )
                     # Classification 모델: 확률 컬럼명
                     elif return_probabilities and predictions.ndim == 2:
                         prob_cols = [f"prob_class_{i}" for i in range(predictions.shape[1])]
                         predictions_df = pd.DataFrame(
-                            predictions, columns=prob_cols, index=model_input.index
+                            predictions, columns=prob_cols, index=valid_index
                         )
                     elif return_probabilities and predictions.ndim == 1:
                         # Binary classification probabilities
                         predictions_df = pd.DataFrame(
-                            {"prob_positive": predictions}, index=model_input.index
+                            {"prob_positive": predictions}, index=valid_index
                         )
                     else:
                         # Regression 등 일반 예측
                         predictions_df = pd.DataFrame(
-                            {"prediction": predictions}, index=model_input.index
+                            {"prediction": predictions}, index=valid_index
                         )
                     logger.info(f"[INFER] 예측 완료: {len(predictions_df)}샘플 (DataFrame)")
                     return predictions_df

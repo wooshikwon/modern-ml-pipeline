@@ -198,6 +198,16 @@ def log_eval_debug(message: str) -> None:
     logger.debug(f"[EVAL] {message}")
 
 
+def log_infer(message: str) -> None:
+    """추론 로그"""
+    logger.info(f"[INFER] {message}")
+
+
+def log_infer_debug(message: str) -> None:
+    """추론 상세 로그 (DEBUG)"""
+    logger.debug(f"[INFER] {message}")
+
+
 def log_api(message: str) -> None:
     """API 서버 관련 로그"""
     logger.info(f"[API] {message}")

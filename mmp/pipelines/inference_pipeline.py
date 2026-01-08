@@ -9,7 +9,7 @@ from mmp.settings import Settings
 from mmp.settings.factory import SettingsFactory
 from mmp.settings.mlflow_restore import restore_all_from_mlflow
 from mmp.utils.core.console import Console
-from mmp.utils.core.logger import log_milestone, log_phase, log_pipeline_start, logger
+from mmp.utils.core.logger import log_data, log_infer, log_mlflow, log_pipe, logger
 from mmp.utils.core.reproducibility import set_global_seeds
 from mmp.utils.data.data_io import format_predictions, load_inference_data, save_output
 from mmp.utils.integrations import mlflow_integration as mlflow_utils
@@ -36,7 +36,7 @@ def run_inference_pipeline(
     context_params = context_params or {}
 
     # 설정 로드: Artifact에서 복원 또는 Override
-    log_phase("Settings Loading")
+    log_pipe("설정 로드 중")
     settings = _load_inference_settings(run_id, recipe_path, config_path)
 
     # 재현성을 위한 전역 시드 설정
@@ -44,10 +44,8 @@ def run_inference_pipeline(
     set_global_seeds(seed)
 
     # 파이프라인 시작 로깅
-    pipeline_description = (
-        f"Model Run ID: {run_id} | Environment: {settings.config.environment.name}"
-    )
-    log_pipeline_start("Batch Inference Pipeline", pipeline_description)
+    log_pipe("========== 배치 추론 파이프라인 시작 ==========")
+    log_pipe(f"Model Run ID: {run_id} | 환경: {settings.config.environment.name}")
 
     # MLflow 실행 컨텍스트 시작
     run_name = f"batch_inference_{run_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -58,7 +56,7 @@ def run_inference_pipeline(
         factory = Factory(settings)
 
         # 1. 모델 로드
-        log_phase("Model Loading")
+        log_infer("모델 로드 시작")
         model_uri = f"runs:/{run_id}/model"
         with console.progress_tracker(
             "model_loading", 100, f"Loading model from {model_uri}"
@@ -66,10 +64,10 @@ def run_inference_pipeline(
             model = mlflow.pyfunc.load_model(model_uri)
             update(100)
 
-        log_milestone(f"Model loaded successfully from {model_uri}", "success")
+        log_infer(f"모델 로드 완료 - {model_uri}")
 
         # 2. 데이터 준비
-        log_phase("Data Preparation")
+        log_data("데이터 로드 시작")
         data_adapter = factory.create_data_adapter()
         df = load_inference_data(
             data_adapter=data_adapter,
@@ -80,14 +78,12 @@ def run_inference_pipeline(
             console=console,
         )
 
-        log_milestone(
-            f"Data loaded successfully: {len(df)} rows, {len(df.columns)} columns", "success"
-        )
+        log_data(f"로드 완료 - {len(df):,}행, {len(df.columns)}열")
         mlflow.log_metric("inference_input_rows", len(df))
         mlflow.log_metric("inference_input_columns", len(df.columns))
 
         # 3. 예측 실행
-        log_phase("Model Inference")
+        log_infer("모델 추론 시작")
         with console.progress_tracker("inference", 100, "Running model prediction") as update:
             # run_mode="batch"로 Offline Store 사용
             predictions_result = model.predict(
@@ -102,11 +98,11 @@ def run_inference_pipeline(
             predictions_df = format_predictions(predictions_result, df, data_interface_schema)
             update(100)
 
-        log_milestone(f"Predictions generated: {len(predictions_df)} samples", "success")
+        log_infer(f"추론 완료 - {len(predictions_df):,}개 예측 생성")
         mlflow.log_metric("inference_output_rows", len(predictions_df))
 
         # 4. 결과 저장
-        log_phase("Output Saving")
+        log_mlflow("결과 저장 시작")
         save_output(
             df=predictions_df,
             settings=settings,
@@ -117,7 +113,7 @@ def run_inference_pipeline(
             additional_metadata={"model_run_id": run_id},
         )
 
-        logger.info("[Batch Inference Pipeline] 완료")
+        log_pipe("========== 배치 추론 파이프라인 완료 ==========")
         return SimpleNamespace(
             run_id=inference_run_id, model_uri=model_uri, prediction_count=len(predictions_df)
         )

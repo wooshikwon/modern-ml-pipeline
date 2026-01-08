@@ -19,7 +19,7 @@ import pandas as pd
 from mmp.factory import Factory
 from mmp.settings import Settings
 from mmp.utils.core.console import Console
-from mmp.utils.core.logger import log_milestone, logger
+from mmp.utils.core.logger import log_data, logger
 from mmp.utils.template.templating_utils import is_jinja_template, render_template_from_string
 
 
@@ -195,7 +195,7 @@ def load_data(
         df = data_adapter.read(final_data_source)
         update(100)
 
-    log_milestone(f"Data loaded: {len(df)} rows, {len(df.columns)} columns", "success")
+    log_data(f"로드 완료 - {len(df):,}행, {len(df.columns)}열")
     return df
 
 
@@ -228,7 +228,7 @@ def _save_to_storage(
     if not target_path.startswith(("s3://", "gs://")):
         mlflow.log_artifact(target_path.replace("file://", ""))
 
-    log_milestone(f"{output_type.capitalize()} saved to {target_path}", "success")
+    log_data(f"{output_type} 저장 완료 - {target_path}")
 
 
 def _save_to_sql(
@@ -250,7 +250,7 @@ def _save_to_sql(
         sql_adapter.write(df, table, if_exists="append", index=False)
         update(100)
 
-    log_milestone(f"{output_type.capitalize()} saved to SQL table {table}", "success")
+    log_data(f"{output_type} 저장 완료 - SQL 테이블: {table}")
 
 
 def _save_to_bigquery(
@@ -296,7 +296,7 @@ def _save_to_bigquery(
         )
         update(100)
 
-    log_milestone(f"{output_type.capitalize()} saved to BigQuery {full_table}", "success")
+    log_data(f"{output_type} 저장 완료 - BigQuery: {full_table}")
 
 
 def process_template_file(
@@ -445,10 +445,11 @@ def format_predictions(
         logger.warning("data_interface not provided to format_predictions. This is deprecated.")
         preserve_columns = []
 
-    # 보존할 컬럼들을 예측 결과에 추가
+    # 보존할 컬럼들을 예측 결과에 추가 (인덱스 기반 정렬)
+    # 전처리 과정에서 일부 행이 삭제될 수 있으므로 .loc으로 인덱스 매칭
     for col in preserve_columns:
         if col in original_df.columns and col not in pred_df.columns:
-            pred_df[col] = original_df[col].values
+            pred_df[col] = original_df.loc[pred_df.index, col].values
 
     return pred_df
 

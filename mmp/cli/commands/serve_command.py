@@ -73,7 +73,10 @@ def serve_api_command(
 
         if dep_result.status == CheckStatus.FAILED:
             progress.step_fail()
+            missing = dep_result.details.get("missing", []) if dep_result.details else []
             log_error(dep_result.message, "Dependencies")
+            if missing:
+                log_error(f"Missing: {', '.join(missing)}", "Dependencies")
             log_error(f"Solution: {dep_result.solution}", "Dependencies")
             raise typer.Exit(code=1)
         progress.step_done("verified")
@@ -82,10 +85,10 @@ def serve_api_command(
         progress.step_start("Starting API server")
         progress.step_done()
 
-        # 서버 정보 출력
-        log_sys(f"API Server:   http://{host}:{port}")
-        log_sys(f"API Docs:     http://{host}:{port}/docs")
-        log_sys(f"Health Check: http://{host}:{port}/health")
+        # 서버 정보 출력 (들여쓰기 + 접두사 적용)
+        progress.detail(f"[SYS] API Server:   http://{host}:{port}")
+        progress.detail(f"[SYS] API Docs:     http://{host}:{port}/docs")
+        progress.detail(f"[SYS] Health Check: http://{host}:{port}/health")
 
         # API 서버 실행 (블로킹)
         run_api_server(settings=settings, run_id=run_id, host=host, port=port)
@@ -93,6 +96,7 @@ def serve_api_command(
     except typer.Exit:
         raise
     except KeyboardInterrupt:
+        progress.step_fail()
         log_sys("Server stopped by user")
         raise typer.Exit(code=0)
     except FileNotFoundError as e:

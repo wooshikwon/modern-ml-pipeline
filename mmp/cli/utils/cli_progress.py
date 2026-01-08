@@ -126,6 +126,14 @@ class CLIProgress:
         sys.stdout.flush()
         set_cli_line_active(False)
 
+    def detail(self, message: str) -> None:
+        """
+        들여쓰기된 상세 정보 출력.
+        step_done() 후에 추가 정보를 출력할 때 사용합니다.
+        """
+        sys.stdout.write(f"  {message}\n")
+        sys.stdout.flush()
+
     def result(
         self,
         run_id: str,
