@@ -109,27 +109,32 @@ def _get_stored_versions(run_id: str) -> Dict[str, str]:
     Returns:
         패키지명 -> 버전 딕셔너리
     """
+    executor = None
     try:
         # 타임아웃 적용하여 artifact 다운로드
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(
-                mlflow.artifacts.download_artifacts,
-                run_id=run_id,
-                artifact_path="model/requirements.txt",
+        # with 문 사용 시 shutdown(wait=True)로 무한 대기 가능하므로 수동 관리
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        future = executor.submit(
+            mlflow.artifacts.download_artifacts,
+            run_id=run_id,
+            artifact_path="model/requirements.txt",
+        )
+        try:
+            req_path = future.result(timeout=ARTIFACT_DOWNLOAD_TIMEOUT)
+            return _parse_requirements_file(req_path)
+        except concurrent.futures.TimeoutError:
+            logger.debug(
+                f"requirements.txt 다운로드 타임아웃 ({ARTIFACT_DOWNLOAD_TIMEOUT}초)"
             )
-            try:
-                req_path = future.result(timeout=ARTIFACT_DOWNLOAD_TIMEOUT)
-            except concurrent.futures.TimeoutError:
-                logger.debug(
-                    f"requirements.txt 다운로드 타임아웃 ({ARTIFACT_DOWNLOAD_TIMEOUT}초)"
-                )
-                return {}
-
-        return _parse_requirements_file(req_path)
+            return {}
 
     except Exception as e:
         logger.debug(f"requirements.txt 다운로드 실패: {e}")
         return {}
+    finally:
+        if executor:
+            # wait=False로 백그라운드 스레드 완료 대기 없이 즉시 반환
+            executor.shutdown(wait=False, cancel_futures=True)
 
 
 def _get_current_versions() -> Dict[str, str]:
