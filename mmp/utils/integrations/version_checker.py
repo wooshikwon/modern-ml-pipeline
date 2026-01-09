@@ -16,7 +16,7 @@ import mlflow
 from mmp.utils.core.logger import log_warn, logger
 
 # artifact 다운로드 타임아웃 (초)
-ARTIFACT_DOWNLOAD_TIMEOUT = 3
+ARTIFACT_DOWNLOAD_TIMEOUT = 30
 
 # 직렬화에 영향을 주는 핵심 패키지
 CRITICAL_PACKAGES = [

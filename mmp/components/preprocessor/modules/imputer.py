@@ -40,9 +40,24 @@ class SimpleImputerWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
     def fit(self, X: pd.DataFrame, y=None):
         """Imputer 학습 및 필요시 MissingIndicator도 학습"""
         self._input_columns = list(X.columns)
-        logger.info(
-            f"[SimpleImputer] 결측값 대체 학습을 시작합니다 - strategy: {self.strategy}, 대상 컬럼: {len(X.columns)}개"
-        )
+        # 결측값이 있는 컬럼 상세 정보
+        null_info = X.isnull().sum()
+        cols_with_null = null_info[null_info > 0]
+        if len(cols_with_null) > 0:
+            col_details = [f"{col}({cnt:,})" for col, cnt in cols_with_null.items()]
+            if len(col_details) > 5:
+                col_summary = ", ".join(col_details[:5]) + f" 외 {len(col_details)-5}개"
+            else:
+                col_summary = ", ".join(col_details)
+            logger.info(
+                f"[SimpleImputer] 결측값 대체 학습 시작 - strategy: {self.strategy}, "
+                f"결측 컬럼: [{col_summary}]"
+            )
+        else:
+            logger.info(
+                f"[SimpleImputer] 결측값 대체 학습 시작 - strategy: {self.strategy}, "
+                f"대상 컬럼: {len(X.columns)}개 (결측값 없음)"
+            )
 
         # 전체가 NaN인 컬럼 감지 → 에러 대신 경고 후 폴백 처리 (transform에서 0으로 채움)
         all_null_columns = [col for col in X.columns if X[col].isnull().all()]

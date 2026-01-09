@@ -158,6 +158,21 @@ class StorageAdapter(BaseAdapter):
                 "StorageAdapter",
             )
 
+            # 데이터 품질 간단 체크
+            null_counts = result.isnull().sum()
+            if null_counts.sum() > 0:
+                null_cols = null_counts[null_counts > 0]
+                # 컬럼별 결측값 정보 (상위 5개만 표시)
+                col_details = [f"{col}({cnt:,})" for col, cnt in null_cols.items()]
+                if len(col_details) > 5:
+                    col_summary = ", ".join(col_details[:5]) + f" 외 {len(col_details)-5}개"
+                else:
+                    col_summary = ", ".join(col_details)
+                log_data_debug(
+                    f"결측값: {len(null_cols)}개 컬럼, 총 {null_counts.sum():,}개 - [{col_summary}]",
+                    "StorageAdapter",
+                )
+
             return result
 
         except Exception as e:
