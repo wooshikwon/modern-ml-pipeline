@@ -5,9 +5,9 @@
 호환성 문제를 사전에 경고합니다.
 """
 
-import concurrent.futures
 import os
 import re
+import threading
 from functools import lru_cache
 from typing import Dict, List, Optional, Tuple
 
@@ -102,6 +102,7 @@ def _get_stored_versions(run_id: str) -> Dict[str, str]:
 
     캐싱되어 동일 run_id에 대해 한 번만 다운로드합니다.
     타임아웃 적용으로 네트워크 지연 시에도 무한 대기 방지.
+    daemon 스레드 사용으로 Python 종료 시 블로킹 방지.
 
     Args:
         run_id: MLflow Run ID
@@ -109,32 +110,30 @@ def _get_stored_versions(run_id: str) -> Dict[str, str]:
     Returns:
         패키지명 -> 버전 딕셔너리
     """
-    executor = None
-    try:
-        # 타임아웃 적용하여 artifact 다운로드
-        # with 문 사용 시 shutdown(wait=True)로 무한 대기 가능하므로 수동 관리
-        executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-        future = executor.submit(
-            mlflow.artifacts.download_artifacts,
-            run_id=run_id,
-            artifact_path="model/requirements.txt",
-        )
-        try:
-            req_path = future.result(timeout=ARTIFACT_DOWNLOAD_TIMEOUT)
-            return _parse_requirements_file(req_path)
-        except concurrent.futures.TimeoutError:
-            logger.debug(
-                f"requirements.txt 다운로드 타임아웃 ({ARTIFACT_DOWNLOAD_TIMEOUT}초)"
-            )
-            return {}
+    result_holder: Dict[str, Dict[str, str]] = {}
 
-    except Exception as e:
-        logger.debug(f"requirements.txt 다운로드 실패: {e}")
+    def download() -> None:
+        try:
+            req_path = mlflow.artifacts.download_artifacts(
+                run_id=run_id,
+                artifact_path="model/requirements.txt",
+            )
+            result_holder["result"] = _parse_requirements_file(req_path)
+        except Exception as e:
+            logger.debug(f"requirements.txt 다운로드 실패: {e}")
+
+    # daemon=True: Python 종료 시 스레드가 자동 종료되어 블로킹 방지
+    thread = threading.Thread(target=download, daemon=True)
+    thread.start()
+    thread.join(timeout=ARTIFACT_DOWNLOAD_TIMEOUT)
+
+    if thread.is_alive():
+        logger.debug(
+            f"requirements.txt 다운로드 타임아웃 ({ARTIFACT_DOWNLOAD_TIMEOUT}초)"
+        )
         return {}
-    finally:
-        if executor:
-            # wait=False로 백그라운드 스레드 완료 대기 없이 즉시 반환
-            executor.shutdown(wait=False, cancel_futures=True)
+
+    return result_holder.get("result", {})
 
 
 def _get_current_versions() -> Dict[str, str]:

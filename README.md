@@ -285,4 +285,4 @@ mmp train --help        # 특정 명령어 사용법
 
 ---
 
-**Version**: 1.1.26 | **License**: Apache 2.0 | **Python**: 3.10 - 3.13
+**Version**: 1.2.0 | **License**: Apache 2.0 | **Python**: 3.10 - 3.13
