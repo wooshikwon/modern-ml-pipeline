@@ -31,7 +31,7 @@ from mmp.utils.integrations.mlflow_integration import (
 def run_train_pipeline(
     settings: Settings,
     context_params: Optional[Dict[str, Any]] = None,
-    record_requirements: bool = False,
+    record_requirements: bool = True,
     on_progress: Optional[ProgressCallback] = None,
 ):
     """

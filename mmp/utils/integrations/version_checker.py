@@ -5,6 +5,7 @@
 호환성 문제를 사전에 경고합니다.
 """
 
+import concurrent.futures
 import os
 import re
 from functools import lru_cache
@@ -13,6 +14,9 @@ from typing import Dict, List, Optional, Tuple
 import mlflow
 
 from mmp.utils.core.logger import log_warn, logger
+
+# artifact 다운로드 타임아웃 (초)
+ARTIFACT_DOWNLOAD_TIMEOUT = 10
 
 # 직렬화에 영향을 주는 핵심 패키지
 CRITICAL_PACKAGES = [
@@ -97,6 +101,7 @@ def _get_stored_versions(run_id: str) -> Dict[str, str]:
     MLflow artifact에서 학습 시 패키지 버전 조회.
 
     캐싱되어 동일 run_id에 대해 한 번만 다운로드합니다.
+    타임아웃 적용으로 네트워크 지연 시에도 무한 대기 방지.
 
     Args:
         run_id: MLflow Run ID
@@ -105,10 +110,20 @@ def _get_stored_versions(run_id: str) -> Dict[str, str]:
         패키지명 -> 버전 딕셔너리
     """
     try:
-        # requirements.txt 다운로드
-        req_path = mlflow.artifacts.download_artifacts(
-            run_id=run_id, artifact_path="model/requirements.txt"
-        )
+        # 타임아웃 적용하여 artifact 다운로드
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(
+                mlflow.artifacts.download_artifacts,
+                run_id=run_id,
+                artifact_path="model/requirements.txt",
+            )
+            try:
+                req_path = future.result(timeout=ARTIFACT_DOWNLOAD_TIMEOUT)
+            except concurrent.futures.TimeoutError:
+                logger.debug(
+                    f"requirements.txt 다운로드 타임아웃 ({ARTIFACT_DOWNLOAD_TIMEOUT}초)"
+                )
+                return {}
 
         return _parse_requirements_file(req_path)
 
