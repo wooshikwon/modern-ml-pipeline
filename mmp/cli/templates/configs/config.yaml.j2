@@ -136,10 +136,16 @@ output:
     adapter_type: storage
     config:
       base_path: s3://{{ infer_s3_bucket }}/{{ infer_s3_prefix }}
+      storage_options:
+        aws_access_key_id: "${AWS_ACCESS_KEY_ID}"
+        aws_secret_access_key: "${AWS_SECRET_ACCESS_KEY}"
 {% elif inference_output_source == "GCS" %}
     adapter_type: storage
     config:
       base_path: gs://{{ infer_gcs_bucket }}/{{ infer_gcs_prefix }}
+      storage_options:
+        project: {{ gcp_project_id }}
+        token: "${GOOGLE_APPLICATION_CREDENTIALS}"
 {% elif inference_output_source == "PostgreSQL" %}
     adapter_type: sql
     config:

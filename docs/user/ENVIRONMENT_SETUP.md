@@ -133,35 +133,123 @@ mmp system-check -c configs/dev.yaml --actionable
 
 ---
 
-## 2. Config 파일 설정
+## 2. Config 파일과 환경변수 설정
 
-MMP는 **Config 파일에 직접 값을 설정**하는 방식을 권장합니다. 민감한 정보(인증서 경로 등)만 환경 변수로 분리합니다.
+MMP는 **Config 파일에 직접 값을 설정**하는 방식을 권장합니다. 민감한 정보(인증서 경로, 비밀번호 등)만 환경 변수로 분리합니다.
 
-### 권장 패턴
+### 2-1. Config와 .env 파일 생성
+
+`mmp get-config` 명령어를 실행하면 두 가지 파일이 생성됩니다:
+
+```bash
+mmp get-config
+# 대화형 인터페이스로 환경 설정...
+```
+
+| 생성 파일 | 설명 |
+|----------|------|
+| `configs/{env_name}.yaml` | 인프라 설정 (MLflow, DB, Storage 등) |
+| `.env.{env_name}.template` | 환경변수 템플릿 (민감 정보용) |
+
+### 2-2. 환경변수 파일 활성화
+
+생성된 템플릿을 복사하여 실제 값을 입력합니다:
+
+```bash
+# 템플릿을 실제 환경변수 파일로 복사
+cp .env.local.template .env.local
+
+# 파일 편집하여 실제 값 입력
+vi .env.local
+```
+
+**템플릿 예시 (.env.local.template):**
+
+```bash
+# BigQuery/GCS 인증
+GOOGLE_APPLICATION_CREDENTIALS=
+
+# AWS S3 인증
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+
+# PostgreSQL 인증
+DB_USER=
+DB_PASSWORD=
+```
+
+**입력 후 (.env.local):**
+
+```bash
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
+AWS_ACCESS_KEY_ID=AKIA...
+AWS_SECRET_ACCESS_KEY=...
+DB_USER=mluser
+DB_PASSWORD=secretpassword
+```
+
+### 2-3. 자동 로딩 메커니즘
+
+CLI 명령어(`train`, `batch-inference`, `serve-api`, `system-check`)는 **Config 파일명에서 환경 이름을 추출**하여 대응되는 `.env.{env_name}` 파일을 자동으로 로드합니다:
+
+| Config 파일 | 자동 로드되는 .env 파일 |
+|-------------|------------------------|
+| `configs/local.yaml` | `.env.local` |
+| `configs/dev.yaml` | `.env.dev` |
+| `configs/prod.yaml` | `.env.prod` |
+| `configs/staging.yaml` | `.env.staging` |
+
+**예시:**
+
+```bash
+# configs/dev.yaml 사용 시 → .env.dev 자동 로드
+mmp train -c configs/dev.yaml -r recipes/model.yaml -d data/train.csv
+
+# configs/prod.yaml 사용 시 → .env.prod 자동 로드
+mmp batch-inference -c configs/prod.yaml --run-id abc123 -d data/test.csv
+```
+
+### 2-4. Config에서 환경변수 참조
+
+Config YAML 파일에서 환경변수는 `${VAR_NAME}` 또는 `${VAR_NAME:기본값}` 문법으로 참조합니다:
 
 ```yaml
-# configs/dev.yaml - 권장 방식: 직접 값 지정
+# configs/dev.yaml
+data_source:
+  adapter_type: sql
+  config:
+    # 환경변수 참조 (기본값 없음)
+    credentials_path: "${GOOGLE_APPLICATION_CREDENTIALS}"
+
+    # 환경변수 참조 (기본값 있음)
+    connection_uri: "postgresql://${DB_USER:postgres}:${DB_PASSWORD:}@localhost:5432/mydb"
+```
+
+이 설정은 `.env.dev` 파일의 값으로 대체됩니다:
+
+```bash
+# .env.dev
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json
+DB_USER=mluser
+DB_PASSWORD=secretpassword
+```
+
+### 2-5. 권장 패턴
+
+```yaml
+# configs/dev.yaml - 권장 방식
 mlflow:
-  tracking_uri: ./mlruns              # 직접 값
+  tracking_uri: ./mlruns              # 직접 값 (민감하지 않음)
   experiment_name: mmp-dev            # 직접 값
 
 data_source:
   adapter_type: sql
   config:
-    project_id: my-gcp-project        # 직접 값
-    credentials_path: "${GOOGLE_APPLICATION_CREDENTIALS}"  # 인증서만 환경변수
+    project_id: my-gcp-project                              # 직접 값
+    credentials_path: "${GOOGLE_APPLICATION_CREDENTIALS}"   # 인증서만 환경변수
 ```
 
-### 환경 변수가 필요한 경우
-
-인증 정보처럼 Git에 커밋하면 안 되는 값만 환경 변수로 처리합니다:
-
-```bash
-# 필수 환경 변수 (민감 정보)
-export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
-export AWS_ACCESS_KEY_ID=AKIA...
-export AWS_SECRET_ACCESS_KEY=...
-```
+> **Tip**: `.env.*` 파일은 `.gitignore`에 추가하여 Git에 커밋되지 않도록 합니다. 템플릿 파일(`.env.*.template`)만 커밋하세요.
 
 ---
 

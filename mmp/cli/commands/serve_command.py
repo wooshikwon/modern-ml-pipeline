@@ -9,6 +9,7 @@ import typer
 from typing_extensions import Annotated
 
 from mmp.cli.utils import CLIProgress
+from mmp.cli.utils.env_loader import load_env_for_config
 from mmp.cli.utils.system_checker import CheckStatus, SystemChecker
 from mmp.serving import run_api_server
 from mmp.settings import SettingsFactory, __version__
@@ -51,6 +52,9 @@ def serve_api_command(
     progress.header(__version__)
 
     try:
+        # 0. 환경변수 로드 (config 파일명에서 env_name 추출)
+        load_env_for_config(config_path)
+
         # 1. 설정 로드
         progress.step_start("Loading settings")
         settings = SettingsFactory.for_serving(run_id=run_id, config_path=config_path)

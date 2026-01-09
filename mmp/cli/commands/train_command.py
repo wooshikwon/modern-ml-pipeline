@@ -11,6 +11,7 @@ import typer
 from typing_extensions import Annotated
 
 from mmp.cli.utils import CLIProgress
+from mmp.cli.utils.env_loader import load_env_for_config
 from mmp.cli.utils.system_checker import CheckStatus, SystemChecker
 from mmp.pipelines.train_pipeline import run_train_pipeline
 from mmp.settings import SettingsFactory, __version__
@@ -62,6 +63,9 @@ def train_command(
     progress.header(__version__)
 
     try:
+        # 0. 환경변수 로드 (config 파일명에서 env_name 추출)
+        load_env_for_config(config_path)
+
         # 1. 설정 로드
         progress.step_start("Loading config")
         log_config(f"Recipe: {recipe_path}")

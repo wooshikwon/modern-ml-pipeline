@@ -135,7 +135,7 @@ def save_output(
         adapter_type = target_cfg.adapter_type
 
         if adapter_type == "storage":
-            _save_to_storage(df, target_cfg, factory, run_id, output_type, console)
+            _save_to_storage(df, target_cfg, run_id, output_type, console)
 
         elif adapter_type == "sql":
             _save_to_sql(df, target_cfg, factory, output_type, console)
@@ -206,11 +206,45 @@ def load_data(
     return df
 
 
+def _convert_storage_options_for_fsspec(opts: dict) -> dict:
+    """
+    스키마 필드명을 fsspec/s3fs가 기대하는 형식으로 변환.
+    aws_access_key_id → key, aws_secret_access_key → secret
+    """
+    if not opts:
+        return {}
+
+    result = {}
+
+    # S3 옵션 매핑
+    if "aws_access_key_id" in opts:
+        result["key"] = opts["aws_access_key_id"]
+    if "aws_secret_access_key" in opts:
+        result["secret"] = opts["aws_secret_access_key"]
+    if "region_name" in opts:
+        result["client_kwargs"] = {"region_name": opts["region_name"]}
+
+    # 이미 fsspec 형식이면 그대로 사용
+    if "key" in opts and "key" not in result:
+        result["key"] = opts["key"]
+    if "secret" in opts and "secret" not in result:
+        result["secret"] = opts["secret"]
+    if "client_kwargs" in opts and "client_kwargs" not in result:
+        result["client_kwargs"] = opts["client_kwargs"]
+
+    # GCS 등 다른 스토리지 옵션은 그대로 전달
+    skip_keys = {"aws_access_key_id", "aws_secret_access_key", "region_name"}
+    for key, value in opts.items():
+        if key not in result and key not in skip_keys:
+            result[key] = value
+
+    return result
+
+
 def _save_to_storage(
-    df: pd.DataFrame, target_cfg, factory: Factory, run_id: str, output_type: str, console: Console
+    df: pd.DataFrame, target_cfg, run_id: str, output_type: str, console: Console
 ):
-    """Storage 어댑터를 사용한 저장."""
-    storage_adapter = factory.create_data_adapter("storage")
+    """Storage를 사용한 저장. output config의 storage_options를 직접 사용."""
     cfg = target_cfg.config
     base_path = (
         getattr(cfg, "base_path", None)
@@ -218,17 +252,38 @@ def _save_to_storage(
         else (cfg.get("base_path") if isinstance(cfg, dict) else None)
     ) or f"./artifacts/{output_type}"
 
+    # storage_options 추출 (output config에서 직접)
+    storage_options = {}
+    if hasattr(cfg, "storage_options"):
+        opts = cfg.storage_options
+        if hasattr(opts, "model_dump"):
+            storage_options = opts.model_dump(exclude_none=True)
+        elif hasattr(opts, "dict"):
+            storage_options = opts.dict(exclude_none=True)
+        elif isinstance(opts, dict):
+            storage_options = opts
+    elif isinstance(cfg, dict):
+        storage_options = cfg.get("storage_options", {})
+
+    # S3용 키 변환 (aws_access_key_id → key, aws_secret_access_key → secret)
+    storage_options = _convert_storage_options_for_fsspec(storage_options)
+
     # 파일명 생성
     if output_type == "inference":
         filename = f"predictions_{run_id}.parquet"
     else:
-        # 다른 output type을 위한 일반적인 파일명 패턴
         filename = f"{output_type}_{run_id}.parquet"
 
     target_path = f"{base_path}/{filename}"
 
+    # 로컬 경로인 경우 디렉토리 생성
+    if "://" not in target_path or target_path.startswith("file://"):
+        local_path = Path(target_path.replace("file://", ""))
+        if not local_path.parent.exists():
+            local_path.parent.mkdir(parents=True, exist_ok=True)
+
     with console.progress_tracker("storage_save", 100, f"Saving to {target_path}") as update:
-        storage_adapter.write(df, target_path)
+        df.to_parquet(target_path, storage_options=storage_options if storage_options else None)
         update(100)
 
     # 로컬 파일만 MLflow artifact로 로깅

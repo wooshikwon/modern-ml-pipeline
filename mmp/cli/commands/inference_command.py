@@ -11,6 +11,7 @@ import typer
 from typing_extensions import Annotated
 
 from mmp.cli.utils import CLIProgress
+from mmp.cli.utils.env_loader import load_env_for_config
 from mmp.cli.utils.system_checker import CheckStatus, SystemChecker
 from mmp.pipelines.inference_pipeline import run_inference_pipeline
 from mmp.settings import __version__
@@ -74,6 +75,10 @@ def batch_inference_command(
     progress.header(__version__)
 
     try:
+        # 0. 환경변수 로드 (config override 시에만)
+        if config_path:
+            load_env_for_config(config_path)
+
         # 1. 설정 로드
         progress.step_start("Loading settings")
         log_config(f"Run ID: {run_id}")

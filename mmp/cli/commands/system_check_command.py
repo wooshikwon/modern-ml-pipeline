@@ -11,24 +11,12 @@ import yaml
 from typing_extensions import Annotated
 
 from mmp.cli.utils.cli_progress import CLIProgress
+from mmp.cli.utils.env_loader import load_env_for_config
 from mmp.cli.utils.system_checker import CheckResult, CheckStatus, SystemChecker
 from mmp.settings import __version__
-from mmp.utils.core.logger import log_error, log_sys, log_warn, suppress_external_loggers
+from mmp.utils.core.logger import log_error, log_sys, suppress_external_loggers
 
 logger = logging.getLogger(__name__)
-
-
-def load_environment(env_name: str) -> None:
-    """환경변수 파일 로드"""
-    from pathlib import Path
-
-    from dotenv import load_dotenv
-
-    env_file = Path.cwd() / f".env.{env_name}"
-    if env_file.exists():
-        load_dotenv(env_file, override=True)
-    else:
-        raise FileNotFoundError(f".env.{env_name} 파일을 찾을 수 없습니다.")
 
 
 def system_check_command(
@@ -83,12 +71,7 @@ def system_check_command(
             raise typer.Exit(1)
 
         # 환경 변수 로드
-        env_file = Path(f".env.{env_name}")
-        if env_file.exists():
-            try:
-                load_environment(env_name)
-            except Exception as e:
-                log_warn(f"Environment loading failed: {e}", "CLI")
+        load_env_for_config(config_path)
         
         with open(config_file_path, "r", encoding="utf-8") as f:
             config = yaml.safe_load(f)

@@ -111,21 +111,31 @@ model:
 
 #### 3-4. 환경변수 (.env)
 
-인증 정보 및 런타임 설정을 `.env` 파일에 설정합니다:
+`mmp get-config` 실행 시 `.env.{env_name}.template` 파일이 함께 생성됩니다. 이 템플릿을 복사하여 실제 값을 입력합니다:
 
 ```bash
-# MLflow 인증 (필요 시)
-MLFLOW_TRACKING_USERNAME=<username>
-MLFLOW_TRACKING_PASSWORD=<password>
+# 템플릿 파일을 복사하여 실제 환경변수 파일 생성
+cp .env.local.template .env.local
 
-# 클라우드 인증 (필요 시)
-GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json
-AWS_ACCESS_KEY_ID=<access_key>
-AWS_SECRET_ACCESS_KEY=<secret_key>
-
-# 모델 서빙/추론 시
-MODEL_RUN_ID=<mlflow_run_id>
+# .env.local 파일 편집하여 값 입력
 ```
+
+```bash
+# .env.local 예시
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json
+AWS_ACCESS_KEY_ID=AKIA...
+AWS_SECRET_ACCESS_KEY=...
+```
+
+CLI 명령어(`train`, `batch-inference`, `serve-api`)는 Config 파일명에서 환경 이름을 추출하여 대응되는 `.env.{env_name}` 파일을 자동으로 로드합니다:
+
+| Config 파일 | 자동 로드되는 .env 파일 |
+|-------------|------------------------|
+| `configs/local.yaml` | `.env.local` |
+| `configs/dev.yaml` | `.env.dev` |
+| `configs/prod.yaml` | `.env.prod` |
+
+> **Note**: 모델 서빙/추론 시 `run_id`는 CLI `--run-id` 인자로 전달합니다. Docker 실행 시에는 `MODEL_RUN_ID` 환경변수를 사용합니다.
 
 
 ### 4. 학습 및 실험
@@ -165,11 +175,7 @@ docker-compose run --rm train
 대량의 데이터를 한 번에 예측합니다.
 
 ```bash
-# 로컬 실행
 mmp batch-inference -c configs/dev.yaml --run-id <run_id> -d data/test.csv
-
-# Docker 실행
-MODEL_RUN_ID=<run_id> INFERENCE_DATA_PATH=data/test.csv docker-compose run --rm inference
 ```
 
 #### 실시간 API 서빙
@@ -177,11 +183,11 @@ MODEL_RUN_ID=<run_id> INFERENCE_DATA_PATH=data/test.csv docker-compose run --rm 
 REST API 서버를 기동하여 실시간 예측 요청을 처리합니다.
 
 ```bash
-# 로컬 실행
+# 기본 포트 8000
 mmp serve-api -c configs/dev.yaml --run-id <run_id>
 
-# Docker 실행
-MODEL_RUN_ID=<run_id> docker-compose up api
+# 포트/호스트 지정
+mmp serve-api -c configs/dev.yaml --run-id <run_id> --host 0.0.0.0 --port 8080
 ```
 
 ```bash
@@ -276,4 +282,4 @@ mmp train --help        # 특정 명령어 사용법
 
 ---
 
-**Version**: 1.1.22 | **License**: Apache 2.0 | **Python**: 3.10 - 3.13
+**Version**: 1.1.23 | **License**: Apache 2.0 | **Python**: 3.10 - 3.13

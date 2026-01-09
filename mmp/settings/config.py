@@ -172,6 +172,7 @@ class Logging(BaseModel):
 # Output 어댑터별 Config 모델들
 class StorageOutputConfig(BaseModel):
     base_path: str = Field(..., description="저장 기본 경로")
+    storage_options: Dict[str, Any] = Field(default_factory=dict, description="클라우드 저장소 인증 옵션")
 
 
 class SQLOutputConfig(BaseModel):
