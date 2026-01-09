@@ -33,10 +33,10 @@ def train_command(
     record_reqs: Annotated[
         bool,
         typer.Option(
-            "--record-reqs",
-            help="현재 환경의 패키지 요구사항을 MLflow 아티팩트에 기록합니다(기본 비활성화).",
+            "--record-reqs/--no-record-reqs",
+            help="현재 환경의 패키지 요구사항을 MLflow 아티팩트에 기록 (기본 활성화).",
         ),
-    ] = False,
+    ] = True,
 ) -> None:
     """
     학습 파이프라인 실행.
