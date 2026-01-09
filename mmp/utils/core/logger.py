@@ -114,10 +114,18 @@ def suppress_external_loggers() -> None:
     logging.getLogger("google.auth.transport.requests").setLevel(logging.WARNING)
     logging.getLogger("google.api_core").setLevel(logging.WARNING)
 
+    # 클라우드 스토리지 라이브러리 로그 억제 (GCS/S3 업로드 시 상세 로그 방지)
+    logging.getLogger("gcsfs").setLevel(logging.WARNING)
+    logging.getLogger("s3fs").setLevel(logging.WARNING)
+    logging.getLogger("fsspec").setLevel(logging.WARNING)
+    logging.getLogger("aiobotocore").setLevel(logging.WARNING)
+    logging.getLogger("botocore").setLevel(logging.WARNING)
+
     # HTTP 클라이언트 로그 억제
     logging.getLogger("urllib3").setLevel(logging.WARNING)
     logging.getLogger("urllib3.connectionpool").setLevel(logging.WARNING)
     logging.getLogger("requests").setLevel(logging.WARNING)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
 
     # MLflow 내부 로그 억제
     logging.getLogger("mlflow").setLevel(logging.ERROR)
