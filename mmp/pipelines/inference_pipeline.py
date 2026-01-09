@@ -58,8 +58,7 @@ def run_inference_pipeline(
         # Factory 생성
         factory = Factory(settings)
 
-        # 1. 모델 로드 (버전 호환성 체크 포함)
-        log_version_warnings(run_id)
+        # 1. 모델 로드
         log_infer("모델 로드 시작")
         model_uri = f"runs:/{run_id}/model"
         with console.progress_tracker(
@@ -69,6 +68,9 @@ def run_inference_pipeline(
             update(100)
 
         log_infer(f"모델 로드 완료 - {model_uri}")
+
+        # 버전 호환성 체크 (모델 로드 성공 후 경고 표시)
+        log_version_warnings(run_id)
 
         # 2. 데이터 준비
         log_data("데이터 로드 시작")
