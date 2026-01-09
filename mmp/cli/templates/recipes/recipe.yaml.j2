@@ -5,10 +5,9 @@
 # Recipe는 "무엇을 학습할지"를 정의합니다 (모델, 데이터 구조, 전처리)
 # Config는 "어디서 실행할지"를 정의합니다 (DB 연결, 스토리지 등)
 #
-# 필수 수정 항목:
-#   - data.loader.source_uri: 데이터 파일 또는 SQL 경로
-#   - data.data_interface.target_column: 예측 대상 컬럼명
+# 사용자 설정 항목:
 #   - data.data_interface.entity_columns: 행 식별 컬럼 (학습에서 자동 제외)
+#   - data.data_interface.target_column: 예측 대상 컬럼명
 # =============================================================================
 
 name: {{ recipe_name }}

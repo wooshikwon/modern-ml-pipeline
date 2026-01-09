@@ -93,6 +93,7 @@ def save_output(
     run_id: str,
     console: Optional[Console] = None,
     additional_metadata: Optional[Dict[str, Any]] = None,
+    output_path_override: Optional[str] = None,
 ) -> None:
     """
     범용 출력 저장 함수.
@@ -107,6 +108,7 @@ def save_output(
         run_id: MLflow run ID
         console: 콘솔 매니저 (선택)
         additional_metadata: 추가 메타데이터 (선택)
+        output_path_override: CLI에서 전달된 전체 경로 (Config 설정 override)
     """
     if console is None:
         console = Console()
@@ -135,7 +137,7 @@ def save_output(
         adapter_type = target_cfg.adapter_type
 
         if adapter_type == "storage":
-            _save_to_storage(df, target_cfg, run_id, output_type, console)
+            _save_to_storage(df, target_cfg, run_id, output_type, console, output_path_override)
 
         elif adapter_type == "sql":
             _save_to_sql(df, target_cfg, factory, output_type, console)
@@ -206,6 +208,58 @@ def load_data(
     return df
 
 
+# 지원 파일 포맷 정의
+SUPPORTED_OUTPUT_FORMATS = {"parquet", "csv", "json"}
+
+
+def _extract_format_from_path(path: str) -> str:
+    """
+    경로에서 파일 확장자를 추출하고 지원 포맷인지 검증.
+
+    Args:
+        path: 파일 경로
+
+    Returns:
+        파일 포맷 (parquet, csv, json)
+
+    Raises:
+        ValueError: 지원하지 않는 파일 포맷인 경우
+    """
+    ext = Path(path).suffix.lstrip(".").lower()
+    if ext not in SUPPORTED_OUTPUT_FORMATS:
+        raise ValueError(
+            f"지원하지 않는 파일 포맷: '{ext}'. 지원 포맷: {SUPPORTED_OUTPUT_FORMATS}"
+        )
+    return ext
+
+
+def _save_with_format(
+    df: pd.DataFrame,
+    path: str,
+    file_format: str,
+    storage_options: Optional[Dict[str, Any]],
+) -> None:
+    """
+    지정된 포맷으로 DataFrame 저장.
+
+    Args:
+        df: 저장할 DataFrame
+        path: 저장 경로
+        file_format: 파일 포맷 (parquet, csv, json)
+        storage_options: 클라우드 저장소 인증 옵션
+    """
+    opts = storage_options if storage_options else None
+
+    if file_format == "parquet":
+        df.to_parquet(path, storage_options=opts)
+    elif file_format == "csv":
+        df.to_csv(path, index=False, storage_options=opts)
+    elif file_format == "json":
+        df.to_json(path, orient="records", storage_options=opts)
+    else:
+        raise ValueError(f"지원하지 않는 포맷: {file_format}")
+
+
 def _convert_storage_options_for_fsspec(opts: dict) -> dict:
     """
     스키마 필드명을 fsspec/s3fs가 기대하는 형식으로 변환.
@@ -242,17 +296,87 @@ def _convert_storage_options_for_fsspec(opts: dict) -> dict:
 
 
 def _save_to_storage(
-    df: pd.DataFrame, target_cfg, run_id: str, output_type: str, console: Console
+    df: pd.DataFrame,
+    target_cfg,
+    run_id: str,
+    output_type: str,
+    console: Console,
+    output_path_override: Optional[str] = None,
 ):
-    """Storage를 사용한 저장. output config의 storage_options를 직접 사용."""
-    cfg = target_cfg.config
-    base_path = (
-        getattr(cfg, "base_path", None)
-        if hasattr(cfg, "base_path")
-        else (cfg.get("base_path") if isinstance(cfg, dict) else None)
-    ) or f"./artifacts/{output_type}"
+    """
+    Storage를 사용한 저장.
 
-    # storage_options 추출 (output config에서 직접)
+    Args:
+        df: 저장할 DataFrame
+        target_cfg: 출력 대상 설정 (OutputTarget)
+        run_id: MLflow run ID
+        output_type: 출력 타입 (예: "inference")
+        console: 콘솔 매니저
+        output_path_override: CLI에서 전달된 전체 경로 (Config 설정 override)
+    """
+    cfg = target_cfg.config
+
+    # 1. CLI override 최우선
+    if output_path_override:
+        target_path = output_path_override
+        file_format = _extract_format_from_path(target_path)
+        # storage_options는 Config에서 가져옴 (인증 정보)
+        storage_options = _extract_storage_options(cfg)
+    else:
+        # 2. Config에서 경로/포맷 결정
+        base_path = (
+            getattr(cfg, "base_path", None)
+            if hasattr(cfg, "base_path")
+            else (cfg.get("base_path") if isinstance(cfg, dict) else None)
+        ) or f"./artifacts/{output_type}"
+
+        # 파일 포맷 결정 (Config 우선, 기본값 parquet)
+        file_format = (
+            getattr(cfg, "file_format", None)
+            if hasattr(cfg, "file_format")
+            else (cfg.get("file_format") if isinstance(cfg, dict) else None)
+        ) or "parquet"
+
+        # 파일명 결정
+        file_name = (
+            getattr(cfg, "file_name", None)
+            if hasattr(cfg, "file_name")
+            else (cfg.get("file_name") if isinstance(cfg, dict) else None)
+        )
+
+        if file_name:
+            # {run_id} 치환
+            file_name = file_name.replace("{run_id}", run_id)
+        else:
+            # 기본 파일명
+            if output_type == "inference":
+                file_name = f"predictions_{run_id}"
+            else:
+                file_name = f"{output_type}_{run_id}"
+
+        target_path = f"{base_path.rstrip('/')}/{file_name}.{file_format}"
+        storage_options = _extract_storage_options(cfg)
+
+    # 로컬 경로인 경우 디렉토리 생성
+    if "://" not in target_path or target_path.startswith("file://"):
+        local_path = Path(target_path.replace("file://", ""))
+        if not local_path.parent.exists():
+            local_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # 포맷별 저장 실행
+    with console.progress_tracker("storage_save", 100, f"Saving to {target_path}") as update:
+        _save_with_format(df, target_path, file_format, storage_options)
+        update(100)
+
+    # 로컬 파일만 MLflow artifact로 로깅
+    if not target_path.startswith(("s3://", "gs://")):
+        mlflow.log_artifact(target_path.replace("file://", ""))
+
+    log_data(f"{output_type} 저장 완료 - {target_path}")
+
+
+def _extract_storage_options(cfg) -> Dict[str, Any]:
+    """Config에서 storage_options 추출 및 fsspec 형식으로 변환."""
     storage_options = {}
     if hasattr(cfg, "storage_options"):
         opts = cfg.storage_options
@@ -266,31 +390,7 @@ def _save_to_storage(
         storage_options = cfg.get("storage_options", {})
 
     # S3용 키 변환 (aws_access_key_id → key, aws_secret_access_key → secret)
-    storage_options = _convert_storage_options_for_fsspec(storage_options)
-
-    # 파일명 생성
-    if output_type == "inference":
-        filename = f"predictions_{run_id}.parquet"
-    else:
-        filename = f"{output_type}_{run_id}.parquet"
-
-    target_path = f"{base_path}/{filename}"
-
-    # 로컬 경로인 경우 디렉토리 생성
-    if "://" not in target_path or target_path.startswith("file://"):
-        local_path = Path(target_path.replace("file://", ""))
-        if not local_path.parent.exists():
-            local_path.parent.mkdir(parents=True, exist_ok=True)
-
-    with console.progress_tracker("storage_save", 100, f"Saving to {target_path}") as update:
-        df.to_parquet(target_path, storage_options=storage_options if storage_options else None)
-        update(100)
-
-    # 로컬 파일만 MLflow artifact로 로깅
-    if not target_path.startswith(("s3://", "gs://")):
-        mlflow.log_artifact(target_path.replace("file://", ""))
-
-    log_data(f"{output_type} 저장 완료 - {target_path}")
+    return _convert_storage_options_for_fsspec(storage_options)
 
 
 def _save_to_sql(

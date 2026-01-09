@@ -99,37 +99,43 @@ def _show_success_message(recipe_path: Path, recipe_data: dict) -> None:
     print_item("TASK", task)
     print_item("MODEL", recipe_data["model"]["class_path"])
 
-    # 필수 수정 항목 (TODO)
-    print_section("TODO", "필수 수정 항목", style="yellow")
+    # 다음 단계 안내
+    print_section("NEXT", "다음 단계", style="blue")
 
-    items = [
-        "data.loader.source_uri: SQL 파일 또는 데이터 경로",
-        "data.data_interface.entity_columns: 엔티티 식별 컬럼",
-    ]
-
-    task_lower = task.lower()
-    if task_lower != "clustering":
-        items.append("data.data_interface.target_column: 예측 대상 컬럼")
-    if task_lower == "causal":
-        items.append("data.data_interface.treatment_column: Treatment 컬럼")
-    if task_lower == "timeseries":
-        items.append("data.data_interface.timestamp_column: 시간 컬럼")
-
-    has_encoder = any(s.get("type", "").endswith("_encoder") for s in preprocessor_steps)
-    if has_encoder:
-        items.append("preprocessor.steps[encoder].columns: 인코딩할 범주형 컬럼")
+    step_num = 1
 
     # 추가 의존성이 필요한 경우
     if extras_needed:
         extras_str = ",".join(extras_needed)
-        items.append(f'추가 의존성 설치: pipx install --force "modern-ml-pipeline[{extras_str}]"')
+        sys.stdout.write(f"  {step_num}. 추가 의존성 설치\n")
+        sys.stdout.write(f'     pipx install --force "modern-ml-pipeline[{extras_str}]"\n')
+        step_num += 1
 
-    for item in items:
-        sys.stdout.write(f"  - {item}\n")
+    # Recipe 파일 수정 안내
+    sys.stdout.write(f"  {step_num}. Recipe 파일 수정 ({recipe_path})\n")
 
-    # 모델 학습 명령어 안내
-    sys.stdout.write(f"\n  학습 명령어:\n")
-    sys.stdout.write(f"  mmp train -r {recipe_path} -c configs/<env>.yaml -d <data>\n")
+    task_lower = task.lower()
+    sys.stdout.write(f"     - entity_columns: 엔티티 식별 컬럼\n")
+    if task_lower != "clustering":
+        sys.stdout.write(f"     - target_column: 예측 대상 컬럼\n")
+    if task_lower == "causal":
+        sys.stdout.write(f"     - treatment_column: Treatment 컬럼\n")
+    if task_lower == "timeseries":
+        sys.stdout.write(f"     - timestamp_column: 시간 컬럼\n")
+
+    has_encoder = any(s.get("type", "").endswith("_encoder") for s in preprocessor_steps)
+    if has_encoder:
+        sys.stdout.write(f"     - preprocessor.steps[encoder].columns: 범주형 컬럼\n")
+    step_num += 1
+
+    # 데이터 준비
+    sys.stdout.write(f"  {step_num}. 데이터 준비\n")
+    sys.stdout.write(f"     data/ 디렉토리에 .csv 또는 .sql.j2 파일 생성\n")
+    step_num += 1
+
+    # 모델 학습
+    sys.stdout.write(f"  {step_num}. 모델 학습\n")
+    sys.stdout.write(f"     mmp train -r {recipe_path} -c configs/<env>.yaml -d <data>\n")
     sys.stdout.flush()
 
     # 마무리 구분선

@@ -132,10 +132,18 @@ output:
     adapter_type: storage
     config:
       base_path: {{ infer_local_path }}
+{% if infer_file_name %}
+      file_name: {{ infer_file_name }}
+{% endif %}
+      file_format: {{ infer_file_format|default('parquet') }}
 {% elif inference_output_source == "S3" %}
     adapter_type: storage
     config:
       base_path: s3://{{ infer_s3_bucket }}/{{ infer_s3_prefix }}
+{% if infer_file_name %}
+      file_name: {{ infer_file_name }}
+{% endif %}
+      file_format: {{ infer_file_format|default('parquet') }}
       storage_options:
         aws_access_key_id: "${AWS_ACCESS_KEY_ID}"
         aws_secret_access_key: "${AWS_SECRET_ACCESS_KEY}"
@@ -143,6 +151,10 @@ output:
     adapter_type: storage
     config:
       base_path: gs://{{ infer_gcs_bucket }}/{{ infer_gcs_prefix }}
+{% if infer_file_name %}
+      file_name: {{ infer_file_name }}
+{% endif %}
+      file_format: {{ infer_file_format|default('parquet') }}
       storage_options:
         project: {{ gcp_project_id }}
         token: "${GOOGLE_APPLICATION_CREDENTIALS}"

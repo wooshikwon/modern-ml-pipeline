@@ -165,6 +165,7 @@ mmp batch-inference [OPTIONS]
 | `--recipe` | `-r` | - | Recipe 파일 경로 (미지정 시 artifact 사용) |
 | `--data` | `-d` | - | 추론 데이터 경로 (미지정 시 artifact SQL 사용) |
 | `--params` | `-p` | - | Jinja 템플릿 파라미터 (JSON 형식) |
+| `--output-path` | `-o` | - | 결과 저장 전체 경로 (Config override) |
 | `-q` | `--quiet` | - | 요약 출력 모드 |
 
 **예시:**
@@ -180,7 +181,43 @@ mmp batch-inference --run-id abc123 -c configs/prod.yaml
 mmp batch-inference --run-id abc123 \
   -d data/inference_data.sql.j2 \
   --params '{"data_interval_start": "2025-02-01", "data_interval_end": "2025-02-28"}'
+
+# 결과 저장 경로 직접 지정
+mmp batch-inference --run-id abc123 -o gs://bucket/2025/01/09/result.parquet
+
+# CSV 형식으로 저장
+mmp batch-inference --run-id abc123 -o ./results/predictions.csv
 ```
+
+#### `--output-path` 옵션 상세
+
+결과 저장 경로를 Config 설정과 무관하게 직접 지정합니다. 외부 트리거(Airflow, k8s Job 등)에서 날짜별 디렉토리나 동적 파일명이 필요할 때 유용합니다.
+
+**지원 포맷:** `parquet`, `csv`, `json` (확장자로 자동 감지)
+
+**우선순위:**
+1. `--output-path` CLI 옵션 (최우선)
+2. Config YAML의 `output.inference.config.file_name`, `file_format`
+3. 기본값: `predictions_{run_id}.parquet`
+
+**사용 시나리오:**
+
+```bash
+# Airflow에서 날짜별 디렉토리로 저장
+mmp batch-inference --run-id {{ model_run_id }} \
+  -o "gs://bucket/predictions/{{ ds }}/batch_{{ ds_nodash }}.parquet"
+
+# k8s Job에서 JSON 형식으로 저장
+mmp batch-inference --run-id $MODEL_RUN_ID \
+  -o "s3://bucket/exports/$(date +%Y%m%d)/result.json"
+
+# 로컬 CSV로 저장
+mmp batch-inference --run-id abc123 -o ./output/predictions.csv
+```
+
+**에러 처리:**
+- 지원하지 않는 확장자(예: `.xlsx`) 사용 시 에러 발생
+- 클라우드 경로(s3://, gs://)는 Config의 `storage_options` 인증 정보 사용
 
 
 ### `mmp serve-api`

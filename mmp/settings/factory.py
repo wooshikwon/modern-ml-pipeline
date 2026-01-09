@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+import mlflow
 import yaml
 
 from mmp.utils.core.logger import logger
@@ -243,6 +244,11 @@ class SettingsFactory:
                             config.mlflow.tracking_uri = f"sqlite:///{target_path.resolve()}"
             except Exception:
                 pass
+
+            # MLflow tracking URI 설정 (Config에 정의된 경우)
+            if config.mlflow and config.mlflow.tracking_uri:
+                mlflow.set_tracking_uri(config.mlflow.tracking_uri)
+                logger.debug(f"MLflow tracking URI 설정: {config.mlflow.tracking_uri}")
 
             return config
         except Exception as e:

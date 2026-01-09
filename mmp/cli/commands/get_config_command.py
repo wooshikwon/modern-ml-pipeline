@@ -111,9 +111,11 @@ def _show_completion_message(
     sys.stdout.write(f"     .env.{env_name} 파일 편집\n")
     sys.stdout.write(f"  {step_num + 2}. 연결 테스트\n")
     sys.stdout.write(f"     mmp system-check -c {config_path}\n")
-    sys.stdout.write(f"  {step_num + 3}. Recipe 생성\n")
+    sys.stdout.write(f"  {step_num + 3}. 데이터 준비\n")
+    sys.stdout.write(f"     data/ 디렉토리에 .csv 또는 .sql.j2 파일 생성\n")
+    sys.stdout.write(f"  {step_num + 4}. Recipe 생성\n")
     sys.stdout.write(f"     mmp get-recipe\n")
-    sys.stdout.write(f"  {step_num + 4}. 모델 학습\n")
+    sys.stdout.write(f"  {step_num + 5}. 모델 학습\n")
     sys.stdout.write(f"     mmp train -r recipes/<recipe>.yaml -c {config_path} -d <data>\n")
     sys.stdout.flush()
 

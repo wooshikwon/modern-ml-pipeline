@@ -13,6 +13,7 @@ from mmp.utils.core.logger import log_data, log_infer, log_mlflow, log_pipe, log
 from mmp.utils.core.reproducibility import set_global_seeds
 from mmp.utils.data.data_io import format_predictions, load_inference_data, save_output
 from mmp.utils.integrations import mlflow_integration as mlflow_utils
+from mmp.utils.integrations.version_checker import log_version_warnings
 
 
 def run_inference_pipeline(
@@ -21,6 +22,7 @@ def run_inference_pipeline(
     config_path: Optional[str] = None,
     data_path: Optional[str] = None,
     context_params: Optional[Dict[str, Any]] = None,
+    output_path: Optional[str] = None,
 ):
     """
     배치 추론 파이프라인을 실행합니다.
@@ -31,6 +33,7 @@ def run_inference_pipeline(
         config_path: Override할 Config 파일 경로 (None이면 artifact에서 복원)
         data_path: 추론할 데이터 경로 (None이면 artifact의 SQL 사용)
         context_params: SQL 렌더링에 사용할 파라미터
+        output_path: 결과 저장 전체 경로 (Config override, 파일명+확장자 포함)
     """
     console = Console()
     context_params = context_params or {}
@@ -55,7 +58,8 @@ def run_inference_pipeline(
         # Factory 생성
         factory = Factory(settings)
 
-        # 1. 모델 로드
+        # 1. 모델 로드 (버전 호환성 체크 포함)
+        log_version_warnings(run_id)
         log_infer("모델 로드 시작")
         model_uri = f"runs:/{run_id}/model"
         with console.progress_tracker(
@@ -111,6 +115,7 @@ def run_inference_pipeline(
             run_id=inference_run_id,
             console=console,
             additional_metadata={"model_run_id": run_id},
+            output_path_override=output_path,
         )
 
         log_pipe("========== 배치 추론 파이프라인 완료 ==========")

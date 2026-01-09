@@ -176,6 +176,9 @@ docker-compose run --rm train
 
 ```bash
 mmp batch-inference -c configs/dev.yaml --run-id <run_id> -d data/test.csv
+
+# 결과 파일 경로 직접 지정 (날짜별 디렉토리, CSV/JSON 포맷 지원)
+mmp batch-inference --run-id <run_id> -o gs://bucket/2025/01/09/result.parquet
 ```
 
 #### 실시간 API 서빙
@@ -282,4 +285,4 @@ mmp train --help        # 특정 명령어 사용법
 
 ---
 
-**Version**: 1.1.23 | **License**: Apache 2.0 | **Python**: 3.10 - 3.13
+**Version**: 1.1.24 | **License**: Apache 2.0 | **Python**: 3.10 - 3.13

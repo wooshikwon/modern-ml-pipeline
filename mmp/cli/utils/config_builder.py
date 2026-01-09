@@ -267,6 +267,29 @@ class InteractiveConfigBuilder:
                     "저장 경로", default="./artifacts/predictions"
                 )
 
+            # Storage 타입(S3, GCS, Local Files)일 때 파일 포맷/파일명 설정
+            if infer_source in ["S3", "GCS", "Local Files"]:
+                self.ui.show_info("결과 파일 포맷과 파일명을 설정합니다.")
+
+                # 파일 포맷 선택
+                file_format = self.ui.select_from_list(
+                    "파일 포맷:", ["parquet", "csv", "json"], allow_cancel=False
+                )
+                selections["infer_file_format"] = file_format
+
+                # 파일명 입력 (선택)
+                self.ui.show_info(
+                    "파일명 미지정 시 기본값(predictions_{run_id})이 사용됩니다."
+                )
+                use_custom_filename = self.ui.confirm(
+                    "파일명을 직접 지정하시겠습니까?", default=False
+                )
+                if use_custom_filename:
+                    self.ui.show_info("{run_id}를 포함하면 실행 ID로 치환됩니다.")
+                    selections["infer_file_name"] = self.ui.text_input(
+                        "파일명 (확장자 제외)", default="predictions_{run_id}"
+                    )
+
         # 최종 확인
         infer_output_display = self._format_inference_output_display(selections)
         summary_data = {
@@ -318,15 +341,20 @@ class InteractiveConfigBuilder:
             return "Disabled"
 
         source = selections.get("inference_output_source", "Local Files")
+        file_format = selections.get("infer_file_format", "parquet")
+        file_name = selections.get("infer_file_name")
+
+        # Storage 타입은 파일 포맷 정보 포함
+        format_suffix = f", {file_format}" if source in ["S3", "GCS", "Local Files"] else ""
 
         if source == "S3":
             bucket = selections.get("infer_s3_bucket", "")
             prefix = selections.get("infer_s3_prefix", "")
-            return f"S3 (s3://{bucket}/{prefix})"
+            return f"S3 (s3://{bucket}/{prefix}{format_suffix})"
         elif source == "GCS":
             bucket = selections.get("infer_gcs_bucket", "")
             prefix = selections.get("infer_gcs_prefix", "")
-            return f"GCS (gs://{bucket}/{prefix})"
+            return f"GCS (gs://{bucket}/{prefix}{format_suffix})"
         elif source == "BigQuery":
             dataset = selections.get("infer_bq_dataset", "")
             table = selections.get("infer_bq_table", "")
@@ -336,7 +364,7 @@ class InteractiveConfigBuilder:
             return f"PostgreSQL ({table})"
         elif source == "Local Files":
             path = selections.get("infer_local_path", "./artifacts/predictions")
-            return f"Local ({path})"
+            return f"Local ({path}{format_suffix})"
 
         return source
 

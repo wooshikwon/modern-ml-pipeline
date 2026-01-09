@@ -169,9 +169,21 @@ class Logging(BaseModel):
     )
 
 
+# Output 파일 포맷 타입 정의
+OutputFileFormat = Literal["parquet", "csv", "json"]
+
+
 # Output 어댑터별 Config 모델들
 class StorageOutputConfig(BaseModel):
-    base_path: str = Field(..., description="저장 기본 경로")
+    base_path: str = Field(..., description="저장 기본 경로 (bucket/prefix)")
+    file_name: Optional[str] = Field(
+        None,
+        description="파일명 패턴. {run_id} 치환 지원. 미지정 시 predictions_{run_id}"
+    )
+    file_format: OutputFileFormat = Field(
+        default="parquet",
+        description="출력 파일 포맷 (parquet, csv, json)"
+    )
     storage_options: Dict[str, Any] = Field(default_factory=dict, description="클라우드 저장소 인증 옵션")
 
 

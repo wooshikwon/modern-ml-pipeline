@@ -41,6 +41,14 @@ def batch_inference_command(
     context_params: Annotated[
         Optional[str], typer.Option("--params", "-p", help="Jinja 템플릿 파라미터 (JSON)")
     ] = None,
+    output_path: Annotated[
+        Optional[str],
+        typer.Option(
+            "--output-path",
+            "-o",
+            help="결과 저장 전체 경로 (Config override). 예: gs://bucket/2025/01/09/result.parquet",
+        ),
+    ] = None,
 ) -> None:
     """
     배치 추론 실행.
@@ -55,6 +63,7 @@ def batch_inference_command(
         config_path: Override할 Config 파일 경로 (선택)
         data_path: Override할 데이터 파일 경로 (선택)
         context_params: SQL 렌더링용 파라미터 (JSON 형식)
+        output_path: 결과 저장 전체 경로 (Config override, 파일명+확장자 포함)
 
     Examples:
         # Artifact 설정 그대로 사용
@@ -68,6 +77,12 @@ def batch_inference_command(
 
         # 데이터 소스 override
         mmp inference --run-id abc123 --data queries/new_data.sql --params '{"date": "2024-01-01"}'
+
+        # 결과 파일 경로 직접 지정
+        mmp inference --run-id abc123 --output-path gs://bucket/2025/01/09/result.parquet
+
+        # CSV 형식으로 저장
+        mmp inference --run-id abc123 -o ./results/predictions.csv
     """
     # verbose 모드 감지 (main_commands.py의 -v 옵션으로 설정된 로그 레벨 확인)
     verbose = logging.getLogger().level == logging.DEBUG
@@ -91,17 +106,25 @@ def batch_inference_command(
         params: Optional[Dict[str, Any]] = json.loads(context_params) if context_params else None
 
         factory_instance = SettingsFactory()
+
+        # config override 시 먼저 로드하여 MLflow tracking_uri 설정
+        if config_path:
+            config = factory_instance._load_config(config_path)
+        else:
+            config = None
+
+        # MLflow에서 artifact 복원 (tracking_uri 설정 후)
         artifact_recipe, artifact_config, _ = restore_all_from_mlflow(run_id)
 
+        # config가 없으면 artifact에서 사용
+        if config is None:
+            config = artifact_config
+
+        # recipe override
         if recipe_path:
             recipe = factory_instance._load_recipe(recipe_path)
         else:
             recipe = artifact_recipe
-
-        if config_path:
-            config = factory_instance._load_config(config_path)
-        else:
-            config = artifact_config
         progress.step_done(f"run_id: {run_id[:8]}...")
 
         # 2. 패키지 의존성 체크
@@ -135,6 +158,7 @@ def batch_inference_command(
             config_path=config_path,
             data_path=data_path,
             context_params=params or {},
+            output_path=output_path,
         )
         progress.step_done(f"{result.prediction_count:,} rows")
 
