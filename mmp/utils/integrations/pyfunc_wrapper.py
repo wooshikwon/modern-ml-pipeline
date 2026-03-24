@@ -192,6 +192,163 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
     def training_methodology(self) -> Dict[str, Any]:
         return self.training_results.get("training_methodology", {})
 
+    def _fetch_features(
+        self, model_input: pd.DataFrame, run_mode: str
+    ) -> pd.DataFrame:
+        """Fetcher를 통한 피처 증강 (Online/Offline Store)."""
+        if self.trained_fetcher is None:
+            return model_input
+        try:
+            result = self.trained_fetcher.fetch(model_input, run_mode=run_mode)
+            logger.debug(f"[INFER] 피처 증강 완료 (run_mode={run_mode}): {result.shape}")
+            return result
+        except Exception as e:
+            logger.warning(f"[INFER] 피처 증강 실패, 원본 데이터로 진행: {e}")
+            return model_input
+
+    def _apply_datahandler(self, df: pd.DataFrame) -> pd.DataFrame:
+        """DataHandler 변환 적용 (시퀀스 변환, 시간 피처 생성 등)."""
+        target_col = (
+            self.data_interface_schema.get("target_column")
+            if self.data_interface_schema
+            else None
+        )
+
+        if self.trained_datahandler is not None and hasattr(
+            self.trained_datahandler, "transform"
+        ):
+            try:
+                result = self.trained_datahandler.transform(df)
+                logger.debug(f"[INFER] DataHandler 변환 완료: {result.shape}")
+                return result
+            except Exception as e:
+                logger.warning(f"[INFER] DataHandler 변환 실패, 원본으로 진행: {e}")
+                # 폴백: target 컬럼 제외하고 진행
+                exclude_cols = {target_col} if target_col else set()
+                feature_columns = [col for col in df.columns if col not in exclude_cols]
+                return df[feature_columns] if feature_columns else df
+        else:
+            # DataHandler 없을 시 target 제외 전체 컬럼 사용
+            exclude_cols = {target_col} if target_col else set()
+            feature_columns = [col for col in df.columns if col not in exclude_cols]
+            logger.debug("[INFER] DataHandler 없음, target 제외 전체 컬럼 사용")
+            return df[feature_columns] if feature_columns else df
+
+    def _apply_preprocessing(self, X: pd.DataFrame) -> pd.DataFrame:
+        """Preprocessor 변환 적용 (스케일링, 결측치 처리 등) + 모델 피처 순서 정렬."""
+        # Preprocessor 변환
+        if self.trained_preprocessor is not None:
+            try:
+                X = self.trained_preprocessor.transform(X, dataset_name="infer")
+                logger.debug(f"[INFER] Preprocessor 변환 완료: {X.shape}")
+            except Exception as e:
+                logger.warning(f"[INFER] Preprocessor 변환 실패, 이전 단계 결과로 진행: {e}")
+
+        # 모델 피처 순서 정렬
+        model_feature_columns = (
+            self.data_interface_schema.get("model_feature_columns")
+            if self.data_interface_schema
+            else None
+        )
+        if model_feature_columns:
+            available_model_features = [col for col in model_feature_columns if col in X.columns]
+            if len(available_model_features) == len(model_feature_columns):
+                X = X[model_feature_columns]
+                logger.debug(f"[INFER] 모델 피처 정렬: {len(model_feature_columns)}개 컬럼")
+            else:
+                missing = set(model_feature_columns) - set(X.columns)
+                if missing:
+                    logger.debug(f"[INFER] 일부 모델 피처 누락 (정상일 수 있음): {len(missing)}개")
+
+        return X
+
+    def _run_prediction(
+        self, X: pd.DataFrame, params: Optional[Dict[str, Any]] = None
+    ) -> np.ndarray:
+        """모델 예측 수행. 확률 예측 및 캘리브레이션 포함."""
+        return_probabilities = params and params.get("return_probabilities", False)
+
+        if return_probabilities and hasattr(self.trained_model, "predict_proba"):
+            predictions = self.trained_model.predict_proba(X)
+            # Apply calibration if available
+            if self.trained_calibrator is not None and self._task_type == "classification":
+                logger.debug("[INFER] 확률 캘리브레이션 적용")
+                predictions = self.trained_calibrator.transform(predictions)
+        elif (
+            self._task_type == "classification"
+            and hasattr(self.trained_model, "predict_proba")
+            and self.trained_calibrator is not None
+        ):
+            # For classification with calibrator, always use calibrated probabilities for consistency
+            predictions = self.trained_model.predict_proba(X)
+            predictions = self.trained_calibrator.transform(predictions)
+
+            # Convert probabilities to class predictions if not explicitly requesting probabilities
+            if not return_probabilities:
+                if predictions.ndim == 2:
+                    predictions = predictions.argmax(axis=1)
+                else:
+                    # Binary classification case with calibrated probabilities
+                    predictions = (predictions > 0.5).astype(int)
+        else:
+            # Standard prediction without calibration
+            predictions = self.trained_model.predict(X)
+
+        return predictions
+
+    def _format_output(
+        self,
+        predictions: Any,
+        valid_index: pd.Index,
+        params: Optional[Dict[str, Any]] = None,
+    ) -> Union[pd.DataFrame, pd.Series, np.ndarray, List]:
+        """예측 결과를 요청된 형식(DataFrame/list)으로 변환."""
+        should_return_dataframe = params and params.get("return_dataframe", False)
+        return_probabilities = params and params.get("return_probabilities", False)
+
+        if should_return_dataframe:
+            if not isinstance(predictions, pd.DataFrame):
+                # Causal 모델: CATE (Conditional Average Treatment Effect) 컬럼명 사용
+                if self._task_type == "causal":
+                    predictions_array = np.atleast_1d(predictions)
+                    if predictions_array.ndim == 2:
+                        cols = [
+                            f"cate_treatment_{i}" for i in range(predictions_array.shape[1])
+                        ]
+                        predictions_df = pd.DataFrame(
+                            predictions_array, columns=cols, index=valid_index
+                        )
+                    else:
+                        predictions_df = pd.DataFrame(
+                            {"cate": predictions_array}, index=valid_index
+                        )
+                # Classification 모델: 확률 컬럼명
+                elif return_probabilities and predictions.ndim == 2:
+                    prob_cols = [f"prob_class_{i}" for i in range(predictions.shape[1])]
+                    predictions_df = pd.DataFrame(
+                        predictions, columns=prob_cols, index=valid_index
+                    )
+                elif return_probabilities and predictions.ndim == 1:
+                    predictions_df = pd.DataFrame(
+                        {"prob_positive": predictions}, index=valid_index
+                    )
+                else:
+                    predictions_df = pd.DataFrame(
+                        {"prediction": predictions}, index=valid_index
+                    )
+                logger.info(f"[INFER] 예측 완료: {len(predictions_df)}샘플 (DataFrame)")
+                return predictions_df
+            else:
+                logger.info(f"[INFER] 예측 완료: {len(predictions)}샘플 (DataFrame)")
+                return predictions
+        else:
+            if isinstance(predictions, pd.DataFrame):
+                predictions = predictions.values.flatten()
+            elif hasattr(predictions, "tolist"):
+                predictions = predictions.tolist()
+            logger.info(f"[INFER] 예측 완료: {len(predictions)}샘플")
+            return predictions
+
     def predict(
         self,
         context: mlflow.pyfunc.PythonModelContext,
@@ -204,13 +361,8 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
         if not isinstance(model_input, pd.DataFrame):
             model_input = pd.DataFrame(model_input)
 
-        # Fetcher를 통한 피처 증강 (Online/Offline Store)
-        if self.trained_fetcher is not None:
-            try:
-                model_input = self.trained_fetcher.fetch(model_input, run_mode=run_mode)
-                logger.debug(f"[INFER] 피처 증강 완료 (run_mode={run_mode}): {model_input.shape}")
-            except Exception as e:
-                logger.warning(f"[INFER] 피처 증강 실패, 원본 데이터로 진행: {e}")
+        # 1. Fetcher를 통한 피처 증강
+        df = self._fetch_features(model_input, run_mode)
 
         try:
             if self.data_interface_schema:
@@ -219,132 +371,20 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
             logger.warning("[INFER] 입력 검증 건너뜀")
 
         try:
-            # 피처 컬럼 정보 추출 (전처리 전/후 분리)
-            model_feature_columns = None
-            target_col = None
+            # 2. DataHandler 변환
+            X = self._apply_datahandler(df)
 
-            if self.data_interface_schema:
-                model_feature_columns = self.data_interface_schema.get("model_feature_columns")
-                target_col = self.data_interface_schema.get("target_column")
-
-            # 1단계: DataHandler 변환 적용 (시퀀스 변환, 시간 피처 생성 등)
-            if self.trained_datahandler is not None and hasattr(self.trained_datahandler, "transform"):
-                try:
-                    X = self.trained_datahandler.transform(model_input)
-                    logger.debug(f"[INFER] DataHandler 변환 완료: {X.shape}")
-                except Exception as e:
-                    logger.warning(f"[INFER] DataHandler 변환 실패, 원본으로 진행: {e}")
-                    # 폴백: target 컬럼 제외하고 진행
-                    exclude_cols = {target_col} if target_col else set()
-                    feature_columns = [col for col in model_input.columns if col not in exclude_cols]
-                    X = model_input[feature_columns] if feature_columns else model_input
-            else:
-                # DataHandler 없을 시 target 제외 전체 컬럼 사용
-                exclude_cols = {target_col} if target_col else set()
-                feature_columns = [col for col in model_input.columns if col not in exclude_cols]
-                X = model_input[feature_columns] if feature_columns else model_input
-                logger.debug("[INFER] DataHandler 없음, target 제외 전체 컬럼 사용")
-
-            # 2단계: Preprocessor 변환 적용 (스케일링, 결측치 처리 등)
-            if self.trained_preprocessor is not None:
-                try:
-                    X = self.trained_preprocessor.transform(X, dataset_name="infer")
-                    logger.debug(f"[INFER] Preprocessor 변환 완료: {X.shape}")
-                except Exception as e:
-                    logger.warning(f"[INFER] Preprocessor 변환 실패, 이전 단계 결과로 진행: {e}")
-
-            # 3단계: 모델 피처 순서 정렬
-            if model_feature_columns:
-                available_model_features = [col for col in model_feature_columns if col in X.columns]
-                if len(available_model_features) == len(model_feature_columns):
-                    X = X[model_feature_columns]
-                    logger.debug(f"[INFER] 모델 피처 정렬: {len(model_feature_columns)}개 컬럼")
-                else:
-                    missing = set(model_feature_columns) - set(X.columns)
-                    if missing:
-                        logger.debug(f"[INFER] 일부 모델 피처 누락 (정상일 수 있음): {len(missing)}개")
+            # 3. Preprocessor 변환 + 피처 정렬
+            X = self._apply_preprocessing(X)
 
             # 전처리 후 유효한 인덱스 저장 (행 삭제가 있을 수 있음)
             valid_index = X.index
 
-            # Check if we should return probabilities or classes
-            return_probabilities = params and params.get("return_probabilities", False)
+            # 4. 모델 예측
+            predictions = self._run_prediction(X, params)
 
-            if return_probabilities and hasattr(self.trained_model, "predict_proba"):
-                # Get probability predictions
-                predictions = self.trained_model.predict_proba(X)
-
-                # Apply calibration if available
-                if self.trained_calibrator is not None and self._task_type == "classification":
-                    logger.debug("[INFER] 확률 캘리브레이션 적용")
-                    predictions = self.trained_calibrator.transform(predictions)
-
-            elif (
-                self._task_type == "classification"
-                and hasattr(self.trained_model, "predict_proba")
-                and self.trained_calibrator is not None
-            ):
-                # For classification with calibrator, always use calibrated probabilities for consistency
-                predictions = self.trained_model.predict_proba(X)
-                predictions = self.trained_calibrator.transform(predictions)
-
-                # Convert probabilities to class predictions if not explicitly requesting probabilities
-                if not return_probabilities:
-                    if predictions.ndim == 2:
-                        predictions = predictions.argmax(axis=1)
-                    else:
-                        # Binary classification case with calibrated probabilities
-                        predictions = (predictions > 0.5).astype(int)
-            else:
-                # Standard prediction without calibration
-                predictions = self.trained_model.predict(X)
-
-            should_return_dataframe = params and params.get("return_dataframe", False)
-            if should_return_dataframe:
-                if not isinstance(predictions, pd.DataFrame):
-                    # Causal 모델: CATE (Conditional Average Treatment Effect) 컬럼명 사용
-                    if self._task_type == "causal":
-                        predictions_array = np.atleast_1d(predictions)
-                        if predictions_array.ndim == 2:
-                            # 다중 treatment 효과
-                            cols = [
-                                f"cate_treatment_{i}" for i in range(predictions_array.shape[1])
-                            ]
-                            predictions_df = pd.DataFrame(
-                                predictions_array, columns=cols, index=valid_index
-                            )
-                        else:
-                            predictions_df = pd.DataFrame(
-                                {"cate": predictions_array}, index=valid_index
-                            )
-                    # Classification 모델: 확률 컬럼명
-                    elif return_probabilities and predictions.ndim == 2:
-                        prob_cols = [f"prob_class_{i}" for i in range(predictions.shape[1])]
-                        predictions_df = pd.DataFrame(
-                            predictions, columns=prob_cols, index=valid_index
-                        )
-                    elif return_probabilities and predictions.ndim == 1:
-                        # Binary classification probabilities
-                        predictions_df = pd.DataFrame(
-                            {"prob_positive": predictions}, index=valid_index
-                        )
-                    else:
-                        # Regression 등 일반 예측
-                        predictions_df = pd.DataFrame(
-                            {"prediction": predictions}, index=valid_index
-                        )
-                    logger.info(f"[INFER] 예측 완료: {len(predictions_df)}샘플 (DataFrame)")
-                    return predictions_df
-                else:
-                    logger.info(f"[INFER] 예측 완료: {len(predictions)}샘플 (DataFrame)")
-                    return predictions
-            else:
-                if isinstance(predictions, pd.DataFrame):
-                    predictions = predictions.values.flatten()
-                elif hasattr(predictions, "tolist"):
-                    predictions = predictions.tolist()
-                logger.info(f"[INFER] 예측 완료: {len(predictions)}샘플")
-                return predictions
+            # 5. 출력 포맷 변환
+            return self._format_output(predictions, valid_index, params)
 
         except Exception as e:
             logger.debug(f"[INFER] 예측 실패: {e}")

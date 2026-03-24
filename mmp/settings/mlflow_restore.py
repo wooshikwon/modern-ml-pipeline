@@ -9,6 +9,7 @@ import yaml
 from mmp.utils.core.logger import log_error, log_mlflow, log_mlflow_debug, log_warn
 
 from .config import Config
+from .env_resolver import resolve_env_variables
 from .recipe import Recipe
 
 
@@ -118,30 +119,11 @@ class MLflowArtifactRestorer:
             return {}
 
     def _resolve_env_variables(self, data: Any) -> Any:
-        """환경변수 치환"""
-        import os
-        import re
+        """환경변수 치환
 
-        if isinstance(data, str):
-            pattern = r"\$\{([^}]+)\}"
-
-            def replacer(match):
-                expr = match.group(1)
-                if ":" in expr:
-                    var_name, default_value = expr.split(":", 1)
-                    return str(os.environ.get(var_name.strip(), default_value.strip()))
-                else:
-                    return str(os.environ.get(expr.strip(), match.group(0)))
-
-            return re.sub(pattern, replacer, data)
-
-        elif isinstance(data, dict):
-            return {k: self._resolve_env_variables(v) for k, v in data.items()}
-
-        elif isinstance(data, list):
-            return [self._resolve_env_variables(item) for item in data]
-
-        return data
+        실제 로직은 env_resolver.resolve_env_variables()에 위임한다.
+        """
+        return resolve_env_variables(data)
 
 
 class MLflowArtifactSaver:

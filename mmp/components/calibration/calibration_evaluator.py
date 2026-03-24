@@ -102,13 +102,13 @@ class CalibrationEvaluator:
         y_prob_uncalibrated = np.asarray(y_prob_uncalibrated)
 
         if len(y_true) != len(y_prob_uncalibrated):
-            raise ValueError("y_true and y_prob_uncalibrated must have the same length")
+            raise ValueError("y_true와 y_prob_uncalibrated의 길이가 다릅니다")
 
         if y_prob_calibrated is not None and len(y_true) != len(y_prob_calibrated):
-            raise ValueError("y_true and y_prob_calibrated must have the same length")
+            raise ValueError("y_true와 y_prob_calibrated의 길이가 다릅니다")
 
         if not np.all((y_true == 0) | (y_true == 1)):
-            raise ValueError("y_true must contain only binary values (0, 1)")
+            raise ValueError("y_true는 이진 값(0, 1)만 포함해야 합니다")
 
         metrics = {}
 

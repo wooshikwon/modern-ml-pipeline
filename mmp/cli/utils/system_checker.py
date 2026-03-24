@@ -180,7 +180,7 @@ class SystemChecker:
                         details={"tracking_uri": tracking_uri},
                     )
                 else:
-                    raise Exception(f"Health check returned {response.status_code}")
+                    raise Exception(f"헬스체크 응답 코드: {response.status_code}")
             else:
                 # Local directory check
                 tracking_path = Path(tracking_uri)
@@ -192,7 +192,7 @@ class SystemChecker:
                         details={"tracking_uri": tracking_uri},
                     )
                 else:
-                    raise FileNotFoundError(f"Directory not found: {tracking_uri}")
+                    raise FileNotFoundError(f"디렉토리를 찾을 수 없습니다: {tracking_uri}")
 
         except Exception as e:
             if tracking_uri.startswith("http"):
@@ -667,7 +667,7 @@ class SystemChecker:
                     details={"url": tecton_url},
                 )
             else:
-                raise Exception(f"Health check returned {response.status_code}")
+                raise Exception(f"헬스체크 응답 코드: {response.status_code}")
 
         except Exception as e:
             return CheckResult(

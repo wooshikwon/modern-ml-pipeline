@@ -24,7 +24,7 @@ class Trainer(BaseTrainer):
     """
 
     def __init__(self, settings: Settings, factory_provider: Optional[Callable[[], Any]] = None):
-        self.settings = settings
+        super().__init__(settings=settings)
         self.factory_provider = factory_provider
         log_component("Trainer", "초기화 완료")
         self.training_results = {}

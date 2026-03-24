@@ -1,9 +1,11 @@
 """검증 시스템 공통 타입"""
 
-from typing import List, NamedTuple
+from dataclasses import dataclass, field
+from typing import List
 
 
-class ValidationResult(NamedTuple):
+@dataclass(frozen=True)
+class ValidationResult:
     is_valid: bool
     error_message: str = ""
-    warnings: List[str] = []
+    warnings: List[str] = field(default_factory=list)

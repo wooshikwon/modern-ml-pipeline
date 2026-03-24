@@ -1,7 +1,6 @@
 """통합 Settings Factory - 모든 CLI 명령어의 Settings 생성 중앙화"""
 
 import os
-import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -12,6 +11,7 @@ import yaml
 from mmp.utils.core.logger import logger
 
 from .config import Config
+from .env_resolver import resolve_env_variables
 from .mlflow_restore import MLflowArtifactRestorer
 from .recipe import Recipe
 from .validation import ValidationOrchestrator
@@ -65,7 +65,7 @@ class SettingsFactory:
 
         # 2. 학습 전용 데이터 경로 처리
         if data_path:
-            factory._process_training_data_path(recipe, data_path, context_params)
+            factory._process_data_path(recipe, data_path, context_params)
 
         # 3. 동적 검증 실행
         validation_result = factory.validator.validate_for_training(config, recipe)
@@ -110,11 +110,26 @@ class SettingsFactory:
         # 3. 서빙 호환성 검증
         validation_result = factory.validator.validate_for_serving(config, recipe)
         if not validation_result.is_valid:
+            # 프로덕션 환경 여부 확인
+            is_production = (
+                config.environment.name.lower() == "production"
+                or os.environ.get("MMP_ENVIRONMENT", "").lower() == "production"
+            )
+
             # 테스트 환경에서는 최소 Recipe로 완화하여 진행 (유닛테스트의 run_api_server 호출 검증 목적)
-            if (
+            # 단, 프로덕션 환경에서는 lenient 모드를 무시하여 검증 우회를 방지한다
+            lenient_requested = (
                 os.environ.get("PYTEST_CURRENT_TEST")
                 or os.environ.get("MMP_FACTORY_LENIENT", "0") == "1"
-            ):
+            )
+
+            if lenient_requested and is_production:
+                logger.warning(
+                    "프로덕션 환경에서 lenient 모드가 요청되었으나 무시합니다. "
+                    "프로덕션에서는 서빙 검증을 우회할 수 없습니다."
+                )
+
+            if lenient_requested and not is_production:
                 logger.warning(f"서빙 설정 검증 경고(완화 모드): {validation_result.error_message}")
             else:
                 raise ValueError(f"서빙 설정 검증 실패: {validation_result.error_message}")
@@ -128,8 +143,9 @@ class SettingsFactory:
     @classmethod
     def for_inference(
         cls,
-        config_path: str,
         run_id: str,
+        config_path: Optional[str] = None,
+        recipe_path: Optional[str] = None,
         data_path: str = None,
         context_params: Optional[Dict] = None,
     ) -> Settings:
@@ -137,23 +153,36 @@ class SettingsFactory:
         batch-inference 명령어용 Settings 생성
 
         핵심 기능:
-        1. 현재 Config 로딩 (추론 환경)
-        2. MLflow에서 학습시 Recipe 완전 복원
+        1. MLflow에서 학습시 Recipe/Config 복원 (artifact 기반)
+        2. recipe_path/config_path 제공 시 해당 파일로 override
         3. 추론 데이터 경로 처리 (배치별 데이터)
         4. 추론 호환성 검증
+
+        Args:
+            run_id: MLflow Run ID (모델 artifact 복원용)
+            config_path: Override할 Config 파일 경로 (None이면 artifact에서 복원)
+            recipe_path: Override할 Recipe 파일 경로 (None이면 artifact에서 복원)
+            data_path: 추론할 데이터 경로
+            context_params: SQL 렌더링에 사용할 파라미터
         """
         factory = cls()
+        restorer = MLflowArtifactRestorer(run_id)
 
-        # 1. 현재 추론 환경의 Config 로딩
-        config = factory._load_config(config_path)
+        # 1. Config: Override 파일이 있으면 사용, 없으면 artifact에서 복원
+        if config_path:
+            config = factory._load_config(config_path)
+        else:
+            config = restorer.restore_config()
 
-        # 2. MLflow Recipe 복원
-        recipe_restorer = MLflowArtifactRestorer(run_id)
-        recipe = recipe_restorer.restore_recipe()
+        # 2. Recipe: Override 파일이 있으면 사용, 없으면 artifact에서 복원
+        if recipe_path:
+            recipe = factory._load_recipe(recipe_path)
+        else:
+            recipe = restorer.restore_recipe()
 
         # 3. 추론 전용 데이터 경로 처리
         if data_path:
-            factory._process_inference_data_path(recipe, data_path, context_params)
+            factory._process_data_path(recipe, data_path, context_params)
 
         # 4. 추론 호환성 검증
         validation_result = factory.validator.validate_for_inference(config, recipe)
@@ -191,7 +220,7 @@ class SettingsFactory:
             raise ValueError(f"Config 파일이 비어있습니다: {config_path}")
 
         # 환경변수 치환
-        config_data = self._resolve_env_variables(config_data)
+        config_data = resolve_env_variables(config_data)
 
         # 최소 동작을 위한 기본값 보강 (CLI/E2E용 관용적 기본치)
         try:
@@ -215,9 +244,8 @@ class SettingsFactory:
                         "config": {"base_path": "./artifacts"},
                     }
                 }
-        except Exception as _:
-            # 기본값 보강은 베스트-에포트
-            pass
+        except Exception as e:
+            logger.debug(f"Config 기본값 보강 실패 (무시): {type(e).__name__}: {e}")
 
         # Config 객체 생성
         try:
@@ -283,7 +311,7 @@ class SettingsFactory:
             raise ValueError(f"Recipe 파일이 비어있습니다: {recipe_path}")
 
         # 환경변수 치환
-        recipe_data = self._resolve_env_variables(recipe_data)
+        recipe_data = resolve_env_variables(recipe_data)
 
         # 최소 동작을 위한 기본값 보강 (CLI/E2E용 관용적 기본치)
         try:
@@ -304,9 +332,8 @@ class SettingsFactory:
                     "author": "CLI Recipe Builder",
                     "description": "Auto-filled by SettingsFactory for minimal recipe",
                 }
-        except Exception as _:
-            # 기본값 보강은 베스트-에포트
-            pass
+        except Exception as e:
+            logger.debug(f"Config 기본값 보강 실패 (무시): {type(e).__name__}: {e}")
 
         # Recipe 객체 생성
         try:
@@ -315,84 +342,10 @@ class SettingsFactory:
         except Exception as e:
             raise ValueError(f"Recipe 파싱 실패 ({recipe_path}): {str(e)}")
 
-    def _resolve_env_variables(self, data: Any) -> Any:
-        """환경변수 치환 - ${VAR:default} 패턴 지원"""
-        if isinstance(data, str):
-            # ${VAR:default} 패턴 매칭
-            pattern = r"\$\{([^}]+)\}"
-
-            # 전체 문자열이 환경변수인지 확인
-            full_match = re.fullmatch(pattern, data)
-
-            if full_match:
-                # 전체가 환경변수인 경우 - 타입 변환 시도
-                expr = full_match.group(1)
-
-                # 콜론으로 변수명과 기본값 분리
-                if ":" in expr:
-                    var_name, default_value = expr.split(":", 1)
-                    var_name = var_name.strip()
-                    default_value = default_value.strip()
-                    result = os.environ.get(var_name, default_value)
-                else:
-                    # 기본값 없음
-                    var_name = expr.strip()
-                    result = os.environ.get(var_name, data)  # 없으면 원본 반환
-
-                # 타입 변환 시도
-                if isinstance(result, str):
-                    # 빈 문자열 처리
-                    if result == "":
-                        return ""
-
-                    # Boolean 변환
-                    if result.lower() in ("true", "false"):
-                        return result.lower() == "true"
-
-                    # 숫자 변환
-                    try:
-                        # 정수 변환 시도
-                        if "." not in result and "e" not in result.lower():
-                            return int(result)
-                        # 실수 변환 시도
-                        return float(result)
-                    except (ValueError, AttributeError):
-                        # 변환 실패시 문자열 그대로 반환
-                        return result
-
-                return result
-
-            else:
-                # 부분적으로 환경변수가 포함된 경우 - 문자열로만 치환
-                def replacer(match):
-                    expr = match.group(1)
-
-                    if ":" in expr:
-                        var_name, default_value = expr.split(":", 1)
-                        var_name = var_name.strip()
-                        default_value = default_value.strip()
-                        return str(os.environ.get(var_name, default_value))
-                    else:
-                        var_name = expr.strip()
-                        return str(os.environ.get(var_name, match.group(0)))
-
-                return re.sub(pattern, replacer, data)
-
-        elif isinstance(data, dict):
-            # 딕셔너리는 재귀적으로 처리
-            return {k: self._resolve_env_variables(v) for k, v in data.items()}
-
-        elif isinstance(data, list):
-            # 리스트도 재귀적으로 처리
-            return [self._resolve_env_variables(item) for item in data]
-
-        # 다른 타입은 그대로 반환
-        return data
-
-    def _process_training_data_path(
+    def _process_data_path(
         self, recipe: Recipe, data_path: str, context_params: Optional[Dict]
     ) -> None:
-        """학습용 데이터 경로 처리 (Jinja 템플릿 렌더링)"""
+        """데이터 경로 처리 (Jinja 템플릿 렌더링) - 학습/추론 공용"""
         if not data_path:
             return
 
@@ -402,18 +355,11 @@ class SettingsFactory:
 
         recipe.data.loader.source_uri = data_path
 
-    def _process_inference_data_path(
-        self, recipe: Recipe, data_path: str, context_params: Optional[Dict]
-    ) -> None:
-        """추론용 데이터 경로 처리 (Jinja 템플릿 렌더링)"""
-        if not data_path:
-            return
-
-        original_path = data_path
-        if data_path.endswith(".sql.j2") or (data_path.endswith(".sql") and context_params):
-            data_path = self._render_jinja_template(original_path, context_params)
-
-        recipe.data.loader.source_uri = data_path
+    @staticmethod
+    def _ensure_computed(settings: Settings) -> None:
+        """settings.recipe.model.computed 딕셔너리가 존재하지 않으면 초기화"""
+        if not hasattr(settings.recipe.model, "computed") or not settings.recipe.model.computed:
+            settings.recipe.model.computed = {}
 
     def _add_training_computed_fields(
         self, settings: Settings, recipe_path: str, context_params: Optional[Dict]
@@ -424,10 +370,7 @@ class SettingsFactory:
         recipe_name = Path(recipe_path).stem
         run_name = f"{recipe_name}_{timestamp}"
 
-        # Recipe에 computed 필드가 없으면 생성
-        if not hasattr(settings.recipe.model, "computed") or not settings.recipe.model.computed:
-            settings.recipe.model.computed = {}
-
+        self._ensure_computed(settings)
         settings.recipe.model.computed.update(
             {
                 "run_name": run_name,
@@ -438,9 +381,7 @@ class SettingsFactory:
 
     def _add_serving_computed_fields(self, settings: Settings, run_id: str) -> None:
         """서빙용 계산 필드 추가"""
-        if not hasattr(settings.recipe.model, "computed") or not settings.recipe.model.computed:
-            settings.recipe.model.computed = {}
-
+        self._ensure_computed(settings)
         settings.recipe.model.computed.update(
             {"run_id": run_id, "environment": settings.config.environment.name, "mode": "serving"}
         )
@@ -449,9 +390,7 @@ class SettingsFactory:
         self, settings: Settings, run_id: str, data_path: str
     ) -> None:
         """추론용 계산 필드 추가"""
-        if not hasattr(settings.recipe.model, "computed") or not settings.recipe.model.computed:
-            settings.recipe.model.computed = {}
-
+        self._ensure_computed(settings)
         settings.recipe.model.computed.update(
             {
                 "run_id": run_id,
@@ -498,10 +437,6 @@ class SettingsFactory:
                 description="Serving용 최소 Recipe",
             ),
         )
-
-    def _create_minimal_recipe_for_inference(self) -> Recipe:
-        """추론용 최소 Recipe 생성 (MLflow 복원 전까지 임시)"""
-        return self._create_minimal_recipe_for_serving()  # 동일한 구조 사용
 
     def _render_jinja_template(self, data_path: str, context_params: Optional[Dict]) -> str:
         """Jinja 템플릿 렌더링"""

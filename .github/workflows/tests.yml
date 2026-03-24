@@ -26,4 +26,3 @@ jobs:
 
     - name: Run tests
       run: pytest tests/unit -q --tb=short
-      continue-on-error: true

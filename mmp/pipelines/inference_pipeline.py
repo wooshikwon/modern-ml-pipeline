@@ -5,11 +5,9 @@ from typing import Any, Dict, Optional
 import mlflow
 
 from mmp.factory import Factory
-from mmp.settings import Settings
 from mmp.settings.factory import SettingsFactory
-from mmp.settings.mlflow_restore import restore_all_from_mlflow
 from mmp.utils.core.console import Console
-from mmp.utils.core.logger import log_data, log_infer, log_mlflow, log_pipe, logger
+from mmp.utils.core.logger import log_data, log_infer, log_mlflow, log_pipe
 from mmp.utils.core.reproducibility import set_global_seeds
 from mmp.utils.data.data_io import format_predictions, load_inference_data, save_output
 from mmp.utils.integrations import mlflow_integration as mlflow_utils
@@ -38,9 +36,15 @@ def run_inference_pipeline(
     console = Console()
     context_params = context_params or {}
 
-    # 설정 로드: Artifact에서 복원 또는 Override
+    # 설정 로드: SettingsFactory를 통해 Artifact 복원 + Override 처리
     log_pipe("설정 로드 중")
-    settings = _load_inference_settings(run_id, recipe_path, config_path)
+    settings = SettingsFactory.for_inference(
+        run_id=run_id,
+        config_path=config_path,
+        recipe_path=recipe_path,
+        data_path=data_path,
+        context_params=context_params,
+    )
 
     # 재현성을 위한 전역 시드 설정
     seed = getattr(settings.recipe.model, "computed", {}).get("seed", 42)
@@ -124,41 +128,3 @@ def run_inference_pipeline(
         return SimpleNamespace(
             run_id=inference_run_id, model_uri=model_uri, prediction_count=len(predictions_df)
         )
-
-
-def _load_inference_settings(
-    run_id: str, recipe_path: Optional[str], config_path: Optional[str]
-) -> Settings:
-    """
-    추론용 Settings 로드.
-
-    우선순위 (완전 덮어쓰기):
-    1. recipe_path/config_path가 제공되면 해당 파일 사용
-    2. 제공되지 않으면 artifact에서 복원
-    """
-    # Artifact에서 복원
-    logger.info(f"Artifact에서 설정 복원 시작: run_id={run_id}")
-    artifact_recipe, artifact_config, artifact_sql = restore_all_from_mlflow(run_id)
-
-    # Override 적용
-    factory_instance = SettingsFactory()
-
-    if recipe_path:
-        logger.info(f"Recipe override: {recipe_path}")
-        recipe = factory_instance._load_recipe(recipe_path)
-    else:
-        recipe = artifact_recipe
-        logger.info("Artifact의 Recipe 사용")
-
-    if config_path:
-        logger.info(f"Config override: {config_path}")
-        config = factory_instance._load_config(config_path)
-    else:
-        config = artifact_config
-        logger.info("Artifact의 Config 사용")
-
-    # Settings 객체 생성
-    settings = Settings(recipe=recipe, config=config)
-    logger.info(f"Settings 로드 완료: env={config.environment.name}, recipe={recipe.name}")
-
-    return settings

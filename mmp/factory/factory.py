@@ -1,21 +1,18 @@
 from __future__ import annotations
 
 import functools
-import importlib
 from typing import TYPE_CHECKING, Any, Callable, ClassVar, Dict, Optional
 
 import pandas as pd
 
-from mmp.components.adapter import AdapterRegistry
-from mmp.components.adapter.base import BaseAdapter
-from mmp.components.calibration.calibration_evaluator import CalibrationEvaluator
-from mmp.components.evaluator import EvaluatorRegistry
-from mmp.components.fetcher import FetcherRegistry
-from mmp.components.preprocessor import BasePreprocessor, Preprocessor
+from mmp.components.preprocessor import BasePreprocessor
+from mmp.factory.component_factory import ComponentCreator
+from mmp.factory.model_factory import ModelCreator
 from mmp.settings import Settings
 from mmp.utils.core.logger import log_fact, logger
 
 if TYPE_CHECKING:
+    from mmp.components.adapter.base import BaseAdapter
     from mmp.components.fetcher.base import BaseFetcher
     from mmp.utils.integrations.pyfunc_wrapper import PyfuncWrapper
 
@@ -75,7 +72,8 @@ class Factory:
        - 복수의 하위 컴포넌트들을 동적 조합/관리
        - 예: Preprocessor (다수 전처리 스텝 조합)
 
-    일관된 접근 패턴과 캐싱을 통해 효율적인 컴포넌트 생성을 보장합니다.
+    내부적으로 ComponentCreator와 ModelCreator에 생성 로직을 위임하고,
+    캐싱과 공개 API를 제공하는 파사드 역할을 합니다.
     """
 
     # 클래스 변수: 컴포넌트 등록 상태 추적
@@ -99,6 +97,10 @@ class Factory:
 
         # 생성된 컴포넌트 캐싱
         self._component_cache: Dict[str, Any] = {}
+
+        # 위임 객체 생성
+        self._component_creator = ComponentCreator(settings)
+        self._model_creator = ModelCreator(settings)
 
         # Factory 초기화 정보 로깅
         log_fact(f"초기화 완료 - Recipe: {self._recipe.name}, Task: {self._recipe.task_choice}")
@@ -128,12 +130,29 @@ class Factory:
         컴포넌트들이 Registry에 등록되었는지 확인하고, 필요시 등록합니다.
         이 메서드는 Factory 인스턴스가 처음 생성될 때 한 번만 실행됩니다.
         """
-        # Check if calibration components are already registered
+        from mmp.components.adapter.registry import AdapterRegistry
         from mmp.components.calibration.registry import CalibrationRegistry
+        from mmp.components.datahandler.registry import DataHandlerRegistry
+        from mmp.components.evaluator.registry import EvaluatorRegistry
+        from mmp.components.fetcher.registry import FetcherRegistry
+        from mmp.components.optimizer.registry import OptimizerRegistry
+        from mmp.components.preprocessor.registry import PreprocessorStepRegistry
+        from mmp.components.trainer.registry import TrainerRegistry
 
-        is_calibration_registered = bool(CalibrationRegistry.list_keys())
+        all_registries = [
+            AdapterRegistry,
+            CalibrationRegistry,
+            DataHandlerRegistry,
+            EvaluatorRegistry,
+            FetcherRegistry,
+            OptimizerRegistry,
+            PreprocessorStepRegistry,
+            TrainerRegistry,
+        ]
 
-        if not cls._components_registered or not is_calibration_registered:
+        any_empty = any(not registry.list_keys() for registry in all_registries)
+
+        if not cls._components_registered or any_empty:
             # 컴포넌트 모듈들을 import하여 self-registration 트리거
             try:
                 import mmp.components.adapter
@@ -147,82 +166,14 @@ class Factory:
             except ImportError as e:
                 logger.warning(f"[FACT] 일부 컴포넌트 로드 실패: {e}")
 
+            # 등록 후 비어있는 Registry 경고 (optional extras로 인해 에러는 아님)
+            for registry in all_registries:
+                if not registry.list_keys():
+                    logger.warning(
+                        f"[FACT] {registry.__name__}에 등록된 컴포넌트가 없습니다."
+                    )
+
             cls._components_registered = True
-
-    def _create_from_class_path(self, class_path: str, hyperparameters: Dict[str, Any]) -> Any:
-        """
-        클래스 경로로부터 동적으로 객체를 생성하는 헬퍼 메서드.
-
-        Args:
-            class_path: 전체 클래스 경로 (예: 'sklearn.ensemble.RandomForestClassifier')
-            hyperparameters: 클래스 초기화 파라미터
-
-        Returns:
-            생성된 객체 인스턴스
-        """
-        try:
-            module_path, class_name = class_path.rsplit(".", 1)
-            module = importlib.import_module(module_path)
-            model_class = getattr(module, class_name)
-
-            # 하이퍼파라미터 전처리 (callable 파라미터 처리)
-            processed_params = self._process_hyperparameters(hyperparameters)
-
-            instance = model_class(**processed_params)
-            logger.debug(f"[FACT] 클래스 인스턴스 생성 완료 - {class_path}")
-            return instance
-
-        except Exception as e:
-            logger.error(f"[FACT] 클래스 인스턴스 생성 실패 - {class_path}: {e}")
-            raise ValueError(f"Could not load class: {class_path}") from e
-
-    def _process_hyperparameters(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """하이퍼파라미터 전처리 (문자열을 객체로 변환 등)."""
-        processed = params.copy()
-
-        for key, value in processed.items():
-            if isinstance(value, str) and "." in value and ("_fn" in key or "_class" in key):
-                try:
-                    module_path, func_name = value.rsplit(".", 1)
-                    module = importlib.import_module(module_path)
-                    processed[key] = getattr(module, func_name)
-                    logger.debug(f"Hyperparameter '{key}'를 callable로 변환했습니다: {value}")
-                except (ImportError, AttributeError):
-                    logger.debug(f"Hyperparameter '{key}'를 문자열로 유지합니다: {value}")
-
-        return processed
-
-    def _detect_adapter_type_from_uri(self, source_uri: str) -> str:
-        """
-        source_uri 패턴을 분석하여 필요한 어댑터 타입을 자동으로 결정합니다.
-
-        패턴:
-        - .sql 파일 또는 SQL 쿼리 → 'sql'
-        - .csv, .parquet, .json → 'storage'
-        - s3://, gs://, az:// → 'storage'
-        - bigquery:// → 'sql'
-        """
-        uri_lower = source_uri.lower()
-
-        # SQL 패턴
-        if uri_lower.endswith(".sql") or "select" in uri_lower or "from" in uri_lower:
-            return "sql"
-
-        # BigQuery 패턴 → SQL adapter로 통합
-        if uri_lower.startswith("bigquery://"):
-            return "sql"  # 'bigquery' 대신 'sql' 반환
-
-        # Cloud Storage 패턴
-        if any(uri_lower.startswith(prefix) for prefix in ["s3://", "gs://", "az://"]):
-            return "storage"
-
-        # File 패턴
-        if any(uri_lower.endswith(ext) for ext in [".csv", ".parquet", ".json", ".tsv"]):
-            return "storage"
-
-        # 기본값
-        logger.warning(f"[FACT] URI 패턴 인식 실패: {source_uri} -> storage 어댑터 사용")
-        return "storage"
 
     # ===============================
     # Tier 1: Atomic Components
@@ -240,31 +191,7 @@ class Factory:
         Returns:
             BaseAdapter 인스턴스
         """
-        # 어댑터 타입 결정
-        if adapter_type:
-            target_type = adapter_type
-        else:
-            # 1순위: config에서 명시된 adapter_type 사용
-            config_adapter_type = getattr(self.settings.config.data_source, "adapter_type", None)
-            if config_adapter_type:
-                target_type = config_adapter_type
-                logger.debug(f"[FACT] 설정된 adapter 유형 사용: {target_type}")
-            else:
-                # 2순위: source_uri에서 자동 감지
-                source_uri = self._data.loader.source_uri
-                target_type = self._detect_adapter_type_from_uri(source_uri)
-                logger.debug(f"[FACT] URI에서 adapter 유형 자동 감지: {target_type}")
-
-        # Registry를 통한 생성
-        try:
-            adapter = AdapterRegistry.create(target_type, self.settings)
-            return adapter
-        except Exception as e:
-            available = AdapterRegistry.list_keys()
-            logger.error(f"'{target_type}' adapter 생성에 실패했습니다. Available: {available}")
-            raise ValueError(
-                f"Failed to create adapter '{target_type}'. Available: {available}"
-            ) from e
+        return self._component_creator.create_data_adapter(adapter_type)
 
     @cached(lambda run_mode=None: f"fetcher_{(run_mode or 'batch').lower()}")
     def create_fetcher(self, run_mode: Optional[str] = None) -> "BaseFetcher":
@@ -277,42 +204,7 @@ class Factory:
         Returns:
             BaseFetcher 인스턴스
         """
-        mode = (run_mode or "batch").lower()
-
-        # 설정 접근
-        provider = (
-            self.settings.config.feature_store.provider
-            if self.settings.config.feature_store
-            else "none"
-        )
-        fetch_conf = self._recipe.data.fetcher if hasattr(self._recipe.data, "fetcher") else None
-        fetch_type = fetch_conf.type if fetch_conf else None
-
-        # serving 모드 검증
-        if mode == "serving":
-            if fetch_type in (None, "pass_through") or provider in (None, "none"):
-                raise TypeError(
-                    "Serving 모드에서는 Feature Store 연결이 필요합니다. "
-                    "pass_through 또는 feature_store 미구성은 허용되지 않습니다."
-                )
-
-        # Fetcher 생성: 환경이 아닌 명시적 설정(provider, fetch_type)으로 결정
-        try:
-            if provider == "none" or fetch_type == "pass_through" or not fetch_conf:
-                fetcher = FetcherRegistry.create("pass_through")
-            elif fetch_type == "feature_store" and provider in {"feast", "mock", "dynamic"}:
-                fetcher = FetcherRegistry.create(fetch_type, settings=self.settings, factory=self)
-            else:
-                raise ValueError(
-                    f"적절한 fetcher를 선택할 수 없습니다. "
-                    f"provider={provider}, fetch_type={fetch_type}, mode={mode}"
-                )
-
-            return fetcher
-
-        except Exception as e:
-            logger.error(f"Fetcher 생성에 실패했습니다: {e} (mode={mode}, provider={provider})")
-            raise
+        return self._component_creator.create_fetcher(run_mode=run_mode, factory_ref=self)
 
     @cached(lambda: "evaluator")
     def create_evaluator(self) -> Any:
@@ -322,18 +214,7 @@ class Factory:
         Returns:
             Evaluator 인스턴스
         """
-        task_choice = self._recipe.task_choice
-
-        try:
-            evaluator = EvaluatorRegistry.create(task_choice, self.settings)
-            return evaluator
-
-        except Exception:
-            available = EvaluatorRegistry.list_keys()
-            logger.error(
-                f"'{task_choice}'에 대한 Evaluator 생성에 실패했습니다. Available: {available}"
-            )
-            raise
+        return self._component_creator.create_evaluator()
 
     @cached(lambda method=None: f"calibrator_{method or 'default'}")
     def create_calibrator(self, method: Optional[str] = None) -> Optional[Any]:
@@ -346,41 +227,7 @@ class Factory:
         Returns:
             BaseCalibrator 인스턴스 또는 None
         """
-        # Task와 calibration 설정 확인
-        task_type = self._recipe.task_choice
-        calibration_config = getattr(self._recipe.model, "calibration", None)
-
-        if not calibration_config or not getattr(calibration_config, "enabled", False):
-            logger.debug("[FACT] Calibration 비활성화 - 스킵")
-            return None
-
-        if task_type != "classification":
-            logger.debug(f"[FACT] {task_type} task에서는 Calibration 미지원 - 스킵")
-            return None
-
-        # Method 결정
-        calibration_method = method or getattr(calibration_config, "method", None)
-        if not calibration_method:
-            raise ValueError(
-                "Calibration method가 설정되지 않았습니다. "
-                "Recipe에서 model.calibration.method를 설정하세요. "
-                "사용 가능: 'beta', 'isotonic', 'temperature'"
-            )
-
-        try:
-            from mmp.components.calibration.registry import CalibrationRegistry
-
-            calibrator = CalibrationRegistry.create(calibration_method)
-            return calibrator
-
-        except Exception:
-            from mmp.components.calibration.registry import CalibrationRegistry
-
-            available = CalibrationRegistry.list_keys()
-            logger.error(
-                f"'{calibration_method}' Calibrator 생성에 실패했습니다. Available: {available}"
-            )
-            raise
+        return self._component_creator.create_calibrator(method)
 
     @cached(lambda: "feature_store_adapter")
     def create_feature_store_adapter(self) -> "BaseAdapter":
@@ -390,17 +237,7 @@ class Factory:
         Returns:
             Feature Store 어댑터 인스턴스
         """
-        # 검증
-        if not self.settings.config.feature_store:
-            raise ValueError("Feature Store settings are not configured.")
-
-        try:
-            adapter = AdapterRegistry.create("feature_store", self.settings)
-            return adapter
-
-        except Exception as e:
-            logger.error(f"Feature Store adapter 생성에 실패했습니다: {e}")
-            raise
+        return self._component_creator.create_feature_store_adapter()
 
     # ===============================
     # Tier 2: Composite Components
@@ -418,20 +255,9 @@ class Factory:
         Returns:
             Trainer 인스턴스
         """
-        from mmp.components.trainer import TrainerRegistry
-
-        trainer_type = trainer_type or "default"
-
-        try:
-            trainer = TrainerRegistry.create(
-                trainer_type, settings=self.settings, factory_provider=lambda: self
-            )
-            return trainer
-
-        except Exception:
-            available = TrainerRegistry.list_keys()
-            logger.error(f"'{trainer_type}' Trainer 생성에 실패했습니다. Available: {available}")
-            raise
+        return self._component_creator.create_trainer(
+            trainer_type=trainer_type, factory_provider=lambda: self
+        )
 
     @cached(lambda: "datahandler")
     def create_datahandler(self) -> Any:
@@ -442,23 +268,7 @@ class Factory:
         Returns:
             BaseDataHandler 인스턴스
         """
-        from mmp.components.datahandler import DataHandlerRegistry
-
-        task_choice = self._recipe.task_choice
-
-        try:
-            model_class_path = getattr(self._recipe.model, "class_path", None)
-            datahandler = DataHandlerRegistry.get_handler_for_task(
-                task_choice, self.settings, model_class_path=model_class_path
-            )
-            return datahandler
-
-        except Exception:
-            available = DataHandlerRegistry.list_keys()
-            logger.error(
-                f"'{task_choice}'에 대한 DataHandler 생성에 실패했습니다. Available: {available}"
-            )
-            raise
+        return self._component_creator.create_datahandler()
 
     # ===============================
     # Tier 3: Orchestrator Components
@@ -473,18 +283,7 @@ class Factory:
         Returns:
             BasePreprocessor 인스턴스 또는 None
         """
-        preprocessor_config = getattr(self._recipe, "preprocessor", None)
-
-        if not preprocessor_config:
-            return None
-
-        try:
-            preprocessor = Preprocessor(settings=self.settings)
-            return preprocessor
-
-        except Exception as e:
-            logger.error(f"Preprocessor 생성에 실패했습니다: {e}")
-            raise
+        return self._component_creator.create_preprocessor()
 
     # ===============================
     # Specialized Creation Methods
@@ -499,57 +298,7 @@ class Factory:
         Returns:
             모델 인스턴스
         """
-        class_path = self._model.class_path
-
-        # 하이퍼파라미터 추출 (tuning 메타데이터 제외)
-        hyperparameters = {}
-        if hasattr(self._model.hyperparameters, "tuning_enabled"):
-            if self._model.hyperparameters.tuning_enabled:
-                # 튜닝 활성화시: fixed 파라미터만 사용
-                if (
-                    hasattr(self._model.hyperparameters, "fixed")
-                    and self._model.hyperparameters.fixed
-                ):
-                    hyperparameters = self._model.hyperparameters.fixed.copy()
-            else:
-                # 튜닝 비활성화시: values 파라미터 사용
-                if (
-                    hasattr(self._model.hyperparameters, "values")
-                    and self._model.hyperparameters.values
-                ):
-                    hyperparameters = self._model.hyperparameters.values.copy()
-        else:
-            # 레거시 구조: 전체 dict에서 tuning 메타데이터 제외
-            hyperparameters = (
-                dict(self._model.hyperparameters)
-                if hasattr(self._model.hyperparameters, "__dict__")
-                else {}
-            )
-            tuning_keys = [
-                "tuning_enabled",
-                "optimization_metric",
-                "direction",
-                "n_trials",
-                "timeout",
-                "fixed",
-                "tunable",
-                "values",
-            ]
-            for key in tuning_keys:
-                hyperparameters.pop(key, None)
-
-        try:
-            model = self._create_from_class_path(class_path, hyperparameters)
-            return model
-
-        except Exception as e:
-            logger.error(f"{class_path}에서 Model 생성에 실패했습니다: {e}")
-            raise
-
-    # ===============================
-    # Specialized Creation Methods
-    # Recipe 구조 기반 동적 생성 - 설정에 따른 조건부 생성
-    # ===============================
+        return self._model_creator.create_model()
 
     @cached(lambda: "optuna_integration")
     def create_optuna_integration(self) -> Any:
@@ -559,23 +308,7 @@ class Factory:
         Returns:
             OptunaIntegration 인스턴스
         """
-        tuning_config = getattr(self._model, "hyperparameters", None)
-
-        if not tuning_config:
-            raise ValueError("Hyperparameter tuning settings are not configured.")
-
-        try:
-            from mmp.utils.integrations.optuna_integration import OptunaIntegration
-
-            integration = OptunaIntegration(tuning_config)
-            return integration
-
-        except ImportError:
-            logger.error("Optuna가 설치되지 않았습니다. pip install optuna로 설치해주세요")
-            raise
-        except Exception as e:
-            logger.error(f"Optuna integration 생성에 실패했습니다: {e}")
-            raise
+        return self._model_creator.create_optuna_integration()
 
     def create_calibration_evaluator(self, trained_model, trained_calibrator) -> Optional[Any]:
         """
@@ -588,17 +321,7 @@ class Factory:
         Returns:
             Calibration metrics 또는 None
         """
-        # Task와 calibrator 확인
-        task_type = self._recipe.task_choice
-        if task_type != "classification" or not trained_calibrator:
-            return None
-
-        # 모델이 predict_proba를 지원하는지 확인
-        if not hasattr(trained_model, "predict_proba"):
-            logger.warning("Model이 predict_proba를 지원하지 않아 calibration 평가를 건너뜁니다")
-            return None
-
-        return CalibrationEvaluator(trained_model, trained_calibrator)
+        return self._model_creator.create_calibration_evaluator(trained_model, trained_calibrator)
 
     def create_pyfunc_wrapper(
         self,

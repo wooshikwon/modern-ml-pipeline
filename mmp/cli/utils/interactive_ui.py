@@ -171,7 +171,7 @@ class InteractiveUI:
             사용자 입력 숫자
         """
         if min_value is not None and max_value is not None and min_value > max_value:
-            raise ValueError("min_value must be <= max_value")
+            raise ValueError("min_value는 max_value 이하여야 합니다")
 
         while True:
             try:

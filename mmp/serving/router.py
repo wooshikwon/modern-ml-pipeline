@@ -12,7 +12,7 @@ from starlette.responses import JSONResponse
 
 from mmp.serving import _endpoints as handlers
 from mmp.serving._context import app_context
-from mmp.serving._lifespan import lifespan, setup_api_context
+from mmp.serving._lifespan import lifespan
 from mmp.serving.schemas import (
     BatchPredictionResponse,
     HealthCheckResponse,
@@ -294,8 +294,9 @@ def run_api_server(settings: Settings, run_id: str, host: str = "0.0.0.0", port:
         )
         return
 
-    # 서버 시작 시 컨텍스트 설정
-    setup_api_context(run_id=run_id, settings=settings)
+    # lifespan에서 접근할 수 있도록 app.state에 저장
+    app.state.run_id = run_id
+    app.state.settings = settings
 
     # 설정 기반 미들웨어 구성
     _configure_middlewares(settings)

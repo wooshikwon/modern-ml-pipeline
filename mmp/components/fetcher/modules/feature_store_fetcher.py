@@ -18,6 +18,7 @@ class FeatureStoreFetcher(BaseFetcher):
     """
 
     def __init__(self, settings: Settings, factory: Any):
+        super().__init__(settings=settings)
         # 직렬화 가능한 설정만 추출
         self._fetcher_config = self._extract_serializable_config(settings)
         self._feature_store_adapter: Optional[Any] = None

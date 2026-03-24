@@ -13,6 +13,16 @@ class BaseTrainer(ABC):
     모델 학습 및 평가 전체 과정을 관장하는 클래스의 추상 기본 클래스(ABC).
     """
 
+    def __init__(self, settings: Any = None, **kwargs: Any):
+        """
+        Trainer 초기화
+
+        Args:
+            settings: 프로젝트 설정 객체 (선택사항, 다른 Base 클래스와 인터페이스 통일)
+            **kwargs: 추가 키워드 인자
+        """
+        self.settings = settings
+
     @abstractmethod
     def train(
         self,

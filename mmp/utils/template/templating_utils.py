@@ -20,7 +20,7 @@ def render_template_from_file(template_path: str, context: Dict[str, Any]) -> st
 
     template_file = Path(template_path)
     if not template_file.exists():
-        raise FileNotFoundError(f"Template file not found at: {template_path}")
+        raise FileNotFoundError(f"템플릿 파일을 찾을 수 없습니다: {template_path}")
 
     env = jinja2.Environment(
         loader=jinja2.FileSystemLoader(searchpath=template_file.parent),

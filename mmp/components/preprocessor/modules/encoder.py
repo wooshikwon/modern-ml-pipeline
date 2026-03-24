@@ -175,7 +175,7 @@ class CatBoostEncoderWrapper(BasePreprocessor, BaseEstimator, TransformerMixin):
         """
         if y is None:
             logger.error("[CatBoostEncoder] 타겟 변수 y가 필요합니다")
-            raise ValueError("CatBoostEncoder requires a target variable 'y' for fitting.")
+            raise ValueError("CatBoostEncoder 학습에는 타겟 변수 'y'가 필요합니다.")
 
         self.encoder.fit(X, y)
         return self

@@ -67,7 +67,7 @@ class ARIMA(BaseModel):
 
         except ImportError as e:
             logger.error("[TRAIN:ARIMA] statsmodels 라이브러리 미설치")
-            raise ImportError("statsmodels is required for ARIMA") from e
+            raise ImportError("ARIMA 사용에는 statsmodels가 필요합니다") from e
         except Exception as e:
             logger.error(f"[TRAIN:ARIMA] 학습 실패: {e}")
             raise
@@ -156,7 +156,7 @@ class ExponentialSmoothing(BaseModel):
 
         except ImportError as e:
             logger.error("[TRAIN:ExpSmoothing] statsmodels 라이브러리 미설치")
-            raise ImportError("statsmodels is required for ExponentialSmoothing") from e
+            raise ImportError("ExponentialSmoothing 사용에는 statsmodels가 필요합니다") from e
         except Exception as e:
             logger.error(f"[TRAIN:ExpSmoothing] 학습 실패: {e}")
             raise

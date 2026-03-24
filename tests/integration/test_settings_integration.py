@@ -502,7 +502,7 @@ feature_store:
             cfg_path.write_text(_yaml.safe_dump(inference_config))
 
             # Use a dummy run_id; MLflow restore may raise, which is acceptable in this test
-            inference_settings = SettingsFactory.for_inference(str(cfg_path), run_id="dummy_run")
+            inference_settings = SettingsFactory.for_inference(run_id="dummy_run", config_path=str(cfg_path))
 
             if inference_settings is not None:
                 assert hasattr(inference_settings, "config")

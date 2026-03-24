@@ -369,6 +369,12 @@ class TestPredictEndpoint:
 class TestRunAPIServer:
     """run_api_server 함수 테스트"""
 
+    def teardown_method(self):
+        """각 테스트 후 app.state 정리 (lifespan이 잔여 상태로 트리거되지 않도록)"""
+        for attr in ("run_id", "settings"):
+            if hasattr(app.state, attr):
+                delattr(app.state, attr)
+
     def test_run_api_server_disabled_serving(self, component_test_context):
         """서빙 비활성화된 환경에서 API 서버 실행 테스트"""
         with component_test_context.classification_stack() as ctx:
@@ -380,17 +386,10 @@ class TestRunAPIServer:
             mock_settings.config.environment = Mock()
             mock_settings.config.environment.name = "production"
 
-            # Mock setup_api_context and uvicorn
-            with (
-                patch("mmp.serving.router.setup_api_context") as mock_setup,
-                patch("mmp.serving.router.uvicorn.run") as mock_run,
-            ):
-
+            with patch("mmp.serving.router.uvicorn.run") as mock_run:
                 # Should return early without starting server
                 run_api_server(mock_settings, "test-run-id")
 
-                # When serving is disabled, should return early without calling anything
-                mock_setup.assert_not_called()  # setup_api_context should NOT be called
                 # uvicorn.run should not be called
                 mock_run.assert_not_called()
 
@@ -402,17 +401,16 @@ class TestRunAPIServer:
             mock_settings.serving = Mock()
             mock_settings.serving.enabled = True
 
-            # Mock setup_api_context, uvicorn, and _configure_middlewares
             with (
-                patch("mmp.serving.router.setup_api_context") as mock_setup,
                 patch("mmp.serving.router.uvicorn.run") as mock_run,
                 patch("mmp.serving.router._configure_middlewares") as mock_configure,
             ):
 
                 run_api_server(mock_settings, "test-run-id", host="127.0.0.1", port=9000)
 
-                # All functions should be called
-                mock_setup.assert_called_once_with(run_id="test-run-id", settings=mock_settings)
+                # run_id와 settings가 app.state에 저장되어야 함
+                assert app.state.run_id == "test-run-id"
+                assert app.state.settings is mock_settings
                 mock_configure.assert_called_once_with(mock_settings)
                 mock_run.assert_called_once_with(app, host="127.0.0.1", port=9000)
 
@@ -423,9 +421,7 @@ class TestRunAPIServer:
             mock_settings = Mock()
             mock_settings.serving = None
 
-            # Mock setup_api_context, uvicorn, and _configure_middlewares
             with (
-                patch("mmp.serving.router.setup_api_context") as mock_setup,
                 patch("mmp.serving.router.uvicorn.run") as mock_run,
                 patch("mmp.serving.router._configure_middlewares") as mock_configure,
             ):
@@ -433,7 +429,8 @@ class TestRunAPIServer:
                 run_api_server(mock_settings, "test-run-id")
 
                 # Should proceed normally (serving enabled by default)
-                mock_setup.assert_called_once()
+                assert app.state.run_id == "test-run-id"
+                assert app.state.settings is mock_settings
                 mock_configure.assert_called_once()
                 mock_run.assert_called_once()
 
@@ -444,7 +441,6 @@ class TestRunAPIServer:
             mock_settings.serving = None  # Default enabled
 
             with (
-                patch("mmp.serving.router.setup_api_context"),
                 patch("mmp.serving.router.uvicorn.run") as mock_run,
                 patch("mmp.serving.router._configure_middlewares"),
             ):

@@ -31,12 +31,12 @@ class CausalEvaluator(BaseEvaluator):
 
         if not self.data_interface.treatment_column:
             logger.error("[EVAL] Treatment 컬럼 필요")
-            raise ValueError("Causal evaluation requires treatment_column in DataInterface")
+            raise ValueError("인과추론 평가에는 DataInterface에 treatment_column이 필요합니다")
 
         # Treatment 변수 추출 - additional_data에서 가져옴
         if not additional_data or "treatment" not in additional_data:
             logger.error("[EVAL] Treatment 데이터 누락")
-            raise ValueError("Causal evaluation requires treatment data in additional_data")
+            raise ValueError("인과추론 평가에는 additional_data에 treatment 데이터가 필요합니다")
 
         treatment = additional_data["treatment"]
         features = X  # X는 이미 treatment가 제외된 상태

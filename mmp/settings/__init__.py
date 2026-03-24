@@ -23,6 +23,9 @@ from .config import (
     Serving,
 )
 
+# 환경변수 치환
+from .env_resolver import resolve_env_variables
+
 # Factory 모듈 - 통합 Settings 생성
 from .factory import load_settings  # 하위 호환성
 from .factory import (
@@ -111,6 +114,8 @@ __all__ = [
     "PreprocessorStep",
     "Evaluation",
     "Metadata",
+    # ========== Environment Variable Resolution ==========
+    "resolve_env_variables",
     # ========== Validation ==========
     "ValidationResult",
     # ========== MLflow Integration ==========

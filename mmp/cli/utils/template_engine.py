@@ -33,7 +33,7 @@ class TemplateEngine:
             FileNotFoundError: 템플릿 디렉토리가 존재하지 않을 경우
         """
         if not template_dir.exists():
-            raise FileNotFoundError(f"Template directory not found: {template_dir}")
+            raise FileNotFoundError(f"템플릿 디렉토리를 찾을 수 없습니다: {template_dir}")
 
         self.template_dir = template_dir
         self.env = Environment(
@@ -113,7 +113,7 @@ class TemplateEngine:
         source_path = self.template_dir / source_name
 
         if not source_path.exists():
-            raise FileNotFoundError(f"Source file not found: {source_path}")
+            raise FileNotFoundError(f"소스 파일을 찾을 수 없습니다: {source_path}")
 
         # 상위 디렉토리 생성
         if create_dirs:

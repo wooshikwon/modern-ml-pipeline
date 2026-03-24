@@ -11,14 +11,15 @@ from mmp.settings import Settings
 from mmp.utils.core.logger import logger
 from mmp.utils.integrations.optuna_integration import logging_callback
 
+from ..base import BaseOptimizer
 from ..registry import OptimizerRegistry
 
 
-class OptunaOptimizer:
+class OptunaOptimizer(BaseOptimizer):
     """Optuna를 사용한 하이퍼파라미터 최적화기."""
 
     def __init__(self, settings: Settings, factory_provider: Callable[[], Any]):
-        self.settings = settings
+        super().__init__(settings)
         self.factory_provider = factory_provider
         logger.info("[OptunaOptimizer] 초기화를 시작합니다")
         self.pruner = self._create_pruner()

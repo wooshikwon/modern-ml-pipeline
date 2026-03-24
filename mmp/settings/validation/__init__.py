@@ -49,6 +49,14 @@ class ValidationOrchestrator:
             return compatibility_result
         all_warnings.extend(compatibility_result.warnings)
 
+        # 3-1. 데이터 소스 어댑터 호환성 검증
+        data_source_result = self.compatibility_validator.validate_data_source_compatibility(
+            config, recipe
+        )
+        if not data_source_result.is_valid:
+            return data_source_result
+        all_warnings.extend(data_source_result.warnings)
+
         # 4. Optuna 튜닝 시 validation split 필수 검증
         optuna_result = self.business_validator.validate_optuna_requires_validation_split(recipe)
         if not optuna_result.is_valid:

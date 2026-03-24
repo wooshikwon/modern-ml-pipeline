@@ -75,7 +75,7 @@ class FeastAdapter(BaseAdapter):
             elif isinstance(config_data, dict):
                 config_dict = self._remove_none_values(config_data)
             else:
-                raise TypeError(f"Unsupported config type for Feast: {type(config_data)}")
+                raise TypeError(f"Feast에서 지원하지 않는 config 타입입니다: {type(config_data)}")
 
             # Feast RepoConfig로 변환
             repo_config = RepoConfig(**config_dict)
@@ -251,7 +251,7 @@ class FeastAdapter(BaseAdapter):
 
         if entity_df is None or features is None:
             logger.error("[FeastAdapter] Read 파라미터 오류: entity_df와 features가 필요합니다")
-            raise ValueError("'entity_df' and 'features' must be provided for read operation.")
+            raise ValueError("read 작업에는 'entity_df'와 'features'가 필요합니다.")
 
         logger.info("BaseAdapter read 호출 - get_historical_features로 위임합니다")
         return self.get_historical_features(entity_df, features, **kwargs)
@@ -259,7 +259,7 @@ class FeastAdapter(BaseAdapter):
     def write(self, df: pd.DataFrame, table_name: str, **kwargs):
         """Feast는 주로 읽기용이므로, write는 기본적으로 지원하지 않습니다."""
         logger.warning("[FeastAdapter] Write 작업은 지원되지 않습니다")
-        raise NotImplementedError("FeastAdapter does not support write operation.")
+        raise NotImplementedError("FeastAdapter는 write 작업을 지원하지 않습니다.")
 
 
 # Self-registration

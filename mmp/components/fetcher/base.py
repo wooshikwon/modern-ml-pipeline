@@ -3,13 +3,23 @@ BaseFetcher - 데이터 증강 기본 인터페이스
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Union
+from typing import Any, Dict, Union
 
 import pandas as pd
 
 
 class BaseFetcher(ABC):
     """데이터 증강을 위한 추상 기본 클래스(ABC)."""
+
+    def __init__(self, settings: Any = None, **kwargs: Any):
+        """
+        Fetcher 초기화
+
+        Args:
+            settings: 프로젝트 설정 객체 (선택사항, 다른 Base 클래스와 인터페이스 통일)
+            **kwargs: 추가 키워드 인자
+        """
+        self.settings = settings
 
     @abstractmethod
     def fetch(

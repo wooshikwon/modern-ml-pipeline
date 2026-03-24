@@ -54,12 +54,6 @@ class Console:
         """CI 환경 여부 확인"""
         return any(env in os.environ for env in ["CI", "GITHUB_ACTIONS", "JENKINS_URL"])
 
-    def get_console_mode(self) -> str:
-        """현재 콘솔 모드 반환"""
-        if self.is_ci_environment() or not sys.stdout.isatty():
-            return "plain"
-        return "rich"
-
     @contextmanager
     def progress_tracker(
         self, task_id: str, total: int, description: str, show_progress: bool = True
@@ -98,44 +92,6 @@ def get_console(settings: Any = None) -> Console:
     return Console(settings)
 
 
-def get_rich_console() -> RichConsole:
-    """Rich Console 인스턴스 반환 (CLI 직접 접근용)"""
-    return RichConsole()
-
 
 # CLI helper 전역 인스턴스
 _module_console = Console()
-
-
-def cli_success_panel(content: str, title: str = "성공", border_style: str = "green") -> None:
-    from rich.panel import Panel
-
-    panel = Panel(content, title=title, border_style=border_style)
-    _module_console.console.print(panel)
-
-
-def cli_command_start(command_name: str, description: str = "") -> None:
-    """CLI 명령어 시작 메시지 출력"""
-    if description:
-        _module_console.console.print(f"🚀 {command_name}: {description}", style="bold blue")
-    else:
-        _module_console.console.print(f"🚀 {command_name}", style="bold blue")
-
-
-def cli_command_error(command_name: str, error: str, suggestion: str = "") -> None:
-    """CLI 명령어 에러 메시지 출력"""
-    _module_console.console.print(f"❌ {command_name} 실행 중 오류 발생: {error}", style="bold red")
-    if suggestion:
-        _module_console.console.print(f"   💡 제안: {suggestion}", style="blue")
-
-
-def cli_step_complete(step_name: str, details: str = "", duration: float = None) -> None:
-    """CLI 단계 완료 메시지 출력"""
-    duration_str = f" ({duration:.1f}s)" if duration else ""
-    detail_str = f" - {details}" if details else ""
-    _module_console.console.print(f"✅ {step_name} 완료{duration_str}{detail_str}", style="green")
-
-
-def cli_info(message: str) -> None:
-    """CLI 정보 메시지 출력"""
-    _module_console.console.print(f"ℹ️ {message}", style="bold blue")

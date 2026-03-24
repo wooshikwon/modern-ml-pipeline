@@ -3,6 +3,7 @@ BaseCalibrator - 확률 보정기 기본 인터페이스
 """
 
 from abc import ABC, abstractmethod
+from typing import Any, Optional
 
 import numpy as np
 
@@ -13,9 +14,14 @@ class BaseCalibrator(ABC):
     분류 모델의 예측 확률을 보정하는 Strategy Pattern의 기반.
     """
 
-    def __init__(self):
-        """Calibrator 초기화"""
-        pass
+    def __init__(self, settings: Optional[Any] = None):
+        """
+        Calibrator 초기화
+
+        Args:
+            settings: 프로젝트 설정 객체 (선택사항, 다른 Base 클래스와 인터페이스 통일)
+        """
+        self.settings = settings
 
     @abstractmethod
     def fit(self, y_prob: np.ndarray, y_true: np.ndarray) -> "BaseCalibrator":

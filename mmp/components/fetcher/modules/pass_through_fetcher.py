@@ -19,7 +19,7 @@ class PassThroughFetcher(BaseFetcher):
         # 명확한 run_mode 검증으로 디버깅 지원
         valid_modes = ["train", "batch", "serving"]
         if run_mode not in valid_modes:
-            raise ValueError(f"Invalid run_mode '{run_mode}'. Valid modes: {valid_modes}")
+            raise ValueError(f"잘못된 run_mode '{run_mode}'. 유효한 모드: {valid_modes}")
 
         logger.debug("[DATA:Fetcher] 피처 증강 건너뜀 (passthrough 모드)")
         return df
