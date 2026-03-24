@@ -26,3 +26,6 @@ jobs:
 
     - name: Run tests
       run: pytest tests/unit -q --tb=short
+      env:
+        NO_COLOR: "1"
+        TERM: dumb

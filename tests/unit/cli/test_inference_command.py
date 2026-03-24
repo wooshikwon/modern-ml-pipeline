@@ -6,6 +6,7 @@ Only mocking the actual pipeline execution (run_inference_pipeline) and MLflow i
 """
 
 import json
+import re
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -13,6 +14,13 @@ import typer
 from typer.testing import CliRunner
 
 from mmp.cli.commands.inference_command import batch_inference_command
+
+# ANSI 이스케이프 코드 제거 (CI 환경에서 Rich 색상 코드 포함 시)
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _strip_ansi(text: str) -> str:
+    return _ANSI_RE.sub("", text)
 
 
 class TestInferenceCommandWithRealComponents:
@@ -129,9 +137,10 @@ class TestInferenceCommandWithRealComponents:
         result = self.runner.invoke(self.app, ["--help"])
 
         assert result.exit_code == 0
-        assert "--run-id" in result.output
+        output = _strip_ansi(result.output)
+        assert "--run-id" in output
         # 새 인터페이스에서는 --recipe와 --config가 선택적
-        assert "--recipe" in result.output or "--config" in result.output
+        assert "--recipe" in output or "--config" in output
 
     @patch("mmp.cli.commands.inference_command.run_inference_pipeline")
     def test_inference_command_missing_required_args(self, mock_run_pipeline):
