@@ -329,7 +329,7 @@ class TestShowSuccessMessage:
         _show_success_message(recipe_path, recipe_data)
 
         captured = capsys.readouterr()
-        assert "필수 수정 항목" in captured.out
+        assert "Recipe 파일 수정" in captured.out
         assert "mmp train" in captured.out
 
     def test_show_success_message_ml_extras_hint(self, capsys):

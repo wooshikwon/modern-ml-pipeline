@@ -77,9 +77,9 @@ class TestFactoryErrorHandling:
             factory.create_data_adapter("invalid_adapter")
 
         error_message = str(exc_info.value)
-        assert "Failed to create adapter" in error_message
+        assert "어댑터 생성에 실패했습니다" in error_message
         assert "invalid_adapter" in error_message
-        assert "Available:" in error_message
+        assert "사용 가능:" in error_message
 
     def test_factory_maintains_state_after_error(self, settings_builder):
         """Test Factory maintains proper state even after encountering errors."""
@@ -116,7 +116,7 @@ class TestFactoryErrorHandling:
             # Error message should be helpful
             assert len(error_msg) > 10  # Should have substantial message
             assert "nonexistent_adapter" in error_msg  # Should mention the invalid input
-            assert "Available:" in error_msg  # Should provide guidance
+            assert "사용 가능:" in error_msg  # Should provide guidance
 
 
 class TestMissingComponentScenarios:

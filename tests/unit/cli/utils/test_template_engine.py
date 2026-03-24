@@ -66,7 +66,7 @@ features:
         invalid_dir = tmp_path / "non_existent"
 
         # When/Then: Should raise FileNotFoundError
-        with pytest.raises(FileNotFoundError, match="Template directory not found"):
+        with pytest.raises(FileNotFoundError, match="템플릿 디렉토리를 찾을 수 없습니다"):
             TemplateEngine(invalid_dir)
 
     def test_render_simple_template(self, template_dir):
@@ -186,7 +186,7 @@ features:
         output_path = tmp_path / "output.txt"
 
         # When/Then: Should raise FileNotFoundError
-        with pytest.raises(FileNotFoundError, match="Source file not found"):
+        with pytest.raises(FileNotFoundError, match="소스 파일을 찾을 수 없습니다"):
             engine.copy_static_file("non_existent.txt", output_path)
 
     def test_copy_static_file_without_create_dirs(self, template_dir, tmp_path):

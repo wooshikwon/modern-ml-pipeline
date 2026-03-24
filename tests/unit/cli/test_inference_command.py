@@ -53,6 +53,7 @@ class TestInferenceCommandWithRealComponents:
             config_path=None,
             data_path=None,
             context_params={},
+            output_path=None,
         )
 
         # Command should succeed
@@ -100,6 +101,7 @@ class TestInferenceCommandWithRealComponents:
             config_path=str(config_path),
             data_path=str(data_path),
             context_params=params,
+            output_path=None,
         )
 
         assert result.exit_code == 0
