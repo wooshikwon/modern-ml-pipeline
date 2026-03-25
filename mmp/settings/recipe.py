@@ -94,6 +94,25 @@ class Metadata(BaseModel):
     tuning_note: Optional[str] = Field(None, description="튜닝 관련 노트")
 
 
+class DataDriftConfig(BaseModel):
+    enabled: bool = Field(default=True, description="Data drift 모니터링 활성화")
+    psi_threshold_warning: float = Field(default=0.1, description="PSI warning 임계치")
+    psi_threshold_alert: float = Field(default=0.2, description="PSI alert 임계치")
+    missing_rate_threshold: float = Field(default=0.05, description="결측률 변화 임계치")
+
+
+class PredictionDriftConfig(BaseModel):
+    enabled: bool = Field(default=True, description="Prediction drift 모니터링 활성화")
+    psi_threshold: float = Field(default=0.2, description="예측 PSI 임계치")
+    extrapolation_threshold: float = Field(default=0.05, description="범위 밖 예측 비율 임계치")
+
+
+class MonitoringConfig(BaseModel):
+    enabled: bool = Field(default=False, description="모니터링 활성화")
+    data_drift: DataDriftConfig = Field(default_factory=DataDriftConfig, description="Data drift 설정")
+    prediction_drift: PredictionDriftConfig = Field(default_factory=PredictionDriftConfig, description="Prediction drift 설정")
+
+
 class Recipe(BaseModel):
     """Recipe 스키마 - 순수 데이터 구조만"""
 
@@ -104,3 +123,4 @@ class Recipe(BaseModel):
     preprocessor: Optional[Preprocessor] = None
     evaluation: Optional[Evaluation] = None
     metadata: Metadata
+    monitoring: Optional[MonitoringConfig] = Field(default=None, description="모니터링 설정")

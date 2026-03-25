@@ -188,6 +188,21 @@ def run_train_pipeline(
         }
         log_training_results(settings, metrics, training_results)
 
+        # Monitoring baseline 계산 (monitoring 활성화 시)
+        monitors = factory.create_monitors()
+        if monitors:
+            baseline = {}
+            y_test_pred = trained_model.predict(X_test)
+            for monitor in monitors:
+                key = type(monitor).__name__
+                baseline[key] = monitor.compute_baseline(
+                    X_train=X_train, X_test=X_test,
+                    y_test_pred=y_test_pred, y_test_true=y_test,
+                    metadata={"metrics": metrics},
+                )
+            mlflow.log_dict(baseline, "monitoring/baseline.json")
+            log_pipe("Monitoring baseline 저장 완료")
+
         # Task별 기본 최적화 메트릭으로 CLI 출력
         from mmp.components.evaluator.registry import EvaluatorRegistry
 

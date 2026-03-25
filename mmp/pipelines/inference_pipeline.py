@@ -111,6 +111,43 @@ def run_inference_pipeline(
         log_infer(f"추론 완료 - {len(predictions_df):,}개 예측 생성")
         mlflow.log_metric("inference_output_rows", len(predictions_df))
 
+        # 3.5 Monitoring: drift 평가 (monitoring 활성화 + baseline 존재 시)
+        monitors = factory.create_monitors()
+        if monitors:
+            import json
+
+            from mmp.components.monitor.base import MonitorReport
+
+            # Baseline 로드 (없으면 건너뜀)
+            baseline = None
+            try:
+                client = mlflow.tracking.MlflowClient()
+                baseline_path = client.download_artifacts(run_id, "monitoring/baseline.json")
+                with open(baseline_path) as f:
+                    baseline = json.load(f)
+            except Exception as e:
+                log_pipe(f"Monitoring baseline 없음 - 건너뜀: {e}")
+
+            # Drift 평가 (baseline 있을 때만)
+            if baseline is not None:
+                combined = MonitorReport()
+                for monitor in monitors:
+                    key = type(monitor).__name__
+                    monitor_baseline = baseline.get(key, {})
+                    report = monitor.evaluate(df, predictions_result, monitor_baseline)
+                    combined.merge(report)
+
+                for k, v in combined.metrics.items():
+                    mlflow.log_metric(f"monitor__{k}", v)
+                mlflow.log_dict(combined.to_dict(), "monitoring/report.json")
+
+                if combined.status == "alert":
+                    log_pipe(f"[MONITOR] ALERT: {len(combined.alerts)}건 감지")
+                    for alert in combined.alerts:
+                        log_pipe(f"  [{alert.severity}] {alert.message}")
+                elif combined.status == "warning":
+                    log_pipe(f"[MONITOR] warnings: {len(combined.alerts)}건")
+
         # 4. 결과 저장
         log_mlflow("결과 저장 시작")
         save_output(

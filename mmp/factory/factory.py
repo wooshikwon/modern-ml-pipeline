@@ -137,6 +137,7 @@ class Factory:
         from mmp.components.fetcher.registry import FetcherRegistry
         from mmp.components.optimizer.registry import OptimizerRegistry
         from mmp.components.preprocessor.registry import PreprocessorStepRegistry
+        from mmp.components.monitor.registry import MonitorRegistry
         from mmp.components.trainer.registry import TrainerRegistry
 
         all_registries = [
@@ -145,6 +146,7 @@ class Factory:
             DataHandlerRegistry,
             EvaluatorRegistry,
             FetcherRegistry,
+            MonitorRegistry,
             OptimizerRegistry,
             PreprocessorStepRegistry,
             TrainerRegistry,
@@ -160,6 +162,7 @@ class Factory:
                 import mmp.components.datahandler
                 import mmp.components.evaluator
                 import mmp.components.fetcher
+                import mmp.components.monitor
                 import mmp.components.optimizer
                 import mmp.components.preprocessor
                 import mmp.components.trainer
@@ -228,6 +231,29 @@ class Factory:
             BaseCalibrator 인스턴스 또는 None
         """
         return self._component_creator.create_calibrator(method)
+
+    @cached(lambda: "monitors")
+    def create_monitors(self) -> Optional[list]:
+        """Monitor 컴포넌트 목록 생성 (monitoring 비활성화 시 None).
+        ComponentCreator에 위임하지 않음 — config 분기만으로 충분히 단순."""
+        monitoring_config = getattr(self._recipe, 'monitoring', None)
+        if not monitoring_config or not monitoring_config.enabled:
+            logger.debug("[FACT] Monitoring 비활성화 - 스킵")
+            return None
+
+        from mmp.components.monitor.registry import MonitorRegistry
+
+        monitors = []
+        if monitoring_config.data_drift.enabled:
+            monitors.append(MonitorRegistry.create("data_drift", self.settings))
+        if monitoring_config.prediction_drift.enabled:
+            monitors.append(MonitorRegistry.create("prediction_drift", self.settings))
+
+        if not monitors:
+            return None
+
+        log_fact(f"Monitor 생성 완료 - {len(monitors)}개")
+        return monitors
 
     @cached(lambda: "feature_store_adapter")
     def create_feature_store_adapter(self) -> "BaseAdapter":

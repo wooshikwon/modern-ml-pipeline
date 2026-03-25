@@ -264,7 +264,7 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
 
     def _run_prediction(
         self, X: pd.DataFrame, params: Optional[Dict[str, Any]] = None
-    ) -> np.ndarray:
+    ) -> Union[np.ndarray, pd.DataFrame]:
         """모델 예측 수행. 확률 예측 및 캘리브레이션 포함."""
         return_probabilities = params and params.get("return_probabilities", False)
 
@@ -342,7 +342,11 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
                 logger.info(f"[INFER] 예측 완료: {len(predictions)}샘플 (DataFrame)")
                 return predictions
         else:
-            if isinstance(predictions, pd.DataFrame):
+            if isinstance(predictions, pd.DataFrame) and predictions.shape[1] > 1:
+                # Multi-column predictions (e.g., quantile regression) — always return as DataFrame
+                logger.info(f"[INFER] 예측 완료: {len(predictions)}샘플 ({predictions.shape[1]}개 컬럼)")
+                return predictions
+            elif isinstance(predictions, pd.DataFrame):
                 predictions = predictions.values.flatten()
             elif hasattr(predictions, "tolist"):
                 predictions = predictions.tolist()

@@ -29,7 +29,9 @@ logger = logging.getLogger(__name__)
 
 
 def _get_data_interface_schema() -> dict:
-    """모델 언래핑 후 data_interface_schema를 반환하는 공통 헬퍼."""
+    """data_interface_schema를 반환하는 공통 헬퍼. 캐시 우선."""
+    if app_context.data_interface_schema:
+        return app_context.data_interface_schema
     wrapped_model = app_context.model.unwrap_python_model()
     return getattr(wrapped_model, "data_interface_schema", {}) or {}
 
@@ -37,64 +39,58 @@ def _get_data_interface_schema() -> dict:
 def _convert_to_signature_types(df: pd.DataFrame, model: Any) -> pd.DataFrame:
     """
     MLflow Signature에 정의된 타입에 맞게 DataFrame 컬럼 타입을 변환.
-    int64 → float64, float → int64 등 필요한 변환 수행.
+    startup 캐시(signature_type_map)를 우선 사용하여 매 요청의 reflection을 제거.
     """
     if model is None:
         return df
 
     try:
-        metadata = getattr(model, "metadata", None)
-        if metadata is None:
-            return df
+        # 캐시 우선, 없으면 기존 reflection
+        type_map = app_context.signature_type_map
+        if not type_map:
+            type_map = _build_signature_type_map(model)
+            if not type_map:
+                return df
 
-        sig = getattr(metadata, "signature", None)
-        if sig is None:
-            return df
-
-        schema_inputs = getattr(sig, "inputs", None)
-        if schema_inputs is None:
-            return df
-
-        col_specs = getattr(schema_inputs, "inputs", None)
-        if col_specs is None:
-            return df
-
-        for col_spec in col_specs:
-            col_name = getattr(col_spec, "name", None)
-            col_type_raw = getattr(col_spec, "type", None)
-
-            if col_name is None or col_type_raw is None:
-                continue
-
+        for col_name, col_type in type_map.items():
             if col_name not in df.columns:
                 continue
 
-            # 타입 문자열 정규화 (DataType.double → double)
-            col_type = str(col_type_raw).lower()
-            if "." in col_type:
-                col_type = col_type.split(".")[-1]
-
             current_dtype = str(df[col_name].dtype)
 
-            # float/double 타입 변환 (int → float)
             if col_type in ("double", "float", "float64", "float32"):
                 if "int" in current_dtype or "object" in current_dtype:
                     df[col_name] = pd.to_numeric(df[col_name], errors="coerce").astype("float64")
-                    logger.debug(f"[TYPE] '{col_name}': {current_dtype} → float64")
 
-            # int/long 타입 변환 (float → int)
             elif col_type in ("integer", "long", "int64", "int32"):
                 if "float" in current_dtype:
                     df[col_name] = df[col_name].astype("int64")
-                    logger.debug(f"[TYPE] '{col_name}': {current_dtype} → int64")
                 elif "object" in current_dtype:
                     df[col_name] = pd.to_numeric(df[col_name], errors="coerce").astype("int64")
-                    logger.debug(f"[TYPE] '{col_name}': {current_dtype} → int64")
 
     except Exception as e:
         log_warn(f"Signature 기반 타입 변환 실패: {e}", "API:TYPE")
 
     return df
+
+
+def _build_signature_type_map(model: Any) -> dict[str, str]:
+    """캐시 미스 시 signature에서 type map을 직접 구성."""
+    result = {}
+    try:
+        sig = getattr(getattr(model, "metadata", None), "signature", None)
+        schema_inputs = getattr(sig, "inputs", None)
+        if schema_inputs and hasattr(schema_inputs, "inputs"):
+            for col_spec in getattr(schema_inputs, "inputs", []) or []:
+                name = getattr(col_spec, "name", None)
+                col_type = str(getattr(col_spec, "type", "")).lower()
+                if "." in col_type:
+                    col_type = col_type.split(".")[-1]
+                if name and col_type:
+                    result[name] = col_type
+    except Exception:
+        pass
+    return result
 
 
 def health() -> HealthCheckResponse:
@@ -150,8 +146,10 @@ def predict_batch(request: Dict[str, Any]) -> BatchPredictionResponse:
     # format_predictions에 전체 schema 전달 (top-level에 모든 필드 포함)
     predictions_df = format_predictions(raw_predictions_df, input_df, data_interface_schema)
 
-    # JSON 직렬화 호환을 위해 numpy 스칼라를 파이썬 기본형으로 변환
-    predictions_df = predictions_df.map(lambda x: x.item() if isinstance(x, np.generic) else x)
+    # JSON 직렬화 호환을 위해 numpy dtype → Python 기본형 변환 (컬럼 단위)
+    for col in predictions_df.columns:
+        if hasattr(predictions_df[col].dtype, "numpy_dtype") or predictions_df[col].dtype.kind in ("i", "f", "u"):
+            predictions_df[col] = predictions_df[col].astype(object)
 
     # 출력 값 유한성 검증: NaN/Inf 포함 시 422 반환
     # 주요 예측 컬럼들 점검

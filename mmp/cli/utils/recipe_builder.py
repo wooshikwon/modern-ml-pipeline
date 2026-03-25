@@ -142,6 +142,9 @@ class RecipeBuilder:
             task_choice, model_config.get("calibration", {})
         )
 
+        # Monitoring 설정
+        monitoring_config = self._configure_monitoring()
+
         # Recipe 조립
         recipe_data = {
             "name": f"{task_choice}_{model_name}_{datetime.now().strftime('%Y%m%d')}",
@@ -154,6 +157,7 @@ class RecipeBuilder:
                 "split": data_split_config,
             },
             "preprocessor": {"steps": preprocessor_steps} if preprocessor_steps else None,
+            "monitoring": monitoring_config,
             "metadata": {
                 "author": "CLI Recipe Builder",
                 "description": f"{task_choice} task using {selected_model['library']}",
@@ -199,7 +203,7 @@ class RecipeBuilder:
         else:
             data_split_config = {"train": 0.7, "validation": 0.15, "test": 0.15}
 
-        # 5. Recipe 조립
+        # 5. Recipe 조립 (Cheat Sheet은 monitoring 기본 활성화)
         recipe_data = {
             "name": f"{task_choice}_{model_name}_{datetime.now().strftime('%Y%m%d')}",
             "task_choice": task_choice,
@@ -211,6 +215,7 @@ class RecipeBuilder:
                 "split": data_split_config,
             },
             "preprocessor": {"steps": preprocessor_steps} if preprocessor_steps else None,
+            "monitoring": {"enabled": True},
             "metadata": {
                 "author": "CLI Recipe Builder (Cheat Sheet)",
                 "description": f"{task_choice} task using {selected_model['library']}",
@@ -301,6 +306,9 @@ class RecipeBuilder:
         split_str = ", ".join(f"{k}={int(v*100)}%" for k, v in split.items())
         summary_data["Data Split"] = split_str
 
+        # Monitoring
+        summary_data["Monitoring"] = "활성화"
+
         return self.ui.show_summary_and_confirm(summary_data, title="Cheat Sheet 설정 요약")
 
     def _show_manual_summary_and_confirm(
@@ -337,6 +345,10 @@ class RecipeBuilder:
         split = recipe_data["data"]["split"]
         split_str = ", ".join(f"{k}={int(v*100)}%" for k, v in split.items())
         summary_data["Data Split"] = split_str
+
+        # Monitoring
+        monitoring = recipe_data.get("monitoring")
+        summary_data["Monitoring"] = "활성화" if monitoring and monitoring.get("enabled") else "비활성화"
 
         return self.ui.show_summary_and_confirm(summary_data, title="Manual 설정 요약")
 
@@ -443,6 +455,14 @@ class RecipeBuilder:
                 data_split = {"train": 0.7, "validation": 0.15, "test": 0.15}
 
         return data_split
+
+    def _configure_monitoring(self) -> Optional[Dict]:
+        """Monitoring 설정 구성"""
+        self.ui.show_info("Monitoring: 추론 시 데이터/예측 분포 변화를 자동 감지합니다.")
+        enabled = self.ui.confirm("Monitoring을 활성화하시겠습니까?", default=False)
+        if not enabled:
+            return None
+        return {"enabled": True}
 
     def _configure_hyperparameters(self, selected_model: Dict, task_choice: str) -> Dict:
         """하이퍼파라미터 설정 구성"""
@@ -844,6 +864,11 @@ class RecipeBuilder:
         preprocessor = recipe_data.get("preprocessor")
         if preprocessor:
             template_vars["preprocessor_steps"] = preprocessor["steps"]
+
+        # Monitoring
+        monitoring = recipe_data.get("monitoring")
+        if monitoring and monitoring.get("enabled"):
+            template_vars["monitoring_enabled"] = True
 
         if config_template_vars:
             template_vars.update(config_template_vars)

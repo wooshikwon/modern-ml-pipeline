@@ -132,6 +132,23 @@ model:
     {% endif %}
 
 # -----------------------------------------------------------------------------
+# 모니터링 설정
+# -----------------------------------------------------------------------------
+{% if monitoring_enabled is defined and monitoring_enabled %}
+monitoring:
+  enabled: true
+  data_drift:
+    psi_threshold_warning: 0.1   # PSI warning 임계치
+    psi_threshold_alert: 0.2     # PSI alert 임계치
+    missing_rate_threshold: 0.05  # 결측률 변화 임계치
+  prediction_drift:
+    psi_threshold: 0.2            # 예측 분포 PSI 임계치
+    extrapolation_threshold: 0.05 # 학습 범위 밖 예측 비율 임계치
+{% else %}
+# monitoring: null  # 비활성화 (활성화: monitoring.enabled: true)
+{% endif %}
+
+# -----------------------------------------------------------------------------
 # 메타데이터
 # -----------------------------------------------------------------------------
 metadata:

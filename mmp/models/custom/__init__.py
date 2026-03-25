@@ -5,6 +5,7 @@ ML 파이프라인에서 사용하는 커스텀 모델들을 포함합니다.
 - FT-Transformer: Deep learning tabular model
 - Timeseries Wrappers: ARIMA, ExponentialSmoothing
 - LSTM Timeseries: Deep learning timeseries model
+- QuantileRegressorEnsemble: Multi-quantile gradient boosting ensemble
 """
 
 # FT-Transformer 모델들
@@ -28,5 +29,13 @@ try:
     from .lstm_timeseries import LSTMTimeSeries
 
     __all__.extend(["LSTMTimeSeries"])
+except ImportError:
+    pass
+
+# Quantile Ensemble 모델
+try:
+    from .quantile_ensemble import QuantileRegressorEnsemble
+
+    __all__.extend(["QuantileRegressorEnsemble"])
 except ImportError:
     pass
