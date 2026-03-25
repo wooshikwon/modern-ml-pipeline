@@ -14,6 +14,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
+pytest.importorskip("lightgbm", reason="LightGBM not installed")
+
 from mmp.pipelines.train_pipeline import run_train_pipeline
 
 

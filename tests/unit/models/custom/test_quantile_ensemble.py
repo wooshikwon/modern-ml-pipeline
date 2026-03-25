@@ -13,6 +13,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
+pytest.importorskip("lightgbm", reason="LightGBM not installed")
+
 from mmp.models.custom.quantile_ensemble import QuantileRegressorEnsemble
 
 
