@@ -185,3 +185,42 @@ class TestRegressionEvaluatorQuantileMode:
 
         assert abs(metrics["mae_p50"] - 1.0) < 1e-10
         assert abs(metrics["mae_p90"] - 5.0) < 1e-10
+
+    def test_per_quantile_coverage_rate(self, settings_builder):
+        """quantile별 coverage rate — 캘리브레이션 검증의 핵심 지표"""
+        y = pd.Series([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0])
+
+        # p50 예측이 실제 중앙값과 일치하면 coverage ~50%
+        # p90 예측이 충분히 높으면 coverage ~90%+
+        preds = pd.DataFrame({
+            "pred_p50": [5.0] * 10,   # 5.0 이하인 값 = 5개 → 50%
+            "pred_p90": [9.5] * 10,   # 9.5 이하인 값 = 9개 → 90%
+        })
+        model = self._make_quantile_model(preds)
+
+        settings = settings_builder.with_task("regression").build()
+        evaluator = RegressionEvaluator(settings)
+        metrics = evaluator.evaluate(model, pd.DataFrame({"a": range(10)}), y)
+
+        assert "coverage_rate_p50" in metrics
+        assert "coverage_rate_p90" in metrics
+        assert abs(metrics["coverage_rate_p50"] - 0.5) < 1e-10
+        assert abs(metrics["coverage_rate_p90"] - 0.9) < 1e-10
+
+    def test_mean_prediction_per_quantile(self, settings_builder):
+        """quantile별 평균 예측값 — 쿠션타임 절감 분석 기초 데이터"""
+        y = pd.Series([1.0, 2.0, 3.0])
+        preds = pd.DataFrame({
+            "pred_p50": [10.0, 20.0, 30.0],   # mean = 20.0
+            "pred_p90": [100.0, 200.0, 300.0],  # mean = 200.0
+        })
+        model = self._make_quantile_model(preds)
+
+        settings = settings_builder.with_task("regression").build()
+        evaluator = RegressionEvaluator(settings)
+        metrics = evaluator.evaluate(model, pd.DataFrame({"a": range(3)}), y)
+
+        assert "mean_pred_p50" in metrics
+        assert "mean_pred_p90" in metrics
+        assert abs(metrics["mean_pred_p50"] - 20.0) < 1e-10
+        assert abs(metrics["mean_pred_p90"] - 200.0) < 1e-10

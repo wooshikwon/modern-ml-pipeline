@@ -20,6 +20,9 @@ warnings.filterwarnings("ignore", category=UserWarning, module="mlflow")
 warnings.filterwarnings("ignore", message=".*Add type hints to the.*")
 warnings.filterwarnings("ignore", message=".*Failed to resolve installed pip version.*")
 warnings.filterwarnings("ignore", message=".*artifact_path.*deprecated.*")
+# graphviz "deprecate positional args" 경고 억제
+warnings.filterwarnings("ignore", message=".*deprecate positional args.*")
+warnings.filterwarnings("ignore", module="graphviz")
 
 # CLI 전용 로그 레벨 정의 (INFO=20, WARNING=30 사이)
 # 기본: 상세 출력 (DEBUG), -q 옵션 시 CLI_LEVEL 이상만 출력 (요약 모드)
@@ -133,6 +136,11 @@ def suppress_external_loggers() -> None:
 
     # Optuna 내부 로그 억제
     logging.getLogger("optuna").setLevel(logging.WARNING)
+
+    # 시각화 라이브러리 로그 억제 (graphviz deprecation, matplotlib 초기화)
+    logging.getLogger("graphviz").setLevel(logging.WARNING)
+    logging.getLogger("matplotlib").setLevel(logging.WARNING)
+    logging.getLogger("PIL").setLevel(logging.WARNING)
 
 
 # 표준화된 카테고리별 로깅 함수

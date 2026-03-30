@@ -247,11 +247,15 @@ def run_train_pipeline(
             log_pipe("Monitoring baseline 저장 완료")
 
         # Task별 기본 최적화 메트릭으로 CLI 출력
+        # quantile 모드에서는 mean_pinball_loss가 더 적절한 요약 지표
         from mmp.components.evaluator.registry import EvaluatorRegistry
 
-        default_metric = EvaluatorRegistry.get_default_optimization_metric(task_type)
-        primary_metric = metrics.get(default_metric)
-        emit("evaluating_done", f"{default_metric}: {primary_metric:.2f}" if primary_metric else "")
+        if "mean_pinball_loss" in metrics:
+            primary_key = "mean_pinball_loss"
+        else:
+            primary_key = EvaluatorRegistry.get_default_optimization_metric(task_type)
+        primary_metric = metrics.get(primary_key)
+        emit("evaluating_done", f"{primary_key}: {primary_metric:.2f}" if primary_metric else "")
 
         # --- [6] MLflow 저장 (PyfuncWrapper + artifacts) ---
         # PyfuncWrapper는 전처리→모델→후처리(calibration 포함)를 하나의 객체로 묶는다.

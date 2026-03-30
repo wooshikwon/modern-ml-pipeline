@@ -115,18 +115,36 @@ class RegressionEvaluator(BaseEvaluator):
                 f"구간 커버리지 (p{col_quantiles[0][1]}-p{col_quantiles[-1][1]}): {coverage:.4f}"
             )
 
-        # 5. Per-quantile MAE
+        # 5. Per-quantile coverage rate & MAE & mean prediction
+        y_arr = np.asarray(y)
         for col, n in col_quantiles:
-            q_mae = mean_absolute_error(y, predictions[col])
+            pred_arr = np.asarray(predictions[col])
+
+            # Coverage rate: 실제값이 해당 분위수 예측 이하인 비율
+            # (캘리브레이션 검증 — p90이면 ~90%가 기대값)
+            coverage = float(np.mean(y_arr <= pred_arr))
+            metrics[f"coverage_rate_p{n}"] = coverage
+            log_eval_debug(f"Coverage rate p{n}: {coverage:.4f} (목표: {n/100:.2f})")
+
+            # MAE
+            q_mae = mean_absolute_error(y, pred_arr)
             metrics[f"mae_p{n}"] = q_mae
             log_eval_debug(f"MAE p{n}: {q_mae:.4f}")
 
+            # Mean prediction
+            mean_pred = float(np.mean(pred_arr))
+            metrics[f"mean_pred_p{n}"] = mean_pred
+            log_eval_debug(f"Mean pred p{n}: {mean_pred:.4f}")
+
         # 평가 완료 요약
+        highest_n = col_quantiles[-1][1]
         summary_parts = [f"mean_pinball={mean_pl:.4f}"]
+        if f"coverage_rate_p{highest_n}" in metrics:
+            summary_parts.append(
+                f"coverage_p{highest_n}={metrics[f'coverage_rate_p{highest_n}']:.4f}"
+            )
         if "r2_score" in metrics:
             summary_parts.append(f"R²(p50)={metrics['r2_score']:.4f}")
-        if "interval_coverage" in metrics:
-            summary_parts.append(f"coverage={metrics['interval_coverage']:.4f}")
         log_eval(f"분위 회귀 평가 완료 - {', '.join(summary_parts)}")
 
         return metrics

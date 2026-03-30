@@ -161,6 +161,18 @@ hyperparameters:
 | `metrics` | list[str] | (optional, default: null) | null | Metric names. If null, task-specific defaults are used. |
 | `random_state` | int | (optional, default: 42) | 42 | Random seed for reproducibility |
 
+**Quantile regression metrics**: When the model outputs `pred_pN` columns (e.g., `pred_p50`, `pred_p99`), the evaluator automatically computes per-quantile metrics logged to MLflow:
+
+| Metric | Description |
+|---|---|
+| `coverage_rate_p<N>` | Fraction of actuals ≤ prediction at quantile N (calibration check: p90 should be ~0.90) |
+| `pinball_loss_p<N>` | Pinball (quantile) loss at quantile N |
+| `mae_p<N>` | Mean absolute error at quantile N |
+| `mean_pred_p<N>` | Mean prediction value at quantile N |
+| `mean_pinball_loss` | Average pinball loss across all quantiles |
+| `interval_coverage` | Fraction of actuals within [lowest, highest] quantile interval |
+| `r2_score`, `mse`, `rmse`, `mae` | Standard regression metrics on p50 (if available) |
+
 ### metadata (Metadata)
 
 | Field | Type | Required | Default | Description |
