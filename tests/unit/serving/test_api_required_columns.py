@@ -12,7 +12,17 @@ from unittest.mock import Mock
 import pandas as pd
 import pytest
 
+from mmp.serving._context import app_context
 from mmp.serving.validators import validate_required_columns
+
+
+@pytest.fixture(autouse=True)
+def _reset_app_context_cache():
+    """다른 테스트가 app_context에 설정한 캐시를 리셋하여 상태 오염을 방지."""
+    saved = app_context.required_columns
+    app_context.required_columns = set()
+    yield
+    app_context.required_columns = saved
 
 
 def _make_model(entity_columns, feature_columns, fetcher_config=None):

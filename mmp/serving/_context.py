@@ -1,5 +1,6 @@
 # mmp/serving/context.py
 
+import logging
 import threading
 from typing import Type
 
@@ -7,6 +8,8 @@ import mlflow
 from pydantic import BaseModel, create_model
 
 from mmp.settings import Settings
+
+logger = logging.getLogger(__name__)
 
 
 class AppContext:
@@ -91,8 +94,8 @@ class AppContext:
             # Fallback: required_columns가 비어있으면 signature에서 보충
             if not self.required_columns and self.signature_type_map:
                 self.required_columns = set(self.signature_type_map.keys())
-        except Exception:
-            pass  # 캐시 실패 시 기존 동작(매 요청 reflection)으로 폴백
+        except Exception as e:
+            logger.warning(f"[API] 서빙 캐시 빌드 실패 (매 요청 reflection으로 폴백): {type(e).__name__}: {e}")
 
     @property
     def is_ready(self) -> bool:

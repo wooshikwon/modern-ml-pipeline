@@ -1,23 +1,6 @@
-import re
 from typing import Any, Dict, List, Type
 
 from pydantic import BaseModel, Field, create_model
-
-# Jinja2 템플릿에서 변수를 추출하기 위한 정규식
-# 예: {{ campaign_id }}, {{ member_id }}
-JINJA_VAR_PATTERN = re.compile(r"{{\s*(\w+)\s*}}")
-
-
-def get_pk_from_loader_sql(sql_template: str) -> List[str]:
-    """
-    Loader의 SQL 템플릿 문자열에서 Jinja2 변수를 추출하여 API의 PK 목록으로 사용합니다.
-    환경 변수인 gcp_project_id는 제외합니다.
-    """
-    # 정규식을 사용하여 모든 Jinja2 변수 찾기
-    variables = JINJA_VAR_PATTERN.findall(sql_template)
-    # 중복 제거 및 환경 변수 제외
-    pk_list = sorted(list(set(v for v in variables if v != "gcp_project_id")))
-    return pk_list
 
 
 def create_dynamic_prediction_request(model_name: str, pk_fields: List[str]) -> Type[BaseModel]:
@@ -55,27 +38,6 @@ class MinimalPredictionResponse(BaseModel):
 
     prediction: Any = Field(..., description="모델 예측 결과")
     model_uri: str = Field(..., description="예측에 사용된 모델의 MLflow URI")
-
-
-class PredictionResponse(BaseModel):
-    """
-    단일 예측 결과를 위한 응답 스키마입니다.
-    (기존 uplift 중심 필드 유지; 일반 태스크는 MinimalPredictionResponse 사용을 권장)
-    """
-
-    model_config = {"protected_namespaces": ()}
-
-    uplift_score: float = Field(
-        ..., json_schema_extra={"example": 0.0}, description="계산된 예측 점수"
-    )
-    model_uri: str = Field(
-        ...,
-        json_schema_extra={"example": "runs:/<run_id>/model"},
-        description="예측에 사용된 모델의 MLflow URI",
-    )
-    # 최적화 정보 포함 (Optional로 하위 호환성 보장)
-    optimization_enabled: bool = Field(default=False, description="하이퍼파라미터 최적화 여부")
-    best_score: float = Field(default=0.0, description="최적화 달성 점수 (활성화된 경우)")
 
 
 def create_batch_prediction_request(

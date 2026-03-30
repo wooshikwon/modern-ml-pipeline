@@ -278,12 +278,11 @@ def get_api_schema() -> Dict[str, Any]:
 
 
 def predict(request: Dict[str, Any]) -> Dict[str, Any]:
+    # Pydantic 스키마 검증 (/predict/batch와 동일한 패턴)
+    app_context.PredictionRequest(**request)
     request_df = pd.DataFrame([request])
 
-    # 입력 검증: PredictionRequest 선제 검증 → 스칼라 → 숫자형 → 타입 변환 → 필수 컬럼(signature)
-    validate_required_columns(
-        request_df, app_context.model, prediction_request_cls=app_context.PredictionRequest
-    )
+    # 입력 검증: 스칼라 → 숫자형 → 타입 변환 → 필수 컬럼(signature)
     validate_scalar_values(request_df)
     validate_numeric_types(request_df, app_context.model)
     request_df = _convert_to_signature_types(request_df, app_context.model)
