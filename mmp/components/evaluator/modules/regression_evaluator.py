@@ -35,7 +35,7 @@ class RegressionEvaluator(BaseEvaluator):
 
         # Detect quantile mode: DataFrame with pred_pN columns
         if isinstance(predictions, pd.DataFrame):
-            quantile_cols = [c for c in predictions.columns if re.fullmatch(r"pred_p\d+", c)]
+            quantile_cols = [c for c in predictions.columns if re.fullmatch(r"pred_p[\d.]+", c)]
             if quantile_cols:
                 return self._evaluate_quantile(y, predictions, quantile_cols)
 
@@ -68,20 +68,25 @@ class RegressionEvaluator(BaseEvaluator):
         metrics: dict[str, float] = {}
 
         # Parse quantile levels from column names and sort
-        col_quantiles: list[tuple[str, int]] = []
+        # pred_p99 → 99.0, pred_p99.5 → 99.5
+        col_quantiles: list[tuple[str, float]] = []
         for col in quantile_cols:
-            n = int(re.search(r"\d+", col).group())  # type: ignore[union-attr]
+            n = float(re.search(r"[\d.]+", col).group())  # type: ignore[union-attr]
             col_quantiles.append((col, n))
         col_quantiles.sort(key=lambda x: x[1])
+
+        # 메트릭 키에 사용할 라벨 생성 (99 → "p99", 99.5 → "p99.5")
+        def _label(n: float) -> str:
+            return f"p{int(n)}" if n == int(n) else f"p{n:g}"
 
         # 1. Per-quantile pinball loss
         pinball_losses: list[float] = []
         for col, n in col_quantiles:
             quantile = n / 100.0
             loss = _pinball_loss(y, predictions[col], quantile)
-            metrics[f"pinball_loss_p{n}"] = loss
+            metrics[f"pinball_loss_{_label(n)}"] = loss
             pinball_losses.append(loss)
-            log_eval_debug(f"Pinball loss p{n} (q={quantile:.2f}): {loss:.4f}")
+            log_eval_debug(f"Pinball loss {_label(n)} (q={quantile:.3f}): {loss:.4f}")
 
         # 2. Mean pinball loss
         mean_pl = float(np.mean(pinball_losses))
@@ -106,43 +111,43 @@ class RegressionEvaluator(BaseEvaluator):
         if len(col_quantiles) >= 2:
             lowest_col = col_quantiles[0][0]
             highest_col = col_quantiles[-1][0]
+            lowest_n, highest_n = col_quantiles[0][1], col_quantiles[-1][1]
             y_arr = np.asarray(y)
             lower = np.asarray(predictions[lowest_col])
             upper = np.asarray(predictions[highest_col])
             coverage = float(np.mean((y_arr >= lower) & (y_arr <= upper)))
             metrics["interval_coverage"] = coverage
             log_eval_debug(
-                f"구간 커버리지 (p{col_quantiles[0][1]}-p{col_quantiles[-1][1]}): {coverage:.4f}"
+                f"구간 커버리지 ({_label(lowest_n)}-{_label(highest_n)}): {coverage:.4f}"
             )
 
         # 5. Per-quantile coverage rate & MAE & mean prediction
         y_arr = np.asarray(y)
         for col, n in col_quantiles:
+            lbl = _label(n)
             pred_arr = np.asarray(predictions[col])
 
             # Coverage rate: 실제값이 해당 분위수 예측 이하인 비율
-            # (캘리브레이션 검증 — p90이면 ~90%가 기대값)
             coverage = float(np.mean(y_arr <= pred_arr))
-            metrics[f"coverage_rate_p{n}"] = coverage
-            log_eval_debug(f"Coverage rate p{n}: {coverage:.4f} (목표: {n/100:.2f})")
+            metrics[f"coverage_rate_{lbl}"] = coverage
+            log_eval_debug(f"Coverage rate {lbl}: {coverage:.4f} (목표: {n/100:.3f})")
 
             # MAE
             q_mae = mean_absolute_error(y, pred_arr)
-            metrics[f"mae_p{n}"] = q_mae
-            log_eval_debug(f"MAE p{n}: {q_mae:.4f}")
+            metrics[f"mae_{lbl}"] = q_mae
+            log_eval_debug(f"MAE {lbl}: {q_mae:.4f}")
 
             # Mean prediction
             mean_pred = float(np.mean(pred_arr))
-            metrics[f"mean_pred_p{n}"] = mean_pred
-            log_eval_debug(f"Mean pred p{n}: {mean_pred:.4f}")
+            metrics[f"mean_pred_{lbl}"] = mean_pred
+            log_eval_debug(f"Mean pred {lbl}: {mean_pred:.4f}")
 
         # 평가 완료 요약
-        highest_n = col_quantiles[-1][1]
+        highest_lbl = _label(col_quantiles[-1][1])
         summary_parts = [f"mean_pinball={mean_pl:.4f}"]
-        if f"coverage_rate_p{highest_n}" in metrics:
-            summary_parts.append(
-                f"coverage_p{highest_n}={metrics[f'coverage_rate_p{highest_n}']:.4f}"
-            )
+        cov_key = f"coverage_rate_{highest_lbl}"
+        if cov_key in metrics:
+            summary_parts.append(f"coverage_{highest_lbl}={metrics[cov_key]:.4f}")
         if "r2_score" in metrics:
             summary_parts.append(f"R²(p50)={metrics['r2_score']:.4f}")
         log_eval(f"분위 회귀 평가 완료 - {', '.join(summary_parts)}")

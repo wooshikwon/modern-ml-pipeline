@@ -89,7 +89,9 @@ class QuantileRegressorEnsemble(BaseModel):
                 preds = preds.values.flatten()
             elif isinstance(preds, np.ndarray) and preds.ndim > 1:
                 preds = preds.flatten()
-            col_name = f"pred_p{int(q * 100)}"
+            # 소수점 분위수(0.995 → 99.5) 지원: 정수면 int, 아니면 소수점 유지
+            pct = q * 100
+            col_name = f"pred_p{int(pct)}" if pct == int(pct) else f"pred_p{pct:g}"
             results[col_name] = preds
 
         return pd.DataFrame(results)
