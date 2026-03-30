@@ -266,11 +266,13 @@ class SettingsFactory:
         이 시점에 설정해야 이후 모든 MLflow API 호출(artifact 저장/복원,
         메트릭 기록 등)이 올바른 MLflow 서버를 가리키게 된다.
         """
-        config_path = Path(config_path)
+        from mmp.utils.core.project_root import resolve_project_path
+
+        config_path = resolve_project_path(config_path)
 
         if not config_path.exists():
             # 대체 경로 시도 (configs/base.yaml)
-            base_path = Path("configs") / "base.yaml"
+            base_path = resolve_project_path("configs/base.yaml")
             if base_path.exists():
                 logger.warning(f"Config 파일을 찾을 수 없어 base.yaml을 사용합니다: {config_path}")
                 config_path = base_path
@@ -356,21 +358,28 @@ class SettingsFactory:
 
         편의 기능: 확장자 생략 시 .yaml/.yml 자동 추가,
         상대 경로 지정 시 recipes/ 디렉토리에서 자동 탐색.
+        프로젝트 루트 자동 감지로 하위 디렉토리에서도 동작.
         """
+        from mmp.utils.core.project_root import resolve_project_path
+
         recipe_path = Path(recipe_path)
 
         # 확장자 추가 (.yaml 또는 .yml)
         if not recipe_path.suffix:
-            if Path(f"{recipe_path}.yaml").exists():
-                recipe_path = Path(f"{recipe_path}.yaml")
-            elif Path(f"{recipe_path}.yml").exists():
-                recipe_path = Path(f"{recipe_path}.yml")
+            yaml_path = resolve_project_path(f"{recipe_path}.yaml")
+            yml_path = resolve_project_path(f"{recipe_path}.yml")
+            if yaml_path.exists():
+                recipe_path = yaml_path
+            elif yml_path.exists():
+                recipe_path = yml_path
             else:
                 recipe_path = recipe_path.with_suffix(".yaml")
+        else:
+            recipe_path = resolve_project_path(str(recipe_path))
 
         # 상대 경로인 경우 recipes/ 디렉토리에서 찾기
         if not recipe_path.exists() and not recipe_path.is_absolute():
-            recipes_path = Path("recipes") / recipe_path.name
+            recipes_path = resolve_project_path(f"recipes/{recipe_path.name}")
             if recipes_path.exists():
                 recipe_path = recipes_path
             else:
@@ -520,9 +529,10 @@ class SettingsFactory:
 
     def _render_jinja_template(self, data_path: str, context_params: Optional[Dict]) -> str:
         """Jinja 템플릿 렌더링"""
+        from mmp.utils.core.project_root import resolve_project_path
         from mmp.utils.template.templating_utils import render_template_from_string
 
-        template_path = Path(data_path)
+        template_path = resolve_project_path(data_path)
         if not template_path.exists():
             raise FileNotFoundError(f"템플릿 파일을 찾을 수 없습니다: {data_path}")
 

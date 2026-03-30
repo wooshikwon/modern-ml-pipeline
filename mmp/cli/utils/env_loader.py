@@ -2,6 +2,7 @@
 환경변수 파일 로더
 
 config 파일명에서 env_name을 추출하여 대응되는 .env.{env_name} 파일을 로드합니다.
+프로젝트 루트를 자동 감지하여 하위 디렉토리에서도 동작합니다.
 """
 
 import logging
@@ -27,8 +28,17 @@ def load_env_for_config(config_path: str) -> bool:
     """
     from dotenv import load_dotenv
 
+    from mmp.utils.core.project_root import find_project_root
+
     env_name = Path(config_path).stem
-    env_file = Path.cwd() / f".env.{env_name}"
+    env_filename = f".env.{env_name}"
+
+    # CWD에서 먼저 찾고, 없으면 프로젝트 루트에서 찾기
+    env_file = Path.cwd() / env_filename
+    if not env_file.exists():
+        root = find_project_root()
+        if root is not None:
+            env_file = root / env_filename
 
     if env_file.exists():
         load_dotenv(env_file, override=True)

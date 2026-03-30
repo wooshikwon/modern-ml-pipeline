@@ -3,6 +3,7 @@
 from .console import Console
 from .environment_check import get_pip_requirements
 from .logger import logger, setup_logging
+from .project_root import find_project_root, resolve_project_path
 from .reproducibility import set_global_seeds
 
 __all__ = [
@@ -11,4 +12,6 @@ __all__ = [
     "Console",
     "get_pip_requirements",
     "set_global_seeds",
+    "find_project_root",
+    "resolve_project_path",
 ]
