@@ -2,7 +2,7 @@
 
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class HyperparametersTuning(BaseModel):
@@ -53,10 +53,20 @@ class DataInterface(BaseModel):
 
 
 class DataSplit(BaseModel):
+    strategy: str = Field("random", description="분할 전략: random | temporal")
+    temporal_column: Optional[str] = Field(None, description="temporal 분할 시 정렬 기준 컬럼")
     train: float = Field(..., description="학습 데이터 비율")
     test: float = Field(..., description="테스트 데이터 비율")
     validation: float = Field(..., description="검증 데이터 비율")
     calibration: Optional[float] = Field(None, description="캘리브레이션 데이터 비율")
+
+    @model_validator(mode="after")
+    def _check_temporal_config(self):
+        if self.strategy == "temporal" and not self.temporal_column:
+            raise ValueError("strategy가 'temporal'이면 temporal_column이 필수입니다")
+        if self.strategy not in ("random", "temporal"):
+            raise ValueError(f"지원하지 않는 분할 전략: {self.strategy}. 사용 가능: random, temporal")
+        return self
 
 
 class Data(BaseModel):

@@ -69,6 +69,10 @@ class ValidationOrchestrator:
             return data_interface_result
         all_warnings.extend(data_interface_result.warnings)
 
+        # 6. Split 전략과 task_choice 조합 검증
+        split_result = self.business_validator.validate_split_strategy(recipe)
+        all_warnings.extend(split_result.warnings)
+
         return ValidationResult(is_valid=True, warnings=all_warnings)
 
     def validate_for_serving(self, config: Config, recipe: Recipe) -> ValidationResult:

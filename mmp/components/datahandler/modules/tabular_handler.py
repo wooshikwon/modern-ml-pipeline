@@ -79,15 +79,22 @@ class TabularDataHandler(BaseDataHandler):
 
     def split_data(self, df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
         """
-        4-way 데이터 분할: train/validation/test/calibration (Data Leakage 방지)
+        4-way 데이터 분할: train/validation/test/calibration
 
-        Args:
-            df: 전체 데이터프레임
-
-        Returns:
-            Dict with keys: 'train', 'validation', 'test', 'calibration'
+        split.strategy에 따라 분기:
+          - "random" (기본): sklearn random split (stratification 지원)
+          - "temporal": temporal_column 기준 시간순 분할 (Data Leakage 방지)
         """
-        log_data_debug(f"4-way 분할 시작 - 전체: {len(df)}행", "TabularDataHandler")
+        split_config = self.settings.recipe.data.split
+        strategy = getattr(split_config, "strategy", "random") or "random"
+
+        if strategy == "temporal":
+            return self._temporal_split(df)
+        return self._random_split(df)
+
+    def _random_split(self, df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
+        """sklearn random split (기존 로직)"""
+        log_data_debug(f"4-way random 분할 시작 - 전체: {len(df)}행", "TabularDataHandler")
 
         ratios = self._get_split_config()
         random_state = self._get_random_state()
@@ -155,6 +162,54 @@ class TabularDataHandler(BaseDataHandler):
             "validation": validation_df,
             "test": test_df,
             "calibration": calibration_df if calibration_ratio > 0 else None,
+        }
+
+    def _temporal_split(self, df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
+        """시간순 정렬 후 비율대로 순차 분할 (미래 데이터 누출 방지)"""
+        temporal_col = self.settings.recipe.data.split.temporal_column
+        if temporal_col not in df.columns:
+            raise ValueError(
+                f"temporal_column '{temporal_col}'이 데이터에 존재하지 않습니다. "
+                f"사용 가능한 컬럼: {list(df.columns)}"
+            )
+
+        ratios = self._get_split_config()
+        df_sorted = df.sort_values(temporal_col).reset_index(drop=True)
+        n = len(df_sorted)
+
+        train_end = int(n * ratios["train"])
+        val_end = int(n * (ratios["train"] + ratios["validation"]))
+
+        train_df = df_sorted.iloc[:train_end].copy()
+        validation_df = df_sorted.iloc[train_end:val_end].copy()
+
+        calibration_df = None
+        if ratios["calibration"] > 0:
+            test_end = int(n * (1 - ratios["calibration"]))
+            test_df = df_sorted.iloc[val_end:test_end].copy()
+            calibration_df = df_sorted.iloc[test_end:].copy()
+        else:
+            test_df = df_sorted.iloc[val_end:].copy()
+
+        def _period(sub: pd.DataFrame) -> str:
+            if sub.empty:
+                return "empty"
+            return f"{sub[temporal_col].iloc[0]} ~ {sub[temporal_col].iloc[-1]}"
+
+        log_data_debug(
+            f"temporal 분할 완료 ({temporal_col} 기준) - "
+            f"Train: {len(train_df)} ({_period(train_df)}), "
+            f"Val: {len(validation_df)} ({_period(validation_df)}), "
+            f"Test: {len(test_df)} ({_period(test_df)})"
+            + (f", Calib: {len(calibration_df)}" if calibration_df is not None else ""),
+            "TabularDataHandler",
+        )
+
+        return {
+            "train": train_df,
+            "validation": validation_df,
+            "test": test_df,
+            "calibration": calibration_df,
         }
 
     def _get_stratify_series(self, df: pd.DataFrame) -> pd.Series:

@@ -231,6 +231,35 @@ class BusinessValidator:
 
         return ValidationResult(is_valid=True)
 
+    def validate_split_strategy(self, recipe: Recipe) -> ValidationResult:
+        """Split 전략과 task_choice 조합 검증"""
+        strategy = getattr(recipe.data.split, "strategy", "random")
+        if strategy != "temporal":
+            return ValidationResult(is_valid=True)
+
+        task = recipe.task_choice.lower()
+        warnings = []
+
+        if task == "clustering":
+            warnings.append(
+                "clustering 태스크에 temporal 분할이 설정되었습니다. "
+                "비지도 학습에서는 시간 기반 분할의 의미가 다를 수 있습니다."
+            )
+
+        if task == "classification":
+            warnings.append(
+                "classification + temporal 분할: 시간 기반 분할은 stratification을 수행하지 않으므로 "
+                "기간별 클래스 분포가 다를 수 있습니다."
+            )
+
+        if task == "timeseries":
+            warnings.append(
+                "timeseries 태스크는 TimeseriesDataHandler가 자동으로 시간순 분할합니다. "
+                "split.strategy 설정은 무시됩니다."
+            )
+
+        return ValidationResult(is_valid=True, warnings=warnings)
+
     def validate_data_interface(self, recipe: Recipe) -> ValidationResult:
         """Task별 data_interface 필수 필드 검증"""
         task = recipe.task_choice.lower()

@@ -325,10 +325,17 @@ class SettingsBuilder:
         validation: float = 0.2,
         test: float = 0.2,
         calibration: float = 0.0,
+        strategy: str = "random",
+        temporal_column: str = None,
     ) -> "SettingsBuilder":
-        """Set data split ratios. Default: 60/20/20/0"""
+        """Set data split ratios and strategy. Default: 60/20/20/0, random."""
         self._data.split = DataSplit(
-            train=train, validation=validation, test=test, calibration=calibration
+            strategy=strategy,
+            temporal_column=temporal_column,
+            train=train,
+            validation=validation,
+            test=test,
+            calibration=calibration,
         )
         return self
 
