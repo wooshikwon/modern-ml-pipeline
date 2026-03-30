@@ -1,3 +1,22 @@
+"""배치 추론 파이프라인 — 학습된 모델로 새 데이터에 대해 예측을 실행한다.
+
+학습 파이프라인(train_pipeline)과의 핵심 차이:
+  - 모델을 새로 학습하지 않는다. MLflow에 저장된 기존 모델을 Run ID로 복원한다.
+  - 전처리·피처 증강·후처리가 PyfuncWrapper 안에 내장되어 있으므로,
+    predict() 한 번 호출이 전체 추론 파이프라인을 수행한다.
+
+흐름도:
+
+    CLI (inference_command.py)
+     └→ run_inference_pipeline()
+         ├── [1] Settings 복원 (MLflow artifact + override)
+         ├── [2] 모델 로드 (MLflow pyfunc — 전처리+모델+후처리 일체형)
+         ├── [3] 데이터 로딩
+         ├── [4] 예측 실행 + 결과 포맷팅
+         ├── [5] Monitoring: 드리프트 감지 (학습 시 baseline 대비)
+         └── [6] 결과 저장
+"""
+
 from datetime import datetime
 from types import SimpleNamespace
 from typing import Any, Dict, Optional
@@ -36,7 +55,9 @@ def run_inference_pipeline(
     console = Console()
     context_params = context_params or {}
 
-    # 설정 로드: SettingsFactory를 통해 Artifact 복원 + Override 처리
+    # [1] Settings 복원: MLflow artifact에서 학습 시 사용한 Recipe/Config를 복원한다.
+    #     recipe_path/config_path가 주어지면 해당 항목만 사용자 값으로 override한다.
+    #     이를 통해 학습 때와 동일한 전처리 설정을 보장하면서도 유연한 재설정이 가능하다.
     log_pipe("설정 로드 중")
     settings = SettingsFactory.for_inference(
         run_id=run_id,
@@ -62,7 +83,9 @@ def run_inference_pipeline(
         # Factory 생성
         factory = Factory(settings)
 
-        # 1. 모델 로드
+        # [2] 모델 로드: mlflow.pyfunc.load_model()은 PyfuncWrapper를 복원한다.
+        #     PyfuncWrapper 내부에 전처리기·피처 증강기·모델·후처리가 모두 포함되어 있어,
+        #     predict() 한 번 호출로 전체 추론 파이프라인이 실행된다.
         log_infer("모델 로드 시작")
         model_uri = f"runs:/{run_id}/model"
         with console.progress_tracker(
@@ -73,10 +96,12 @@ def run_inference_pipeline(
 
         log_infer(f"모델 로드 완료 - {model_uri}")
 
-        # 버전 호환성 체크 (모델 로드 성공 후 경고 표시)
+        # 학습 시와 추론 시의 패키지 버전이 다르면 경고를 출력한다.
+        # 버전 불일치(예: scikit-learn, pandas)는 예측 결과 오류의 흔한 원인이다.
         log_version_warnings(run_id)
 
-        # 2. 데이터 준비
+        # [3] 데이터 로딩: data_path가 있으면 해당 파일을 직접 로드하고,
+        #     없으면 학습 시 MLflow artifact로 저장한 SQL을 사용해 DB에서 조회한다.
         log_data("데이터 로드 시작")
         data_adapter = factory.create_data_adapter()
         df = load_inference_data(
@@ -92,10 +117,11 @@ def run_inference_pipeline(
         mlflow.log_metric("inference_input_rows", len(df))
         mlflow.log_metric("inference_input_columns", len(df.columns))
 
-        # 3. 예측 실행
+        # [4] 예측 실행 + 결과 포맷팅
         log_infer("모델 추론 시작")
         with console.progress_tracker("inference", 100, "Running model prediction") as update:
-            # run_mode="batch"로 Offline Store 사용
+            # run_mode="batch": Feature Store를 Offline Store 모드로 사용 (실시간 API 대신 배치 조회)
+            # return_dataframe=True: PyfuncWrapper가 ndarray 대신 DataFrame으로 결과를 반환
             predictions_result = model.predict(
                 df, params={"run_mode": "batch", "return_dataframe": True}
             )
@@ -104,21 +130,24 @@ def run_inference_pipeline(
             wrapped_model = model.unwrap_python_model()
             data_interface_schema = getattr(wrapped_model, "data_interface_schema", {}) or {}
 
-            # data_interface_schema를 사용하여 format
+            # 예측 결과에 원본 데이터의 식별 컬럼(entity_columns)을 합쳐 최종 출력 형태로 만든다.
             predictions_df = format_predictions(predictions_result, df, data_interface_schema)
             update(100)
 
         log_infer(f"추론 완료 - {len(predictions_df):,}개 예측 생성")
         mlflow.log_metric("inference_output_rows", len(predictions_df))
 
-        # 3.5 Monitoring: drift 평가 (monitoring 활성화 + baseline 존재 시)
+        # [5] Monitoring: 데이터 드리프트(data drift) 감지
+        #     학습 시 train_pipeline에서 저장한 baseline.json(학습 데이터의 분포 통계)을 로드하고,
+        #     현재 추론 데이터의 분포를 baseline과 비교하여 드리프트를 감지한다.
+        #     alert/warning 수준에 따라 로그를 출력하지만, 추론 자체를 중단하지는 않는다.
         monitors = factory.create_monitors()
         if monitors:
             import json
 
             from mmp.components.monitor.base import MonitorReport
 
-            # Baseline 로드 (없으면 건너뜀)
+            # 학습 Run의 artifact에서 baseline 통계를 다운로드한다. 없으면 모니터링을 건너뛴다.
             baseline = None
             try:
                 client = mlflow.tracking.MlflowClient()
@@ -128,7 +157,7 @@ def run_inference_pipeline(
             except Exception as e:
                 log_pipe(f"Monitoring baseline 없음 - 건너뜀: {e}")
 
-            # Drift 평가 (baseline 있을 때만)
+            # 각 모니터(예: PSI, KS-test 등)가 자신의 baseline과 현재 데이터를 비교하여 리포트를 생성한다.
             if baseline is not None:
                 combined = MonitorReport()
                 for monitor in monitors:
@@ -148,7 +177,8 @@ def run_inference_pipeline(
                 elif combined.status == "warning":
                     log_pipe(f"[MONITOR] warnings: {len(combined.alerts)}건")
 
-        # 4. 결과 저장
+        # [6] 결과 저장: Config의 output 설정에 따라 로컬/GCS/S3 등에 저장한다.
+        #     factory가 output 설정을 읽어 적절한 storage adapter를 생성한다.
         log_mlflow("결과 저장 시작")
         save_output(
             df=predictions_df,

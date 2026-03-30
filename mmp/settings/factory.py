@@ -1,4 +1,49 @@
-"""통합 Settings Factory - 모든 CLI 명령어의 Settings 생성 중앙화"""
+"""
+Settings Factory — 2-파일 설정 아키텍처의 조립 계층
+=====================================================
+
+MMP의 설정은 두 종류의 YAML 파일로 분리되어 있다:
+
+- **Recipe** ("무엇을 할 것인가")
+  모델 클래스, 하이퍼파라미터, 전처리 파이프라인, 평가 메트릭 등
+  ML 워크플로우 자체를 정의한다.
+
+- **Config** ("어디서/어떻게 할 것인가")
+  MLflow 서버 주소, DB 연결 정보, 출력 저장소 경로 등
+  실행 환경(인프라)을 정의한다.
+
+이 분리 덕분에 **같은 Recipe를 dev/staging/prod에서 Config만 교체하여 실행**할 수 있다.
+반대로, 같은 인프라 위에서 Recipe만 바꿔 다른 모델 실험을 돌릴 수도 있다.
+
+SettingsFactory는 CLI 명령어(train, batch-inference, serve-api)마다
+설정 로드 방식이 다른 문제를 해결한다:
+
+- **for_training**: Recipe + Config를 로컬 YAML 파일에서 직접 로드
+- **for_inference**: MLflow artifact에서 학습 당시 설정을 복원하되, 파일 override 허용
+- **for_serving**: Config는 현재 서빙 환경 것을 사용하고, Recipe만 MLflow에서 복원
+
+::
+
+    YAML 파일들                    MLflow Artifacts
+    ┌──────────┐ ┌──────────┐     ┌─────────────────┐
+    │ recipe.  │ │ config.  │     │ 학습 시 저장된     │
+    │ yaml     │ │ yaml     │     │ recipe + config │
+    └────┬─────┘ └────┬─────┘     └───────┬─────────┘
+         │            │                   │
+         └─────┬──────┘        ┌──────────┘
+               ▼               ▼
+        ┌─────────────────────────────┐
+        │   SettingsFactory           │
+        │   .for_training()           │
+        │   .for_inference()          │
+        │   .for_serving()            │
+        └─────────────┬───────────────┘
+                      ▼
+               Settings(config, recipe)
+                      │
+                      ▼
+             Factory → Pipeline 실행
+"""
 
 import os
 from datetime import datetime
@@ -18,7 +63,14 @@ from .validation import ValidationOrchestrator
 
 
 class Settings:
-    """통합 Settings 컨테이너"""
+    """
+    Recipe와 Config를 하나로 묶어 파이프라인에 전달하는 컨테이너.
+
+    모든 파이프라인 함수(run_train_pipeline, run_inference_pipeline 등)와
+    Factory 내부 메서드가 이 객체를 받아 동작한다.
+    파이프라인 코드는 settings.config로 인프라 정보를, settings.recipe로
+    ML 워크플로우 정보를 참조한다.
+    """
 
     def __init__(self, config: Config, recipe: Recipe):
         """
@@ -34,12 +86,20 @@ class Settings:
 
 
 class SettingsFactory:
-    """통합 Settings Factory - CLI 명령어별 Settings 생성"""
+    """
+    CLI 명령어별 Settings 생성 팩토리.
+
+    각 CLI 명령어(train, batch-inference, serve-api)마다 설정을 로드하는
+    소스와 순서가 다르다. for_training()은 로컬 파일만, for_inference()는
+    MLflow artifact + override, for_serving()은 로컬 Config + MLflow Recipe.
+    이 차이를 for_X() 팩토리 메서드 패턴으로 캡슐화한다.
+    """
 
     def __init__(self):
         """검증 시스템 초기화"""
         self.validator = ValidationOrchestrator()
 
+    # 학습은 항상 로컬 파일에서 시작하므로, Recipe/Config를 직접 로드한다.
     @classmethod
     def for_training(
         cls,
@@ -81,6 +141,7 @@ class SettingsFactory:
         factory._add_training_computed_fields(settings, recipe_path, context_params)
         return settings
 
+    # 서빙은 실시간 환경이므로, Config는 현재 환경 것을 사용하고 Recipe만 MLflow에서 복원한다.
     @classmethod
     def for_serving(cls, config_path: str, run_id: str) -> Settings:
         """
@@ -140,6 +201,7 @@ class SettingsFactory:
 
         return settings
 
+    # 추론은 학습 결과를 재현해야 하므로, 기본적으로 MLflow artifact에서 복원하되 override를 허용한다.
     @classmethod
     def for_inference(
         cls,
@@ -197,7 +259,13 @@ class SettingsFactory:
 
     # === 내부 유틸리티 메서드들 ===
     def _load_config(self, config_path: str) -> Config:
-        """Config 파일 로딩 및 환경변수 치환"""
+        """
+        Config 파일 로딩 및 환경변수 치환.
+
+        Config 로드 직후 MLflow tracking URI를 설정한다.
+        이 시점에 설정해야 이후 모든 MLflow API 호출(artifact 저장/복원,
+        메트릭 기록 등)이 올바른 MLflow 서버를 가리키게 된다.
+        """
         config_path = Path(config_path)
 
         if not config_path.exists():
@@ -283,7 +351,12 @@ class SettingsFactory:
             raise ValueError(f"Config 파싱 실패 ({config_path}): {str(e)}")
 
     def _load_recipe(self, recipe_path: str) -> Recipe:
-        """Recipe 파일 로딩 및 환경변수 치환"""
+        """
+        Recipe 파일 로딩 및 환경변수 치환.
+
+        편의 기능: 확장자 생략 시 .yaml/.yml 자동 추가,
+        상대 경로 지정 시 recipes/ 디렉토리에서 자동 탐색.
+        """
         recipe_path = Path(recipe_path)
 
         # 확장자 추가 (.yaml 또는 .yml)
@@ -345,7 +418,14 @@ class SettingsFactory:
     def _process_data_path(
         self, recipe: Recipe, data_path: str, context_params: Optional[Dict]
     ) -> None:
-        """데이터 경로 처리 (Jinja 템플릿 렌더링) - 학습/추론 공용"""
+        """
+        데이터 경로 처리 (Jinja 템플릿 렌더링) - 학습/추론 공용.
+
+        data_path가 .sql.j2 파일이면 Jinja 템플릿 엔진으로 렌더링한다.
+        Jinja 템플릿은 SQL 쿼리 안에 날짜 범위 등 변수를 삽입하기 위한
+        텍스트 치환 엔진이다. (예: WHERE date >= '{{ start_date }}')
+        렌더링된 결과(또는 원본 경로)를 recipe.data.loader.source_uri에 설정한다.
+        """
         if not data_path:
             return
 
