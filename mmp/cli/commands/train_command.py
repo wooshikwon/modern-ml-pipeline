@@ -20,6 +20,11 @@ from mmp.utils.core.logger import get_current_log_file, log_config, log_error, l
 logger = logging.getLogger(__name__)
 
 
+# 이 함수는 main_commands.py에서 app.command("train")으로 커맨드 등록된다.
+# 각 파라미터는 typer.Option 또는 typer.Argument로 CLI 입력 방식을 지정한다:
+#   - Option: 이름 붙여서 전달 (--recipe my.yaml, -r my.yaml)
+#   - Argument: 이름 없이 위치로 전달 (mmp train my.yaml)
+# Annotated[타입, typer.Option(...)]은 "타입 힌트 + CLI 메타데이터"를 한 곳에 묶는 문법이다.
 def train_command(
     recipe_path: Annotated[str, typer.Option("--recipe", "-r", help="Recipe 파일 경로")],
     config_path: Annotated[str, typer.Option("--config", "-c", help="Config 파일 경로")],

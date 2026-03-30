@@ -262,50 +262,6 @@ class SystemChecker:
                 message=f"Unknown adapter type: {adapter_type}",
             )
 
-    def check_adapter(self, adapter_name: str, adapter_config: Dict[str, Any]) -> CheckResult:
-        """
-        레거시 어댑터 체크 메서드 (하위 호환성).
-
-        Args:
-            adapter_name: 어댑터 이름
-            adapter_config: 어댑터 설정
-
-        Returns:
-            체크 결과
-        """
-        class_name = adapter_config.get("class_name", "")
-        config = adapter_config.get("config", {})
-
-        # SQL Adapter (PostgreSQL, BigQuery, etc.)
-        if "SqlAdapter" in class_name:
-            connection_uri = str(config.get("connection_uri", ""))
-            if "postgresql://" in connection_uri:
-                return self._check_postgresql(adapter_name, config)
-            elif "bigquery://" in connection_uri:
-                return self._check_bigquery(adapter_name, config)
-            else:
-                # Other SQL databases
-                return self._check_postgresql(adapter_name, config)
-
-        # Storage Adapter (Local Files)
-        elif "StorageAdapter" in class_name:
-            return self._check_storage(adapter_name, config)
-
-        # S3 Adapter
-        elif "S3Adapter" in class_name or "s3://" in str(config.get("base_path", "")):
-            return self._check_s3(adapter_name, config)
-
-        # GCS Adapter
-        elif "GCSAdapter" in class_name or "gs://" in str(config.get("base_path", "")):
-            return self._check_gcs(adapter_name, config)
-
-        else:
-            return CheckResult(
-                service=f"Adapter:{adapter_name}",
-                status=CheckStatus.SKIPPED,
-                message=f"Unknown adapter type: {class_name}",
-            )
-
     def _check_postgresql(self, source_name: str, config: Dict[str, Any]) -> CheckResult:
         """PostgreSQL 연결 체크."""
         connection_uri = expand_env_vars(config.get("connection_uri", ""))
