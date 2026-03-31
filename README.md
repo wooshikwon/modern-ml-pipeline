@@ -29,22 +29,24 @@ See [AGENT.md](AGENT.md) for machine-readable schema reference, validation rules
 #### 기본 설치
 
 ```bash
+uv tool install modern-ml-pipeline    # uv (권장)
 pip install modern-ml-pipeline        # pip
-pipx install modern-ml-pipeline       # pipx (CLI 전역 설치, 권장)
 ```
 
 #### 시나리오별 추가 설치
 
-기본 설치 후 필요한 extras를 추가합니다:
+기본 설치로 로컬 CSV + SQLite MLflow 학습이 가능합니다. 추가 기능은 extras로 설치합니다:
 
-| 시나리오 | pip | pipx inject |
-|----------|-----|-------------|
-| BigQuery/GCS/S3 | `pip install 'modern-ml-pipeline[cloud-extras]'` | `pipx inject modern-ml-pipeline 'modern-ml-pipeline[cloud-extras]' --force` |
-| LightGBM, CatBoost | `pip install 'modern-ml-pipeline[ml-extras]'` | `pipx inject modern-ml-pipeline 'modern-ml-pipeline[ml-extras]' --force` |
-| PyTorch (LSTM 등) | `pip install 'modern-ml-pipeline[torch-extras]'` | `pipx inject modern-ml-pipeline 'modern-ml-pipeline[torch-extras]' --force` |
-| 전체 기능 | `pip install 'modern-ml-pipeline[all]'` | `pipx inject modern-ml-pipeline 'modern-ml-pipeline[all]' --force` |
+| Extras | 포함 패키지 | 설치 |
+|--------|-----------|------|
+| `cloud` | BigQuery, GCS, S3, PostgreSQL | `pip install 'modern-ml-pipeline[cloud]'` |
+| `ml-extras` | LightGBM, CatBoost | `pip install 'modern-ml-pipeline[ml-extras]'` |
+| `torch-extras` | PyTorch, FT-Transformer | `pip install 'modern-ml-pipeline[torch-extras]'` |
+| `serving` | FastAPI, uvicorn (`mmp serve-api`) | `pip install 'modern-ml-pipeline[serving]'` |
+| `feature-store` | Feast, Redis | `pip install 'modern-ml-pipeline[feature-store]'` |
+| `all` | 위 전부 | `pip install 'modern-ml-pipeline[all]'` |
 
-상세 설치 옵션은 [환경 설정 가이드](./docs/user/ENVIRONMENT_SETUP.md)를 참고하세요.
+uv 사용 시: `uv tool install 'modern-ml-pipeline[ml-extras,cloud]'`
 
 
 ### 2. 프로젝트 생성
@@ -75,7 +77,7 @@ my-project/
 
 학습 데이터를 `data/` 디렉토리에 CSV 또는 SQL 파일로 준비합니다.
 
-> Task별 데이터 형식은 [Task 가이드](./docs/user/TASK_GUIDE.md)를 참고하세요.
+> Task별 데이터 형식은 [Task 가이드](./docs/task-and-models.md)를 참고하세요.
 
 ---
 
@@ -110,7 +112,7 @@ model:
   class_path: xgboost.XGBClassifier
 ```
 
-> 상세 옵션은 [Task 가이드](./docs/user/TASK_GUIDE.md), [설정 스키마](./docs/user/SETTINGS_SCHEMA.md)를 참고하세요.
+> 상세 옵션은 [Task 가이드](./docs/task-and-models.md)를 참고하세요.
 
 ---
 
@@ -145,7 +147,7 @@ CLI 명령어(`train`, `batch-inference`, `serve-api`)는 Config 파일명에서
 
 ### 4. 학습 및 실험
 
-Recipe 파일을 여러 개 만들어 다양한 모델과 하이퍼파라미터를 실험할 수 있습니다. MLflow가 설정되어 있다면 모든 실험 결과가 자동으로 기록되어 `mlflow ui` 명령어로 성능 비교가 가능합니다. 상세 설정은 [MLflow 가이드](./docs/user/MLFLOW_GUIDE.md)를 참고하세요.
+Recipe 파일을 여러 개 만들어 다양한 모델과 하이퍼파라미터를 실험할 수 있습니다. MLflow가 설정되어 있다면 모든 실험 결과가 자동으로 기록되어 `mlflow ui` 명령어로 성능 비교가 가능합니다. 상세 설정은 [시작 가이드](./docs/getting-started.md)를 참고하세요.
 
 #### 로컬 실행
 
@@ -205,7 +207,7 @@ curl -X POST http://localhost:8000/predict \
   -d '{"feature_1": 0.5, "feature_2": 100}'
 ```
 
-API 엔드포인트 상세는 [API 서빙 가이드](./docs/user/API_SERVING_GUIDE.md)를 참고하세요.
+API 엔드포인트 상세는 [서빙 및 배포 가이드](./docs/serving-and-deploy.md)를 참고하세요.
 
 
 ### 6. 배포 및 운영
@@ -226,7 +228,7 @@ docker push gcr.io/my-project/mmp:v1
 >
 > **MMP 범위 외**: CI/CD, k8s 매니페스트, ConfigMap은 각 조직에서 별도 구성
 
-상세 가이드는 [배포 및 운영 가이드](./docs/user/DEPLOYMENT_GUIDE.md)를 참고하세요.
+상세 가이드는 [서빙 및 배포 가이드](./docs/serving-and-deploy.md)를 참고하세요.
 
 
 ## 지원 Task
@@ -239,7 +241,7 @@ docker push gcr.io/my-project/mmp:v1
 | Clustering | 비지도 군집화 | 고객 세분화 |
 | Causal | 인과 추론 | 프로모션 효과 분석 |
 
-각 Task별 데이터 형식과 모델 설정은 [Task 가이드](./docs/user/TASK_GUIDE.md)를 참고하세요.
+각 Task별 데이터 형식과 모델 설정은 [Task 가이드](./docs/task-and-models.md)를 참고하세요.
 
 
 ## 지원 모델
@@ -262,23 +264,13 @@ mmp list metrics  # 사용 가능한 메트릭 목록
 
 ## 문서
 
-### 사용자 문서
-
-| 순서 | 문서 | 설명 |
-|------|------|------|
-| 1 | [환경 설정 가이드](./docs/user/ENVIRONMENT_SETUP.md) | 설치, DB 연결, Cloud 설정 |
-| 2 | [Task 가이드](./docs/user/TASK_GUIDE.md) | Task별 데이터 형식, 모델, Recipe 설정 |
-| 3 | [설정 스키마](./docs/user/SETTINGS_SCHEMA.md) | Config/Recipe YAML 작성법 |
-| 4 | [CLI 레퍼런스](./docs/user/CLI_REFERENCE.md) | 명령어 상세 옵션 |
-| 5 | [MLflow 가이드](./docs/user/MLFLOW_GUIDE.md) | 실험 추적, UI 설정 |
-| 6 | [API 서빙 가이드](./docs/user/API_SERVING_GUIDE.md) | REST API 서버 사용법 |
-| 7 | [배포 및 운영 가이드](./docs/user/DEPLOYMENT_GUIDE.md) | 이미지 빌드, CI/CD, 운영 설정 |
-| 8 | [전처리 레퍼런스](./docs/user/PREPROCESSOR_REFERENCE.md) | 전처리 상세 (선택) |
-| 9 | [로컬 개발 환경](./docs/user/LOCAL_DEV_ENVIRONMENT.md) | Docker 기반 로컬 개발 (선택) |
-
-### 개발자 문서
-
-시스템 확장이나 기여를 원하시면 [개발자 문서](./docs/developer/)를 참고하세요.
+| 문서 | 설명 |
+|------|------|
+| [시작 가이드](./docs/getting-started.md) | 설치 후 첫 학습까지 (Config, Recipe, MLflow) |
+| [Task 가이드](./docs/task-and-models.md) | Task별 데이터 형식, 모델, Recipe 설정 |
+| [CLI 레퍼런스](./docs/cli-reference.md) | 명령어 상세 옵션 |
+| [서빙 및 배포](./docs/serving-and-deploy.md) | REST API 서버, Docker, K8s 배포 |
+| [확장 가이드](./docs/extending.md) | 커스텀 모델·전처리기·어댑터 추가 방법 |
 
 
 ## 도움말
@@ -290,4 +282,4 @@ mmp train --help        # 특정 명령어 사용법
 
 ---
 
-**Version**: 1.2.1 | **License**: Apache 2.0 | **Python**: 3.10 - 3.13
+**License**: MIT | **Python**: 3.10 - 3.13

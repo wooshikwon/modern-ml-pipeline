@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "modern-ml-pipeline"
-version = "1.4.8"
+version = "1.5.0"
 description = "A modern, yaml-driven ML pipeline for multiple models."
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -111,11 +111,6 @@ serving = [
 feature-store = [
     "feast>=0.35.0",
     "redis>=6.2.0",
-]
-
-# 하위 호환: 기존 cloud-extras 사용자를 위한 별칭
-cloud-extras = [
-    "modern-ml-pipeline[cloud]",
 ]
 
 # Complete installation with all extras

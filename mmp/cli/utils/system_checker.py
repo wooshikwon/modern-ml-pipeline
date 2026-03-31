@@ -747,7 +747,7 @@ class SystemChecker:
                 import sqlalchemy_bigquery  # noqa: F401
             except ImportError:
                 missing_packages.append("sqlalchemy-bigquery")
-                extras_needed.append("cloud-extras")
+                extras_needed.append("cloud")
 
         # Output에서도 BigQuery 사용 여부 확인
         output_config = self.config.get("output", {})
@@ -762,8 +762,8 @@ class SystemChecker:
                     except ImportError:
                         if "sqlalchemy-bigquery" not in missing_packages:
                             missing_packages.append("sqlalchemy-bigquery")
-                            if "cloud-extras" not in extras_needed:
-                                extras_needed.append("cloud-extras")
+                            if "cloud" not in extras_needed:
+                                extras_needed.append("cloud")
 
         # Feature Store (Feast) 사용 여부 확인 (enabled 체크)
         fs_config = self.config.get("feature_store", {})

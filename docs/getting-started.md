@@ -79,7 +79,7 @@ mlflow:
 
 데이터를 CSV로 직접 전달하면 `data_source` 설정이 불필요합니다.
 
-**BigQuery** (`cloud-extras` 설치 필요)
+**BigQuery** (`cloud` 설치 필요)
 
 ```yaml
 data_source:
@@ -127,7 +127,7 @@ model:
   class_path: xgboost.XGBClassifier
 ```
 
-> Task별 데이터 형식과 모델 옵션은 [Task 가이드](./user/TASK_GUIDE.md)를, 전체 스키마는 [설정 스키마](./user/SETTINGS_SCHEMA.md)를 참고하세요.
+> Task별 데이터 형식과 모델 옵션은 [Task 가이드](./task-and-models.md)를 참고하세요.
 
 ---
 
@@ -222,9 +222,8 @@ mmp serve-api -c configs/dev.yaml --run-id <best_run_id>
 
 ## 다음 단계
 
-- [Task 가이드](./user/TASK_GUIDE.md) - Task별 데이터 형식과 모델 설정
-- [설정 스키마](./user/SETTINGS_SCHEMA.md) - Config/Recipe YAML 상세 옵션
-- [CLI 레퍼런스](./user/CLI_REFERENCE.md) - 명령어 상세 옵션
-- [MLflow 가이드](./user/MLFLOW_GUIDE.md) - 실험 추적 심화
-- [API 서빙 가이드](./user/API_SERVING_GUIDE.md) - REST API 서버 사용법
+- [Task 가이드](./task-and-models.md) — Task별 데이터 형식과 모델 설정
+- [CLI 레퍼런스](./cli-reference.md) — 명령어 상세 옵션
+- [서빙 및 배포](./serving-and-deploy.md) — REST API 서버, Docker, K8s
+- [확장 가이드](./extending.md) — 커스텀 모델·전처리기·어댑터 추가
 - 로컬 개발 환경(Docker 기반 MLflow, PostgreSQL, Redis)이 필요하면 [mmp-local-dev](https://github.com/wooshikwon/mmp-local-dev) 참조

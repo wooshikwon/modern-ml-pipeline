@@ -229,7 +229,7 @@ class SqlAdapter(BaseAdapter):
                 f"BigQuery 실행에 필요한 패키지가 설치되지 않았습니다.\n"
                 f"오류: {missing_pkg}\n\n"
                 f"해결 방법:\n"
-                f"  pip install 'modern-ml-pipeline[cloud-extras]'\n"
+                f"  pip install 'modern-ml-pipeline[cloud]'\n"
                 f"  또는: pip install google-cloud-bigquery db-dtypes"
             ) from e
 
@@ -244,7 +244,7 @@ class SqlAdapter(BaseAdapter):
                     f"BigQuery 결과 변환에 필요한 패키지가 설치되지 않았습니다.\n"
                     f"오류: {error_msg}\n\n"
                     f"해결 방법:\n"
-                    f"  pip install 'modern-ml-pipeline[cloud-extras]'\n"
+                    f"  pip install 'modern-ml-pipeline[cloud]'\n"
                     f"  또는: pip install db-dtypes"
                 ) from e
             else:

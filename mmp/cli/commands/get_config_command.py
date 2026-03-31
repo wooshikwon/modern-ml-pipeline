@@ -83,7 +83,7 @@ def _show_completion_message(
 
         cloud_sources = ["BigQuery", "GCS", "S3"]
         if data_source in cloud_sources or infer_output in cloud_sources:
-            extras_needed.append("cloud-extras")
+            extras_needed.append("cloud")
 
         if feature_store == "Feast":
             extras_needed.append("feature-store")

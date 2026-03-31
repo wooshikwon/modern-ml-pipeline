@@ -229,4 +229,4 @@ data_source:
 
 ---
 
-아키텍처 상세는 `docs/developer/ARCHITECTURE.md`, 컴포넌트별 가이드는 `docs/developer/COMPONENT_GUIDE.md`, 프로젝트 전체 구조는 `AGENT.md` 참조.
+프로젝트 전체 구조와 스키마 레퍼런스는 `AGENT.md` 참조.

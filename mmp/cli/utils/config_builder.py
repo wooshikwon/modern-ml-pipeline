@@ -80,7 +80,7 @@ class InteractiveConfigBuilder:
             "학습/추론에 사용할 데이터를 가져올 소스를 선택합니다."
         )
         self.ui.show_info(
-            "BigQuery, S3, GCS 사용 시 cloud-extras 설치 필요", newline_before=False
+            "BigQuery, S3, GCS 사용 시 cloud 설치 필요", newline_before=False
         )
         data_sources = ["PostgreSQL", "BigQuery", "Local Files", "S3", "GCS"]
 
@@ -220,7 +220,7 @@ class InteractiveConfigBuilder:
 
         if infer_enabled:
             self.ui.show_info(
-                "S3, GCS 사용 시 cloud-extras 설치 필요"
+                "S3, GCS 사용 시 cloud 설치 필요"
             )
             infer_source = self.ui.select_from_list(
                 "Inference Output 저장 위치:",

@@ -213,10 +213,10 @@ Dockerfile에서 필요한 extras를 조합한다.
 
 ```dockerfile
 # 클라우드 + Gradient Boosting (권장)
-RUN pip install ".[ml-extras,cloud-extras]"
+RUN pip install ".[ml-extras,cloud]"
 
 # 클라우드 + 딥러닝
-RUN pip install ".[cloud-extras,torch-extras]"
+RUN pip install ".[cloud,torch-extras]"
 ```
 
 ### 레지스트리 푸시
