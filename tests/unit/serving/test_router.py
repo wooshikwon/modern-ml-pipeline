@@ -11,7 +11,9 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-pytest.importorskip("fastapi", reason="fastapi not installed (serving extras)")
+pytest.importorskip(
+    "prometheus_fastapi_instrumentator", reason="serving extras not installed"
+)
 
 from fastapi.testclient import TestClient
 
