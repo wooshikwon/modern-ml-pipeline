@@ -2,12 +2,22 @@
 Unit tests for SystemChecker
 """
 
+import importlib
 from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
 
 from mmp.cli.utils.system_checker import CheckStatus, SystemChecker
+
+
+def _has_module(name: str) -> bool:
+    """모듈이 설치되어 있는지 확인한다."""
+    try:
+        importlib.import_module(name)
+        return True
+    except ImportError:
+        return False
 
 
 class TestSystemChecker:
@@ -110,6 +120,10 @@ class TestSystemChecker:
         assert result.status == CheckStatus.SUCCESS
         assert "PostgreSQL connection successful" in result.message
 
+    @pytest.mark.skipif(
+        not _has_module("google.cloud.bigquery"),
+        reason="google-cloud-bigquery not installed (cloud extras)",
+    )
     def test_check_data_source_bigquery(self, basic_config):
         """BigQuery 데이터 소스 체크 테스트."""
         basic_config["data_source"] = {
@@ -135,6 +149,9 @@ class TestSystemChecker:
         assert result.status == CheckStatus.SUCCESS
         assert "BigQuery project accessible" in result.message
 
+    @pytest.mark.skipif(
+        not _has_module("boto3"), reason="boto3 not installed (cloud extras)"
+    )
     def test_check_data_source_s3(self, basic_config):
         """S3 데이터 소스 체크 테스트."""
         basic_config["data_source"] = {
