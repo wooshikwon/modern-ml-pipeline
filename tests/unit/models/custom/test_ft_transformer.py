@@ -14,6 +14,8 @@ import pandas as pd
 import pytest
 from sklearn.preprocessing import OrdinalEncoder, StandardScaler
 
+pytest.importorskip("torch", reason="torch not installed (torch-extras)")
+
 from mmp.models.custom.ft_transformer import (
     FTTransformerClassifier,
     FTTransformerRegressor,

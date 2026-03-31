@@ -12,6 +12,8 @@ from unittest.mock import Mock
 import pandas as pd
 import pytest
 
+pytest.importorskip("fastapi", reason="fastapi not installed (serving extras)")
+
 from mmp.serving._context import app_context
 from mmp.serving.validators import validate_required_columns
 

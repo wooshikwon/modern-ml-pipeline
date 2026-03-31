@@ -8,6 +8,8 @@ from unittest.mock import Mock, patch
 import pytest
 from pydantic import BaseModel
 
+pytest.importorskip("fastapi", reason="fastapi not installed (serving extras)")
+
 from mmp.serving._context import app_context
 from mmp.serving._lifespan import lifespan, setup_api_context
 

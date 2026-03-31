@@ -9,6 +9,10 @@ Date: 2025-09-13
 
 from unittest.mock import Mock, patch
 
+import pytest
+
+pytest.importorskip("fastapi", reason="fastapi not installed (serving extras)")
+
 from fastapi.testclient import TestClient
 
 from mmp.serving._context import app_context
