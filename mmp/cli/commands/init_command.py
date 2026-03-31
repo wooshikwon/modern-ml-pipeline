@@ -122,3 +122,10 @@ def create_project_structure(project_path: Path) -> None:
 
     # 정적 파일 복사 (.gitignore는 템플릿 렌더링 불필요)
     template_engine.copy_static_file("project/.gitignore", project_path / ".gitignore")
+
+    # AGENT.md 복사 (AI/LLM 에이전트용 스키마 레퍼런스)
+    package_root = Path(__file__).parent.parent.parent.parent
+    agent_md = package_root / "AGENT.md"
+    if agent_md.exists():
+        import shutil
+        shutil.copy2(agent_md, project_path / "AGENT.md")

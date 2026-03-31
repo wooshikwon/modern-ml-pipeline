@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "modern-ml-pipeline"
-version = "1.4.5"
+version = "1.4.6"
 description = "A modern, yaml-driven ML pipeline for multiple models."
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -17,7 +17,7 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
-# Core dependencies - Essential for basic ML pipeline functionality
+# Core dependencies - 로컬 CSV/SQLite로 학습 가능한 최소 세트
 dependencies = [
     # CLI and Configuration
     "typer",
@@ -30,34 +30,21 @@ dependencies = [
     "scikit-learn",
     "xgboost>=1.7.0",
     "pyarrow",
+    # SQL (SQLite는 드라이버 내장, 추가 설치 불필요)
+    "sqlalchemy>=2.0.0",
     # ML Experiment Tracking
     "mlflow>=3,<4",
+    "httpx>=0.28.1",
     # Hyperparameter Tuning
     "optuna>=3.0.0",
     # Calibration (scipy for beta calibration)
     "scipy>=1.10.0",
-    # Model Interpretation
-    "shap>=0.41.0",
-    # API Serving
-    "fastapi",
-    "uvicorn[standard]",
-    "httpx>=0.28.1",
-    "prometheus-fastapi-instrumentator>=7.0.0",
     # Core utilities
     "setuptools>=68",
     "packaging>=24.2",
     "rich>=14.0.0",
     # ML Feature Engineering
-    "rtdl-revisiting-models>=0.0.2",
     "category-encoders>=2.8.1",
-    # Cloud Storage (GCS, S3, BigQuery)
-    "google-cloud-storage>=2.0.0",
-    "google-cloud-bigquery>=3.12.0",
-    "boto3>=1.20.0",
-    # Database
-    "sqlalchemy>=2.0.0",
-    "psycopg[binary]>=3.2.9",
-    "redis>=6.2.0",
 ]
 
 [project.optional-dependencies]
@@ -92,26 +79,48 @@ ml-extras = [
 # PyTorch for deep learning models (FT-Transformer, LSTM 등)
 torch-extras = [
     "torch>=2.0.0",
+    "rtdl-revisiting-models>=0.0.2",
 ]
 
-# Extended cloud integrations (filesystem abstractions for GCS/S3)
-cloud-extras = [
-    "gcsfs>=2025.5.1",
-    "s3fs>=2025.5.1",
-    "fsspec>=2024.0.0",
+# 원격 데이터 인프라 (BigQuery, S3, GCS, PostgreSQL)
+cloud = [
+    # GCP
+    "google-cloud-storage>=2.0.0",
+    "google-cloud-bigquery>=3.12.0",
     "google-cloud-bigquery-storage>=2.24.0",
+    "gcsfs>=2025.5.1",
     "db-dtypes>=1.0.0",
     "sqlalchemy-bigquery>=1.9.0",
+    # AWS
+    "boto3>=1.20.0",
+    "s3fs>=2025.5.1",
+    # Filesystem abstraction
+    "fsspec>=2024.0.0",
+    # PostgreSQL driver
+    "psycopg[binary]>=3.2.9",
+]
+
+# API 서빙 (mmp serve-api)
+serving = [
+    "fastapi",
+    "uvicorn[standard]",
+    "prometheus-fastapi-instrumentator>=7.0.0",
 ]
 
 # Feature Store integration
 feature-store = [
     "feast>=0.35.0",
+    "redis>=6.2.0",
+]
+
+# 하위 호환: 기존 cloud-extras 사용자를 위한 별칭
+cloud-extras = [
+    "modern-ml-pipeline[cloud]",
 ]
 
 # Complete installation with all extras
 all = [
-    "modern-ml-pipeline[ml-extras,torch-extras,cloud-extras,feature-store]",
+    "modern-ml-pipeline[ml-extras,torch-extras,cloud,serving,feature-store]",
 ]
 
 [project.urls]

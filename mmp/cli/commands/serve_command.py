@@ -11,7 +11,6 @@ from typing_extensions import Annotated
 from mmp.cli.utils import CLIProgress
 from mmp.cli.utils.env_loader import load_env_for_config
 from mmp.cli.utils.system_checker import CheckStatus, SystemChecker
-from mmp.serving import run_api_server
 from mmp.settings import SettingsFactory, __version__
 from mmp.utils.core.logger import get_current_log_file, log_error, log_sys
 
@@ -92,8 +91,10 @@ def serve_api_command(
         log_sys(f"Health Check: http://{host}:{port}/health")
         progress.step_done()
 
-        # API 서버 실행 (블로킹)
-        run_api_server(settings=settings, run_id=run_id, host=host, port=port)
+        # API 서버 실행 (블로킹) — serving.__init__의 lazy import로 이 시점에만 FastAPI 로드
+        import mmp.serving
+
+        mmp.serving.run_api_server(settings=settings, run_id=run_id, host=host, port=port)
 
     except typer.Exit:
         raise

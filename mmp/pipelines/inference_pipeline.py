@@ -137,48 +137,9 @@ def run_inference_pipeline(
         log_infer(f"추론 완료 - {len(predictions_df):,}개 예측 생성")
         mlflow.log_metric("inference_output_rows", len(predictions_df))
 
-        # [5] Monitoring: 데이터 드리프트(data drift) 감지
-        #     학습 시 train_pipeline에서 저장한 baseline.json(학습 데이터의 분포 통계)을 로드하고,
-        #     현재 추론 데이터의 분포를 baseline과 비교하여 드리프트를 감지한다.
-        #     alert/warning 수준에 따라 로그를 출력하지만, 추론 자체를 중단하지는 않는다.
-        monitors = factory.create_monitors()
-        if monitors:
-            import json
-
-            from mmp.components.monitor.base import MonitorReport
-
-            # 학습 Run의 artifact에서 baseline 통계를 다운로드한다. 없으면 모니터링을 건너뛴다.
-            baseline = None
-            try:
-                client = mlflow.tracking.MlflowClient()
-                baseline_path = client.download_artifacts(run_id, "monitoring/baseline.json")
-                with open(baseline_path) as f:
-                    baseline = json.load(f)
-            except Exception as e:
-                log_pipe(f"Monitoring baseline 없음 - 건너뜀: {e}")
-
-            # 각 모니터(예: PSI, KS-test 등)가 자신의 baseline과 현재 데이터를 비교하여 리포트를 생성한다.
-            if baseline is not None:
-                combined = MonitorReport()
-                for monitor in monitors:
-                    key = type(monitor).__name__
-                    monitor_baseline = baseline.get(key, {})
-                    report = monitor.evaluate(df, predictions_result, monitor_baseline)
-                    combined.merge(report)
-
-                for k, v in combined.metrics.items():
-                    mlflow.log_metric(f"monitor__{k}", v)
-                mlflow.log_dict(combined.to_dict(), "monitoring/report.json")
-
-                if combined.status == "alert":
-                    log_pipe(f"[MONITOR] ALERT: {len(combined.alerts)}건 감지")
-                    for alert in combined.alerts:
-                        log_pipe(f"  [{alert.severity}] {alert.message}")
-                elif combined.status == "warning":
-                    log_pipe(f"[MONITOR] warnings: {len(combined.alerts)}건")
-
-        # [6] 결과 저장: Config의 output 설정에 따라 로컬/GCS/S3 등에 저장한다.
+        # [5] 결과 저장: Config의 output 설정에 따라 로컬/GCS/S3 등에 저장한다.
         #     factory가 output 설정을 읽어 적절한 storage adapter를 생성한다.
+        #     Monitoring보다 먼저 실행하여, 모니터링 실패가 결과 저장을 막지 않도록 한다.
         log_mlflow("결과 저장 시작")
         save_output(
             df=predictions_df,
@@ -190,6 +151,56 @@ def run_inference_pipeline(
             additional_metadata={"model_run_id": run_id},
             output_path_override=output_path,
         )
+
+        # [6] Monitoring: 데이터 드리프트(data drift) 감지
+        #     학습 시 train_pipeline에서 저장한 baseline.json(학습 데이터의 분포 통계)을 로드하고,
+        #     현재 추론 데이터의 분포를 baseline과 비교하여 드리프트를 감지한다.
+        #     alert/warning 수준에 따라 로그를 출력하지만, 추론 자체를 중단하지는 않는다.
+        #
+        #     중요: baseline은 학습 파이프라인에서 전처리(preprocessor.transform) 후의 데이터로
+        #     계산된다. 따라서 evaluate()에도 전처리 후 데이터를 전달해야 한다.
+        #     PyfuncWrapper.predict()가 내부적으로 전처리를 수행하면서
+        #     _last_preprocessed_input에 저장한 데이터를 사용한다.
+        monitors = factory.create_monitors()
+        if monitors:
+            try:
+                import json
+
+                from mmp.components.monitor.base import MonitorReport
+
+                baseline = None
+                try:
+                    client = mlflow.tracking.MlflowClient()
+                    baseline_path = client.download_artifacts(run_id, "monitoring/baseline.json")
+                    with open(baseline_path) as f:
+                        baseline = json.load(f)
+                except Exception as e:
+                    log_pipe(f"Monitoring baseline 없음 - 건너뜀: {e}")
+
+                if baseline is not None:
+                    # PyfuncWrapper가 predict() 중 전처리한 데이터를 꺼낸다.
+                    # baseline이 전처리 후 데이터로 계산되었으므로, 동일한 상태의 데이터로 비교해야 한다.
+                    X_for_monitor = getattr(wrapped_model, "_last_preprocessed_input", df)
+
+                    combined = MonitorReport()
+                    for monitor in monitors:
+                        key = type(monitor).__name__
+                        monitor_baseline = baseline.get(key, {})
+                        report = monitor.evaluate(X_for_monitor, predictions_result, monitor_baseline)
+                        combined.merge(report)
+
+                    for k, v in combined.metrics.items():
+                        mlflow.log_metric(f"monitor__{k}", v)
+                    mlflow.log_dict(combined.to_dict(), "monitoring/report.json")
+
+                    if combined.status == "alert":
+                        log_pipe(f"[MONITOR] ALERT: {len(combined.alerts)}건 감지")
+                        for alert in combined.alerts:
+                            log_pipe(f"  [{alert.severity}] {alert.message}")
+                    elif combined.status == "warning":
+                        log_pipe(f"[MONITOR] warnings: {len(combined.alerts)}건")
+            except Exception as e:
+                log_pipe(f"[MONITOR] Monitoring 실패 (비치명적): {e}")
 
         log_pipe("========== 배치 추론 파이프라인 완료 ==========")
         return SimpleNamespace(

@@ -381,6 +381,11 @@ class PyfuncWrapper(mlflow.pyfunc.PythonModel):
             # 3. Preprocessor 변환 + 피처 정렬
             X = self._apply_preprocessing(X)
 
+            # Monitoring용: 전처리 후 데이터를 저장한다.
+            # inference_pipeline이 monitor.evaluate()에 이 데이터를 전달하여
+            # 학습 시 compute_baseline()과 동일한 인코딩 상태를 보장한다.
+            self._last_preprocessed_input = X
+
             # 전처리 후 유효한 인덱스 저장 (행 삭제가 있을 수 있음)
             valid_index = X.index
 

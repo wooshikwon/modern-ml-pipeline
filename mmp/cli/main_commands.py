@@ -56,6 +56,7 @@ from mmp.cli.commands.list_commands import (
 from mmp.cli.commands.serve_command import serve_api_command
 from mmp.cli.commands.system_check_command import system_check_command
 from mmp.cli.commands.train_command import train_command
+from mmp.cli.commands.validate_command import validate_command
 from mmp.utils.core.logger import setup_log_level
 
 # ASCII Art Banner (Simple version for terminal compatibility)
@@ -94,7 +95,10 @@ def _get_version() -> str:
 # 여기서는 앱 자체의 메타 설정(도움말 텍스트, 옵션 이름 등)만 정의하고,
 # 글로벌 옵션(--version, --quiet)은 아래 @app.callback()에서 처리한다.
 app = typer.Typer(
-    help="🚀 Modern ML Pipeline - Unified CLI Interface",
+    help=(
+        "🚀 Modern ML Pipeline - Unified CLI Interface\n\n"
+        "[dim]AI/LLM agents: Read AGENT.md for schema reference and working examples.[/dim]"
+    ),
     context_settings={"help_option_names": ["-h", "--help"]},
     no_args_is_help=True,
     rich_markup_mode="rich",
@@ -109,6 +113,7 @@ def version_callback(value: bool) -> None:
     if value:
         version = _get_version()
         typer.echo(f"modern-ml-pipeline {version}")
+        typer.echo("AI/LLM agents: Read AGENT.md for schema reference and working examples.")
         raise typer.Exit()
 
 
@@ -161,6 +166,7 @@ app.command("system-check", help="현재 config 파일 기반 시스템 연결 �
 
 # --- ML Pipeline ---
 
+app.command("validate", help="Recipe + Config 사전 검증 (학습 없이)")(validate_command)
 app.command("train", help="학습 파이프라인 실행")(train_command)
 app.command("batch-inference", help="배치 추론 실행")(batch_inference_command)
 app.command("serve-api", help="API 서버 실행")(serve_api_command)

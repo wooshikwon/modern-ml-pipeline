@@ -5,6 +5,11 @@ YAML 설정 기반의 머신러닝 파이프라인 CLI 도구입니다.
 코드를 수정하지 않고 **YAML 설정 파일**만으로 모델 학습부터 API 서빙까지 처리합니다. 프로젝트 생성(`mmp init`)부터 실험, Docker 이미지 빌드, 컨테이너 레지스트리(GCR/ECR) 푸시까지 일관된 워크플로우를 제공합니다.
 
 
+## For AI/LLM Agents
+
+See [AGENT.md](AGENT.md) for machine-readable schema reference, validation rules, and complete working examples. Run `mmp --help` for command overview.
+
+
 ## 주요 특징
 
 - **설정 기반 (Config-driven)**: YAML만으로 실험을 정의하고 환경 간 이식 가능
