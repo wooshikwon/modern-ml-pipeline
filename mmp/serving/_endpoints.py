@@ -28,12 +28,61 @@ from mmp.utils.data.data_io import format_predictions
 logger = logging.getLogger(__name__)
 
 
+def _to_python_native(val: Any) -> Any:
+    """numpy 스칼라를 Python 기본형으로 변환. 비-numpy 값은 그대로 반환."""
+    return val.item() if isinstance(val, np.generic) else val
+
+
+def _is_non_finite(val: Any) -> bool:
+    """숫자 값이 NaN 또는 Inf인지 확인."""
+    return isinstance(val, (int, float)) and not np.isfinite(val)
+
+
 def _get_data_interface_schema() -> dict:
     """data_interface_schema를 반환하는 공통 헬퍼. 캐시 우선."""
     if app_context.data_interface_schema:
         return app_context.data_interface_schema
     wrapped_model = app_context.model.unwrap_python_model()
     return getattr(wrapped_model, "data_interface_schema", {}) or {}
+
+
+def _metadata_columns(data_interface_schema: dict) -> set:
+    """data_interface 메타데이터(entity, timestamp, treatment) 컬럼 이름 집합."""
+    if not data_interface_schema:
+        return set()
+    cols: set = set()
+    entity_cols = data_interface_schema.get("entity_columns") or []
+    if isinstance(entity_cols, str):
+        entity_cols = [entity_cols]
+    cols.update(entity_cols)
+    ts_col = data_interface_schema.get("timestamp_column")
+    if ts_col:
+        cols.add(ts_col)
+    tr_col = data_interface_schema.get("treatment_column")
+    if tr_col:
+        cols.add(tr_col)
+    return cols
+
+
+def _strip_metadata_columns(
+    df: pd.DataFrame, data_interface_schema: dict
+) -> pd.DataFrame:
+    """예측 응답에서 메타데이터 컬럼을 제거한 view를 반환한다.
+
+    `format_predictions`는 모든 결과에 entity/timestamp/treatment 컬럼을 부착하지만,
+    단일 예측 응답의 `prediction` 필드는 *예측값 자체*만 담아야 한다. 메타데이터가
+    섞이면 단일 출력 모델이 다중 출력으로 잘못 분류된다.
+    모든 컬럼이 메타데이터인 비정상 케이스에서는 원본을 그대로 반환한다.
+    """
+    if df is None or getattr(df, "empty", True):
+        return df
+    metadata_cols = _metadata_columns(data_interface_schema)
+    if not metadata_cols:
+        return df
+    keep_cols = [c for c in df.columns if c not in metadata_cols]
+    if not keep_cols:
+        return df
+    return df[keep_cols]
 
 
 def _convert_to_signature_types(df: pd.DataFrame, model: Any) -> pd.DataFrame:
@@ -146,18 +195,19 @@ def predict_batch(request: Dict[str, Any]) -> BatchPredictionResponse:
     # format_predictions에 전체 schema 전달 (top-level에 모든 필드 포함)
     predictions_df = format_predictions(raw_predictions_df, input_df, data_interface_schema)
 
-    # JSON 직렬화 호환을 위해 numpy dtype → Python 기본형 변환 (컬럼 단위)
+    # JSON 직렬화 호환을 위해 numpy 스칼라 → Python 기본형 변환 (.item() 기반)
     for col in predictions_df.columns:
         if hasattr(predictions_df[col].dtype, "numpy_dtype") or predictions_df[col].dtype.kind in ("i", "f", "u"):
-            predictions_df[col] = predictions_df[col].astype(object)
+            predictions_df[col] = predictions_df[col].map(_to_python_native)
 
-    # 출력 값 유한성 검증: NaN/Inf 포함 시 422 반환
-    # 주요 예측 컬럼들 점검
-    if predictions_df.map(
-        lambda val: isinstance(val, (float, int)) and not np.isfinite(val)
-    ).any().any():
+    # 출력 값 유한성 검증: NaN/Inf 포함 시 위치 정보와 함께 422 반환
+    non_finite_mask = predictions_df.map(_is_non_finite)
+    if non_finite_mask.any().any():
+        bad_cols = [col for col in non_finite_mask.columns if non_finite_mask[col].any()]
+        bad_rows = sorted(non_finite_mask.any(axis=1)[lambda s: s].index.tolist())
         raise HTTPException(
-            status_code=422, detail="예측 결과에 비유한 값(NaN/Inf)이 포함되어 있습니다."
+            status_code=422,
+            detail=f"예측 결과에 비유한 값(NaN/Inf)이 포함되어 있습니다: rows={bad_rows[:10]}, columns={bad_cols}",
         )
 
     return BatchPredictionResponse(
@@ -299,24 +349,31 @@ def predict(request: Dict[str, Any]) -> Dict[str, Any]:
     # format_predictions에 전체 schema 전달 (top-level에 모든 필드 포함)
     predictions_df = format_predictions(raw_predictions_df, request_df, data_interface_schema)
 
-    # 최소 응답 스키마로 변환 (numpy 스칼라 → 파이썬 기본형)
-    if hasattr(predictions_df, "iloc") and "prediction" in predictions_df.columns:
-        value = predictions_df.iloc[0]["prediction"]
-    elif hasattr(predictions_df, "iloc") and predictions_df.shape[1] >= 1:
-        value = predictions_df.iloc[0, 0]
-    else:
-        value = None
+    # 메타데이터(entity/timestamp/treatment)를 제외한 순수 예측 컬럼만으로 분기 판단.
+    # 단일 출력 모델이 entity_id 부착 때문에 다중 출력으로 오분류되는 회귀를 막는다.
+    prediction_only_df = _strip_metadata_columns(predictions_df, data_interface_schema)
 
-    if isinstance(value, np.generic):
-        value = value.item()
+    # 예측 결과 추출: 다중 출력(quantile, multi-target 등)과 단일 출력을 모두 지원
+    if not hasattr(prediction_only_df, "iloc") or prediction_only_df.empty:
+        value = None
+    elif prediction_only_df.shape[1] > 1:
+        # 다중 출력: 모든 예측 컬럼을 dict로 반환 (메타데이터는 이미 제외됨)
+        row = prediction_only_df.iloc[0]
+        value = {col: _to_python_native(v) for col, v in row.items()}
+    elif "prediction" in prediction_only_df.columns:
+        value = _to_python_native(prediction_only_df.iloc[0]["prediction"])
+    else:
+        value = _to_python_native(prediction_only_df.iloc[0, 0])
 
     # 출력 유한성 검증: NaN/Inf이면 422
-    try:
-        if isinstance(value, (int, float)) and not np.isfinite(value):
-            raise HTTPException(status_code=422, detail="예측 결과가 비유한 값(NaN/Inf)입니다.")
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.debug(f"출력 유한성 검증 fallback (무시): {type(e).__name__}: {e}")
+    if isinstance(value, dict):
+        non_finite = [k for k, v in value.items() if _is_non_finite(v)]
+        if non_finite:
+            raise HTTPException(
+                status_code=422,
+                detail=f"예측 결과에 비유한 값(NaN/Inf)이 포함되어 있습니다: {non_finite}",
+            )
+    elif _is_non_finite(value):
+        raise HTTPException(status_code=422, detail="예측 결과가 비유한 값(NaN/Inf)입니다.")
 
     return {"prediction": value, "model_uri": app_context.model_uri}

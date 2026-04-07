@@ -9,6 +9,8 @@ Date: 2025-09-13
 
 from unittest.mock import Mock, patch
 
+import numpy as np
+import pandas as pd
 import pytest
 
 pytest.importorskip(
@@ -343,6 +345,42 @@ class TestPredictEndpoint:
                     app_context.model = original_model
                     app_context.settings = original_settings
 
+    def test_predict_endpoint_multi_output(self, component_test_context):
+        """다중 출력 모델(quantile, multi-target)에서 predict 엔드포인트가 dict를 반환하는지 테스트"""
+        with component_test_context.classification_stack() as ctx:
+            with TestClient(app) as client:
+                original_model = app_context.model
+                original_settings = app_context.settings
+
+                app_context.model = Mock()
+                app_context.settings = ctx.settings
+
+                try:
+                    with patch("mmp.serving.router.handlers.predict") as mock_predict:
+                        mock_predict.return_value = {
+                            "prediction": {
+                                "pred_p50": 38,
+                                "pred_p75": 52,
+                                "pred_p90": 65,
+                                "pred_p95": 78,
+                                "pred_p99": 98,
+                            },
+                            "model_uri": "runs:/test-run/model",
+                        }
+
+                        test_request = {"feature1": 1.0, "feature2": "test"}
+                        response = client.post("/predict", json=test_request)
+
+                        assert response.status_code == 200
+                        data = response.json()
+                        assert isinstance(data["prediction"], dict)
+                        assert data["prediction"]["pred_p50"] == 38
+                        assert data["prediction"]["pred_p99"] == 98
+
+                finally:
+                    app_context.model = original_model
+                    app_context.settings = original_settings
+
     def test_predict_endpoint_handler_exception(self, component_test_context):
         """Predict 엔드포인트 핸들러 예외 테스트"""
         with component_test_context.classification_stack() as ctx:
@@ -625,3 +663,413 @@ class TestMiddlewareConfiguration:
             middleware = TimeoutMiddleware(mock_app, timeout_seconds=60)
 
             assert middleware.timeout_seconds == 60
+
+
+class TestPredictEndpointLogic:
+    """_endpoints.predict() 핵심 로직 테스트 — DataFrame에서 값 추출, numpy 변환, 유한성 검증"""
+
+    def _run_predict(self, predictions_df):
+        """predict() 호출의 공통 설정. model.predict와 format_predictions를 mock하여
+        predictions_df를 직접 주입한다. 반환값은 predict()의 결과 dict."""
+        from mmp.serving import _endpoints as ep
+
+        mock_model = Mock()
+        mock_model.predict.return_value = predictions_df
+
+        original_model = app_context.model
+        original_settings = app_context.settings
+        original_uri = app_context.model_uri
+        original_req = getattr(app_context, "PredictionRequest", None)
+
+        app_context.model = mock_model
+        app_context.settings = Mock()
+        app_context.model_uri = "runs:/test/model"
+        app_context.PredictionRequest = lambda **kw: Mock()
+
+        try:
+            with (
+                patch.object(ep, "validate_scalar_values"),
+                patch.object(ep, "validate_numeric_types"),
+                patch.object(ep, "validate_required_columns"),
+                patch.object(ep, "_convert_to_signature_types", side_effect=lambda df, m: df),
+                patch.object(ep, "format_predictions", return_value=predictions_df),
+                patch.object(ep, "_get_data_interface_schema", return_value={}),
+            ):
+                return ep.predict({"feature1": 1.0})
+        finally:
+            app_context.model = original_model
+            app_context.settings = original_settings
+            app_context.model_uri = original_uri
+            if original_req is not None:
+                app_context.PredictionRequest = original_req
+
+    def test_multi_output_returns_dict(self, component_test_context):
+        """다중 컬럼 DataFrame → prediction이 dict로 반환되어야 함"""
+        with component_test_context.classification_stack():
+            df = pd.DataFrame({"pred_p50": [np.float64(38.0)], "pred_p90": [np.float64(65.0)]})
+            result = self._run_predict(df)
+
+            assert isinstance(result["prediction"], dict)
+            assert result["prediction"]["pred_p50"] == 38.0
+            assert result["prediction"]["pred_p90"] == 65.0
+
+    def test_multi_output_numpy_to_python(self, component_test_context):
+        """다중 출력에서 numpy 스칼라가 Python 기본형으로 변환되어야 함"""
+        with component_test_context.classification_stack():
+            df = pd.DataFrame({"a": [np.int64(42)], "b": [np.float64(3.14)]})
+            result = self._run_predict(df)
+
+            for v in result["prediction"].values():
+                assert not isinstance(v, np.generic), f"numpy 타입이 남아있음: {type(v)}"
+
+    def test_single_output_prediction_column(self, component_test_context):
+        """단일 'prediction' 컬럼 → 스칼라로 반환 (하위 호환)"""
+        with component_test_context.classification_stack():
+            df = pd.DataFrame({"prediction": [np.float64(0.85)]})
+            result = self._run_predict(df)
+
+            assert result["prediction"] == 0.85
+            assert not isinstance(result["prediction"], np.generic)
+
+    def test_single_output_unnamed_column(self, component_test_context):
+        """단일 비-'prediction' 컬럼 → 첫 번째 컬럼의 스칼라로 반환"""
+        with component_test_context.classification_stack():
+            df = pd.DataFrame({"score": [np.float64(0.92)]})
+            result = self._run_predict(df)
+
+            assert result["prediction"] == 0.92
+
+    def test_multi_output_nan_raises_422(self, component_test_context):
+        """다중 출력에서 NaN이 포함되면 422 에러 + 문제 컬럼명 포함"""
+        from fastapi import HTTPException
+
+        with component_test_context.classification_stack():
+            df = pd.DataFrame({"pred_p50": [38.0], "pred_p99": [float("nan")]})
+
+            with pytest.raises(HTTPException) as exc_info:
+                self._run_predict(df)
+            assert exc_info.value.status_code == 422
+            assert "pred_p99" in str(exc_info.value.detail)
+
+    def test_single_output_inf_raises_422(self, component_test_context):
+        """단일 출력에서 Inf이면 422 에러"""
+        from fastapi import HTTPException
+
+        with component_test_context.classification_stack():
+            df = pd.DataFrame({"prediction": [float("inf")]})
+
+            with pytest.raises(HTTPException) as exc_info:
+                self._run_predict(df)
+            assert exc_info.value.status_code == 422
+
+    def _run_predict_with_schema(self, predictions_df, data_interface_schema):
+        """data_interface_schema를 mock하면서 predict() 호출. 메타데이터 컬럼 처리 검증용."""
+        from mmp.serving import _endpoints as ep
+
+        mock_model = Mock()
+        mock_model.predict.return_value = predictions_df
+
+        original_model = app_context.model
+        original_settings = app_context.settings
+        original_uri = app_context.model_uri
+        original_req = getattr(app_context, "PredictionRequest", None)
+
+        app_context.model = mock_model
+        app_context.settings = Mock()
+        app_context.model_uri = "runs:/test/model"
+        app_context.PredictionRequest = lambda **kw: Mock()
+
+        try:
+            with (
+                patch.object(ep, "validate_scalar_values"),
+                patch.object(ep, "validate_numeric_types"),
+                patch.object(ep, "validate_required_columns"),
+                patch.object(ep, "_convert_to_signature_types", side_effect=lambda df, m: df),
+                patch.object(ep, "format_predictions", return_value=predictions_df),
+                patch.object(ep, "_get_data_interface_schema", return_value=data_interface_schema),
+            ):
+                return ep.predict({"feature1": 1.0})
+        finally:
+            app_context.model = original_model
+            app_context.settings = original_settings
+            app_context.model_uri = original_uri
+            if original_req is not None:
+                app_context.PredictionRequest = original_req
+
+    def test_single_output_with_entity_id_returns_scalar(self, component_test_context):
+        """단일 출력 + entity_id 메타데이터 부착 → 스칼라 반환 (회귀 방지).
+
+        이전에는 entity_id 부착 때문에 shape[1]==2가 되어 다중 출력 dict로 잘못 분류되었다.
+        """
+        with component_test_context.classification_stack():
+            df = pd.DataFrame({"prediction": [np.float64(1.0)], "entity_id": [42]})
+            schema = {"entity_columns": ["entity_id"], "task_type": "classification"}
+            result = self._run_predict_with_schema(df, schema)
+
+            assert isinstance(result["prediction"], (int, float))
+            assert result["prediction"] == 1.0
+
+    def test_multi_output_with_entity_id_excludes_metadata(self, component_test_context):
+        """다중 출력 + entity_id → dict이지만 entity_id는 제외되어야 함."""
+        with component_test_context.classification_stack():
+            df = pd.DataFrame(
+                {
+                    "pred_p50": [np.float64(38.0)],
+                    "pred_p90": [np.float64(65.0)],
+                    "entity_id": [7],
+                }
+            )
+            schema = {"entity_columns": ["entity_id"], "task_type": "regression"}
+            result = self._run_predict_with_schema(df, schema)
+
+            assert isinstance(result["prediction"], dict)
+            assert "entity_id" not in result["prediction"]
+            assert result["prediction"]["pred_p50"] == 38.0
+            assert result["prediction"]["pred_p90"] == 65.0
+
+    def test_single_output_with_timestamp_and_entity(self, component_test_context):
+        """단일 출력 + timestamp + entity 모두 제외되어야 함."""
+        with component_test_context.classification_stack():
+            df = pd.DataFrame(
+                {
+                    "prediction": [np.float64(0.73)],
+                    "entity_id": [99],
+                    "ts": [1234567890],
+                }
+            )
+            schema = {
+                "entity_columns": ["entity_id"],
+                "timestamp_column": "ts",
+                "task_type": "timeseries",
+            }
+            result = self._run_predict_with_schema(df, schema)
+
+            assert isinstance(result["prediction"], (int, float))
+            assert result["prediction"] == 0.73
+
+    def test_strip_metadata_handles_string_entity(self, component_test_context):
+        """entity_columns가 문자열(단수)로 주어진 경우도 올바르게 처리."""
+        with component_test_context.classification_stack():
+            df = pd.DataFrame({"prediction": [np.float64(0.5)], "user_id": ["u1"]})
+            schema = {"entity_columns": "user_id"}
+            result = self._run_predict_with_schema(df, schema)
+
+            assert isinstance(result["prediction"], (int, float))
+            assert result["prediction"] == 0.5
+
+    def test_strip_metadata_all_columns_metadata_falls_back(self, component_test_context):
+        """모든 컬럼이 메타데이터인 비정상 케이스 → 폴백으로 원본 반환."""
+        with component_test_context.classification_stack():
+            # 예측 컬럼 없이 entity만 있는 비정상 입력
+            df = pd.DataFrame({"entity_id": [42]})
+            schema = {"entity_columns": ["entity_id"]}
+            result = self._run_predict_with_schema(df, schema)
+
+            # 폴백이 동작해 entity_id를 첫 컬럼으로 추출
+            assert result["prediction"] == 42
+
+
+class TestPredictionErrorHandling:
+    """_handle_prediction_error의 타입 기반 매핑 검증"""
+
+    def test_mlflow_invalid_parameter_value_returns_422(self):
+        """MlflowException(INVALID_PARAMETER_VALUE) → 422"""
+        from mlflow.exceptions import MlflowException
+
+        from mmp.serving.router import _handle_prediction_error
+
+        exc = MlflowException.invalid_parameter_value("schema mismatch")
+        http_exc = _handle_prediction_error(exc, "단일 예측")
+
+        assert http_exc.status_code == 422
+        assert "schema mismatch" in str(http_exc.detail)
+
+    def test_mlflow_other_error_code_returns_500(self):
+        """MlflowException 중 클라이언트 입력이 아닌 코드 → 500"""
+        from mlflow.exceptions import MlflowException
+
+        from mmp.serving.router import _handle_prediction_error
+
+        # default error_code는 INTERNAL_ERROR
+        exc = MlflowException("upstream tracking server unavailable")
+        http_exc = _handle_prediction_error(exc, "단일 예측")
+
+        assert http_exc.status_code == 500
+
+    def test_unexpected_exception_returns_500(self):
+        """알 수 없는 예외 → 500 + 타입 정보 로깅"""
+        from mmp.serving.router import _handle_prediction_error
+
+        exc = RuntimeError("something broke")
+        http_exc = _handle_prediction_error(exc, "단일 예측")
+
+        assert http_exc.status_code == 500
+        assert "something broke" in str(http_exc.detail)
+
+    def test_predict_endpoint_mlflow_input_error_returns_422(self, component_test_context):
+        """MlflowException(클라이언트 입력)이 핸들러에서 raise되면 라우트가 422 반환"""
+        from mlflow.exceptions import MlflowException
+
+        with component_test_context.classification_stack() as ctx:
+            with TestClient(app) as client:
+                original_model = app_context.model
+                original_settings = app_context.settings
+
+                app_context.model = Mock()
+                app_context.settings = ctx.settings
+
+                try:
+                    with patch("mmp.serving.router.handlers.predict") as mock_predict:
+                        mock_predict.side_effect = MlflowException.invalid_parameter_value(
+                            "Failed to enforce schema"
+                        )
+
+                        response = client.post("/predict", json={"feature1": 1.0})
+
+                        assert response.status_code == 422
+                        data = response.json()
+                        assert "Failed to enforce schema" in data["detail"]
+                finally:
+                    app_context.model = original_model
+                    app_context.settings = original_settings
+
+
+class TestStructuredErrorResponse:
+    """구조화된 에러 응답 본문 검증"""
+
+    def test_error_response_includes_structured_fields(self, component_test_context):
+        """에러 응답에 detail/error_code/message가 모두 포함되어야 함 (additive 호환)"""
+        with component_test_context.classification_stack() as ctx:
+            with TestClient(app) as client:
+                original_model = app_context.model
+                original_settings = app_context.settings
+                app_context.model = None
+                app_context.settings = None
+
+                try:
+                    response = client.post("/predict", json={"feature1": 1.0})
+
+                    assert response.status_code == 503
+                    data = response.json()
+                    # 기존 컨벤션과의 하위 호환
+                    assert "detail" in data
+                    assert "모델이 준비되지 않았습니다" in data["detail"]
+                    # 신규 구조화 필드
+                    assert data["error_code"] == 503
+                    assert data["message"] == data["detail"]
+                finally:
+                    app_context.model = original_model
+                    app_context.settings = original_settings
+
+    def test_error_response_includes_request_id(self, component_test_context):
+        """X-Request-ID가 응답 본문에 포함되어야 함"""
+        with component_test_context.classification_stack() as ctx:
+            with TestClient(app) as client:
+                original_model = app_context.model
+                original_settings = app_context.settings
+                app_context.model = None
+                app_context.settings = None
+
+                try:
+                    custom_id = "trace-id-abc-123"
+                    response = client.post(
+                        "/predict",
+                        json={"feature1": 1.0},
+                        headers={"X-Request-ID": custom_id},
+                    )
+
+                    assert response.status_code == 503
+                    data = response.json()
+                    assert data.get("request_id") == custom_id
+                    # 응답 헤더에도 그대로 노출됨
+                    assert response.headers.get("X-Request-ID") == custom_id
+                finally:
+                    app_context.model = original_model
+                    app_context.settings = original_settings
+
+    def test_unhandled_exception_returns_500_with_error_type(self, component_test_context):
+        """라우트에서 잡지 못한 예외 → 글로벌 핸들러가 error_type 포함 500 반환.
+
+        /health는 try/except가 없으므로 handlers.health가 raise하면 글로벌
+        unhandled_exception_handler가 처리한다.
+        """
+        with component_test_context.classification_stack():
+            with TestClient(app, raise_server_exceptions=False) as client:
+                with patch("mmp.serving.router.handlers.health") as mock_health:
+                    mock_health.side_effect = RuntimeError("boom")
+
+                    response = client.get(
+                        "/health", headers={"X-Request-ID": "unhandled-1"}
+                    )
+
+                    assert response.status_code == 500
+                    data = response.json()
+                    assert data["error_code"] == 500
+                    assert data["error_type"] == "RuntimeError"
+                    assert data["request_id"] == "unhandled-1"
+                    assert "boom" in data["detail"]
+
+
+class TestRunAPIServerWorkers:
+    """run_api_server의 workers 설정 분기 검증"""
+
+    def teardown_method(self):
+        for attr in ("run_id", "settings"):
+            if hasattr(app.state, attr):
+                delattr(app.state, attr)
+
+    def test_single_worker_uses_app_object(self, component_test_context):
+        """workers=1 → uvicorn.run에 app 객체 전달 (기존 동작 보존)"""
+        with component_test_context.classification_stack():
+            mock_settings = Mock()
+            mock_settings.config = Mock()
+            mock_settings.config.serving = Mock()
+            mock_settings.config.serving.enabled = True
+            mock_settings.config.serving.workers = 1
+
+            with (
+                patch("mmp.serving.router.uvicorn.run") as mock_run,
+                patch("mmp.serving.router._configure_middlewares"),
+            ):
+                run_api_server(mock_settings, "test-run", host="127.0.0.1", port=8000)
+
+                mock_run.assert_called_once_with(app, host="127.0.0.1", port=8000)
+
+    def test_multi_worker_uses_import_string(self, component_test_context):
+        """workers>1 → uvicorn.run에 import string + workers 전달"""
+        with component_test_context.classification_stack():
+            mock_settings = Mock()
+            mock_settings.config = Mock()
+            mock_settings.config.serving = Mock()
+            mock_settings.config.serving.enabled = True
+            mock_settings.config.serving.workers = 4
+
+            with (
+                patch("mmp.serving.router.uvicorn.run") as mock_run,
+                patch("mmp.serving.router._configure_middlewares"),
+            ):
+                run_api_server(mock_settings, "test-run", host="0.0.0.0", port=8000)
+
+                mock_run.assert_called_once_with(
+                    "mmp.serving.router:app",
+                    host="0.0.0.0",
+                    port=8000,
+                    workers=4,
+                )
+
+    def test_invalid_workers_falls_back_to_single(self, component_test_context):
+        """workers가 정수가 아니거나 < 1이면 1로 폴백"""
+        with component_test_context.classification_stack():
+            mock_settings = Mock()
+            mock_settings.config = Mock()
+            mock_settings.config.serving = Mock()
+            mock_settings.config.serving.enabled = True
+            mock_settings.config.serving.workers = "invalid"
+
+            with (
+                patch("mmp.serving.router.uvicorn.run") as mock_run,
+                patch("mmp.serving.router._configure_middlewares"),
+            ):
+                run_api_server(mock_settings, "test-run", host="127.0.0.1", port=8000)
+
+                mock_run.assert_called_once_with(app, host="127.0.0.1", port=8000)

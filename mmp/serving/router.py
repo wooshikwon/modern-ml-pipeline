@@ -1,11 +1,12 @@
 import asyncio
 import uuid
 from importlib.metadata import version as get_pkg_version
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from mlflow.exceptions import MlflowException
 from prometheus_fastapi_instrumentator import Instrumentator
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
@@ -99,6 +100,36 @@ _instrumentator = Instrumentator(
 _instrumentator.instrument(app)
 
 
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+    """모든 HTTPException을 구조화된 형태로 변환한다.
+
+    `detail`은 보존되고 `error_code`/`message`/`request_id`가 추가된다.
+    """
+    request_id = request.headers.get("X-Request-ID")
+    body = _build_error_body(
+        status_code=exc.status_code,
+        detail=str(exc.detail) if exc.detail is not None else "",
+        request_id=request_id,
+    )
+    headers = getattr(exc, "headers", None)
+    return JSONResponse(status_code=exc.status_code, content=body, headers=headers)
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """라우트에서 잡히지 않은 예외에 대한 마지막 안전망. 항상 500을 반환한다."""
+    log_error(f"Unhandled exception: {type(exc).__name__}: {exc}", "API")
+    request_id = request.headers.get("X-Request-ID")
+    body = _build_error_body(
+        status_code=500,
+        detail=str(exc),
+        error_type=type(exc).__name__,
+        request_id=request_id,
+    )
+    return JSONResponse(status_code=500, content=body)
+
+
 @app.get("/", tags=["General"])
 def root() -> Dict[str, str]:
     return {
@@ -132,66 +163,93 @@ def ready_check() -> ReadyCheckResponse:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/predict", response_model=MinimalPredictionResponse, tags=["Prediction"])
-def predict_generic(request: Dict[str, Any]) -> MinimalPredictionResponse:
+# MlflowException error_code 중 클라이언트 입력 문제로 분류할 코드들.
+# MLflow가 raise한 메시지 텍스트가 아닌 안정적인 error_code 식별자로 매칭한다.
+_MLFLOW_CLIENT_ERROR_CODES = frozenset(
+    {
+        "INVALID_PARAMETER_VALUE",
+        "BAD_REQUEST",
+        "INVALID_STATE",
+    }
+)
+
+
+def _handle_prediction_error(e: Exception, log_prefix: str) -> HTTPException:
+    """prediction 엔드포인트 공통 에러 매핑.
+
+    예외 타입(MlflowException, ValueError 등)으로 분기한다. 키워드 매칭은 사용하지 않는다.
+    - MlflowException(클라이언트 입력 문제) → 422
+    - 기타 MlflowException → 500 (로그 후)
+    - 그 외 예상치 못한 예외 → 500 (로그 후)
+    """
+    if isinstance(e, MlflowException):
+        error_code = getattr(e, "error_code", None)
+        if error_code in _MLFLOW_CLIENT_ERROR_CODES:
+            return HTTPException(status_code=422, detail=str(e))
+        log_error(
+            f"{log_prefix} 중 MLflow 오류 (error_code={error_code}): {e}", "API"
+        )
+        return HTTPException(status_code=500, detail=str(e))
+
+    log_error(f"{log_prefix} 중 오류 발생: {type(e).__name__}: {e}", "API")
+    return HTTPException(status_code=500, detail=str(e))
+
+
+def _build_error_body(
+    status_code: int,
+    detail: str,
+    error_type: Optional[str] = None,
+    request_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """에러 응답 본문을 통일된 형태로 빌드한다.
+
+    `detail`은 FastAPI 기본 컨벤션과 호환되도록 유지하고, 추가 필드를 덧붙인다.
+    클라이언트는 `error_code`(HTTP status)로 분류하고, `error_type`으로 원인을 식별할 수 있다.
+    """
+    body: Dict[str, Any] = {
+        "detail": detail,
+        "error_code": status_code,
+        "message": detail,
+    }
+    if error_type:
+        body["error_type"] = error_type
+    if request_id:
+        body["request_id"] = request_id
+    return body
+
+
+def _check_model_ready() -> None:
+    """모델과 설정이 준비되지 않았으면 503을 발생시킨다."""
     if not app_context.model or not app_context.settings:
         raise HTTPException(status_code=503, detail="모델이 준비되지 않았습니다.")
+
+
+@app.post("/predict", response_model=MinimalPredictionResponse, tags=["Prediction"])
+def predict_generic(request: Dict[str, Any]) -> MinimalPredictionResponse:
+    _check_model_ready()
     try:
-        # Data Interface 기반 API 엔드포인트는 모든 fetcher 타입을 지원
-        # target, entity, timestamp columns을 제외한 feature columns로 API 생성되므로
-        # pass_through fetcher도 문제없이 작동
         prediction_result = handlers.predict(request)
         return MinimalPredictionResponse(**prediction_result)
-    except HTTPException as he:
-        # 정책 위반 등은 원래 상태코드로 전달
-        raise he
+    except HTTPException:
+        raise
     except ValueError as ve:
-        # 입력 형식 오류 등은 422로 변환
         raise HTTPException(status_code=422, detail=str(ve))
     except Exception as e:
-        # MLflow 입력 스키마 위반 메시지 검사 → 422로 매핑
-        msg = str(e)
-        lower = msg.lower()
-        if any(
-            k in lower
-            for k in [
-                "failed to enforce schema",
-                "missing inputs",
-                "failed to convert column",
-                "invalid parameter value",
-            ]
-        ):
-            raise HTTPException(status_code=422, detail=msg)
-        log_error(f"단일 예측 중 오류 발생: {e}", "API")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _handle_prediction_error(e, "단일 예측")
 
 
 @app.post("/predict/batch", response_model=BatchPredictionResponse, tags=["Prediction"])
 def predict_batch(request: Dict[str, Any]) -> BatchPredictionResponse:
     """배치 예측 엔드포인트 - 여러 샘플을 한 번에 예측합니다."""
-    if not app_context.model or not app_context.settings:
-        raise HTTPException(status_code=503, detail="모델이 준비되지 않았습니다.")
+    _check_model_ready()
     try:
         return handlers.predict_batch(request)
-    except HTTPException as he:
-        raise he
+    except HTTPException:
+        raise
     except ValueError as ve:
         raise HTTPException(status_code=422, detail=str(ve))
     except Exception as e:
-        msg = str(e)
-        lower = msg.lower()
-        if any(
-            k in lower
-            for k in [
-                "failed to enforce schema",
-                "missing inputs",
-                "failed to convert column",
-                "invalid parameter value",
-            ]
-        ):
-            raise HTTPException(status_code=422, detail=msg)
-        log_error(f"배치 예측 중 오류 발생: {e}", "API")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _handle_prediction_error(e, "배치 예측")
 
 
 # 모델 메타데이터 자기 기술 엔드포인트들
@@ -301,4 +359,23 @@ def run_api_server(settings: Settings, run_id: str, host: str = "0.0.0.0", port:
     # 설정 기반 미들웨어 구성
     _configure_middlewares(settings)
 
-    uvicorn.run(app, host=host, port=port)
+    # workers 설정 추출. config.serving.workers가 정수 ≥ 1일 때만 사용.
+    # (Mock 등 비정상 값을 안전하게 무시)
+    serving_cfg = getattr(getattr(settings, "config", None), "serving", None)
+    workers = 1
+    if serving_cfg is not None:
+        cfg_workers = getattr(serving_cfg, "workers", 1)
+        if isinstance(cfg_workers, int) and cfg_workers >= 1:
+            workers = cfg_workers
+
+    if workers > 1:
+        # 다중 워커 모드는 import string이 필요하다 (uvicorn이 fork 후 재import)
+        log_api(f"다중 워커 모드로 시작: workers={workers}")
+        uvicorn.run(
+            "mmp.serving.router:app",
+            host=host,
+            port=port,
+            workers=workers,
+        )
+    else:
+        uvicorn.run(app, host=host, port=port)
