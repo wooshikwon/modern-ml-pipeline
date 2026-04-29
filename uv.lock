@@ -2448,7 +2448,7 @@ wheels = [
 
 [[package]]
 name = "modern-ml-pipeline"
-version = "1.4.5"
+version = "1.5.0"
 source = { editable = "." }
 dependencies = [
     { name = "category-encoders" },
@@ -2496,18 +2496,6 @@ all = [
     { name = "uvicorn", extra = ["standard"] },
 ]
 cloud = [
-    { name = "boto3" },
-    { name = "db-dtypes" },
-    { name = "fsspec" },
-    { name = "gcsfs" },
-    { name = "google-cloud-bigquery" },
-    { name = "google-cloud-bigquery-storage" },
-    { name = "google-cloud-storage" },
-    { name = "psycopg", extra = ["binary"] },
-    { name = "s3fs" },
-    { name = "sqlalchemy-bigquery" },
-]
-cloud-extras = [
     { name = "boto3" },
     { name = "db-dtypes" },
     { name = "fsspec" },
@@ -2592,7 +2580,6 @@ requires-dist = [
     { name = "lightgbm", marker = "extra == 'ml-extras'", specifier = ">=4.1.0" },
     { name = "llvmlite", marker = "extra == 'ml-extras'", specifier = ">=0.41.1" },
     { name = "mlflow", specifier = ">=3,<4" },
-    { name = "modern-ml-pipeline", extras = ["cloud"], marker = "extra == 'cloud-extras'" },
     { name = "modern-ml-pipeline", extras = ["ml-extras", "torch-extras", "cloud", "serving", "feature-store"], marker = "extra == 'all'" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.8.0" },
     { name = "numba", marker = "extra == 'ml-extras'", specifier = ">=0.58.1" },
@@ -2628,7 +2615,7 @@ requires-dist = [
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'serving'" },
     { name = "xgboost", specifier = ">=1.7.0" },
 ]
-provides-extras = ["dev", "ml-extras", "torch-extras", "cloud", "serving", "feature-store", "cloud-extras", "all"]
+provides-extras = ["dev", "ml-extras", "torch-extras", "cloud", "serving", "feature-store", "all"]
 
 [package.metadata.requires-dev]
 dev = [
